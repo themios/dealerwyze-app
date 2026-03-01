@@ -5,8 +5,10 @@ import { requireProfile } from '@/lib/auth/profile'
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
+
   let profile: Awaited<ReturnType<typeof requireProfile>>
   try {
     profile = await requireProfile()
@@ -24,7 +26,7 @@ export async function POST(
   const { data: row } = await supabase
     .from('gbp_reviews')
     .select('review_id')
-    .eq('id', params.id)
+    .eq('id', id)
     .eq('org_id', profile.org_id)
     .maybeSingle()
 
@@ -36,7 +38,7 @@ export async function POST(
   const { error: updateError } = await supabase
     .from('gbp_reviews')
     .update({ reply_comment: reply, reply_time: new Date().toISOString() })
-    .eq('id', params.id)
+    .eq('id', id)
 
   if (updateError) {
     console.error('[reviews/reply] DB update failed after GBP post:', updateError)
