@@ -1,0 +1,155 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { requireProfile } from '@/lib/auth/profile'
+import { checkQuota, incrementUsage } from '@/lib/sms/quota'
+import { checkRateLimit } from '@/lib/sms/rateLimit'
+import { transitionThreadState } from '@/lib/sms/threadState'
+
+/**
+ * POST /api/sms/send
+ * Body: { to: string, body: string, customer_id: string, vehicle_id?: string, is_mms?: boolean }
+ */
+export async function POST(req: NextRequest) {
+  const profile = await requireProfile()
+  const supabase = await createClient()
+  const orgId = profile.org_id
+
+  const { to, body, customer_id, vehicle_id, is_mms = false } = await req.json()
+
+  if (!to || !body) {
+    return NextResponse.json({ error: 'to and body are required' }, { status: 400 })
+  }
+
+  // TCPA: check opt-out
+  if (customer_id) {
+    const { data: customerRow } = await supabase
+      .from('customers')
+      .select('sms_opt_out')
+      .eq('id', customer_id)
+      .single()
+    if (customerRow?.sms_opt_out) {
+      return NextResponse.json(
+        { error: 'This customer has opted out of SMS messages (STOP). Cannot send.' },
+        { status: 403 }
+      )
+    }
+  }
+
+  // Abuse: rate limit (50 msgs/min per org)
+  const rateLimit = await checkRateLimit(orgId)
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: `Rate limit exceeded: ${rateLimit.count} messages sent in the last minute (max 50). Try again shortly.` },
+      { status: 429 }
+    )
+  }
+
+  // Quota check
+  const quota = await checkQuota(orgId, is_mms)
+  if (!quota.allowed) {
+    return NextResponse.json({ error: quota.reason ?? 'Quota exceeded' }, { status: 402 })
+  }
+
+  const accountSid          = process.env.TWILIO_ACCOUNT_SID
+  const authToken           = process.env.TWILIO_AUTH_TOKEN
+  const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID
+
+  if (!accountSid || !authToken) {
+    return NextResponse.json({ error: 'Twilio not configured.' }, { status: 503 })
+  }
+
+  // Use org's provisioned number if available, else fall back to env var
+  const { data: orgSettings } = await supabase
+    .from('org_settings')
+    .select('twilio_phone_number')
+    .eq('org_id', orgId)
+    .maybeSingle()
+
+  const fromNumber = orgSettings?.twilio_phone_number ?? process.env.TWILIO_FROM_NUMBER
+
+  if (!fromNumber && !messagingServiceSid) {
+    return NextResponse.json({ error: 'No SMS number configured for this org.' }, { status: 503 })
+  }
+
+  const digits      = to.replace(/\D/g, '')
+  const formattedTo = digits.length === 10 ? `+1${digits}` : `+${digits}`
+
+  const twilioParams: Record<string, string> = { To: formattedTo, Body: body }
+  if (messagingServiceSid) twilioParams.MessagingServiceSid = messagingServiceSid
+  else twilioParams.From = fromNumber!
+
+  const twilioRes = await fetch(
+    `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams(twilioParams),
+    }
+  )
+
+  const twilioData = await twilioRes.json()
+
+  if (!twilioRes.ok) {
+    return NextResponse.json(
+      { error: twilioData.message || 'Twilio error', code: twilioData.code },
+      { status: twilioRes.status }
+    )
+  }
+
+  // Log activity
+  await supabase.from('activities').insert({
+    user_id: orgId,
+    type: 'sms',
+    direction: 'outbound',
+    customer_id: customer_id || null,
+    vehicle_id: vehicle_id || null,
+    body,
+    priority: 'normal',
+    external_id: twilioData.sid || null,
+    completed_at: new Date().toISOString(),
+  })
+
+  // Increment usage counter (fire and forget)
+  incrementUsage(orgId, is_mms).catch(() => {})
+
+  // Stamp first_response_at if this is the first outbound contact.
+  // Fetches created_at first, then updates atomically with WHERE first_response_at IS NULL
+  // so concurrent sends can't overwrite each other.
+  if (customer_id) {
+    const { data: cust } = await supabase
+      .from('customers')
+      .select('created_at')
+      .eq('id', customer_id)
+      .single()
+
+    if (cust) {
+      const secs = Math.max(0, Math.round(
+        (Date.now() - new Date(cust.created_at).getTime()) / 1000
+      ))
+      await supabase
+        .from('customers')
+        .update({ first_response_at: new Date().toISOString(), response_time_seconds: secs })
+        .eq('id', customer_id)
+        .is('first_response_at', null)  // atomic: no-op if already stamped
+    }
+  }
+
+  // Thread state transition
+  if (customer_id) {
+    transitionThreadState(customer_id, 'outbound_sent').catch(() => {})
+  }
+
+  // Warn if approaching quota
+  const warnings: string[] = []
+  if (quota.warning_level === 'hard') warnings.push(`Warning: you have used ${quota.current_count}/${quota.quota} messages this month (95%).`)
+  else if (quota.warning_level === 'soft') warnings.push(`Note: you have used ${quota.current_count}/${quota.quota} messages this month (80%).`)
+
+  return NextResponse.json({
+    success: true,
+    sid: twilioData.sid,
+    ...(warnings.length > 0 ? { warning: warnings[0] } : {}),
+  })
+}
