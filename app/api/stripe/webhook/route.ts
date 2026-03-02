@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { stripe, tierFromPriceId, PLAN_QUOTA } from '@/lib/stripe'
+import { stripe, tierFromPriceId, smsTierFromPriceId, PLAN_QUOTA, SMS_TIER_QUOTA } from '@/lib/stripe'
 import { createServiceClient } from '@/lib/supabase/service'
 import Stripe from 'stripe'
 
@@ -24,16 +24,24 @@ export async function POST(req: NextRequest) {
       if (!orgId || !session.subscription) break
 
       const sub = sub0
-      const priceId = sub.items.data[0].price.id
-      const tier = tierFromPriceId(priceId)
+      // Find CRM base price and optional SMS add-on price from line items
+      let crmPriceId = sub.items.data[0].price.id
+      let smsPriceId: string | undefined
+      for (const item of sub.items.data) {
+        const st = smsTierFromPriceId(item.price.id)
+        if (st) { smsPriceId = item.price.id } else { crmPriceId = item.price.id }
+      }
+      const tier = tierFromPriceId(crmPriceId)
+      const smsTier = smsPriceId ? smsTierFromPriceId(smsPriceId) : null
+      const smsQuota = smsTier ? SMS_TIER_QUOTA[smsTier] : PLAN_QUOTA[tier]
 
       await supabase.from('organizations').update({
         stripe_subscription_id: sub.id,
-        stripe_price_id: priceId,
+        stripe_price_id: crmPriceId,
         subscription_status: sub.status,
         plan: 'active',
-        sms_plan: tier,
-        sms_quota: PLAN_QUOTA[tier],
+        sms_plan: smsTier ?? tier,
+        sms_quota: smsQuota,
         current_period_end: (sub as unknown as { current_period_end?: number }).current_period_end
           ? new Date(((sub as unknown as { current_period_end: number }).current_period_end) * 1000).toISOString()
           : null,
@@ -49,9 +57,18 @@ export async function POST(req: NextRequest) {
       const orgId = sub.metadata?.org_id
       if (!orgId) break
 
-      const priceId = sub.items.data[0]?.price?.id
-      const tier = priceId ? tierFromPriceId(priceId) : undefined
-      const quotaUpdate = tier ? { sms_plan: tier, sms_quota: PLAN_QUOTA[tier] } : {}
+      let crmPriceId: string | undefined
+      let smsPriceId: string | undefined
+      for (const item of sub.items.data) {
+        const st = smsTierFromPriceId(item.price.id)
+        if (st) { smsPriceId = item.price.id } else { crmPriceId = item.price.id }
+      }
+      const tier = crmPriceId ? tierFromPriceId(crmPriceId) : undefined
+      const smsTier = smsPriceId ? smsTierFromPriceId(smsPriceId) : null
+      const smsQuota = smsTier ? SMS_TIER_QUOTA[smsTier] : (tier ? PLAN_QUOTA[tier] : undefined)
+      const quotaUpdate = smsQuota !== undefined
+        ? { sms_plan: smsTier ?? tier, sms_quota: smsQuota }
+        : {}
 
       await supabase.from('organizations').update({
         subscription_status: sub.status,

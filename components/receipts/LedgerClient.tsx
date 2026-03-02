@@ -293,8 +293,9 @@ export default function LedgerClient({
 
       if (search && !vendor.includes(q) && !memo.includes(q) && !vehText.includes(q)) return false
       if (filterCat && getCatName(t) !== filterCat) return false
-      if (dateFrom && t.date < dateFrom) return false
-      if (dateTo && t.date > dateTo) return false
+      const txDate = (t.date ?? '').slice(0, 10)
+      if (dateFrom && txDate < dateFrom) return false
+      if (dateTo && txDate > dateTo) return false
       return true
     })
   }, [transactions, search, filterCat, dateFrom, dateTo])
@@ -307,10 +308,9 @@ export default function LedgerClient({
   }
 
   function exportCsv() {
-    const params = new URLSearchParams()
-    if (dateFrom) params.set('date_from', dateFrom)
-    if (dateTo) params.set('date_to', dateTo)
-    window.location.href = `/api/receipts/ledger/export?${params}`
+    // Always export full ledger — no date restriction so the CSV is never blank.
+    // Filter in Excel/Sheets as needed.
+    window.location.href = '/api/receipts/ledger/export'
   }
 
   return (

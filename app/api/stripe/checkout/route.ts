@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { stripe, PRICE_ID, PRICE_ID_TIER2, PRICE_ID_TIER3, SMS_PRICE_ID, APP_URL, type PlanTier } from '@/lib/stripe'
+import {
+  stripe, PRICE_ID, PRICE_ID_TIER2, PRICE_ID_TIER3, SMS_PRICE_ID, APP_URL,
+  type PlanTier, type SmsTier, priceIdForSmsTier,
+} from '@/lib/stripe'
 
 function priceIdForPlan(plan: PlanTier): string {
   if (plan === 'tier2') return PRICE_ID_TIER2 || PRICE_ID
@@ -34,10 +37,19 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => ({}))
   const plan: PlanTier = body.plan ?? 'tier1'
+  const smsTier: SmsTier | null = body.smsTier ?? null
   const includeSms = body.includeSms === true  // legacy
 
   const lineItems: Array<{ price: string; quantity: number }> = [{ price: priceIdForPlan(plan), quantity: 1 }]
-  if (includeSms && plan === 'tier1') lineItems.push({ price: SMS_PRICE_ID, quantity: 1 })
+
+  if (smsTier) {
+    // New tiered SMS add-on checkout
+    const smsPrice = priceIdForSmsTier(smsTier)
+    if (smsPrice) lineItems.push({ price: smsPrice, quantity: 1 })
+  } else if (includeSms && plan === 'tier1') {
+    // Legacy SMS add-on
+    lineItems.push({ price: SMS_PRICE_ID, quantity: 1 })
+  }
 
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
@@ -47,7 +59,7 @@ export async function POST(req: Request) {
     cancel_url: `${APP_URL}/settings/billing?canceled=1`,
     subscription_data: {
       trial_period_days: 14,
-      metadata: { org_id: profile.org_id, plan },
+      metadata: { org_id: profile.org_id, plan, sms_tier: smsTier ?? '' },
     },
   })
 

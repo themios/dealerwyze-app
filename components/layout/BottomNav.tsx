@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { Home, Users, Car, CreditCard, ShieldCheck, GitBranch } from 'lucide-react'
+import { Home, Users, Car, BookUser, MoreHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 function TodayBadge() {
@@ -22,34 +22,25 @@ function TodayBadge() {
   )
 }
 
-const baseItems = [
-  { href: '/today',     label: 'Today',     icon: Home },
-  { href: '/customers', label: 'Leads',     icon: Users },
-  { href: '/pipeline',  label: 'Pipeline',  icon: GitBranch },
-  { href: '/bhph',      label: 'BHPH',      icon: CreditCard },
+const NAV_ITEMS = [
+  { href: '/today',     label: 'Today',    icon: Home },
+  { href: '/customers', label: 'Leads',    icon: Users },
   { href: '/vehicles',  label: 'Inventory', icon: Car },
+  { href: '/contacts',  label: 'Contacts', icon: BookUser },
+  { href: '/more',      label: 'More',     icon: MoreHorizontal },
 ]
-
-const adminItem = { href: '/admin', label: 'Admin', icon: ShieldCheck }
 
 export default function BottomNav() {
   const pathname = usePathname()
-  const [isAdmin, setIsAdmin] = useState(false)
-
-  useEffect(() => {
-    fetch('/api/auth/me')
-      .then(r => r.json())
-      .then((d: { role?: string }) => setIsAdmin(d.role === 'admin'))
-      .catch(() => {})
-  }, [])
-
-  const navItems = isAdmin ? [...baseItems, adminItem] : baseItems
 
   return (
     <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md border-t border-[#1B4A8A] bg-[#0D2B55]">
       <div className="flex items-center justify-around h-16">
-        {navItems.map(({ href, label, icon: Icon }) => {
-          const active = pathname.startsWith(href)
+        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+          // /more is active for BHPH, analytics, admin sub-paths too
+          const active = href === '/more'
+            ? ['/more', '/bhph', '/analytics', '/admin', '/support', '/fax'].some(p => pathname.startsWith(p))
+            : pathname.startsWith(href)
           return (
             <Link
               key={href}

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { CheckCircle, AlertCircle, CreditCard, MessageSquare, Zap } from 'lucide-react'
-import { PLAN_LABEL, PLAN_PRICE, type PlanTier } from '@/lib/stripe'
+import { PLAN_LABEL, PLAN_PRICE, SMS_TIER_PRICE, SMS_TIER_LABEL, SMS_TIER_QUOTA, type PlanTier, type SmsTier } from '@/lib/stripe'
 
 interface BillingStatus {
   plan: string
@@ -56,12 +56,12 @@ export default function BillingPage() {
 
   useEffect(() => { load() }, [])
 
-  async function handleSubscribe(plan: PlanTier) {
+  async function handleSubscribe(plan: PlanTier, smsTier?: SmsTier) {
     setRedirecting(true)
     const res = await fetch('/api/stripe/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ plan }),
+      body: JSON.stringify({ plan, ...(smsTier ? { smsTier } : {}) }),
     })
     const { url } = await res.json()
     window.location.href = url
@@ -181,22 +181,48 @@ export default function BillingPage() {
         </div>
       )}
 
-      {/* Upgrade prompt for Tier 1 */}
-      {hasStripe && isActive && !hasSms && (
-        <div className="rounded-xl border border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-800 p-4">
-          <div className="flex items-start gap-3">
-            <MessageSquare className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
-            <div className="flex-1">
-              <p className="font-medium text-sm">Add SMS to your plan</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Dedicated business number · 1,000 msgs/mo · Two-way texting
-              </p>
-              <p className="text-sm font-semibold mt-2">$64.95/month (upgrade)</p>
-            </div>
+      {/* SMS tier upgrade — show for Tier 1 (no SMS) or active SMS users who can upgrade */}
+      {hasStripe && isActive && (
+        <div className="rounded-xl border p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <MessageSquare className="h-4 w-4 text-blue-500" />
+            <p className="text-sm font-medium">{hasSms ? 'Upgrade SMS Volume' : 'Add SMS Messaging'}</p>
           </div>
-          <Button size="sm" className="w-full mt-3" onClick={() => handleSubscribe('tier2')} disabled={redirecting}>
-            Upgrade to CRM + SMS
-          </Button>
+          <p className="text-xs text-muted-foreground">
+            Dedicated business number · Two-way texting · TCPA compliant
+          </p>
+          <div className="grid grid-cols-1 gap-2">
+            {((['smsTier1', 'smsTier2', 'smsTier3'] as SmsTier[])).map((st) => {
+              const quota = SMS_TIER_QUOTA[st]
+              const price = SMS_TIER_PRICE[st]
+              const label = SMS_TIER_LABEL[st]
+              const isCurrentTier =
+                (smsPlan === 'tier2' && st === 'smsTier1') ||
+                (smsPlan as string) === st
+              return (
+                <div key={st} className={`flex items-center justify-between rounded-lg border p-3 ${isCurrentTier ? 'border-blue-400 bg-blue-50 dark:bg-blue-950/20' : ''}`}>
+                  <div>
+                    <p className="text-sm font-medium">{quota >= 10000 ? 'Unlimited' : quota.toLocaleString()} msgs/mo</p>
+                    <p className="text-xs text-muted-foreground">{label}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold">${price}/mo</span>
+                    {isCurrentTier ? (
+                      <span className="text-xs text-blue-600 font-medium px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 rounded-full">Current</span>
+                    ) : (
+                      <Button size="sm" variant="outline" className="h-7 text-xs"
+                        onClick={() => handleSubscribe('tier1', st)} disabled={redirecting}>
+                        {hasSms ? 'Switch' : 'Select'}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          {!hasSms && (
+            <p className="text-xs text-muted-foreground">+ $49.94/mo CRM base plan</p>
+          )}
         </div>
       )}
 

@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from '@/lib/auth/profile'
 import Link from 'next/link'
-import { Search, Receipt, Settings, CalendarDays, BarChart2 } from 'lucide-react'
+import { Search, Receipt, CalendarDays } from 'lucide-react'
 import TopBar from '@/components/layout/TopBar'
 import TodayContent from './TodayContent'
 import SyncGmailButton from '@/components/leads/SyncGmailButton'
@@ -143,9 +143,7 @@ export default async function TodayPage() {
           <>
             <Link href="/search" className="p-1.5 text-white/70 hover:text-white" aria-label="Search"><Search className="h-5 w-5" /></Link>
             <Link href="/calendar" className="p-1.5 text-white/70 hover:text-white" aria-label="Calendar"><CalendarDays className="h-5 w-5" /></Link>
-            <Link href="/analytics" className="p-1.5 text-white/70 hover:text-white" aria-label="Analytics"><BarChart2 className="h-5 w-5" /></Link>
             <Link href="/receipts" className="p-1.5 text-white/70 hover:text-white" aria-label="Receipts"><Receipt className="h-5 w-5" /></Link>
-            <Link href="/settings" className="p-1.5 text-white/70 hover:text-white" aria-label="Settings"><Settings className="h-5 w-5" /></Link>
           </>
         }
       />

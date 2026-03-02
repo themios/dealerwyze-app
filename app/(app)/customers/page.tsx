@@ -7,20 +7,22 @@ import Link from 'next/link'
 import TopBar from '@/components/layout/TopBar'
 import CustomersListClient from '@/components/customer/CustomersListClient'
 import PasteLeadDialog from '@/components/customer/PasteLeadDialog'
+import PipelineBoard from '@/app/(app)/pipeline/PipelineBoard'
 import { Button } from '@/components/ui/button'
-import { Plus } from 'lucide-react'
+import { Plus, List, GitBranch } from 'lucide-react'
 
 export default async function CustomersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ archived?: string }>
+  searchParams: Promise<{ archived?: string; view?: string }>
 }) {
   const profile = await requireProfile()
   const supabase = await createClient()
   const isAdmin = profile.role === 'admin'
 
-  const { archived: showArchivedParam } = await searchParams
+  const { archived: showArchivedParam, view } = await searchParams
   const showArchived = showArchivedParam === '1'
+  const showPipeline = view === 'pipeline'
 
   let query = supabase
     .from('customers')
@@ -65,9 +67,26 @@ export default async function CustomersPage({
     agents = data ?? []
   }
 
-  const title = showArchived
-    ? 'Archived Customers'
-    : `Customers (${customers?.length ?? 0})`
+  const title = showArchived ? 'Archived' : `Leads (${customers?.length ?? 0})`
+
+  const viewToggle = !showArchived && (
+    <div className="flex items-center rounded-md overflow-hidden border border-white/20">
+      <Link
+        href="/customers"
+        className={`flex items-center gap-1 px-2 py-1 text-xs ${!showPipeline ? 'bg-white/20 text-white' : 'text-white/60'}`}
+      >
+        <List className="h-3.5 w-3.5" />
+        List
+      </Link>
+      <Link
+        href="/customers?view=pipeline"
+        className={`flex items-center gap-1 px-2 py-1 text-xs ${showPipeline ? 'bg-white/20 text-white' : 'text-white/60'}`}
+      >
+        <GitBranch className="h-3.5 w-3.5" />
+        Pipeline
+      </Link>
+    </div>
+  )
 
   return (
     <div>
@@ -75,19 +94,26 @@ export default async function CustomersPage({
         title={title}
         right={
           !showArchived ? (
-            <div className="flex items-center gap-1">
-              <PasteLeadDialog />
-              <Link href="/customers/new">
-                <Button size="sm" variant="ghost">
-                  <Plus className="h-5 w-5" />
-                </Button>
-              </Link>
+            <div className="flex items-center gap-2">
+              {viewToggle}
+              {!showPipeline && (
+                <>
+                  <PasteLeadDialog />
+                  <Link href="/customers/new">
+                    <Button size="sm" variant="ghost">
+                      <Plus className="h-5 w-5" />
+                    </Button>
+                  </Link>
+                </>
+              )}
             </div>
           ) : undefined
         }
       />
 
-      {!customers || customers.length === 0 ? (
+      {showPipeline ? (
+        <PipelineBoard customers={customers ?? []} />
+      ) : !customers || customers.length === 0 ? (
         showArchived ? (
           <div className="text-center py-16 text-muted-foreground">
             <p className="text-4xl mb-3">🗄️</p>
@@ -99,9 +125,9 @@ export default async function CustomersPage({
         ) : (
           <div className="text-center py-16 text-muted-foreground">
             <p className="text-4xl mb-3">👤</p>
-            <p className="font-medium">No customers yet</p>
+            <p className="font-medium">No leads yet</p>
             <Link href="/customers/new">
-              <Button className="mt-4">Add First Customer</Button>
+              <Button className="mt-4">Add First Lead</Button>
             </Link>
           </div>
         )
