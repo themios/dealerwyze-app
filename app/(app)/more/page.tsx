@@ -5,44 +5,6 @@ import { useEffect, useState } from 'react'
 import TopBar from '@/components/layout/TopBar'
 import { CreditCard, BarChart2, HeadphonesIcon, ShieldCheck, ChevronRight, Settings, Printer } from 'lucide-react'
 
-const MENU_ITEMS = [
-  {
-    href: '/bhph',
-    icon: CreditCard,
-    label: 'BHPH Tracker',
-    desc: 'Buy-here-pay-here payments',
-    color: 'text-blue-400',
-  },
-  {
-    href: '/fax',
-    icon: Printer,
-    label: 'Fax',
-    desc: 'Send faxes via Twilio',
-    color: 'text-cyan-400',
-  },
-  {
-    href: '/analytics',
-    icon: BarChart2,
-    label: 'Analytics',
-    desc: 'Performance & response metrics',
-    color: 'text-green-400',
-  },
-  {
-    href: '/support',
-    icon: HeadphonesIcon,
-    label: 'Support',
-    desc: 'Help tickets',
-    color: 'text-purple-400',
-  },
-  {
-    href: '/settings',
-    icon: Settings,
-    label: 'Settings',
-    desc: 'Billing, team, integrations',
-    color: 'text-yellow-400',
-  },
-]
-
 const ADMIN_ITEM = {
   href: '/admin',
   icon: ShieldCheck,
@@ -51,17 +13,63 @@ const ADMIN_ITEM = {
   color: 'text-red-400',
 }
 
+interface MeResponse {
+  is_platform_admin?: boolean
+  role?: string
+}
+
 export default function MorePage() {
-  const [isAdmin, setIsAdmin] = useState(false)
+  const [me, setMe] = useState<MeResponse>({})
 
   useEffect(() => {
     fetch('/api/auth/me')
       .then(r => r.json())
-      .then((d: { role?: string }) => setIsAdmin(d.role === 'admin'))
+      .then((d: MeResponse) => setMe(d))
       .catch(() => {})
   }, [])
 
-  const items = isAdmin ? [...MENU_ITEMS, ADMIN_ITEM] : MENU_ITEMS
+  const isRep = me.role === 'dealer_rep'
+  const canReports = me.role === 'dealer_admin' || me.role === 'dealer_manager' || me.role === 'admin'
+
+  const MENU_ITEMS = [
+    ...(!isRep ? [{
+      href: '/bhph',
+      icon: CreditCard,
+      label: 'BHPH Tracker',
+      desc: 'Buy-here-pay-here payments',
+      color: 'text-blue-400',
+    }] : []),
+    {
+      href: '/fax',
+      icon: Printer,
+      label: 'Fax',
+      desc: 'Send faxes via Twilio',
+      color: 'text-cyan-400',
+    },
+    ...(canReports ? [{
+      href: '/analytics',
+      icon: BarChart2,
+      label: 'Analytics',
+      desc: 'Performance & response metrics',
+      color: 'text-green-400',
+    }] : []),
+    {
+      href: '/support',
+      icon: HeadphonesIcon,
+      label: 'Support',
+      desc: 'Help tickets',
+      color: 'text-purple-400',
+    },
+    {
+      href: '/settings',
+      icon: Settings,
+      label: 'Settings',
+      desc: 'Billing, team, integrations',
+      color: 'text-yellow-400',
+    },
+  ]
+
+  const items = me.is_platform_admin ? [...MENU_ITEMS, ADMIN_ITEM] : MENU_ITEMS
 
   return (
     <div>

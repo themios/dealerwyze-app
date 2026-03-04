@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
+import { canManageUsers, ROLE_LABELS } from '@/lib/auth/dealerRoles'
+import type { UserRole } from '@/types/index'
 
-async function requireAdmin() {
+const ALLOWED_DEALER_ROLES: UserRole[] = [
+  'dealer_admin',
+  'dealer_manager',
+  'dealer_finance',
+  'dealer_rep',
+  'dealer_staff',
+]
+
+async function requireUserManager() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
@@ -13,14 +23,16 @@ async function requireAdmin() {
     .eq('id', user.id)
     .single()
 
-  if (profile?.role !== 'admin') return null
+  if (!profile || !canManageUsers(profile.role as UserRole)) return null
   return { user, profile }
 }
 
-/** GET /api/admin/users — list all members in org with assigned lead counts */
-export async function GET() {
-  const auth = await requireAdmin()
+/** GET /api/admin/users — list all active members in org with assigned lead counts */
+export async function GET(req: NextRequest) {
+  const auth = await requireUserManager()
   if (!auth) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const includeDeactivated = req.nextUrl.searchParams.get('include_deactivated') === 'true'
 
   const service = createServiceClient()
   const [{ data: profiles, error }, { data: customerCounts }] = await Promise.all([
@@ -28,7 +40,13 @@ export async function GET() {
       .from('profiles')
       .select('*')
       .eq('org_id', auth.profile.org_id)
-      .order('created_at', { ascending: true }),
+      .order('created_at', { ascending: true })
+      .then(res => {
+        if (!includeDeactivated) {
+          return { ...res, data: res.data?.filter(p => !p.deactivated_at) ?? null }
+        }
+        return res
+      }),
     service
       .from('customers')
       .select('assigned_to')
@@ -38,19 +56,23 @@ export async function GET() {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Count assigned leads per user
   const counts: Record<string, number> = {}
   customerCounts?.forEach(c => {
     if (c.assigned_to) counts[c.assigned_to] = (counts[c.assigned_to] ?? 0) + 1
   })
 
-  const users = profiles?.map(p => ({ ...p, assigned_count: counts[p.id] ?? 0 })) ?? []
+  const users = profiles?.map(p => ({
+    ...p,
+    assigned_count: counts[p.id] ?? 0,
+    role_label: ROLE_LABELS[p.role as UserRole] ?? p.role,
+  })) ?? []
+
   return NextResponse.json({ users })
 }
 
-/** POST /api/admin/users — invite a new user */
+/** POST /api/admin/users — invite a new user to this org */
 export async function POST(req: NextRequest) {
-  const auth = await requireAdmin()
+  const auth = await requireUserManager()
   if (!auth) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { email, display_name, password, role } = await req.json()
@@ -58,9 +80,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'email, display_name, and password are required' }, { status: 400 })
   }
 
+  const assignedRole: UserRole = ALLOWED_DEALER_ROLES.includes(role) ? role : 'dealer_staff'
+
   const service = createServiceClient()
 
-  // Create auth user
   const { data: created, error: createErr } = await service.auth.admin.createUser({
     email,
     password,
@@ -71,24 +94,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: createErr?.message || 'Failed to create user' }, { status: 500 })
   }
 
-  // Create profile
   const { error: profileErr } = await service.from('profiles').insert({
     id: created.user.id,
     display_name,
-    role: role === 'admin' ? 'admin' : 'agent',
+    role: assignedRole,
     org_id: auth.profile.org_id,
   })
 
   if (profileErr) {
+    await service.auth.admin.deleteUser(created.user.id)
     return NextResponse.json({ error: profileErr.message }, { status: 500 })
   }
 
-  return NextResponse.json({ id: created.user.id, email, display_name, role })
+  return NextResponse.json({ id: created.user.id, email, display_name, role: assignedRole })
 }
 
-/** PATCH /api/admin/users — generate/regenerate invite code for the calling admin */
+/** PATCH /api/admin/users — regenerate invite code for the calling admin */
 export async function PATCH(_req: NextRequest) {
-  const auth = await requireAdmin()
+  const auth = await requireUserManager()
   if (!auth) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -101,25 +124,32 @@ export async function PATCH(_req: NextRequest) {
   return NextResponse.json({ invite_code: code })
 }
 
-/** DELETE /api/admin/users?id=uuid — deactivate user */
+/** DELETE /api/admin/users?id=uuid — soft-deactivate user (preserves history) */
 export async function DELETE(req: NextRequest) {
-  const auth = await requireAdmin()
+  const auth = await requireUserManager()
   if (!auth) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
-  if (id === auth.user.id) return NextResponse.json({ error: 'Cannot delete yourself' }, { status: 400 })
+  if (id === auth.user.id) return NextResponse.json({ error: 'Cannot deactivate yourself' }, { status: 400 })
 
   const service = createServiceClient()
 
-  // Verify user is in org
   const { data: target } = await service.from('profiles').select('org_id').eq('id', id).single()
   if (target?.org_id !== auth.profile.org_id) {
     return NextResponse.json({ error: 'Not in your org' }, { status: 403 })
   }
 
-  const { error } = await service.auth.admin.deleteUser(id)
+  // Soft-disable: stamp deactivated_at + sign out active sessions
+  const { error } = await service
+    .from('profiles')
+    .update({ deactivated_at: new Date().toISOString() })
+    .eq('id', id)
+
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Invalidate all active sessions for this user
+  await service.auth.admin.signOut(id, 'global').catch(() => {})
 
   return NextResponse.json({ success: true })
 }

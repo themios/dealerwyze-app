@@ -22,6 +22,7 @@ function toLocalDatetimeValue(d: Date): string {
 
 export default function AppointmentRequestCard({ activity, onUpdate }: Props) {
   const customer = activity.customer
+  if (!customer) return null
 
   // Pre-fill with detected date or tomorrow 10am
   const defaultDate = activity.due_at

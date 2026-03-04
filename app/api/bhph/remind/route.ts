@@ -75,6 +75,13 @@ export async function GET(req: NextRequest) {
 
     const vehicleLabel = `${vehicle.year} ${vehicle.make} ${vehicle.model}`
 
+    const { data: orgSettings } = await service
+      .from('org_settings')
+      .select('business_name')
+      .eq('org_id', contract.user_id)
+      .maybeSingle()
+    const dealerName = orgSettings?.business_name ?? 'the dealership'
+
     const sendResult = await sendBhphReminder({
       bhphId: contract.id,
       userId: contract.user_id,
@@ -90,6 +97,7 @@ export async function GET(req: NextRequest) {
         amount: contract.monthly_payment,
         dueDate: contract.next_due_date,
         dealerPhone,
+        dealerName,
         vehicleLabel,
       },
     })

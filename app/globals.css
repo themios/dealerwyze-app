@@ -49,7 +49,7 @@
 
 :root {
   --radius: 0.625rem;
-  /* Apollo Auto Brand Palette */
+  /* DealerWyze Brand Palette */
   --background: #F8F4EE;
   --foreground: #0A1628;
   --card: #FFFFFF;
@@ -91,7 +91,7 @@
 }
 
 .dark {
-  /* Apollo Auto Dark Mode — deep navy base */
+  /* DealerWyze Dark Mode — deep navy base */
   --background: #07131F;
   --foreground: #F0EBE3;
   --card: #0D1F33;
@@ -141,7 +141,7 @@
   }
 }
 
-/* Apollo Auto utility classes */
+/* DealerWyze utility classes */
 .btn-orange {
   background-color: #F07018;
   color: white;

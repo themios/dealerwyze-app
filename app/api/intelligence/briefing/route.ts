@@ -59,7 +59,7 @@ async function generateAndCache(supabase: Awaited<ReturnType<typeof createClient
     .eq('id', orgId)
     .maybeSingle()
 
-  const dealerName = org?.name ?? 'Apollo Auto'
+  const dealerName = org?.name ?? 'Your Dealership'
 
   // Fetch market signals (RSS, non-blocking)
   const signals = await fetchMarketSignals(4).catch(() => [])

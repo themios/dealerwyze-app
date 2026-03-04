@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { processVoiceCall } from '@/lib/voice/ingest'
+import { getOrgIdByPhone, requireOrgId } from '@/lib/orgs/lookup'
 
 export const runtime = 'nodejs'
 export const maxDuration = 15
@@ -8,7 +9,7 @@ export const maxDuration = 15
 /**
  * VAPI post-call webhook.
  * Configure in VAPI dashboard: Assistants → your agent → Webhook URL:
- *   https://apollo-crm.vercel.app/api/voice/vapi-callback
+ *   https://dealerwyze.com/api/voice/vapi-callback
  * Set webhook secret → same value as VAPI_WEBHOOK_SECRET env var.
  *
  * VAPI sends x-vapi-secret header for auth.
@@ -60,7 +61,13 @@ export async function POST(req: NextRequest) {
     restricted_topics_attempted: restricted,
   }
 
-  const orgId = process.env.APOLLO_USER_ID!
+  let orgId: string
+  try {
+    orgId = requireOrgId(await getOrgIdByPhone(toNumber))
+  } catch {
+    console.error('[vapi-callback] Could not resolve org for toNumber', toNumber)
+    return NextResponse.json({ ok: true, skipped: 'org_not_found' })
+  }
   const supabase = createServiceClient()
 
   // Skip very short calls (< 10s) — likely hangups

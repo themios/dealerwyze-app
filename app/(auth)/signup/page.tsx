@@ -54,7 +54,7 @@ export default function SignupPage() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-2">
-            <Image src="/logo.jpg" alt="Apollo Auto" width={96} height={96} className="rounded-xl" />
+            <Image src="/logo.jpg" alt="DealerWyze" width={96} height={96} className="rounded-xl" />
           </div>
           <CardTitle className="text-2xl">Create Account</CardTitle>
           <CardDescription>Set up your dealership or join a team</CardDescription>
@@ -78,7 +78,7 @@ export default function SignupPage() {
               <Input
                 id="email"
                 type="email"
-                placeholder="you@apolloauto.com"
+                placeholder="you@yourdealership.com"
                 value={form.email}
                 onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
                 required

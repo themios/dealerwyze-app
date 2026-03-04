@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { google } from 'googleapis'
+import { createServiceClient } from '@/lib/supabase/service'
 
-// One-time OAuth callback to get a Calendar refresh token.
-// Visit /api/google/calendar-auth to start the flow.
+// Per-org OAuth callback — stores refresh token in org_google_tokens.
 export async function GET(req: NextRequest) {
-  const code = req.nextUrl.searchParams.get('code')
+  const code  = req.nextUrl.searchParams.get('code')
+  const state = req.nextUrl.searchParams.get('state') // user_id passed from /api/google/calendar-connect
+
+  const redirectBase = `${process.env.NEXT_PUBLIC_APP_URL}/settings/organization`
+
   if (!code) {
-    return new NextResponse('Missing code parameter', { status: 400 })
+    return NextResponse.redirect(`${redirectBase}?calendar=error`)
   }
 
   const oauth2 = new google.auth.OAuth2(
@@ -17,16 +21,31 @@ export async function GET(req: NextRequest) {
 
   try {
     const { tokens } = await oauth2.getToken(code)
-    const html = `
-      <html><body style="font-family:monospace;padding:2rem">
-        <h2>✅ Calendar OAuth Success</h2>
-        <p>Add this to your <code>.env.local</code> and Vercel env vars:</p>
-        <pre style="background:#f0f0f0;padding:1rem;border-radius:4px">GMAIL_CALENDAR_REFRESH_TOKEN=${tokens.refresh_token ?? '(null — re-run with prompt=consent)'}</pre>
-        <p style="color:#666">You can close this tab.</p>
-      </body></html>
-    `
-    return new NextResponse(html, { headers: { 'Content-Type': 'text/html' } })
+
+    if (state && tokens.refresh_token) {
+      const service = createServiceClient()
+
+      const { data: profile } = await service
+        .from('profiles')
+        .select('org_id')
+        .eq('id', state)
+        .single()
+
+      if (profile?.org_id) {
+        await service
+          .from('org_google_tokens')
+          .upsert({
+            org_id: profile.org_id,
+            calendar_refresh_token: tokens.refresh_token,
+            token_expires_at: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'org_id' })
+      }
+    }
+
+    return NextResponse.redirect(`${redirectBase}?calendar=connected`)
   } catch (err) {
-    return new NextResponse(`Error: ${err}`, { status: 500 })
+    console.error('[calendar-callback]', err)
+    return NextResponse.redirect(`${redirectBase}?calendar=error`)
   }
 }

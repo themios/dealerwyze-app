@@ -1,11 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import type { UserRole } from '@/types/index'
 
 export interface Profile {
   id: string
   display_name: string
-  role: 'admin' | 'agent'
+  role: UserRole
   org_id: string
+  platform_role?: 'platform_staff' | null
+  deactivated_at?: string | null
   created_at: string
 }
 

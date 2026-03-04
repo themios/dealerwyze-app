@@ -223,7 +223,7 @@ export async function processVoiceCall(params: VoiceCallParams): Promise<void> {
           ].filter(Boolean).join('\n'),
           location: summary.location ?? undefined,
           startIso: summary.appointment_exact,
-        }).catch(err => console.error('[calendar] event creation failed:', err))
+        }, org_id).catch(err => console.error('[calendar] event creation failed:', err))
       }
     }
   } catch (err) {
@@ -266,7 +266,7 @@ export async function processVoiceCall(params: VoiceCallParams): Promise<void> {
   // Use org's provisioned number; fall back to platform env var
   const { data: orgSettings } = await supabase
     .from('org_settings')
-    .select('twilio_phone_number')
+    .select('twilio_phone_number, business_name, owner_name, dealer_cell_number')
     .eq('org_id', org_id)
     .maybeSingle()
   const fromNumber =
@@ -278,7 +278,10 @@ export async function processVoiceCall(params: VoiceCallParams): Promise<void> {
     try {
       const vehicleMsg = finalVehicle ? ` about the ${finalVehicle}` : ''
       const greeting   = finalName && !finalName.startsWith('Caller') ? `Hi ${finalName.split(' ')[0]}! ` : ''
-      const msgBody    = `${greeting}Tim from Apollo Auto will call you back shortly${vehicleMsg}. - Apollo Auto (818) 873-3123`
+      const ownerName  = orgSettings?.owner_name ?? 'our team'
+      const bizName    = orgSettings?.business_name ?? 'the dealership'
+      const bizPhone   = orgSettings?.dealer_cell_number ?? fromNumber ?? ''
+      const msgBody    = `${greeting}${ownerName} from ${bizName} will call you back shortly${vehicleMsg}.${bizPhone ? ` - ${bizName} ${bizPhone}` : ''}`
 
       await fetch(
         `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,

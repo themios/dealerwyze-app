@@ -14,13 +14,25 @@ function parseVehicleName(name: string) {
 
 export async function ingestLead(lead: ParsedLead, external_id: string, orgId?: string) {
   const supabase = createServiceClient()
-  const userId = orgId ?? process.env.APOLLO_USER_ID!
+  const userId = orgId!
 
   // 1. Upsert customer — match by email first, then normalized phone
   function normalizePhone(p: string): string {
     const d = p.replace(/\D/g, '')
     return d.length === 11 && d.startsWith('1') ? d.slice(1) : d
   }
+
+  // Dedup check FIRST — before creating any customer record
+  // Prevents orphaned customers when email/phone are blank (e.g. Facebook leads)
+  const { data: earlyDup } = await supabase
+    .from('activities')
+    .select('id')
+    .eq('external_id', external_id)
+    .maybeSingle()
+  if (earlyDup) return { status: 'duplicate', activity_id: earlyDup.id }
+
+  // Skip any lead with no contact info — can't reach them regardless of source
+  if (!lead.email && !lead.phone) return { status: 'skipped', reason: 'no_contact_info' }
 
   let customerId: string
 
@@ -85,16 +97,7 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId?: 
     }
   }
 
-  // 2. Dedup: same external_id
-  const { data: dupCheck } = await supabase
-    .from('activities')
-    .select('id')
-    .eq('external_id', external_id)
-    .maybeSingle()
-
-  if (dupCheck) return { status: 'duplicate', activity_id: dupCheck.id }
-
-  // 3. Dedup: customer already has a recent inbound high-priority lead within 7 days
+  // 2. Dedup: customer already has a recent inbound high-priority lead within 7 days
   const sevenDaysAgo = new Date()
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
   const { data: recentLead } = await supabase

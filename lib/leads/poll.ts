@@ -15,17 +15,8 @@ export interface PollResult {
   from?: string
 }
 
-function getGmailClient() {
-  const auth = new google.auth.OAuth2(
-    process.env.GMAIL_CLIENT_ID,
-    process.env.GMAIL_CLIENT_SECRET,
-  )
-  auth.setCredentials({ refresh_token: process.env.GMAIL_REFRESH_TOKEN })
-  return google.gmail({ version: 'v1', auth })
-}
-
 /**
- * Core Gmail API polling logic — shared by both the env-var and per-org paths.
+ * Core Gmail API polling logic — used by runLeadPollForOrg for all tenants.
  */
 async function pollWithClient(
   gmail: ReturnType<typeof google.gmail>,
@@ -36,7 +27,8 @@ async function pollWithClient(
   const results: PollResult[] = []
 
   try {
-    const senderQuery = 'from:cargurus.com OR from:autotrader.com OR from:offerup.com OR from:facebookmail.com'
+    // Exclude facebookmail.com — each FB Marketplace email triggers Gmail push; they have no contact info and cause a webhook storm. Broad skip in ingest is safety net.
+    const senderQuery = 'from:cargurus.com OR from:autotrader.com OR from:offerup.com'
     const q = scanMode
       ? 'newer_than:2d'
       : `(${senderQuery}) newer_than:2d`
@@ -129,19 +121,9 @@ async function pollWithClient(
 }
 
 /**
- * Poll Tim's single Gmail account (uses GMAIL_REFRESH_TOKEN env var).
- * Called by /api/leads/poll and /api/gmail/webhook — unchanged.
- */
-export async function runLeadPoll(
-  options: { dryRun?: boolean; scanMode?: boolean },
-): Promise<{ processed: number; results: PollResult[] } | { error: string }> {
-  return pollWithClient(getGmailClient(), process.env.APOLLO_USER_ID!, options)
-}
-
-/**
  * Poll all connected email accounts for a given org.
  * Handles both Gmail OAuth accounts and IMAP accounts.
- * Called by the sync-leads cron for SaaS orgs.
+ * All tenants go through this path — no single-tenant fallback.
  */
 export async function runLeadPollForOrg(
   orgId: string,

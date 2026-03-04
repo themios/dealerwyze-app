@@ -16,7 +16,7 @@ export async function fetchMarketSignals(maxItems = 4): Promise<MarketSignal[]> 
   for (const feed of RSS_FEEDS) {
     try {
       const res = await fetch(feed.url, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ApolloCRM/1.0)' },
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; DealerWyze/1.0)' },
         signal: AbortSignal.timeout(5000),
       })
       if (!res.ok) continue

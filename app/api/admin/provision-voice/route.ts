@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
 import { provisionVoiceAgent, deprovisionVoiceAgent } from '@/lib/voice/provision'
+import { requirePlatformSuperAdmin } from '@/lib/auth/platform'
 
 /**
  * POST /api/admin/provision-voice
@@ -12,9 +13,8 @@ import { provisionVoiceAgent, deprovisionVoiceAgent } from '@/lib/voice/provisio
  */
 export async function POST(req: NextRequest) {
   const profile = await requireProfile()
-  if (profile.role !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  const denied = await requirePlatformSuperAdmin(profile.id)
+  if (denied) return denied
 
   const supabase = createServiceClient()
   const body     = await req.json() as { org_id?: string }
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const result = await provisionVoiceAgent(orgId, {
-      businessName: org?.name ?? 'Apollo Auto',
+      businessName: org?.name ?? 'Dealer',
       phoneNumber:  settings.twilio_phone_number,
       hoursStart:   settings.voice_business_hours_start ?? '09:00',
       hoursEnd:     settings.voice_business_hours_end   ?? '19:00',

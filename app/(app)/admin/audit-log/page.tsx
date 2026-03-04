@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useRef } from 'react'
 import TopBar from '@/components/layout/TopBar'
-import { Loader2, Search } from 'lucide-react'
+import { Loader2, Search, Download } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 
 interface LogEntry {
   id: string
@@ -15,6 +16,8 @@ interface LogEntry {
   organizations: { name: string } | null
 }
 
+interface OrgOption { id: string; name: string }
+
 function fmtTime(d: string) {
   return new Date(d).toLocaleString('en-US', {
     month: 'short', day: 'numeric',
@@ -23,20 +26,39 @@ function fmtTime(d: string) {
 }
 
 export default function AuditLogPage() {
-  const [entries, setEntries] = useState<LogEntry[]>([])
-  const [loading, setLoading] = useState(true)
-  const [query, setQuery]     = useState('')
+  const [entries, setEntries]   = useState<LogEntry[]>([])
+  const [orgs, setOrgs]         = useState<OrgOption[]>([])
+  const [loading, setLoading]   = useState(true)
+  const [query, setQuery]       = useState('')
+  const [orgFilter, setOrgFilter]   = useState('')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate]     = useState('')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  function load(q = '') {
+  function buildUrl(q = query, org = orgFilter, from = fromDate, to = toDate) {
+    const p = new URLSearchParams({ limit: '100' })
+    if (q)   p.set('q', q)
+    if (org) p.set('org_id', org)
+    if (from) p.set('from', from)
+    if (to)   p.set('to', to)
+    return `/api/admin/audit-log?${p}`
+  }
+
+  function load(q = query, org = orgFilter, from = fromDate, to = toDate) {
     setLoading(true)
-    fetch(`/api/admin/audit-log?q=${encodeURIComponent(q)}&limit=100`)
+    fetch(buildUrl(q, org, from, to))
       .then(r => r.json())
       .then((d: LogEntry[]) => { setEntries(Array.isArray(d) ? d : []); setLoading(false) })
       .catch(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    // Load org list for filter dropdown
+    fetch('/api/admin/orgs')
+      .then(r => r.json())
+      .then((d: OrgOption[]) => setOrgs(Array.isArray(d) ? d.slice(0, 100) : []))
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleSearch(val: string) {
     setQuery(val)
@@ -44,10 +66,23 @@ export default function AuditLogPage() {
     debounceRef.current = setTimeout(() => load(val), 350)
   }
 
+  function applyFilters() {
+    load()
+  }
+
+  function exportCsv() {
+    const p = new URLSearchParams({ limit: '500', format: 'csv' })
+    if (query)    p.set('q', query)
+    if (orgFilter) p.set('org_id', orgFilter)
+    if (fromDate) p.set('from', fromDate)
+    if (toDate)   p.set('to', toDate)
+    window.open(`/api/admin/audit-log?${p}`, '_blank')
+  }
+
   return (
     <div>
       <TopBar title="Audit Log" />
-      <div className="px-4 py-4 space-y-4 pb-24">
+      <div className="px-4 py-4 space-y-3 pb-24">
 
         {/* Search */}
         <div className="relative">
@@ -58,6 +93,46 @@ export default function AuditLogPage() {
             value={query}
             onChange={e => handleSearch(e.target.value)}
           />
+        </div>
+
+        {/* Filters row */}
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <select
+              className="flex-1 h-9 rounded-md border border-input bg-background px-3 text-xs"
+              value={orgFilter}
+              onChange={e => setOrgFilter(e.target.value)}
+            >
+              <option value="">All orgs</option>
+              {orgs.map(o => (
+                <option key={o.id} value={o.id}>{o.name || 'Unnamed'}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex gap-2">
+            <Input
+              type="date"
+              className="flex-1 h-9 text-xs"
+              value={fromDate}
+              onChange={e => setFromDate(e.target.value)}
+              placeholder="From"
+            />
+            <Input
+              type="date"
+              className="flex-1 h-9 text-xs"
+              value={toDate}
+              onChange={e => setToDate(e.target.value)}
+              placeholder="To"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" className="flex-1 h-8 text-xs" onClick={applyFilters}>
+              Apply Filters
+            </Button>
+            <Button size="sm" variant="outline" className="h-8 text-xs gap-1" onClick={exportCsv}>
+              <Download className="h-3.5 w-3.5" /> CSV
+            </Button>
+          </div>
         </div>
 
         {loading ? (
@@ -78,7 +153,7 @@ export default function AuditLogPage() {
                   <p className="text-xs text-muted-foreground">{e.organizations.name}</p>
                 )}
                 {e.details && Object.keys(e.details).length > 0 && (
-                  <p className="text-[10px] text-muted-foreground font-mono">
+                  <p className="text-[10px] text-muted-foreground font-mono break-all">
                     {JSON.stringify(e.details)}
                   </p>
                 )}

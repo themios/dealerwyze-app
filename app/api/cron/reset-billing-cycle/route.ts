@@ -9,7 +9,7 @@ export const maxDuration = 30
  * Auth: x-cron-secret header = LEADS_POLL_SECRET
  *
  * Register on cron-job.org: daily at 00:05 UTC
- *   URL: https://apollo-crm.vercel.app/api/cron/reset-billing-cycle
+ *   URL: https://dealerwyze.com/api/cron/reset-billing-cycle
  *   Header: x-cron-secret: <LEADS_POLL_SECRET>
  */
 export async function GET(req: NextRequest) {

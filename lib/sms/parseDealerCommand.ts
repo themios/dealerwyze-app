@@ -5,7 +5,7 @@ export interface ParsedAppointment {
   customer_phone:       string | null  // if included in message
   vehicle:              string | null
   appointment_datetime: string | null  // "YYYY-MM-DD HH:mm"
-  location:             'El Monte' | 'Simi Valley' | null
+  location:             string | null
   notes:                string | null
   confidence:           number
 }
@@ -13,8 +13,11 @@ export interface ParsedAppointment {
 /**
  * Use Claude Haiku to extract appointment details from a dealer's freeform text.
  * e.g. "Tim wants to see the 2009 Acura MDX on Monday at 2pm at El Monte"
+ *
+ * @param locationNames - dealer's location names (from org_settings.locations), used
+ *   to help the model recognize location references in the text.
  */
-export async function parseDealerAppointment(text: string): Promise<ParsedAppointment | null> {
+export async function parseDealerAppointment(text: string, locationNames: string[] = []): Promise<ParsedAppointment | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return null
 
@@ -24,6 +27,10 @@ export async function parseDealerAppointment(text: string): Promise<ParsedAppoin
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
     timeZone: 'America/Los_Angeles',
   })
+
+  const locationHint = locationNames.length > 0
+    ? `\nPossible locations: ${locationNames.map(n => `"${n}"`).join(', ')}. Use one of these exact strings if matched, or null if unclear.`
+    : '\n"location": string or null (location name if mentioned, else null),'
 
   const resp = await client.messages.create({
     model:      'claude-haiku-4-5-20251001',
@@ -39,8 +46,7 @@ Return exactly:
   "customer_name": string or null,
   "customer_phone": string or null (10-digit if present),
   "vehicle": string or null (e.g. "2009 Acura MDX"),
-  "appointment_datetime": string or null (format "YYYY-MM-DD HH:mm", resolve relative days like "Monday", "tomorrow", "next Friday"),
-  "location": "El Monte" | "Simi Valley" | null,
+  "appointment_datetime": string or null (format "YYYY-MM-DD HH:mm", resolve relative days like "Monday", "tomorrow", "next Friday"),${locationHint}
   "notes": string or null (any extra context),
   "confidence": number 0.0-1.0
 }`,

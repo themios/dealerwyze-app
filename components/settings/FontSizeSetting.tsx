@@ -15,7 +15,7 @@ export default function FontSizeSetting() {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    const saved = (localStorage.getItem('apollo-font-size') as FontSize) || 'md'
+    const saved = (localStorage.getItem('dealerwyze-font-size') as FontSize) || 'md'
     setSize(saved)
     setMounted(true)
   }, [])
@@ -24,7 +24,7 @@ export default function FontSizeSetting() {
 
   function apply(s: FontSize) {
     setSize(s)
-    localStorage.setItem('apollo-font-size', s)
+    localStorage.setItem('dealerwyze-font-size', s)
     document.documentElement.setAttribute('data-font-size', s)
   }
 

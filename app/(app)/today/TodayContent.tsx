@@ -22,9 +22,10 @@ interface TodayContentProps {
   leadTemplates: Template[]
   initialApptRequests: Activity[]
   initialVoiceLeads: VoiceCall[]
+  businessName?: string
 }
 
-export default function TodayContent({ initialNewLeads, initialTasks, initialWaiting, leadTemplates, initialApptRequests, initialVoiceLeads }: TodayContentProps) {
+export default function TodayContent({ initialNewLeads, initialTasks, initialWaiting, leadTemplates, initialApptRequests, initialVoiceLeads, businessName = 'DealerWyze' }: TodayContentProps) {
   const [newLeads, setNewLeads] = useState<Activity[]>(initialNewLeads)
   const [tasks, setTasks] = useState<Activity[]>(initialTasks)
   const [waiting, setWaiting] = useState<Activity[]>(initialWaiting)
@@ -79,6 +80,9 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
       return true
     })
 
+    // Guard against orphaned rows where the customer join is null
+    const safeLeads = (leads || []).filter(a => a.customer != null)
+
     const { data: appts } = await supabase
       .from('activities')
       .select('*, customer:customers(id, name, primary_phone)')
@@ -103,7 +107,7 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
         !v.task_id || v.linked_task?.status !== 'done'
     )
 
-    setNewLeads(leads || [])
+    setNewLeads(safeLeads)
     setTasks(t || [])
     setWaiting(dedupedWaiting)
     setApptRequests(appts || [])
@@ -137,7 +141,7 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
         <div>
           <p className="text-base font-bold leading-tight">Good morning 👋</p>
           <p className="text-xs opacity-70 mt-0.5" suppressHydrationWarning>
-            Apollo Auto · {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+            {businessName} · {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
           </p>
         </div>
       </div>

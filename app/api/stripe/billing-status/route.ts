@@ -9,7 +9,7 @@ export async function GET() {
 
   const { data } = await supabase
     .from('organizations')
-    .select('plan, subscription_status, trial_ends_at, current_period_end, stripe_customer_id, stripe_subscription_id, sms_plan, sms_quota, monthly_message_count, monthly_mms_count, billing_cycle_end, voice_minutes_quota, monthly_voice_seconds')
+    .select('plan, subscription_status, trial_ends_at, current_period_end, stripe_customer_id, stripe_subscription_id, sms_plan, sms_quota, monthly_message_count, monthly_mms_count, billing_cycle_end, voice_minutes_quota, monthly_voice_seconds, monthly_scan_image_count, monthly_scan_pdf_count')
     .eq('id', profile.org_id)
     .maybeSingle()
 

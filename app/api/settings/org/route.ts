@@ -18,7 +18,14 @@ export async function GET() {
 
   const { data: settings } = await supabase
     .from('org_settings')
-    .select('business_name, business_phone, business_address, timezone, dealer_cell_number, voice_business_hours_start, voice_business_hours_end, twilio_phone_number, retell_agent_id')
+    .select('business_name, business_phone, business_address, timezone, dealer_cell_number, voice_business_hours_start, voice_business_hours_end, twilio_phone_number, retell_agent_id, gbp_location_id, locations, resend_from_domain')
+    .eq('org_id', profile.org_id)
+    .maybeSingle()
+
+  // Check if Calendar OAuth token exists (non-null calendar_refresh_token)
+  const { data: calendarToken } = await supabase
+    .from('org_google_tokens')
+    .select('calendar_refresh_token')
     .eq('org_id', profile.org_id)
     .maybeSingle()
 
@@ -35,6 +42,10 @@ export async function GET() {
     voice_business_hours_end: settings?.voice_business_hours_end ?? '19:00',
     twilio_phone_number: settings?.twilio_phone_number ?? null,
     retell_agent_id: settings?.retell_agent_id ?? null,
+    gbp_location_id: settings?.gbp_location_id ?? null,
+    locations: settings?.locations ?? [],
+    resend_from_domain: settings?.resend_from_domain ?? null,
+    calendar_connected: !!(calendarToken?.calendar_refresh_token),
   })
 }
 
@@ -51,6 +62,8 @@ export async function PATCH(req: NextRequest) {
     dealer_cell_number?: string
     voice_business_hours_start?: string
     voice_business_hours_end?: string
+    gbp_location_id?: string
+    locations?: unknown[]
   } = await req.json()
 
   // Update organizations.name if provided
@@ -77,6 +90,8 @@ export async function PATCH(req: NextRequest) {
   if (body.dealer_cell_number !== undefined) settingsPayload.dealer_cell_number = body.dealer_cell_number
   if (body.voice_business_hours_start !== undefined) settingsPayload.voice_business_hours_start = body.voice_business_hours_start
   if (body.voice_business_hours_end !== undefined) settingsPayload.voice_business_hours_end = body.voice_business_hours_end
+  if (body.gbp_location_id !== undefined) settingsPayload.gbp_location_id = body.gbp_location_id
+  if (body.locations !== undefined) (settingsPayload as Record<string, unknown>).locations = body.locations
 
   const hasSettingsUpdate = Object.keys(settingsPayload).length > 2 // more than just org_id + updated_at
   if (hasSettingsUpdate) {
@@ -98,7 +113,13 @@ export async function PATCH(req: NextRequest) {
 
   const { data: settings } = await supabase
     .from('org_settings')
-    .select('business_name, business_phone, business_address, timezone, dealer_cell_number, voice_business_hours_start, voice_business_hours_end, twilio_phone_number, retell_agent_id')
+    .select('business_name, business_phone, business_address, timezone, dealer_cell_number, voice_business_hours_start, voice_business_hours_end, twilio_phone_number, retell_agent_id, gbp_location_id, locations, resend_from_domain')
+    .eq('org_id', profile.org_id)
+    .maybeSingle()
+
+  const { data: calendarToken } = await supabase
+    .from('org_google_tokens')
+    .select('id')
     .eq('org_id', profile.org_id)
     .maybeSingle()
 
@@ -115,5 +136,9 @@ export async function PATCH(req: NextRequest) {
     voice_business_hours_end: settings?.voice_business_hours_end ?? '19:00',
     twilio_phone_number: settings?.twilio_phone_number ?? null,
     retell_agent_id: settings?.retell_agent_id ?? null,
+    gbp_location_id: settings?.gbp_location_id ?? null,
+    locations: settings?.locations ?? [],
+    resend_from_domain: settings?.resend_from_domain ?? null,
+    calendar_connected: !!calendarToken,
   })
 }

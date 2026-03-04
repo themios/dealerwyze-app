@@ -95,7 +95,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Could not generate file URL' }, { status: 500 })
   }
 
-  const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://apollo-crm.vercel.app'}/api/fax/callback`
+  const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://dealerwyze.com'}/api/fax/callback`
 
   const result = await sendFax(toNumber, fromNumber, signed.signedUrl, callbackUrl)
 

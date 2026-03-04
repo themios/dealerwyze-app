@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse, after } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { processVoiceCall } from '@/lib/voice/ingest'
-import { getOrgIdByPhone } from '@/lib/orgs/lookup'
+import { getOrgIdByPhone, requireOrgId } from '@/lib/orgs/lookup'
 import crypto from 'crypto'
 
 export const runtime = 'nodejs'
@@ -9,32 +9,35 @@ export const maxDuration = 15
 
 /**
  * Validate Retell's X-Retell-Signature using HMAC-SHA256.
- * Retell signs: timestamp + "." + raw body
- * Header format: "t=<timestamp>,v1=<signature>"
- * Spec: https://docs.retellai.com/make-calls/webhook-security
+ * Retell signs: rawBody + timestamp (no separator)
+ * Header format (Conversation Flow): "v=<timestamp_ms>,d=<hex_signature>"
+ * Header format (legacy agent):      "t=<timestamp_s>,v1=<hex_signature>"
+ * Spec: https://docs.retellai.com/features/secure-webhook
  */
 function validateRetellSignature(secret: string, rawBody: string, header: string): boolean {
-  // Split on first '=' only — base64 signatures contain '=' padding chars
   const parts = Object.fromEntries(
     header.split(',').map(p => {
       const idx = p.indexOf('=')
       return idx === -1 ? [p, ''] : [p.slice(0, idx), p.slice(idx + 1)]
     })
   )
-  const ts  = parts['t']
-  const sig = parts['v1']
+  // Support both header formats
+  const ts  = parts['t']  ?? parts['v']
+  const sig = parts['v1'] ?? parts['d']
   if (!ts || !sig) return false
 
-  // Guard NaN — parseInt('garbage') returns NaN and bypasses the replay check
   const tsNum = Number(ts)
   if (!Number.isFinite(tsNum)) return false
 
   // Reject timestamps older than 5 minutes
-  if (Math.abs(Date.now() - tsNum * 1000) > 5 * 60 * 1000) return false
+  // v= is in milliseconds; t= is in seconds
+  const tsMs = tsNum > 1e11 ? tsNum : tsNum * 1000
+  if (Math.abs(Date.now() - tsMs) > 5 * 60 * 1000) return false
 
+  // Retell signs: rawBody + timestamp (no dot separator)
   const expected = crypto
     .createHmac('sha256', secret)
-    .update(`${ts}.${rawBody}`)
+    .update(rawBody + ts)
     .digest('hex')
   try {
     return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig))
@@ -46,7 +49,7 @@ function validateRetellSignature(secret: string, rawBody: string, header: string
 /**
  * Retell AI post-call webhook.
  * Configure in Retell dashboard → Webhook URL:
- *   https://apollo-crm.vercel.app/api/voice/retell-callback
+ *   https://dealerwyze.com/api/voice/retell-callback
  *
  * We listen for `call_analyzed` — the only event that includes
  * full transcript + call_analysis.custom_analysis_data.
@@ -55,10 +58,10 @@ export async function POST(req: NextRequest) {
   // Always read as text so we can validate the HMAC before parsing
   const rawBody = await req.text()
 
-  // RETELL_WEBHOOK_SECRET is required — reject all requests if misconfigured
-  const retellSecret = process.env.RETELL_WEBHOOK_SECRET
+  // Use RETELL_API_KEY (the key with webhook badge) — fallback to RETELL_WEBHOOK_SECRET
+  const retellSecret = process.env.RETELL_API_KEY ?? process.env.RETELL_WEBHOOK_SECRET
   if (!retellSecret) {
-    console.error('[retell-callback] RETELL_WEBHOOK_SECRET not set — all requests rejected')
+    console.error('[retell-callback] Neither RETELL_API_KEY nor RETELL_WEBHOOK_SECRET set')
     return NextResponse.json({ error: 'Service misconfigured' }, { status: 503 })
   }
   const sigHeader = req.headers.get('x-retell-signature') ?? ''
@@ -103,7 +106,13 @@ export async function POST(req: NextRequest) {
 
   // Resolve org from the Retell "to" number (multi-tenant ready)
   const toNumber = call.to_number ?? ''
-  const orgId = (await getOrgIdByPhone(toNumber)) ?? process.env.APOLLO_USER_ID!
+  let orgId: string
+  try {
+    orgId = requireOrgId(await getOrgIdByPhone(toNumber))
+  } catch {
+    console.warn('[retell-callback] unknown phone, no org resolved', { toNumber })
+    return new Response('OK', { status: 200 })
+  }
   if (!orgId) {
     console.error('[retell-callback] Could not resolve org for toNumber', toNumber)
     return NextResponse.json({ ok: false, error: 'org_not_found' }, { status: 200 })

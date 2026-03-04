@@ -35,6 +35,9 @@ export default async function TodayPage() {
     .is('completed_at', null)
     .order('created_at', { ascending: false })
 
+  // Filter out activities whose customer join returned null (orphaned activities)
+  const safeNewLeads = (newLeads || []).filter(a => a.customer != null)
+
   const { data: tasks } = await supabase
     .from('activities')
     .select('*, customer:customers(id, name, primary_phone, email)')
@@ -117,7 +120,7 @@ export default async function TodayPage() {
     { count: teamCount },
     { data: emailAccounts },
   ] = await Promise.all([
-    supabase.from('org_settings').select('onboarding_completed_at').eq('org_id', orgId).maybeSingle(),
+    supabase.from('org_settings').select('onboarding_completed_at, business_name').eq('org_id', orgId).maybeSingle(),
     supabase.from('organizations').select('stripe_customer_id').eq('id', orgId).maybeSingle(),
     supabase.from('customers').select('id', { count: 'exact', head: true }).eq('user_id', orgId),
     supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('org_id', orgId),
@@ -134,6 +137,9 @@ export default async function TodayPage() {
     .eq('outcome', 'pending')
     .is('completed_at', null)
     .order('created_at', { ascending: false })
+
+  // Filter out activities whose customer join returned null (orphaned activities)
+  const safeApptRequests = (apptRequests || []).filter(a => a.customer != null)
 
   return (
     <div>
@@ -164,12 +170,13 @@ export default async function TodayPage() {
         }}
       />
       <TodayContent
-        initialNewLeads={newLeads || []}
+        initialNewLeads={safeNewLeads}
         initialTasks={tasks || []}
         initialWaiting={waiting}
         leadTemplates={leadTemplates || []}
-        initialApptRequests={apptRequests || []}
+        initialApptRequests={safeApptRequests}
         initialVoiceLeads={voiceLeadsRaw || []}
+        businessName={orgSettings?.business_name ?? undefined}
       />
       <TodoSection initialTasks={todos ?? []} />
     </div>

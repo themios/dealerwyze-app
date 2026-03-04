@@ -15,6 +15,7 @@ export interface MessageVars {
   amount: number
   dueDate: string      // human-readable e.g. "Mon Feb 27"
   dealerPhone: string
+  dealerName: string   // e.g. "Apollo Auto"
   vehicleLabel: string // e.g. "2019 Honda CR-V"
 }
 
@@ -29,23 +30,23 @@ function formatDate(iso: string): string {
 }
 
 export function buildSmsMessage(type: ReminderType, vars: MessageVars): string {
-  const { customerName, amount, dueDate, dealerPhone, vehicleLabel } = vars
+  const { customerName, amount, dueDate, dealerPhone, dealerName, vehicleLabel } = vars
   const first = customerName.split(' ')[0]
   const d = formatDate(dueDate)
   const a = fmt(amount)
 
   switch (type) {
     case 'pre_3day':
-      return `Hi ${first}, this is a reminder from Apollo Auto that your payment of ${a} for your ${vehicleLabel} is due on ${d}. Questions? Call us at ${dealerPhone}. Reply STOP to opt out.`
+      return `Hi ${first}, this is a reminder from ${dealerName} that your payment of ${a} for your ${vehicleLabel} is due on ${d}. Questions? Call us at ${dealerPhone}. Reply STOP to opt out.`
 
     case 'due_day':
-      return `Hi ${first}, your payment of ${a} to Apollo Auto is due TODAY for your ${vehicleLabel}. Please call ${dealerPhone} or stop by to make your payment. Reply STOP to opt out.`
+      return `Hi ${first}, your payment of ${a} to ${dealerName} is due TODAY for your ${vehicleLabel}. Please call ${dealerPhone} or stop by to make your payment. Reply STOP to opt out.`
 
     case 'late_2day':
-      return `Hi ${first}, your payment of ${a} to Apollo Auto for your ${vehicleLabel} is now 2 days past due. Please contact us at ${dealerPhone} as soon as possible to keep your account current. Reply STOP to opt out.`
+      return `Hi ${first}, your payment of ${a} to ${dealerName} for your ${vehicleLabel} is now 2 days past due. Please contact us at ${dealerPhone} as soon as possible to keep your account current. Reply STOP to opt out.`
 
     case 'late_7day':
-      return `Hi ${first}, your payment of ${a} to Apollo Auto for your ${vehicleLabel} is 7 days past due. Please call ${dealerPhone} immediately to discuss payment options and avoid further action on your account. Reply STOP to opt out.`
+      return `Hi ${first}, your payment of ${a} to ${dealerName} for your ${vehicleLabel} is 7 days past due. Please call ${dealerPhone} immediately to discuss payment options and avoid further action on your account. Reply STOP to opt out.`
   }
 }
 
@@ -59,14 +60,14 @@ export function buildEmailSubject(type: ReminderType, vehicleLabel: string): str
 }
 
 export function buildEmailBody(type: ReminderType, vars: MessageVars): string {
-  const { customerName, amount, dueDate, dealerPhone, vehicleLabel } = vars
+  const { customerName, amount, dueDate, dealerPhone, dealerName, vehicleLabel } = vars
   const d = formatDate(dueDate)
   const a = fmt(amount)
 
   const header = `Dear ${customerName},`
   const footer = `
 <p style="margin-top:24px;font-size:12px;color:#666;">
-  Apollo Auto &bull; ${dealerPhone}<br>
+  ${dealerName} &bull; ${dealerPhone}<br>
   To opt out of text messages, reply STOP to any message from us.<br>
   To unsubscribe from email reminders, reply to this email with "unsubscribe".
 </p>`
@@ -92,7 +93,7 @@ export function buildEmailBody(type: ReminderType, vars: MessageVars): string {
   }
 
   return `<!DOCTYPE html><html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
-<h2 style="color:#1a1a1a;">Apollo Auto — Payment Notice</h2>
+<h2 style="color:#1a1a1a;">${dealerName} — Payment Notice</h2>
 <p>${header}</p>
 ${body}
 ${footer}

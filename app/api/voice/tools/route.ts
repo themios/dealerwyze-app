@@ -8,7 +8,7 @@ export const maxDuration = 15
 /**
  * Retell AI tool-call webhook.
  * Configure in Retell dashboard → Tool Call Webhook URL:
- *   https://apollo-crm.vercel.app/api/voice/tools?secret=LEADS_POLL_SECRET
+ *   https://dealerwyze.com/api/voice/tools?secret=LEADS_POLL_SECRET
  *
  * Retell sends:
  *   { event: "tool_call", call: {...}, tool_call_list: [{ tool_call_id, name, arguments }] }

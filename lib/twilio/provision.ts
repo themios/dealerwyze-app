@@ -6,7 +6,7 @@
 
 const ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID!
 const AUTH_TOKEN  = process.env.TWILIO_AUTH_TOKEN!
-const APP_BASE    = process.env.NEXT_PUBLIC_APP_URL ?? 'https://apollo-crm.vercel.app'
+const APP_BASE    = process.env.NEXT_PUBLIC_APP_URL ?? 'https://dealerwyze.com'
 
 function auth() {
   return `Basic ${Buffer.from(`${ACCOUNT_SID}:${AUTH_TOKEN}`).toString('base64')}`

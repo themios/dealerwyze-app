@@ -12,7 +12,12 @@ interface Message {
 }
 interface Ticket {
   id: string; subject: string; status: string; priority: string; created_at: string
+  assigned_to: string | null
   organizations: { name: string } | null
+}
+
+interface StaffMember {
+  id: string; display_name: string
 }
 
 const STATUS_STYLE: Record<string, string> = {
@@ -29,13 +34,15 @@ export default function AdminTicketDetailPage() {
   const router  = useRouter()
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  const [ticket, setTicket]     = useState<Ticket | null>(null)
-  const [messages, setMessages] = useState<Message[]>([])
-  const [loading, setLoading]   = useState(true)
-  const [reply, setReply]       = useState('')
-  const [internal, setInternal] = useState(false)
-  const [sending, setSending]   = useState(false)
-  const [updating, setUpdating] = useState(false)
+  const [ticket, setTicket]       = useState<Ticket | null>(null)
+  const [messages, setMessages]   = useState<Message[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [reply, setReply]         = useState('')
+  const [internal, setInternal]   = useState(false)
+  const [sending, setSending]     = useState(false)
+  const [updating, setUpdating]   = useState(false)
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+  const [staff, setStaff]         = useState<StaffMember[]>([])
 
   function load() {
     return fetch(`/api/admin/tickets/${id}`)
@@ -46,7 +53,16 @@ export default function AdminTicketDetailPage() {
       .catch(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    load()
+    // Check if super admin (for assign dropdown)
+    fetch('/api/auth/me').then(r => r.json()).then((d: { is_platform_admin?: boolean }) => {
+      if (d.is_platform_admin) {
+        setIsSuperAdmin(true)
+        fetch('/api/admin/platform-staff').then(r => r.json()).then((s: StaffMember[]) => setStaff(s)).catch(() => {})
+      }
+    }).catch(() => {})
+  }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
   async function doAction(action: string, extra: Record<string, unknown> = {}) {
@@ -121,6 +137,24 @@ export default function AdminTicketDetailPage() {
             </SelectContent>
           </Select>
         </div>
+        {/* Assign to platform staff (super admin only) */}
+        {isSuperAdmin && staff.length > 0 && (
+          <Select
+            value={ticket.assigned_to ?? 'unassigned'}
+            onValueChange={v => doAction('assign', { assigned_to: v === 'unassigned' ? null : v })}
+            disabled={updating}
+          >
+            <SelectTrigger className="h-8 text-xs w-full">
+              <SelectValue placeholder="Assign to…" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="unassigned">Unassigned</SelectItem>
+              {staff.map(s => (
+                <SelectItem key={s.id} value={s.id}>{s.display_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {/* Messages */}

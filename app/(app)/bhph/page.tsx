@@ -1,7 +1,10 @@
 export const dynamic = 'force-dynamic'
 
+import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from '@/lib/auth/profile'
+import { canAccessBhph } from '@/lib/auth/dealerRoles'
+import type { UserRole } from '@/types/index'
 import TopBar from '@/components/layout/TopBar'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -12,6 +15,7 @@ import type { PaymentFrequency } from '@/lib/bhph/schedule'
 
 export default async function BhphPage() {
   const profile = await requireProfile()
+  if (!canAccessBhph(profile.role as UserRole)) redirect('/today')
   const supabase = await createClient()
 
   const { data: accounts } = await supabase

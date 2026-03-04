@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, Phone, Mic, Users, Loader2, RefreshCw } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { ArrowLeft, Phone, Mic, Users, Loader2, RefreshCw, Eye, ExternalLink, AlertOctagon } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -11,6 +12,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+
+interface StripeInvoice {
+  id: string
+  date: string
+  amount: number
+  status: string
+  pdf: string | null
+}
+
+interface ActivityEvent {
+  type: string
+  label: string
+  timestamp: string
+}
 
 interface OrgDetail {
   org: {
@@ -26,6 +41,9 @@ interface OrgDetail {
     billing_cycle_start: string | null
     billing_cycle_end: string | null
     sms_overage_enabled: boolean
+    stripe_customer_id: string | null
+    suspended_at: string | null
+    suspension_reason: string | null
     created_at: string
   }
   settings: {
@@ -36,6 +54,12 @@ interface OrgDetail {
   } | null
   team: { id: string; display_name: string; role: string; created_at: string }[]
   stats: { voice_calls_30d: number; voice_minutes_30d: number; leads_30d: number }
+  stripe_invoices: StripeInvoice[]
+}
+
+interface ActivityFeed {
+  events: ActivityEvent[]
+  feature_heatmap: Record<string, boolean>
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -45,6 +69,9 @@ const STATUS_STYLES: Record<string, string> = {
   canceled:  'bg-gray-100 text-gray-500',
   trial:     'bg-blue-100 text-blue-700',
 }
+
+const FEATURES     = ['Email Sync', 'Voice', 'Pipeline', 'BHPH', 'Analytics', 'Fax', 'Contacts']
+const FEATURE_KEYS = ['email_sync', 'voice', 'pipeline', 'bhph', 'analytics', 'fax', 'contacts']
 
 function Badge({ label, style }: { label: string; style?: string }) {
   const cls = style ?? STATUS_STYLES[label] ?? 'bg-gray-100 text-gray-500'
@@ -60,6 +87,10 @@ function fmtDate(d: string | null) {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+function fmtTime(d: string) {
+  return new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
 function fmtPhone(p: string | null) {
   if (!p) return null
   const d = p.replace(/\D/g, '')
@@ -68,20 +99,30 @@ function fmtPhone(p: string | null) {
   return p
 }
 
+function fmtCurrency(n: number) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
+}
+
 export default function AdminOrgDetailPage() {
   const { id: orgId } = useParams<{ id: string }>()
   const router = useRouter()
 
-  const [data, setData]     = useState<OrgDetail | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving]   = useState<string | null>(null)
-  const [error, setError]     = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
+  const [data, setData]           = useState<OrgDetail | null>(null)
+  const [activity, setActivity]   = useState<ActivityFeed | null>(null)
+  const [loading, setLoading]     = useState(true)
+  const [saving, setSaving]       = useState<string | null>(null)
+  const [error, setError]         = useState<string | null>(null)
+  const [success, setSuccess]     = useState<string | null>(null)
+  const [impersonating, setImpersonating] = useState(false)
 
-  // Action state
-  const [planVal, setPlanVal]     = useState('')
-  const [statusVal, setStatusVal] = useState('')
-  const [smsPlan, setSmsPlan]     = useState('')
+  const [planVal, setPlanVal]       = useState('')
+  const [statusVal, setStatusVal]   = useState('')
+  const [smsPlan, setSmsPlan]       = useState('')
+  const [trialEndDate, setTrialEndDate] = useState('')
+  const [creditAmt, setCreditAmt]   = useState('')
+  const [creditDesc, setCreditDesc] = useState('')
+  const [suspendReason, setSuspendReason] = useState('')
+  const [showSuspendForm, setShowSuspendForm] = useState(false)
 
   useEffect(() => {
     fetch(`/api/admin/orgs/${orgId}`)
@@ -94,7 +135,26 @@ export default function AdminOrgDetailPage() {
         setLoading(false)
       })
       .catch(() => setLoading(false))
+
+    fetch(`/api/admin/orgs/${orgId}/activity`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => d && setActivity(d))
   }, [orgId])
+
+  async function startImpersonation() {
+    setImpersonating(true)
+    const res = await fetch('/api/admin/impersonate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ org_id: orgId }),
+    })
+    if (res.ok) {
+      router.push('/today')
+    } else {
+      setImpersonating(false)
+      setError('Failed to start impersonation session')
+    }
+  }
 
   async function doAction(action: string, payload: Record<string, unknown> = {}, label: string) {
     setSaving(action)
@@ -111,7 +171,6 @@ export default function AdminOrgDetailPage() {
       setError(body.error ?? 'Failed')
     } else {
       setSuccess(label)
-      // Refresh data
       fetch(`/api/admin/orgs/${orgId}`).then(r => r.json()).then((d: OrgDetail) => setData(d))
     }
   }
@@ -132,7 +191,7 @@ export default function AdminOrgDetailPage() {
     )
   }
 
-  const { org, settings, team, stats } = data
+  const { org, settings, team, stats, stripe_invoices } = data
   const voiceMinsMo = Math.round((org.monthly_voice_seconds ?? 0) / 60)
 
   return (
@@ -144,13 +203,23 @@ export default function AdminOrgDetailPage() {
         </button>
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-sm truncate">{org.name || 'Unnamed Org'}</p>
+          {org.suspended_at && (
+            <p className="text-[10px] text-orange-600 font-medium">SUSPENDED</p>
+          )}
         </div>
         <Badge label={org.subscription_status ?? org.plan} />
+        <button
+          onClick={startImpersonation}
+          disabled={impersonating}
+          title="View as this org (read-only)"
+          className="text-muted-foreground hover:text-foreground disabled:opacity-50"
+        >
+          <Eye className="h-5 w-5" />
+        </button>
       </div>
 
       <div className="px-4 py-4 space-y-5">
 
-        {/* Feedback banners */}
         {error   && <p className="text-xs text-destructive bg-destructive/10 px-3 py-2 rounded-lg">{error}</p>}
         {success && <p className="text-xs text-green-700 bg-green-100 px-3 py-2 rounded-lg">{success} ✓</p>}
 
@@ -168,17 +237,37 @@ export default function AdminOrgDetailPage() {
           ))}
         </div>
 
+        {/* Feature heatmap */}
+        {activity?.feature_heatmap && (
+          <section className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Features Used (30d)</p>
+            <div className="flex flex-wrap gap-1.5">
+              {FEATURES.map((f, i) => {
+                const active = activity.feature_heatmap[FEATURE_KEYS[i]]
+                return (
+                  <span key={f} className={`text-[10px] px-2 py-1 rounded-full font-medium ${active ? 'bg-green-100 text-green-700' : 'bg-muted text-muted-foreground'}`}>
+                    {f}
+                  </span>
+                )
+              })}
+            </div>
+          </section>
+        )}
+
         {/* Overview */}
         <section className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Overview</p>
           <div className="rounded-xl border bg-card divide-y text-sm">
-            <Row label="Plan"       value={<Badge label={org.plan} />} />
-            <Row label="SMS plan"   value={org.sms_plan} />
-            <Row label="Overage"    value={org.sms_overage_enabled ? 'Enabled' : 'Blocked'} />
+            <Row label="Plan"        value={<Badge label={org.plan} />} />
+            <Row label="SMS plan"    value={org.sms_plan} />
+            <Row label="Overage"     value={org.sms_overage_enabled ? 'Enabled' : 'Blocked'} />
             <Row label="Cycle start" value={fmtDate(org.billing_cycle_start)} />
             <Row label="Cycle end"   value={fmtDate(org.billing_cycle_end)} />
             <Row label="Created"     value={fmtDate(org.created_at)} />
             <Row label="Timezone"    value={settings?.timezone ?? '—'} />
+            {org.suspended_at && (
+              <Row label="Suspended" value={<span className="text-orange-600">{fmtDate(org.suspended_at)}</span>} />
+            )}
           </div>
         </section>
 
@@ -198,8 +287,62 @@ export default function AdminOrgDetailPage() {
                 ? <Badge label="active" style="bg-green-100 text-green-700" />
                 : <span className="text-muted-foreground">Not configured</span>}
             />
+            {org.stripe_customer_id && (
+              <Row
+                label="Stripe"
+                value={
+                  <a
+                    href={`https://dashboard.stripe.com/customers/${org.stripe_customer_id}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-primary hover:underline"
+                  >
+                    View in Stripe <ExternalLink className="h-3 w-3" />
+                  </a>
+                }
+              />
+            )}
           </div>
         </section>
+
+        {/* Recent activity */}
+        {activity?.events && activity.events.length > 0 && (
+          <section className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Recent Activity</p>
+            <div className="rounded-xl border bg-card divide-y text-sm">
+              {activity.events.slice(0, 8).map((e, i) => (
+                <div key={i} className="flex items-center justify-between px-3 py-2 gap-3">
+                  <span className="text-xs">{e.label}</span>
+                  <span className="text-[10px] text-muted-foreground shrink-0">{fmtTime(e.timestamp)}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Stripe invoice history */}
+        {stripe_invoices?.length > 0 && (
+          <section className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Invoices</p>
+            <div className="rounded-xl border bg-card divide-y">
+              {stripe_invoices.map(inv => (
+                <div key={inv.id} className="flex items-center justify-between px-3 py-2.5 gap-3">
+                  <div>
+                    <p className="text-xs font-medium">{fmtCurrency(inv.amount)}</p>
+                    <p className="text-[10px] text-muted-foreground">{fmtDate(inv.date)}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge label={inv.status} style={inv.status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'} />
+                    {inv.pdf && (
+                      <a href={inv.pdf} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground">
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Actions */}
         <section className="space-y-3">
@@ -306,6 +449,144 @@ export default function AdminOrgDetailPage() {
               </Button>
             </div>
           </div>
+
+          {/* Stripe billing actions */}
+          {org.stripe_customer_id && (
+            <div className="rounded-xl border bg-card p-3 space-y-3">
+              <p className="text-xs font-medium">Stripe Billing</p>
+
+              {/* Trial end override */}
+              <div className="space-y-1.5">
+                <p className="text-[10px] text-muted-foreground">Override trial end date</p>
+                <div className="flex gap-2">
+                  <Input
+                    type="date"
+                    className="h-8 text-xs flex-1"
+                    value={trialEndDate}
+                    onChange={e => setTrialEndDate(e.target.value)}
+                  />
+                  <Button size="sm" variant="outline" className="h-8 text-xs shrink-0"
+                    onClick={() => doAction('set_trial_end', { trial_end: trialEndDate }, 'Trial end updated')}
+                    disabled={!!saving || !trialEndDate}
+                  >
+                    {saving === 'set_trial_end' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Set'}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Manual credit */}
+              <div className="space-y-1.5">
+                <p className="text-[10px] text-muted-foreground">Add credit (reduces next invoice)</p>
+                <div className="flex gap-2">
+                  <Input
+                    type="number" min="0" step="0.01"
+                    placeholder="Amount $"
+                    className="h-8 text-xs flex-1"
+                    value={creditAmt}
+                    onChange={e => setCreditAmt(e.target.value)}
+                  />
+                  <Input
+                    placeholder="Reason"
+                    className="h-8 text-xs flex-1"
+                    value={creditDesc}
+                    onChange={e => setCreditDesc(e.target.value)}
+                  />
+                  <Button size="sm" variant="outline" className="h-8 text-xs shrink-0"
+                    onClick={() => doAction('add_credit', { credit_amount: parseFloat(creditAmt), credit_description: creditDesc }, `Credit $${creditAmt} added`)}
+                    disabled={!!saving || !creditAmt || parseFloat(creditAmt) <= 0}
+                  >
+                    {saving === 'add_credit' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Credit'}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Cancel options */}
+              <div className="flex gap-2">
+                <Button
+                  size="sm" variant="outline" className="h-8 text-xs flex-1"
+                  onClick={() => {
+                    if (!confirm('Cancel at end of current period?')) return
+                    doAction('cancel_subscription', { cancel_at_period_end: true }, 'Set to cancel at period end')
+                  }}
+                  disabled={!!saving}
+                >
+                  Cancel at Period End
+                </Button>
+                <Button
+                  size="sm" variant="destructive" className="h-8 text-xs flex-1"
+                  onClick={() => {
+                    if (!confirm('Cancel immediately? This ends access now.')) return
+                    doAction('cancel_subscription', { cancel_at_period_end: false }, 'Subscription cancelled immediately')
+                  }}
+                  disabled={!!saving}
+                >
+                  Cancel Now
+                </Button>
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* Danger zone */}
+        <section className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Danger Zone</p>
+          <div className="rounded-xl border border-orange-200 bg-orange-50 dark:bg-orange-950/20 p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <AlertOctagon className="h-4 w-4 text-orange-600 shrink-0" />
+              <p className="text-xs font-medium text-orange-800 dark:text-orange-300">Account Suspension</p>
+            </div>
+            {org.suspended_at ? (
+              <div className="space-y-1.5">
+                <p className="text-[10px] text-muted-foreground">
+                  Suspended {fmtDate(org.suspended_at)}{org.suspension_reason ? ` — ${org.suspension_reason}` : ''}
+                </p>
+                <Button
+                  size="sm" className="h-8 text-xs w-full"
+                  onClick={() => doAction('unsuspend', {}, 'Account unsuspended')}
+                  disabled={!!saving}
+                >
+                  {saving === 'unsuspend' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Unsuspend Account'}
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {showSuspendForm ? (
+                  <>
+                    <Input
+                      placeholder="Reason for suspension (optional)"
+                      className="h-8 text-xs"
+                      value={suspendReason}
+                      onChange={e => setSuspendReason(e.target.value)}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm" variant="destructive" className="h-8 text-xs flex-1"
+                        onClick={() => {
+                          if (!confirm(`Suspend ${org.name}? All users will be locked out immediately.`)) return
+                          doAction('suspend', { suspension_reason: suspendReason }, 'Account suspended')
+                          setShowSuspendForm(false)
+                        }}
+                        disabled={!!saving}
+                      >
+                        {saving === 'suspend' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Confirm Suspend'}
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setShowSuspendForm(false)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <Button
+                    size="sm" variant="outline"
+                    className="h-8 text-xs w-full border-orange-300 text-orange-700 hover:bg-orange-100"
+                    onClick={() => setShowSuspendForm(true)}
+                  >
+                    Suspend Account
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
         </section>
 
         {/* Team */}
@@ -338,13 +619,7 @@ export default function AdminOrgDetailPage() {
   )
 }
 
-function Row({
-  label,
-  value,
-}: {
-  label: React.ReactNode
-  value: React.ReactNode
-}) {
+function Row({ label, value }: { label: React.ReactNode; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between px-3 py-2.5 gap-3">
       <span className="text-xs text-muted-foreground shrink-0">{label}</span>

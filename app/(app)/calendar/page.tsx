@@ -8,6 +8,7 @@ import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import AddAppointmentSheet from '@/components/calendar/AddAppointmentSheet'
+import { useOrgSettings } from '@/hooks/useOrgSettings'
 
 type ViewMode = 'month' | 'week' | 'day'
 
@@ -69,6 +70,7 @@ export default function CalendarPage() {
   const [addOpen, setAddOpen] = useState(false)
   const [addDefaultDate, setAddDefaultDate] = useState<Date | undefined>()
   const supabase = createClient()
+  const orgSettings = useOrgSettings()
 
   const loadEvents = useCallback(async () => {
     let start: Date, end: Date
@@ -181,6 +183,7 @@ export default function CalendarPage() {
         onClose={() => setAddOpen(false)}
         defaultDate={addDefaultDate}
         onSaved={loadEvents}
+        orgName={orgSettings.dealerName}
       />
     </div>
   )

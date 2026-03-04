@@ -1,5 +1,5 @@
 {
-  "name": "apollo-crm",
+  "name": "dealer-wyze",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -28,7 +28,8 @@
     "react-dom": "19.2.3",
     "stripe": "^20.4.0",
     "tailwind-merge": "^3.5.0",
-    "web-push": "^3.6.7"
+    "web-push": "^3.6.7",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

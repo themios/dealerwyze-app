@@ -12,7 +12,7 @@ import crypto from 'crypto'
 
 // Twilio sends form-encoded POST to this endpoint when a customer texts your number.
 // Webhook URL to set in Twilio console (no ?secret= needed — we use HMAC-SHA1 now):
-//   https://apollo-crm.vercel.app/api/twilio/inbound
+//   https://dealerwyze.com/api/twilio/inbound
 
 const TWIML_EMPTY = '<Response/>'
 
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
   // during the transition period. Remove the fallback once Twilio webhook URL is updated.
   const authToken   = process.env.TWILIO_AUTH_TOKEN ?? ''
   const signature   = req.headers.get('x-twilio-signature') ?? ''
-  const webhookUrl  = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://apollo-crm.vercel.app'}/api/twilio/inbound`
+  const webhookUrl  = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://dealerwyze.com'}/api/twilio/inbound`
   const legacySecret = req.nextUrl.searchParams.get('secret')
 
   const hmacValid   = authToken && signature
@@ -105,14 +105,23 @@ export async function POST(req: NextRequest) {
   // Resolve which org this message belongs to (multi-tenant: keyed by "To" number)
   const orgId = await getOrgIdByPhone(toRaw)
 
+  // Fail-fast: unknown "To" number means no org — return empty TwiML, do not query any data
+  if (!orgId) {
+    console.warn('[twilio/inbound] Could not resolve org from To number:', toRaw)
+    return new NextResponse(TWIML_EMPTY, { status: 200, headers: { 'Content-Type': 'text/xml' } })
+  }
+
   // ── Dealer command: inbound SMS from the dealer's own cell ─────────────────
   // e.g. "Tim wants to see the 2009 Acura MDX on Monday at 2pm"
   if (orgId) {
     const { data: orgSettings } = await supabase
       .from('org_settings')
-      .select('dealer_cell_number')
+      .select('dealer_cell_number, locations')
       .eq('org_id', orgId)
       .maybeSingle()
+
+    const rawLocations = orgSettings?.locations as Array<{ name: string }> | null
+    const locationNames = rawLocations?.map(l => l.name).filter(Boolean) ?? []
 
     const dealerCell = orgSettings?.dealer_cell_number
       ? normalizePhone(orgSettings.dealer_cell_number)
@@ -195,7 +204,7 @@ export async function POST(req: NextRequest) {
       }
 
       // ── Dealer appointment command ────────────────────────────────────────
-      const parsed = await parseDealerAppointment(body).catch(() => null)
+      const parsed = await parseDealerAppointment(body, locationNames).catch(() => null)
 
       if (!parsed || !parsed.customer_name) {
         return new NextResponse(
@@ -243,10 +252,6 @@ export async function POST(req: NextRequest) {
         ? new Date(`${parsed.appointment_datetime.replace(' ', 'T')}:00-08:00`)
         : null
 
-      const locationMap: Record<string, string> = {
-        'El Monte':   'El Monte',
-        'Simi Valley': 'Simi Valley',
-      }
       const locationLabel = parsed.location ?? null
       const vehicleLabel  = parsed.vehicle ?? 'vehicle inquiry'
       const bodyText = [
@@ -280,7 +285,7 @@ export async function POST(req: NextRequest) {
           ].filter(Boolean).join('\n'),
           location:  locationLabel ?? undefined,
           startIso:  parsed.appointment_datetime,
-        }).catch(() => {})
+        }, orgId).catch(() => {})
       }
 
       // Confirm back to dealer
@@ -300,19 +305,31 @@ export async function POST(req: NextRequest) {
   }
 
   // Find customer by phone number, scoped to org
-  const customerQuery = supabase
+  const { data: allCustomers } = await supabase
     .from('customers')
     .select('id, name, user_id, primary_phone, secondary_phone, sms_opt_out')
-
-  if (orgId) customerQuery.eq('user_id', orgId)
-
-  const { data: allCustomers } = await customerQuery
+    .eq('user_id', orgId)
 
   const customer = allCustomers?.find(c => {
     const primary   = normalizePhone(c.primary_phone || '')
     const secondary = normalizePhone(c.secondary_phone || '')
     return primary === fromNorm || secondary === fromNorm
   })
+
+  // Fetch org name for TCPA compliance messages
+  let tcpaBizName = 'this service'
+  let tcpaOptOutMsg: string | null = null
+  let tcpaOptInMsg: string | null = null
+  if (orgId) {
+    const { data: tcpaSettings } = await supabase
+      .from('org_settings')
+      .select('business_name, sms_opt_out_message, sms_opt_in_message')
+      .eq('org_id', orgId)
+      .maybeSingle()
+    tcpaBizName   = tcpaSettings?.business_name    ?? tcpaBizName
+    tcpaOptOutMsg = tcpaSettings?.sms_opt_out_message ?? null
+    tcpaOptInMsg  = tcpaSettings?.sms_opt_in_message  ?? null
+  }
 
   // ── TCPA opt-out ─────────────────────────────────────────────────────────
   if (isOptOut) {
@@ -335,8 +352,10 @@ export async function POST(req: NextRequest) {
       })
     }
     // TCPA requires a confirmation reply — send it regardless of customer match
+    const optOutReply = tcpaOptOutMsg
+      ?? `You have been unsubscribed from ${tcpaBizName} messages. Text START to resubscribe.`
     return new NextResponse(
-      twimlMsg('You have been unsubscribed from Apollo Auto messages. Text START to resubscribe.'),
+      twimlMsg(optOutReply),
       { status: 200, headers: { 'Content-Type': 'text/xml' } }
     )
   }
@@ -361,8 +380,10 @@ export async function POST(req: NextRequest) {
         completed_at: new Date().toISOString(),
       })
     }
+    const optInReply = tcpaOptInMsg
+      ?? `You have been re-subscribed to ${tcpaBizName} messages. Reply STOP at any time to unsubscribe.`
     return new NextResponse(
-      twimlMsg('You have been re-subscribed to Apollo Auto messages. Reply STOP at any time to unsubscribe.'),
+      twimlMsg(optInReply),
       { status: 200, headers: { 'Content-Type': 'text/xml' } }
     )
   }

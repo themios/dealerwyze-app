@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { PendingCall } from '@/types'
 
-const STORAGE_KEY = 'apollo_pending_call'
+const STORAGE_KEY = 'dealerwyze_pending_call'
 
 export function setPendingCall(call: PendingCall) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(call))

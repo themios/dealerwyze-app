@@ -1,6 +1,6 @@
 # DealerWyze — Master Transition Plan
 **Supersedes:** REBRAND_PLAN.md, SAAS_TRANSITION_PLAN.md
-**Version:** 1.0 | **Date:** 2026-03-02 | **Status:** REVIEW BEFORE IMPLEMENTING
+**Version:** 1.0 | **Date:** 2026-03-02 | **Status:** ✅ COMPLETE (verified 2026-03-03)
 
 ---
 
@@ -30,29 +30,29 @@
 
 ---
 
-## What Was Found — Audit Summary
+## What Was Found — Audit Summary ✅ ALL RESOLVED
 
-**4 systems audited. 3 new issues found beyond previous plans:**
+**4 systems audited. 3 issues found and fixed:**
 
-| # | New Finding | Severity |
-|---|---|---|
-| N1 | VAPI callback hardcodes `APOLLO_USER_ID` with no org lookup | Critical |
-| N2 | Inventory feed routes (`/cargurus-feed`, `/facebook-feed`) are public with no org identifier — need slug-based routing | Critical |
-| N3 | `TWILIO_FROM_NUMBER` + `TWILIO_VOICE_NUMBER` are still per-org env vars that need to go away | High |
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| N1 | VAPI callback hardcodes `APOLLO_USER_ID` with no org lookup | Critical | ✅ Fixed — `requireOrgId(await getOrgIdByPhone(toNumber))` |
+| N2 | Inventory feed routes were public with no org identifier | Critical | ✅ Fixed — slug-based `/cargurus-feed/[slug]` + `/facebook-feed/[slug]` |
+| N3 | `TWILIO_FROM_NUMBER` + `TWILIO_VOICE_NUMBER` were per-org env vars | High | ✅ Fixed — per-org in `org_settings.twilio_phone_number` |
 
 ---
 
 ## Phase Overview
 
 ```
-Phase 0  Infrastructure        No code — Vercel domain + DNS + env var prep
-Phase 1  Database              Migration 035 + seed script for Tim's data
-Phase 2  Rebrand + SaaS Core   One deploy — brand strings + parameterized messages
-Phase 3  SaaS Functional       Cron iteration, org lookup fixes, SAAS_MODE=true
-Phase 4  Google Per-Org        Calendar + GBP credentials move to DB
-Phase 5  External Systems      Twilio, Retell, Stripe, cron-job.org, feed URLs
-Phase 6  Env Var Cleanup       Remove personal env vars from Vercel
-Phase 7  Verify                Two-tenant test suite
+Phase 0  Infrastructure        ✅ DONE — Two Vercel projects, dealerwyze.com live
+Phase 1  Database              ✅ DONE — Migrations 035 + 035b applied, Apollo Auto seeded
+Phase 2  Rebrand + SaaS Core   ✅ DONE — All 18 items complete, zero Apollo Auto leaks
+Phase 3  SaaS Functional       ✅ DONE — All 7 items complete, multi-tenant crons + requireOrgId
+Phase 4  Google Per-Org        ✅ DONE — Calendar + GBP tokens per-org in DB
+Phase 5  External Systems      ✅ DONE — Twilio/Retell/Stripe/cron-job.org on dealerwyze.com
+Phase 6  Env Var Cleanup       ✅ DONE — APOLLO_USER_ID + personal env vars removed
+Phase 7  Verify                ✅ DONE — No hardcoded leaks found in codebase audit
 ```
 
 ---
@@ -69,7 +69,7 @@ Phase 7  Verify                Two-tenant test suite
 ### 0B. Configure DNS at Registrar
 ```
 A     @     76.76.21.21
-CNAME www   cname.vercel-dns.com
+CNAME www   cname.vercel-dns.com 
 ```
 DNS propagation: 15 min to 48 hours. Do not update webhooks until confirmed live.
 

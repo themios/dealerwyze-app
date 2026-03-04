@@ -8,6 +8,7 @@ import { BarChart2, Users, ChevronRight, ExternalLink, CreditCard, Building2, Ta
 import FontSizeSetting from '@/components/settings/FontSizeSetting'
 import SignOutButton from '@/components/settings/SignOutButton'
 import ProfileEditForm from '@/components/settings/ProfileEditForm'
+import ExportDataButton from '@/components/settings/ExportDataButton'
 
 export default async function SettingsPage() {
   const profile = await requireProfile()
@@ -136,18 +137,21 @@ export default async function SettingsPage() {
 
             <section>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Reports</p>
-              <Link href="/analytics">
-                <div className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent transition-colors">
-                  <div className="flex items-center gap-3">
-                    <BarChart2 className="h-5 w-5 text-primary" />
-                    <div>
-                      <p className="font-medium text-sm">Deal Pipeline & Analytics</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">Inventory value, lead funnel, source breakdown</p>
+              <div className="space-y-2">
+                <Link href="/analytics">
+                  <div className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent transition-colors">
+                    <div className="flex items-center gap-3">
+                      <BarChart2 className="h-5 w-5 text-primary" />
+                      <div>
+                        <p className="font-medium text-sm">Deal Pipeline & Analytics</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Inventory value, lead funnel, source breakdown</p>
+                      </div>
                     </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                </div>
-              </Link>
+                </Link>
+                <ExportDataButton />
+              </div>
             </section>
           </>
         )}
@@ -276,7 +280,6 @@ export default async function SettingsPage() {
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Quick Links</p>
             <div className="space-y-2">
               {[
-                { label: 'Apollo Auto Website', href: 'https://www.apolloauto-em.com' },
                 { label: 'Supabase Dashboard', href: 'https://supabase.com/dashboard' },
                 { label: 'Vercel Dashboard', href: 'https://vercel.com/dashboard' },
               ].map(({ label, href }) => (

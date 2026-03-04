@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
 import { searchAvailableNumbers, buyNumber, releaseNumber, lookupOwnedNumber, updateNumberWebhooks } from '@/lib/twilio/provision'
+import { requirePlatformSuperAdmin } from '@/lib/auth/platform'
 
 /**
  * POST /api/admin/provision-phone
@@ -15,9 +16,8 @@ import { searchAvailableNumbers, buyNumber, releaseNumber, lookupOwnedNumber, up
  */
 export async function POST(req: NextRequest) {
   const profile = await requireProfile()
-  if (profile.role !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  const denied = await requirePlatformSuperAdmin(profile.id)
+  if (denied) return denied
 
   const supabase = createServiceClient()
   const body = await req.json() as {
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   }
 
   const targetOrgId    = body.org_id ?? profile.org_id
-  const dealershipName = body.dealership_name ?? 'Apollo Auto'
+  const dealershipName = body.dealership_name ?? 'Dealer'
 
   // Block if org already has a number registered
   const { data: existing } = await supabase
@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
 
   let sid: string, phoneNumber: string
   try {
-    ;({ sid, phoneNumber } = await buyNumber(available[0].phoneNumber, `Apollo - ${dealershipName}`))
+    ;({ sid, phoneNumber } = await buyNumber(available[0].phoneNumber, `DealerWyze - ${dealershipName}`))
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 502 })
   }

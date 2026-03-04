@@ -74,11 +74,14 @@ export default function TaskItem({ activity, onUpdate }: TaskItemProps) {
             )}
           </div>
           {activity.due_at && (
-            <p className={`text-xs mt-1 ${isOverdue ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+            <p
+              className={`text-xs mt-1 ${isOverdue ? 'text-destructive font-medium' : 'text-muted-foreground'}`}
+              suppressHydrationWarning
+            >
               {isOverdue ? 'Overdue · ' : 'Due · '}
               {new Date(activity.due_at).toLocaleDateString('en-US', {
                 month: 'short', day: 'numeric',
-                hour: 'numeric', minute: '2-digit'
+                hour: 'numeric', minute: '2-digit',
               })}
             </p>
           )}

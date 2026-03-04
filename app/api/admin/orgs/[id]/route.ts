@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
 import { logAdminAction } from '@/lib/admin/audit'
+import { requirePlatformSuperAdmin } from '@/lib/auth/platform'
+import { stripe } from '@/lib/stripe'
 
 const SMS_PLANS: Record<string, { quota: number; label: string }> = {
   tier1: { quota: 1000,  label: 'Tier 1 — 1,000 msgs/mo' },
@@ -14,7 +16,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const profile = await requireProfile()
-  if (profile.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const denied = await requirePlatformSuperAdmin(profile.id)
+  if (denied) return denied
 
   const { id: orgId } = await params
   const supabase = createServiceClient()
@@ -40,6 +43,26 @@ export async function GET(
     (voiceCalls?.reduce((s, c) => s + (c.duration ?? 0), 0) ?? 0) / 60,
   )
 
+  // Fetch Stripe invoices if customer exists
+  let stripeInvoices: { id: string; date: string; amount: number; status: string; pdf: string | null }[] = []
+  if (org.stripe_customer_id) {
+    try {
+      const invoices = await stripe.invoices.list({
+        customer: org.stripe_customer_id,
+        limit: 12,
+      })
+      stripeInvoices = invoices.data.map(inv => ({
+        id:     inv.id,
+        date:   new Date((inv.created ?? 0) * 1000).toISOString(),
+        amount: (inv.amount_paid ?? 0) / 100,
+        status: inv.status ?? 'unknown',
+        pdf:    inv.invoice_pdf ?? null,
+      }))
+    } catch {
+      // Stripe call failed — non-fatal
+    }
+  }
+
   return NextResponse.json({
     org,
     settings,
@@ -49,6 +72,7 @@ export async function GET(
       voice_minutes_30d: voiceMinutes,
       leads_30d:         leadsCount ?? 0,
     },
+    stripe_invoices: stripeInvoices,
   })
 }
 
@@ -57,7 +81,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const profile = await requireProfile()
-  if (profile.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const denied = await requirePlatformSuperAdmin(profile.id)
+  if (denied) return denied
 
   const { id: orgId } = await params
   const supabase = createServiceClient()
@@ -67,6 +92,11 @@ export async function PATCH(
     subscription_status?: string
     sms_plan?: string
     sms_overage_enabled?: boolean
+    trial_end?: string           // ISO date string for set_trial_end
+    cancel_at_period_end?: boolean
+    credit_amount?: number       // in dollars
+    credit_description?: string
+    suspension_reason?: string
   }
 
   const now = new Date().toISOString()
@@ -126,6 +156,66 @@ export async function PATCH(
       .eq('id', orgId)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     await logAdminAction(profile.id, 'reset_sms_count', orgId)
+  }
+
+  // ── Stripe actions ──────────────────────────────────────────────────────────
+
+  else if (body.action === 'set_trial_end') {
+    const { data: org } = await supabase.from('organizations').select('stripe_customer_id').eq('id', orgId).single()
+    if (!org?.stripe_customer_id) return NextResponse.json({ error: 'No Stripe customer' }, { status: 400 })
+    const subs = await stripe.subscriptions.list({ customer: org.stripe_customer_id, limit: 1 })
+    const sub = subs.data[0]
+    if (!sub) return NextResponse.json({ error: 'No active subscription' }, { status: 400 })
+    const trialEnd = body.trial_end ? Math.floor(new Date(body.trial_end).getTime() / 1000) : 'now'
+    await stripe.subscriptions.update(sub.id, { trial_end: trialEnd })
+    await logAdminAction(profile.id, 'set_trial_end', orgId, { trial_end: body.trial_end })
+  }
+
+  else if (body.action === 'cancel_subscription') {
+    const { data: org } = await supabase.from('organizations').select('stripe_customer_id').eq('id', orgId).single()
+    if (!org?.stripe_customer_id) return NextResponse.json({ error: 'No Stripe customer' }, { status: 400 })
+    const subs = await stripe.subscriptions.list({ customer: org.stripe_customer_id, limit: 1 })
+    const sub = subs.data[0]
+    if (!sub) return NextResponse.json({ error: 'No active subscription' }, { status: 400 })
+    if (body.cancel_at_period_end) {
+      await stripe.subscriptions.update(sub.id, { cancel_at_period_end: true })
+    } else {
+      await stripe.subscriptions.cancel(sub.id)
+    }
+    await logAdminAction(profile.id, 'cancel_subscription', orgId, { at_period_end: body.cancel_at_period_end })
+  }
+
+  else if (body.action === 'add_credit') {
+    const { data: org } = await supabase.from('organizations').select('stripe_customer_id').eq('id', orgId).single()
+    if (!org?.stripe_customer_id) return NextResponse.json({ error: 'No Stripe customer' }, { status: 400 })
+    const cents = Math.round((body.credit_amount ?? 0) * -100) // negative = credit
+    if (cents >= 0) return NextResponse.json({ error: 'Credit amount must be positive' }, { status: 400 })
+    await stripe.customers.createBalanceTransaction(org.stripe_customer_id, {
+      amount:   cents,
+      currency: 'usd',
+      description: body.credit_description ?? `Manual credit by admin`,
+    })
+    await logAdminAction(profile.id, 'add_credit', orgId, { amount: body.credit_amount, description: body.credit_description })
+  }
+
+  // ── Suspend / Unsuspend ─────────────────────────────────────────────────────
+
+  else if (body.action === 'suspend') {
+    const { error } = await supabase
+      .from('organizations')
+      .update({ suspended_at: now, suspension_reason: body.suspension_reason ?? null })
+      .eq('id', orgId)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    await logAdminAction(profile.id, 'suspend_org', orgId, { reason: body.suspension_reason })
+  }
+
+  else if (body.action === 'unsuspend') {
+    const { error } = await supabase
+      .from('organizations')
+      .update({ suspended_at: null, suspension_reason: null })
+      .eq('id', orgId)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    await logAdminAction(profile.id, 'unsuspend_org', orgId)
   }
 
   else {

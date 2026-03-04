@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { runLeadPollForOrg } from '@/lib/leads/poll'
+import { startCronRun, finishCronRun } from '@/lib/cron/runLogger'
 
 export const runtime     = 'nodejs'
 export const maxDuration = 55
 
 /**
- * Vercel Cron — runs every 15 minutes.
- * 1. Triggers Tim's single-account lead poll (env var credentials).
- * 2. Polls all SaaS orgs that have at least one connected email account.
+ * SaaS lead sync — polls ALL orgs with connected email accounts uniformly.
+ * Apollo Auto is just another tenant in email_accounts.
+ * Called by cron-job.org every 1 minute → dealerwyze.com/api/cron/sync-leads
  */
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
@@ -16,22 +17,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const appUrl    = process.env.NEXT_PUBLIC_APP_URL!
-  const apolloOrg = process.env.APOLLO_USER_ID
+  const runId = await startCronRun('sync-leads')
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL!
 
-  // 1. Tim's env-var poll + BHPH reminders (parallel)
-  const [leadsRes, bhphRes] = await Promise.allSettled([
-    fetch(`${appUrl}/api/leads/poll?secret=${process.env.LEADS_POLL_SECRET}`, { method: 'GET' }),
-    fetch(`${appUrl}/api/bhph/remind`, {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
-    }),
-  ])
+  // BHPH reminders run in parallel with lead polling
+  const bhphPromise = fetch(`${appUrl}/api/bhph/remind`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+  }).then(r => r.json()).catch(() => ({ error: 'failed' }))
 
-  const leadsData = leadsRes.status === 'fulfilled' ? await leadsRes.value.json() : { error: 'failed' }
-  const bhphData  = bhphRes.status  === 'fulfilled' ? await bhphRes.value.json()  : { error: 'failed' }
-
-  // 2. Per-org polling for all orgs with connected email accounts
+  // Poll every org with at least one enabled email account
   const supabase = createServiceClient()
   const { data: rows } = await supabase
     .from('email_accounts')
@@ -39,7 +34,6 @@ export async function GET(req: NextRequest) {
     .eq('enabled', true)
 
   const orgIds = [...new Set((rows ?? []).map(r => r.org_id as string))]
-    .filter(id => id !== apolloOrg) // Tim's org handled by env-var poll above
 
   const orgResults: Record<string, unknown> = {}
   for (const orgId of orgIds) {
@@ -50,9 +44,10 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  await finishCronRun(runId, 'success', orgIds.length)
+
   return NextResponse.json({
-    leads:        leadsData,
-    bhph:         bhphData,
+    bhph:         await bhphPromise,
     org_polls:    orgResults,
     triggered_at: new Date().toISOString(),
   })

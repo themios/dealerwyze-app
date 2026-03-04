@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Activity, Template } from '@/types'
 import { createClient } from '@/lib/supabase/client'
 import { fillTemplate, tomorrow9am, leadAgeBadge } from '@/lib/utils'
+import { useOrgSettings } from '@/hooks/useOrgSettings'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -17,19 +18,19 @@ import TemplatePicker from '@/components/sms/TemplatePicker'
 const FOLLOWUP_TEMPLATES: Record<number, { subject: string; body: string }> = {
   2: {
     subject: 'Following up — {vehicle}',
-    body: 'Hi {firstName},\n\nJust following up on the {vehicle}{price}. Still interested?\n\nHere\'s the listing: {link}\n\nHappy to answer any questions or set up a test drive.\n\nTim\nApollo Auto | (805) 404-3873',
+    body: 'Hi {firstName},\n\nJust following up on the {vehicle}{price}. Still interested?\n\nHere\'s the listing: {link}\n\nHappy to answer any questions or set up a test drive.\n\nTim\n{dealerName} | {dealerPhone}',
   },
   3: {
     subject: '{vehicle} — Still Available',
-    body: 'Hi {firstName},\n\nThe {vehicle} is still available{price}. We also offer competitive financing with low down payments.\n\nWould love to help you find the right terms.\n\nTim\nApollo Auto | (805) 404-3873',
+    body: 'Hi {firstName},\n\nThe {vehicle} is still available{price}. We also offer competitive financing with low down payments.\n\nWould love to help you find the right terms.\n\nTim\n{dealerName} | {dealerPhone}',
   },
   4: {
     subject: '{vehicle} — Getting Attention',
-    body: 'Hi {firstName},\n\nJust a heads up — the {vehicle} has been getting attention from other buyers. I\'d hate for you to miss out.\n\nWant to lock in a test drive this week?\n\nTim\nApollo Auto | (805) 404-3873',
+    body: 'Hi {firstName},\n\nJust a heads up — the {vehicle} has been getting attention from other buyers. I\'d hate for you to miss out.\n\nWant to lock in a test drive this week?\n\nTim\n{dealerName} | {dealerPhone}',
   },
   5: {
     subject: 'Last Note — {vehicle}',
-    body: 'Hi {firstName},\n\nThis will be my last follow-up. The {vehicle} at {price} is still available if you\'re interested.\n\nIf now\'s not the right time, no worries — feel free to reach out whenever you\'re ready.\n\nTim\nApollo Auto | (805) 404-3873',
+    body: 'Hi {firstName},\n\nThis will be my last follow-up. The {vehicle} at {price} is still available if you\'re interested.\n\nIf now\'s not the right time, no worries — feel free to reach out whenever you\'re ready.\n\nTim\n{dealerName} | {dealerPhone}',
   },
 }
 
@@ -94,6 +95,7 @@ export default function NewLeadCard({ activity, templates, onUpdate }: NewLeadCa
   const [loading, setLoading] = useState<string | null>(null)
   const [listingUrl, setListingUrl] = useState('')
   const supabase = createClient()
+  const orgSettings = useOrgSettings()
 
   useEffect(() => {
     if (!lead.vin) return
@@ -120,10 +122,12 @@ export default function NewLeadCard({ activity, templates, onUpdate }: NewLeadCa
   function getVars() {
     return {
       firstName,
-      vehicle: vehicleName || '{vehicle}',
-      price: priceStr ? ` at ${priceStr}` : '',
-      vinLine: lead.vin ? `• VIN: ${lead.vin}` : '',
-      link: listingUrl,
+      vehicle:     vehicleName || '{vehicle}',
+      price:       priceStr ? ` at ${priceStr}` : '',
+      vinLine:     lead.vin ? `• VIN: ${lead.vin}` : '',
+      link:        listingUrl,
+      dealerName:  orgSettings.dealerName,
+      dealerPhone: orgSettings.dealerPhone,
     }
   }
 

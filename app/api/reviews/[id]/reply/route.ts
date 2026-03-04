@@ -32,7 +32,16 @@ export async function POST(
 
   if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const ok = await replyToGbpReview(row.review_id, reply)
+  // Look up per-org GBP credentials
+  const [{ data: token }, { data: orgSettings }] = await Promise.all([
+    supabase.from('org_google_tokens').select('calendar_refresh_token').eq('org_id', profile.org_id).maybeSingle(),
+    supabase.from('org_settings').select('gbp_location_id, gbp_account_id').eq('org_id', profile.org_id).maybeSingle(),
+  ])
+  const creds = token?.calendar_refresh_token && orgSettings?.gbp_location_id
+    ? { refreshToken: token.calendar_refresh_token, locationId: orgSettings.gbp_location_id, accountId: orgSettings.gbp_account_id ?? 'accounts/-' }
+    : undefined   // falls back to env vars in replyToGbpReview
+
+  const ok = await replyToGbpReview(row.review_id, reply, creds)
   if (!ok) return NextResponse.json({ error: 'GBP API error' }, { status: 502 })
 
   const { error: updateError } = await supabase

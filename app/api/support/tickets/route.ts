@@ -26,13 +26,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Subject and message are required.' }, { status: 400 })
   }
 
+  const priority = body.priority ?? 'normal'
+  const SLA_HOURS: Record<string, number> = { urgent: 2, high: 8, normal: 24, low: 72 }
+  const slaHours = SLA_HOURS[priority] ?? 24
+  const sla_breach_at = new Date(Date.now() + slaHours * 3600000).toISOString()
+
   const { data: ticket, error: tErr } = await supabase
     .from('support_tickets')
     .insert({
-      org_id:     profile.org_id,
-      subject:    body.subject.trim(),
-      priority:   body.priority ?? 'normal',
-      created_by: profile.id,
+      org_id:       profile.org_id,
+      subject:      body.subject.trim(),
+      priority,
+      created_by:   profile.id,
+      sla_breach_at,
     })
     .select('id')
     .single()

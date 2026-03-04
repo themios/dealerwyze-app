@@ -16,14 +16,15 @@ interface AddTaskModalProps {
   customerId: string
   customerName?: string
   vehicleId?: string
+  orgName?: string
+  orgPhone?: string
+  orgAddress?: string
   onSaved: () => void
 }
 
 type DuePreset = '2h' | 'tomorrow' | 'custom' | null
 
-const DEALERSHIP_ADDRESS = '10915 Garvey Ave, El Monte, CA 91733'
-
-export default function AddTaskModal({ open, onClose, customerId, customerName, vehicleId, onSaved }: AddTaskModalProps) {
+export default function AddTaskModal({ open, onClose, customerId, customerName, vehicleId, orgName = '', orgPhone = '', orgAddress = '', onSaved }: AddTaskModalProps) {
   const [type, setType] = useState<'call' | 'task' | 'appointment'>('call')
   const [body, setBody] = useState('')
   const [duePreset, setDuePreset] = useState<DuePreset>('tomorrow')
@@ -65,17 +66,17 @@ export default function AddTaskModal({ open, onClose, customerId, customerName, 
     const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0]
 
     const title = customerName
-      ? `Appointment — ${customerName} @ Apollo Auto`
-      : 'Appointment @ Apollo Auto'
+      ? `Appointment — ${customerName}${orgName ? ` @ ${orgName}` : ''}`
+      : `Appointment${orgName ? ` @ ${orgName}` : ''}`
 
-    const details = [body, 'Apollo Auto | (805) 404-3873'].filter(Boolean).join('\n')
+    const details = [body, orgPhone ? `${orgName} | ${orgPhone}` : orgName].filter(Boolean).join('\n')
 
     const url = new URL('https://calendar.google.com/calendar/render')
     url.searchParams.set('action', 'TEMPLATE')
     url.searchParams.set('text', title)
     url.searchParams.set('dates', `${fmt(dueAt)}/${fmt(endAt)}`)
     url.searchParams.set('details', details)
-    url.searchParams.set('location', DEALERSHIP_ADDRESS)
+    if (orgAddress) url.searchParams.set('location', orgAddress)
 
     window.open(url.toString(), '_blank')
   }

@@ -12,6 +12,7 @@ interface Props {
   open: boolean
   onClose: () => void
   defaultDate?: Date
+  orgName?: string
   onSaved: () => void
 }
 
@@ -32,7 +33,7 @@ function googleCalendarUrl(title: string, start: Date, durationMins: number, des
     text: title,
     dates: `${fmt(start)}/${fmt(end)}`,
     details: description,
-    location: 'Apollo Auto',
+    location: '',
   })
   return `https://calendar.google.com/calendar/render?${params}`
 }
@@ -42,7 +43,7 @@ function toLocalDatetimeValue(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-export default function AddAppointmentSheet({ open, onClose, defaultDate, onSaved }: Props) {
+export default function AddAppointmentSheet({ open, onClose, defaultDate, orgName = '', onSaved }: Props) {
   const defaultDt = defaultDate ?? (() => {
     const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(10, 0, 0, 0); return d
   })()

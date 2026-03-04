@@ -26,7 +26,7 @@ const ITEMS: { key: keyof CheckItems; label: string; href: string }[] = [
   { key: 'hasPlan',        label: 'Subscribe to a plan',          href: '/settings/billing' },
 ]
 
-const STORAGE_KEY = (orgId: string) => `apollo_onboarding_dismissed_${orgId}`
+const STORAGE_KEY = (orgId: string) => `dealerwyze_onboarding_dismissed_${orgId}`
 const DAYS_7 = 7 * 24 * 60 * 60 * 1000
 
 export default function OnboardingChecklist({ orgId, onboardingCompletedAt, checkItems }: Props) {

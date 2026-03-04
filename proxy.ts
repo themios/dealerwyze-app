@@ -10,6 +10,7 @@ const store = new Map<string, RateEntry>()
 const RATE_ROUTES: Array<{ prefix: string; limit: number; windowMs: number }> = [
   { prefix: '/api/twilio/inbound',          limit: 60,  windowMs: 60_000 },
   { prefix: '/api/voice/retell-callback',   limit: 30,  windowMs: 60_000 },
+  { prefix: '/api/gmail/webhook',           limit: 60,  windowMs: 60_000 },
   { prefix: '/api/inventory/cargurus-feed', limit: 10,  windowMs: 60_000 },
   { prefix: '/api/inventory/facebook-feed', limit: 10,  windowMs: 60_000 },
 ]
@@ -44,12 +45,29 @@ function maybePrune() {
   }
 }
 
+// ── Staff impersonation: block mutations ──────────────────────────────────────
+
+const IMPERSONATION_COOKIE = 'dealerwyze_staff_org_id'
+const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+// Routes allowed to mutate during impersonation (impersonate end + auth)
+const IMPERSONATION_ALLOWED_PREFIXES = ['/api/admin/impersonate', '/api/auth/']
+
+function isImpersonationBlocked(request: NextRequest): boolean {
+  if (!MUTATING_METHODS.has(request.method)) return false
+  const cookie = request.cookies.get(IMPERSONATION_COOKIE)?.value
+  if (!cookie) return false
+  const { pathname } = request.nextUrl
+  if (!pathname.startsWith('/api/')) return false
+  if (IMPERSONATION_ALLOWED_PREFIXES.some(p => pathname.startsWith(p))) return false
+  return true
+}
+
 // ── Auth + subscription gating (original proxy.ts) ───────────────────────────
 
 const PUBLIC_PATHS    = ['/', '/login', '/signup', '/privacy', '/terms', '/privacy.html', '/terms.html', '/forgot-password', '/reset-password']
 const PUBLIC_PREFIXES = ['/auth/', '/api/auth/', '/api/stripe/webhook', '/_next/']
 const PUBLIC_FILES    = ['/favicon.ico', '/logo.jpg', '/manifest.json']
-const BILLING_EXEMPT  = ['/settings/billing', '/settings/users']
+const BILLING_EXEMPT  = ['/settings/billing', '/settings/users', '/pending', '/suspended']
 
 function isPublic(pathname: string): boolean {
   if (PUBLIC_PATHS.includes(pathname)) return true
@@ -70,6 +88,11 @@ function isAppRoute(pathname: string): boolean {
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  // Block mutating API calls during staff impersonation sessions
+  if (isImpersonationBlocked(request)) {
+    return new NextResponse('Forbidden: read-only during staff impersonation', { status: 403 })
+  }
 
   // Rate limiting for public webhook/feed routes
   const rateRule = RATE_ROUTES.find(r => pathname.startsWith(r.prefix))
@@ -92,7 +115,11 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next({ request })
   }
 
-  let supabaseResponse = NextResponse.next({ request })
+  // Inject pathname as header so server layouts can read it via headers()
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set('x-pathname', pathname)
+
+  let supabaseResponse = NextResponse.next({ request: { headers: requestHeaders } })
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -144,16 +171,23 @@ export async function proxy(request: NextRequest) {
     if (profile?.org_id) {
       const { data: org } = await supabase
         .from('organizations')
-        .select('subscription_status, trial_ends_at')
+        .select('subscription_status, trial_ends_at, suspended_at')
         .eq('id', profile.org_id)
         .maybeSingle()
 
       if (org) {
-        const { subscription_status, trial_ends_at } = org
+        const { subscription_status, trial_ends_at, suspended_at } = org as typeof org & { suspended_at?: string | null }
         const trialExpired =
           subscription_status === 'trialing' &&
           trial_ends_at &&
           new Date(trial_ends_at) < new Date()
+
+        // Suspended accounts — redirect to suspension page (except the page itself)
+        if (suspended_at && !pathname.startsWith('/suspended')) {
+          const url = request.nextUrl.clone()
+          url.pathname = '/suspended'
+          return NextResponse.redirect(url)
+        }
 
         if (subscription_status === 'canceled' || trialExpired) {
           const url = request.nextUrl.clone()

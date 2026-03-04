@@ -27,7 +27,8 @@ export default function SyncInventoryButton() {
       setStatus('done')
       router.refresh()
     } catch (err: any) {
-      setResult('Failed')
+      const message = err?.message || 'Sync failed'
+      setResult(message)
       setStatus('error')
       console.error(err)
     }

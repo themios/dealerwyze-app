@@ -52,10 +52,21 @@ function toCsvRow(fields: Array<string | number | null | undefined>): string {
   return fields.map(escapeField).join(',')
 }
 
-function vehicleDescription(v: FeedVehicle): string {
+export interface OrgInfo {
+  bizName:  string
+  bizCity:  string
+  bizState: string
+  bizPhone: string
+}
+
+function vehicleDescription(v: FeedVehicle, org?: OrgInfo): string {
   if (v.notes?.trim()) return v.notes.trim()
   const trim = v.trim ? ` ${v.trim}` : ''
-  return `${v.year} ${v.make} ${v.model}${trim} available at Apollo Auto, El Monte CA. Call (818) 873-3123.`
+  if (!org) return `${v.year} ${v.make} ${v.model}${trim}.`
+  const location = [org.bizCity, org.bizState].filter(Boolean).join(', ')
+  const at = location ? ` at ${org.bizName}, ${location}` : ''
+  const call = org.bizPhone ? ` Call ${org.bizPhone}.` : ''
+  return `${v.year} ${v.make} ${v.model}${trim} available${at}.${call}`
 }
 
 // ── CarGurus feed ───────────────────────────────────────────────────────────
@@ -75,7 +86,7 @@ const CG_HEADERS = [
   'ImageURLs',      // H3: plural
 ]
 
-export function buildCarGurusCSV(vehicles: FeedVehicle[]): string {
+export function buildCarGurusCSV(vehicles: FeedVehicle[], org?: OrgInfo): string {
   const lines: string[] = [toCsvRow(CG_HEADERS)]
   for (const v of vehicles) {
     lines.push(toCsvRow([
@@ -88,7 +99,7 @@ export function buildCarGurusCSV(vehicles: FeedVehicle[]): string {
       v.mileage ?? 0,
       v.price ?? 0,
       v.color,
-      vehicleDescription(v),
+      vehicleDescription(v, org),
       v.photo_url,
     ]))
   }
@@ -119,9 +130,8 @@ const FB_HEADERS = [
   'fuel_type',
 ]
 
-const DEALER_INVENTORY_URL = 'https://www.apolloauto-em.com/cars-for-sale'
-
-export function buildFacebookCSV(vehicles: FeedVehicle[]): string {
+export function buildFacebookCSV(vehicles: FeedVehicle[], org?: OrgInfo, inventoryUrl?: string): string {
+  const fallbackUrl = inventoryUrl ?? ''
   const lines: string[] = [toCsvRow(FB_HEADERS)]
   for (const v of vehicles) {
     lines.push(toCsvRow([
@@ -129,10 +139,10 @@ export function buildFacebookCSV(vehicles: FeedVehicle[]): string {
       'in stock',                                               // availability
       'used',                                                   // condition
       `${v.year} ${v.make} ${v.model}`,                        // title
-      vehicleDescription(v),                                    // description
+      vehicleDescription(v, org),                               // description
       v.price && v.price > 0 ? `${v.price} USD` : '',          // H2: blank if no price
       v.photo_url,                                              // image_link
-      v.listing_url ?? DEALER_INVENTORY_URL,                    // link
+      v.listing_url ?? fallbackUrl,                             // link
       v.year,                                                   // year
       v.make,                                                   // make
       v.model,                                                  // model

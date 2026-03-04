@@ -126,7 +126,7 @@ export async function sendBhphReminder(params: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from: `Apollo Auto <payments@${process.env.RESEND_FROM_DOMAIN ?? 'apolloauto-em.com'}>`,
+            from: `${messageVars.dealerName} <payments@${process.env.RESEND_FROM_DOMAIN ?? 'mail.dealerwyze.com'}>`,
             to: [customerEmail],
             subject,
             html,

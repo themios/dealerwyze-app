@@ -5,6 +5,7 @@ import {
   createInventoryReviewTask,
 } from '@/lib/tasks/auto'
 import { sendLeadNotification } from '@/lib/push/send'
+import { startCronRun, finishCronRun } from '@/lib/cron/runLogger'
 
 export const runtime = 'nodejs'
 export const maxDuration = 55
@@ -18,6 +19,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const runId = await startCronRun('check-tasks')
   const supabase = createServiceClient()
   let receiptsTasked = 0
   let vehiclesTasked = 0
@@ -192,9 +194,18 @@ export async function GET(req: NextRequest) {
         })
       : 'your upcoming appointment'
 
+    const { data: apptOrgSettings } = await supabase
+      .from('org_settings')
+      .select('business_name, dealer_cell_number')
+      .eq('org_id', appt.user_id)
+      .maybeSingle()
+    const apptBizName  = apptOrgSettings?.business_name  ?? 'the dealership'
+    const apptBizPhone = apptOrgSettings?.dealer_cell_number ?? ''
+
     const firstName = customer.name?.split(' ')[0] || ''
     const greeting  = firstName ? `Hi ${firstName}! ` : ''
-    const msgBody   = `${greeting}Reminder: You have an appointment at Apollo Auto tomorrow — ${apptTime}. Call (818) 873-3123 to reschedule. Reply STOP to opt out.`
+    const reschedule = apptBizPhone ? ` Call ${apptBizPhone} to reschedule.` : ''
+    const msgBody   = `${greeting}Reminder: You have an appointment at ${apptBizName} tomorrow — ${apptTime}.${reschedule} Reply STOP to opt out.`
 
     if (twilioSid && twilioToken && twilioFrom) {
       try {
@@ -277,6 +288,68 @@ export async function GET(req: NextRequest) {
     responseAlerts++
   }
 
+  // ── Job 8: Admin health alerts ─────────────────────────────────────────────
+  // Idempotent — uses ON CONFLICT DO NOTHING via unique constraint.
+  let adminAlerts = 0
+
+  const nowIso  = new Date().toISOString()
+  const threeDaysFromNow = new Date(Date.now() + 3 * 86400000).toISOString()
+  const fiveDaysAgo   = new Date(Date.now() - 5  * 86400000).toISOString()
+  const twentyOneDaysAgo = new Date(Date.now() - 21 * 86400000).toISOString()
+
+  const { data: allOrgs } = await supabase
+    .from('organizations')
+    .select('id, subscription_status, trial_ends_at')
+    .neq('id', '00000000-0000-0000-0000-000000000001')
+    .not('approved_at', 'is', null)
+
+  for (const org of allOrgs ?? []) {
+    const alertsToInsert: { org_id: string; alert_type: string; severity: string }[] = []
+
+    // Trial expiring in ≤3 days — check if they've logged in recently
+    if (
+      org.subscription_status === 'trialing' &&
+      org.trial_ends_at &&
+      org.trial_ends_at <= threeDaysFromNow
+    ) {
+      alertsToInsert.push({ org_id: org.id, alert_type: 'trial_expiring', severity: 'critical' })
+    }
+
+    // Past due
+    if (org.subscription_status === 'past_due') {
+      alertsToInsert.push({ org_id: org.id, alert_type: 'past_due', severity: 'critical' })
+    }
+
+    for (const alert of alertsToInsert) {
+      const { error } = await supabase
+        .from('admin_alerts')
+        .insert({ ...alert })
+        // unique constraint (org_id, alert_type, resolved_at=null) prevents duplicates
+        .select('id')
+        .maybeSingle()
+      if (!error) adminAlerts++
+    }
+  }
+
+  // No-activity alert: active orgs with no profile login in 21+ days
+  // We use profiles.created_at as a proxy since last_sign_in requires auth admin
+  const { data: inactiveProfiles } = await supabase
+    .from('profiles')
+    .select('org_id')
+    .lt('created_at', twentyOneDaysAgo)
+    .eq('role', 'dealer_admin')
+
+  const inactiveOrgIds = [...new Set((inactiveProfiles ?? []).map(p => p.org_id))]
+  for (const orgId of inactiveOrgIds.slice(0, 50)) {
+    await supabase
+      .from('admin_alerts')
+      .insert({ org_id: orgId, alert_type: 'no_activity', severity: 'warning' })
+      .select('id')
+      .maybeSingle()
+  }
+
+  await finishCronRun(runId, 'success', (allOrgs ?? []).length)
+
   return NextResponse.json({
     receipts_tasked: receiptsTasked,
     vehicles_tasked: vehiclesTasked,
@@ -284,5 +357,6 @@ export async function GET(req: NextRequest) {
     quotas_reset: quotasReset,
     appointment_reminders_sent: remindersent,
     response_alerts: responseAlerts,
+    admin_alerts: adminAlerts,
   })
 }

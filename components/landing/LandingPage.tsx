@@ -45,7 +45,7 @@ function Nav() {
               A
             </div>
             <span className="font-bold text-lg" style={{ color: '#0D2B55' }}>
-              Apollo CRM
+              DealerWyze
             </span>
           </div>
 
@@ -236,7 +236,7 @@ function HeroSection() {
               className="text-lg sm:text-xl leading-relaxed mb-8 max-w-lg"
               style={{ color: 'rgba(255,255,255,0.75)' }}
             >
-              Apollo CRM gives you one place for every lead, every car, and every
+              DealerWyze gives you one place for every lead, every car, and every
               next step — so you stop context-switching and start closing.
             </p>
 
@@ -460,7 +460,7 @@ function FounderSection() {
             style={{ color: '#3D3530', borderLeft: '3px solid #F07018' }}
           >
             <p className="mb-4">
-              Running Apollo Auto as a small lot owner meant every lead came through a
+              Running a small lot meant every lead came through a
               different place — calls, texts, Gmail lead emails, platform messages —
               and I was constantly context-switching and still missing follow-ups.
               I&apos;d wake up realizing I lost a deal overnight because I couldn&apos;t find
@@ -478,7 +478,7 @@ function FounderSection() {
           {/* Attribution */}
           <div className="mt-6 pl-4">
             <p className="font-bold text-sm" style={{ color: '#0D2B55' }}>
-              — Tim, Owner · Apollo Auto · Los Angeles, CA
+              — Independent dealer, Los Angeles, CA
             </p>
           </div>
         </div>
@@ -492,7 +492,7 @@ function FounderSection() {
             color: '#6B4A28',
           }}
         >
-          Apollo CRM started as an internal tool. We&apos;re opening it to independent
+          DealerWyze started as an internal tool. We&apos;re opening it to independent
           dealers who are tired of using enterprise software that wasn&apos;t built for
           them.
         </div>
@@ -830,11 +830,11 @@ function PricingSection() {
         <p className="text-center mt-8 text-sm" style={{ color: '#6B6355' }}>
           Questions? Email us at{' '}
           <a
-            href="mailto:support@apollocrm.app"
+            href="mailto:support@dealerwyze.com"
             className="underline underline-offset-2 hover:opacity-70 transition-opacity"
             style={{ color: '#0D2B55' }}
           >
-            support@apollocrm.app
+            support@dealerwyze.com
           </a>
         </p>
       </div>
@@ -898,7 +898,7 @@ function Footer() {
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-4">
           {/* Left */}
           <p className="text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.6)' }}>
-            Apollo CRM by KMA Auto Inc
+            DealerWyze by KMA Auto Inc
           </p>
 
           {/* Center links */}

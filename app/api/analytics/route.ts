@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
+import { canAccessReports } from '@/lib/auth/dealerRoles'
+import type { UserRole } from '@/types/index'
 
 export async function GET(req: NextRequest) {
   const profile = await requireProfile()
+  if (!canAccessReports(profile.role as UserRole)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
   const supabase = await createClient()
   const orgId = profile.org_id
 

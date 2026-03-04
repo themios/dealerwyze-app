@@ -1,7 +1,7 @@
 /**
  * Twilio inbound SMS webhook
  * Configure in Twilio Console → Phone Numbers → your number → Messaging → Webhook URL:
- *   https://apollo-crm.vercel.app/api/bhph/webhook
+ *   https://dealerwyze.com/api/bhph/webhook
  *   Method: POST
  *
  * Handles: STOP → opt-out, START/UNSTOP → opt back in, HELP → auto-reply
@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
+import { getOrgIdByPhone } from '@/lib/orgs/lookup'
 
 const STOP_KEYWORDS  = ['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT']
 const START_KEYWORDS = ['START', 'UNSTOP', 'YES']
@@ -19,9 +20,19 @@ export async function POST(req: NextRequest) {
   const body = await req.text()
   const params = new URLSearchParams(body)
   const from = params.get('From') ?? ''
+  const to   = params.get('To')   ?? ''
   const msgBody = (params.get('Body') ?? '').trim().toUpperCase()
 
   if (!from) {
+    return new NextResponse('<?xml version="1.0"?><Response/>', {
+      headers: { 'Content-Type': 'text/xml' },
+    })
+  }
+
+  // Resolve org from "To" number — fail-fast if unknown to prevent cross-tenant queries
+  const orgId = await getOrgIdByPhone(to)
+  if (!orgId) {
+    console.warn('[bhph/webhook] Could not resolve org from To number:', to)
     return new NextResponse('<?xml version="1.0"?><Response/>', {
       headers: { 'Content-Type': 'text/xml' },
     })
@@ -38,12 +49,14 @@ export async function POST(req: NextRequest) {
     await service
       .from('customers')
       .update({ sms_opted_out: true, sms_opted_out_at: new Date().toISOString() })
+      .eq('user_id', orgId)
       .or(`primary_phone.ilike.%${digits.slice(-10)}%,secondary_phone.ilike.%${digits.slice(-10)}%`)
 
     // Update BHPH contracts for this customer
     const { data: customers } = await service
       .from('customers')
       .select('id')
+      .eq('user_id', orgId)
       .or(`primary_phone.ilike.%${digits.slice(-10)}%,secondary_phone.ilike.%${digits.slice(-10)}%`)
 
     if (customers?.length) {
@@ -62,6 +75,7 @@ export async function POST(req: NextRequest) {
     await service
       .from('customers')
       .update({ sms_opted_out: false, sms_opted_out_at: null })
+      .eq('user_id', orgId)
       .or(`primary_phone.ilike.%${digits.slice(-10)}%,secondary_phone.ilike.%${digits.slice(-10)}%`)
 
     // Twilio sends its own re-subscribe confirmation — do NOT reply
@@ -69,7 +83,7 @@ export async function POST(req: NextRequest) {
 
   } else if (HELP_KEYWORDS.includes(msgBody)) {
     twiml = `<Response>
-  <Message>Apollo Auto payment reminders only. Approx 4-6 msg/month. Msg&amp;data rates may apply. STOP to cancel.</Message>
+  <Message>Payment reminders only. Approx 4-6 msg/month. Msg&amp;data rates may apply. STOP to cancel.</Message>
 </Response>`
   }
 

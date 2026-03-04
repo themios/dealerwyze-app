@@ -94,7 +94,7 @@ function Step1({
       <div className="space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="bname">Dealership name</Label>
-          <Input id="bname" value={name} onChange={e => setName(e.target.value)} placeholder="Apollo Auto" />
+          <Input id="bname" value={name} onChange={e => setName(e.target.value)} placeholder="My Auto Group" />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="bphone">Business phone</Label>
@@ -102,7 +102,7 @@ function Step1({
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="baddress">Address</Label>
-          <Input id="baddress" value={address} onChange={e => setAddress(e.target.value)} placeholder="123 Main St, El Monte, CA 91731" />
+          <Input id="baddress" value={address} onChange={e => setAddress(e.target.value)} placeholder="123 Main St, City, CA 90001" />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="tz">Timezone</Label>

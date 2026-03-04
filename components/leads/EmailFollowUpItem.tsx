@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Activity } from '@/types'
 import { createClient } from '@/lib/supabase/client'
 import { tomorrow9am, fillTemplate } from '@/lib/utils'
+import { useOrgSettings } from '@/hooks/useOrgSettings'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -14,15 +15,15 @@ import { Mail } from 'lucide-react'
 const FOLLOWUP_TEMPLATES: Record<number, { subject: string; body: string }> = {
   3: {
     subject: '{vehicle} — Still Available',
-    body: 'Hi {firstName},\n\nThe {vehicle} is still available. We also offer competitive financing with low down payments.\n\nWould love to help you find the right terms.\n\nTim\nApollo Auto | (805) 404-3873',
+    body: 'Hi {firstName},\n\nThe {vehicle} is still available. We also offer competitive financing with low down payments.\n\nWould love to help you find the right terms.\n\nTim\n{dealerName} | {dealerPhone}',
   },
   4: {
     subject: '{vehicle} — Getting Attention',
-    body: 'Hi {firstName},\n\nJust a heads up — the {vehicle} has been getting attention from other buyers. I\'d hate for you to miss out.\n\nWant to lock in a test drive this week?\n\nTim\nApollo Auto | (805) 404-3873',
+    body: 'Hi {firstName},\n\nJust a heads up — the {vehicle} has been getting attention from other buyers. I\'d hate for you to miss out.\n\nWant to lock in a test drive this week?\n\nTim\n{dealerName} | {dealerPhone}',
   },
   5: {
     subject: 'Last Note — {vehicle}',
-    body: 'Hi {firstName},\n\nThis will be my last follow-up. The {vehicle} is still available if you\'re interested.\n\nIf now\'s not the right time, no worries — feel free to reach out whenever you\'re ready.\n\nTim\nApollo Auto | (805) 404-3873',
+    body: 'Hi {firstName},\n\nThis will be my last follow-up. The {vehicle} is still available if you\'re interested.\n\nIf now\'s not the right time, no worries — feel free to reach out whenever you\'re ready.\n\nTim\n{dealerName} | {dealerPhone}',
   },
 }
 
@@ -49,6 +50,7 @@ export default function EmailFollowUpItem({ activity, onUpdate }: Props) {
   const [emailBody, setEmailBody] = useState('')
   const [loading, setLoading] = useState<string | null>(null)
   const supabase = createClient()
+  const orgSettings = useOrgSettings()
 
   const data = parseFollowUpBody(activity.body || '')
   const day = data?.sequence_day ?? 2
@@ -86,7 +88,7 @@ export default function EmailFollowUpItem({ activity, onUpdate }: Props) {
 
     const nextDay = day + 1
     if (nextDay <= 5 && FOLLOWUP_TEMPLATES[nextDay]) {
-      const vars = { firstName, vehicle: data.vehicle }
+      const vars = { firstName, vehicle: data.vehicle, dealerName: orgSettings.dealerName, dealerPhone: orgSettings.dealerPhone }
       const nextTpl = FOLLOWUP_TEMPLATES[nextDay]
       const nextBody = JSON.stringify({
         to: data.to,

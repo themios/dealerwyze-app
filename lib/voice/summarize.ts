@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk'
 export interface VoiceSummaryJson {
   caller_name:                 string | null
   vehicle_interest:            string | null
-  location:                    'Simi Valley' | 'El Monte' | null
+  location:                    string | null
   appointment_exact:           string | null
   appointment_range:           'today_morning' | 'today_afternoon' | 'this_week' | 'general_inquiry' | null
   intent:                      'buy' | 'sell' | 'information' | 'service' | 'unknown' | null
@@ -24,11 +24,12 @@ Output ONLY a single raw JSON object matching the exact schema provided. No mark
  * Returns null on failure — caller should store null and continue.
  */
 export async function generateVoiceSummary(input: {
-  name:       string
-  vehicle:    string
-  phone:      string
-  timeline:   string
-  transcript: string
+  name:          string
+  vehicle:       string
+  phone:         string
+  timeline:      string
+  transcript:    string
+  locationNames?: string[]   // org location names for hint
 }): Promise<VoiceSummaryJson | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return null
@@ -40,7 +41,11 @@ export async function generateVoiceSummary(input: {
     timeZone: 'America/Los_Angeles',
   })
 
-  const userPrompt = `You are analyzing a call between a customer and Apollo Auto's virtual receptionist.
+  const locationHint = input.locationNames && input.locationNames.length > 0
+    ? `Possible locations: ${input.locationNames.map(n => `"${n}"`).join(', ')}. Use one of these exact strings if matched, else null.`
+    : 'string or null (location name if mentioned, else null)'
+
+  const userPrompt = `You are analyzing a call between a customer and a car dealership's virtual receptionist.
 Extract structured lead data. Return STRICT JSON only. No commentary, no markdown.
 If information is missing use null. Do NOT guess or invent details.
 Today is ${today} (Pacific Time). Use this to resolve relative dates like "tomorrow", "Saturday", "next week" into ISO datetime strings (format: "YYYY-MM-DD HH:mm").
@@ -56,7 +61,7 @@ Return exactly this JSON structure:
 {
   "caller_name": string or null,
   "vehicle_interest": string or null (exact year/make/model if mentioned, do not guess),
-  "location": "Simi Valley" | "El Monte" | null,
+  "location": ${locationHint},
   "appointment_exact": string or null (ISO datetime if specific time confirmed, e.g. "2025-03-15 10:00"),
   "appointment_range": "today_morning" | "today_afternoon" | "this_week" | "general_inquiry" | null,
   "intent": "buy" | "sell" | "information" | "service" | "unknown",

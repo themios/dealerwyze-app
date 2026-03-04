@@ -12,7 +12,7 @@ export const PRICE_ID       = process.env.STRIPE_PRICE_ID!            // Tier 1
 export const PRICE_ID_TIER2 = process.env.STRIPE_PRICE_ID_TIER2 ?? '' // Tier 2
 export const PRICE_ID_TIER3 = process.env.STRIPE_PRICE_ID_TIER3 ?? '' // Tier 3
 export const SMS_PRICE_ID   = process.env.STRIPE_SMS_PRICE_ID!        // Legacy add-on (keep for backward compat)
-export const APP_URL        = process.env.NEXT_PUBLIC_APP_URL || 'https://apollo-crm.vercel.app'
+export const APP_URL        = process.env.NEXT_PUBLIC_APP_URL || 'https://dealerwyze.com'
 
 // SMS volume tiers (add-on to any CRM base plan)
 // smsTier1: 1,000 msgs — $14.99/mo

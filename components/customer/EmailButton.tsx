@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Customer, Vehicle } from '@/types'
 import { fillTemplate } from '@/lib/utils'
+import { useOrgSettings } from '@/hooks/useOrgSettings'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -13,53 +14,53 @@ import { Mail } from 'lucide-react'
 const EMAIL_TEMPLATES = [
   {
     name: 'First Contact',
-    subject: 'Re: {vehicle} — Apollo Auto',
-    body: 'Hi {firstName},\n\nThank you for your interest in the {vehicle}! It\'s available and in great condition.\n\nWould you like to schedule a test drive? I have availability this week.\n\nBest,\nApollo Auto\n(805) 404-3873',
+    subject: 'Re: {vehicle} — {dealerName}',
+    body: 'Hi {firstName},\n\nThank you for your interest in the {vehicle}! It\'s available and in great condition.\n\nWould you like to schedule a test drive? I have availability this week.\n\nBest,\n{dealerName}\n{dealerPhone}',
   },
   {
     name: 'Appointment Confirmation',
-    subject: 'Your Appointment at Apollo Auto — {date}',
-    body: 'Hi {firstName},\n\nThis confirms your appointment on {date} at {time} to see the {vehicle}.\n\nWe\'re located in Simi Valley. See you then!\n\nApollo Auto\n(805) 404-3873',
+    subject: 'Your Appointment at {dealerName} — {date}',
+    body: 'Hi {firstName},\n\nThis confirms your appointment on {date} at {time} to see the {vehicle}.\n\nWe look forward to seeing you!\n\n{dealerName}\n{dealerPhone}',
   },
   {
     name: 'Thank You for Visit',
     subject: 'Great meeting you, {firstName}!',
-    body: 'Hi {firstName},\n\nIt was great meeting you today! I hope you enjoyed seeing the {vehicle}.\n\nLet me know if you have any questions or would like to move forward.\n\nBest,\nApollo Auto\n(805) 404-3873',
+    body: 'Hi {firstName},\n\nIt was great meeting you today! I hope you enjoyed seeing the {vehicle}.\n\nLet me know if you have any questions or would like to move forward.\n\nBest,\n{dealerName}\n{dealerPhone}',
   },
   {
     name: 'Financing Documents',
-    subject: 'Documents Needed — Apollo Auto',
-    body: 'Hi {firstName},\n\nTo proceed with financing on the {vehicle}, I\'ll need:\n\n• Driver\'s license\n• Proof of insurance\n• Proof of income (2 recent pay stubs)\n• Proof of residence\n\nFeel free to bring these to our next appointment.\n\nApollo Auto\n(805) 404-3873',
+    subject: 'Documents Needed — {dealerName}',
+    body: 'Hi {firstName},\n\nTo proceed with financing on the {vehicle}, I\'ll need:\n\n• Driver\'s license\n• Proof of insurance\n• Proof of income (2 recent pay stubs)\n• Proof of residence\n\nFeel free to bring these to our next appointment.\n\n{dealerName}\n{dealerPhone}',
   },
   {
     name: 'Lost Lead Reactivation',
     subject: 'Still looking for a vehicle, {firstName}?',
-    body: 'Hi {firstName},\n\nI wanted to reach out — are you still in the market for a vehicle? I have some new inventory that might interest you.\n\nWould love to help you find the right fit.\n\nBest,\nApollo Auto\n(805) 404-3873',
+    body: 'Hi {firstName},\n\nI wanted to reach out — are you still in the market for a vehicle? I have some new inventory that might interest you.\n\nWould love to help you find the right fit.\n\nBest,\n{dealerName}\n{dealerPhone}',
   },
   {
     name: 'Price Drop Alert',
-    subject: 'Price Update on {vehicle} — Apollo Auto',
-    body: 'Hi {firstName},\n\nGood news! I\'ve reduced the price on the {vehicle} to {price}.\n\nThis is a great opportunity — let me know if you\'d like to take another look.\n\nApollo Auto\n(805) 404-3873',
+    subject: 'Price Update on {vehicle} — {dealerName}',
+    body: 'Hi {firstName},\n\nGood news! I\'ve reduced the price on the {vehicle} to {price}.\n\nThis is a great opportunity — let me know if you\'d like to take another look.\n\n{dealerName}\n{dealerPhone}',
   },
   {
     name: 'Trade-In Follow-Up',
-    subject: 'Your Trade-In Value — Apollo Auto',
-    body: 'Hi {firstName},\n\nI wanted to follow up on your trade-in. I can offer you a fair market value and apply it toward any vehicle on our lot.\n\nWould you like to come in for a quick appraisal?\n\nApollo Auto\n(805) 404-3873',
+    subject: 'Your Trade-In Value — {dealerName}',
+    body: 'Hi {firstName},\n\nI wanted to follow up on your trade-in. I can offer you a fair market value and apply it toward any vehicle on our lot.\n\nWould you like to come in for a quick appraisal?\n\n{dealerName}\n{dealerPhone}',
   },
   {
     name: 'Waiting on Decision',
     subject: 'Checking in — {vehicle}',
-    body: 'Hi {firstName},\n\nJust checking in to see if you\'ve had a chance to think about the {vehicle}.\n\nI\'m happy to answer any questions or work on the numbers with you.\n\nApollo Auto\n(805) 404-3873',
+    body: 'Hi {firstName},\n\nJust checking in to see if you\'ve had a chance to think about the {vehicle}.\n\nI\'m happy to answer any questions or work on the numbers with you.\n\n{dealerName}\n{dealerPhone}',
   },
   {
     name: 'Vehicle Sold — Similar Available',
-    subject: 'Update on {vehicle} — Apollo Auto',
-    body: 'Hi {firstName},\n\nI wanted to let you know the {vehicle} has sold. However, I have a very similar vehicle available that you might like.\n\nInterested? I can send you details.\n\nApollo Auto\n(805) 404-3873',
+    subject: 'Update on {vehicle} — {dealerName}',
+    body: 'Hi {firstName},\n\nI wanted to let you know the {vehicle} has sold. However, I have a very similar vehicle available that you might like.\n\nInterested? I can send you details.\n\n{dealerName}\n{dealerPhone}',
   },
   {
     name: 'Test Drive Reminder',
-    subject: 'Test Drive Tomorrow — Apollo Auto',
-    body: 'Hi {firstName},\n\nJust a reminder about your test drive tomorrow at {time} for the {vehicle}.\n\nSee you then! If anything comes up, you can reach me at (805) 404-3873.\n\nApollo Auto',
+    subject: 'Test Drive Tomorrow — {dealerName}',
+    body: 'Hi {firstName},\n\nJust a reminder about your test drive tomorrow at {time} for the {vehicle}.\n\nSee you then! If anything comes up, you can reach me at {dealerPhone}.\n\n{dealerName}',
   },
 ]
 
@@ -74,14 +75,17 @@ export default function EmailButton({ customer, vehicle }: EmailButtonProps) {
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const supabase = createClient()
+  const orgSettings = useOrgSettings()
 
   function getVars(): Record<string, string> {
     const firstName = customer.name.split(' ')[0]
     return {
       firstName,
-      vehicle: vehicle ? `${vehicle.year} ${vehicle.make} ${vehicle.model}` : '{vehicle}',
-      price: vehicle?.price ? `$${vehicle.price.toLocaleString()}` : '{price}',
+      vehicle:     vehicle ? `${vehicle.year} ${vehicle.make} ${vehicle.model}` : '{vehicle}',
+      price:       vehicle?.price ? `$${vehicle.price.toLocaleString()}` : '{price}',
       date: '{date}', time: '{time}',
+      dealerName:  orgSettings.dealerName,
+      dealerPhone: orgSettings.dealerPhone,
     }
   }
 

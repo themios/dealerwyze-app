@@ -7,13 +7,13 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Apollo Auto CRM',
-  description: 'Mobile CRM for Apollo Auto',
+  title: 'DealerWyze',
+  description: 'The Intelligent Dealer Operating System',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Apollo CRM',
+    title: 'DealerWyze',
   },
 }
 

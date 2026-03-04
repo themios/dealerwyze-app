@@ -118,8 +118,7 @@ function tryHtmlRegex(html: string): ScrapedVehicle[] {
   return results
 }
 
-function extractVehicleLinks(html: string): Map<string, string> {
-  const BASE = 'https://www.apolloauto-em.com'
+function extractVehicleLinks(html: string, baseUrl: string): Map<string, string> {
   // Match hrefs like /details/used-2024-honda-hr-v/123456789
   const linkRe = /href="(\/details\/(?:used|new|certified)-(\d{4})-([a-z0-9][a-z0-9-]*)\/(\d+))"/gi
   const result = new Map<string, string>()
@@ -129,7 +128,7 @@ function extractVehicleLinks(html: string): Map<string, string> {
     // Key: "2024-honda-hr-v" — matches how we'll key vehicles
     const key = `${year}-${makeModelSlug}`
     if (!result.has(key)) {
-      result.set(key, `${BASE}${path}`)
+      result.set(key, `${baseUrl}${path}`)
     }
   }
   return result
@@ -150,11 +149,28 @@ export async function POST(req: NextRequest) {
 
   const supabase = await createClient()
 
+  // Fetch dealer website URL from org_settings
+  const { data: orgSettings } = await supabase
+    .from('org_settings')
+    .select('dealer_website_url, dealer_website_inventory_path')
+    .eq('org_id', profile.org_id)
+    .maybeSingle()
+
+  const baseUrl       = orgSettings?.dealer_website_url?.replace(/\/$/, '') ?? ''
+  const inventoryPath = orgSettings?.dealer_website_inventory_path ?? '/cars-for-sale'
+
+  if (!baseUrl) {
+    return NextResponse.json(
+      { error: 'Dealer website is missing. Please add it in Settings → Organization.' },
+      { status: 400 },
+    )
+  }
+
   // Fetch website HTML
   let html = ''
   try {
-    const res = await fetch('https://www.apolloauto-em.com/cars-for-sale', {
-      headers: { 'User-Agent': 'ApolloAuto-CRM/1.0' },
+    const res = await fetch(`${baseUrl}${inventoryPath}`, {
+      headers: { 'User-Agent': 'DealerWyze/1.0' },
       cache: 'no-store',
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -169,7 +185,7 @@ export async function POST(req: NextRequest) {
   if (scraped.length === 0) scraped = tryHtmlRegex(html)
 
   // Enrich scraped vehicles with listing URLs from page links
-  const vehicleLinks = extractVehicleLinks(html)
+  const vehicleLinks = extractVehicleLinks(html, baseUrl)
   for (const v of scraped) {
     if (!v.listing_url) {
       v.listing_url = vehicleLinks.get(vehicleLinkKey(v))

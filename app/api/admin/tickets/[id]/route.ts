@@ -2,13 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
 import { logAdminAction } from '@/lib/admin/audit'
+import { canAccessAdminArea, requirePlatformSuperAdmin } from '@/lib/auth/platform'
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const profile = await requireProfile()
-  if (profile.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!await canAccessAdminArea(profile.id)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const { id } = await params
   const supabase = createServiceClient()
@@ -33,15 +36,18 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const profile = await requireProfile()
-  if (profile.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!await canAccessAdminArea(profile.id)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const { id } = await params
   const supabase = createServiceClient()
   const body = await req.json() as {
-    action: 'update_status' | 'update_priority' | 'reply' | 'internal_note'
+    action: 'update_status' | 'update_priority' | 'reply' | 'internal_note' | 'assign'
     status?: string
     priority?: string
     message?: string
+    assigned_to?: string | null
   }
 
   if (body.action === 'update_status') {
@@ -64,13 +70,26 @@ export async function PATCH(
       body:        body.message.trim(),
       is_internal: body.action === 'internal_note',
     })
-    // Move to in_progress when admin replies
+    // Move to in_progress when admin replies; stamp first_staff_response_at
     if (body.action === 'reply') {
-      const { data: t } = await supabase.from('support_tickets').select('status').eq('id', id).single()
-      if (t?.status === 'open') {
-        await supabase.from('support_tickets').update({ status: 'in_progress' }).eq('id', id)
+      const { data: t } = await supabase.from('support_tickets').select('status, first_staff_response_at').eq('id', id).single()
+      const update: Record<string, unknown> = {}
+      if (t?.status === 'open') update.status = 'in_progress'
+      if (!t?.first_staff_response_at) update.first_staff_response_at = new Date().toISOString()
+      if (Object.keys(update).length > 0) {
+        await supabase.from('support_tickets').update(update).eq('id', id)
       }
     }
+  }
+
+  else if (body.action === 'assign') {
+    // Only super admin can assign tickets
+    const denied = await requirePlatformSuperAdmin(profile.id)
+    if (denied) return denied
+    await supabase.from('support_tickets')
+      .update({ assigned_to: body.assigned_to ?? null })
+      .eq('id', id)
+    await logAdminAction(profile.id, 'ticket_assigned', null, { ticket_id: id, assigned_to: body.assigned_to })
   }
 
   else {

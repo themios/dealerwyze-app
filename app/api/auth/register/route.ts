@@ -55,7 +55,25 @@ export async function POST(req: NextRequest) {
   const userId = created.user.id
 
   // For admins, org_id = their own user id
-  if (role === 'admin') orgId = userId
+  if (role === 'admin') {
+    orgId = userId
+
+    // Create org + org_settings via service client (bypasses RLS deny policies).
+    // approved_at intentionally omitted — new orgs start in pending state.
+    // The create_org_on_signup trigger also does this, but explicit creation here
+    // is more reliable when RLS deny policies are in place.
+    const { error: orgErr } = await service.from('organizations').insert({
+      id: orgId,
+      name: `${display_name}'s Dealership`,
+      // approved_at: omitted → NULL → pending approval
+    })
+    if (orgErr && !orgErr.message.includes('duplicate') && !orgErr.code?.includes('23505')) {
+      await service.auth.admin.deleteUser(userId)
+      return NextResponse.json({ error: orgErr.message }, { status: 500 })
+    }
+
+    await service.from('org_settings').insert({ org_id: orgId })
+  }
 
   const { error: profileErr } = await service.from('profiles').insert({
     id: userId,
@@ -72,7 +90,8 @@ export async function POST(req: NextRequest) {
   }
 
   if (role === 'admin') {
-    return NextResponse.json({ id: userId, role, success: true, redirect: '/settings/billing' })
+    // New dealer orgs start pending — redirect to waiting room
+    return NextResponse.json({ id: userId, role, success: true, redirect: '/pending' })
   }
 
   return NextResponse.json({ id: userId, role, success: true })

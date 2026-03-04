@@ -12,7 +12,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Phone, X, Loader2, Mail, CheckCircle2, AlertCircle, Plus } from 'lucide-react'
+import { Phone, X, Loader2, Mail, CheckCircle2, AlertCircle, Plus, MapPin, ExternalLink, Calendar, ArrowRightLeft } from 'lucide-react'
+
+interface DealerLocation {
+  id: string
+  name: string
+  address: string
+  phone: string
+  is_primary: boolean
+}
 
 interface OrgSettings {
   name: string
@@ -23,6 +31,8 @@ interface OrgSettings {
   voice_business_hours_start: string
   voice_business_hours_end: string
   twilio_phone_number: string | null
+  gbp_location_id: string
+  resend_from_domain: string | null
 }
 
 interface EmailAccount {
@@ -95,12 +105,18 @@ export default function OrganizationPage() {
     voice_business_hours_start: '09:00',
     voice_business_hours_end: '19:00',
     twilio_phone_number: null,
+    gbp_location_id: '',
+    resend_from_domain: null,
   })
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
   const [saved, setSaved]       = useState(false)
   const [isAdmin, setIsAdmin]   = useState(false)
   const [retellAgentId, setRetellAgentId] = useState<string | null>(null)
+  const [calendarConnected, setCalendarConnected] = useState(false)
+  const [locations, setLocations] = useState<DealerLocation[]>([])
+  const [addLocOpen, setAddLocOpen] = useState(false)
+  const [newLoc, setNewLoc] = useState<Omit<DealerLocation, 'id'>>({ name: '', address: '', phone: '', is_primary: false })
 
   // Voice agent provisioning state
   const [voiceProvisioning, setVoiceProvisioning]   = useState(false)
@@ -146,9 +162,13 @@ export default function OrganizationPage() {
         voice_business_hours_start: d.voice_business_hours_start ?? '09:00',
         voice_business_hours_end:   d.voice_business_hours_end ?? '19:00',
         twilio_phone_number:        d.twilio_phone_number ?? null,
+        gbp_location_id:            d.gbp_location_id ?? '',
+        resend_from_domain:         d.resend_from_domain ?? null,
       })
-      setIsAdmin(me?.role === 'admin')
+      setIsAdmin(me?.role === 'admin' || me?.role === 'dealer_admin')
       setRetellAgentId(d.retell_agent_id ?? null)
+      setCalendarConnected(!!d.calendar_connected)
+      setLocations(Array.isArray(d.locations) ? d.locations : [])
       setEmailAccounts(Array.isArray(accounts) ? accounts : [])
       setLoading(false)
 
@@ -165,6 +185,13 @@ export default function OrganizationPage() {
           })
         }
       }
+
+      // Calendar OAuth redirect
+      const calendar = params.get('calendar')
+      if (calendar === 'connected') {
+        setCalendarConnected(true)
+        window.history.replaceState({}, '', window.location.pathname)
+      }
     })
   }, [])
 
@@ -179,10 +206,31 @@ export default function OrganizationPage() {
     await fetch('/api/settings/org', {
       method:  'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(form),
+      body:    JSON.stringify({ ...form, locations }),
     })
     setSaving(false)
     setSaved(true)
+  }
+
+  function addLocation() {
+    if (!newLoc.name || !newLoc.address) return
+    const loc: DealerLocation = { ...newLoc, id: crypto.randomUUID() }
+    const updated = newLoc.is_primary
+      ? locations.map(l => ({ ...l, is_primary: false })).concat(loc)
+      : [...locations, loc]
+    setLocations(updated)
+    setNewLoc({ name: '', address: '', phone: '', is_primary: false })
+    setAddLocOpen(false)
+  }
+
+  function removeLocation(id: string) {
+    setLocations(prev => prev.filter(l => l.id !== id))
+  }
+
+  async function handleCalendarDisconnect() {
+    if (!confirm('Disconnect Google Calendar? Appointments will no longer sync.')) return
+    await fetch('/api/google/calendar-disconnect', { method: 'DELETE' })
+    setCalendarConnected(false)
   }
 
   async function handleProvision() {
@@ -329,7 +377,7 @@ export default function OrganizationPage() {
                 id="org-name" type="text"
                 value={form.name}
                 onChange={e => handleChange('name', e.target.value)}
-                placeholder="Apollo Auto"
+                placeholder="My Auto Group"
               />
             </div>
 
@@ -639,7 +687,7 @@ export default function OrganizationPage() {
                     id="dealer-cell" type="tel"
                     value={form.dealer_cell_number}
                     onChange={e => handleChange('dealer_cell_number', e.target.value)}
-                    placeholder="+18054043873"
+                    placeholder="+15555550100"
                   />
                   <p className="text-xs text-muted-foreground">Calls ring this number first during business hours (E.164 format)</p>
                 </div>
@@ -705,21 +753,134 @@ export default function OrganizationPage() {
               </div>
             </div>
 
-            {/* Google Business Profile status */}
-            <div className="rounded-lg border bg-card p-4 space-y-1">
-              <p className="text-sm font-semibold">Google Business Profile Reviews</p>
-              <p className="text-xs text-muted-foreground">
-                Polls for new reviews every 4 hours and sends a push notification.
-                Add <span className="font-mono text-xs">GBP_ACCOUNT_ID</span> and{' '}
-                <span className="font-mono text-xs">GBP_LOCATION_ID</span> in Vercel env to enable.
-              </p>
+            {/* Google Business Profile */}
+            <div className="pt-2 border-t">
+              <p className="text-sm font-semibold mb-3">Google Business Profile</p>
+              <div className="space-y-1.5">
+                <Label htmlFor="gbp-location-id" className="text-sm font-medium">GBP Location ID</Label>
+                <Input
+                  id="gbp-location-id" type="text"
+                  value={form.gbp_location_id}
+                  onChange={e => handleChange('gbp_location_id' as keyof OrgSettings, e.target.value)}
+                  placeholder="locations/1234567890"
+                />
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  Find this in your Google Business Profile URL.
+                  <a href="https://business.google.com" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 underline">
+                    Open GBP <ExternalLink className="h-3 w-3" />
+                  </a>
+                </p>
+              </div>
             </div>
+
+            {/* Google Calendar OAuth */}
+            <div className="pt-2 border-t">
+              <p className="text-sm font-semibold mb-3">Google Calendar</p>
+              {calendarConnected ? (
+                <div className="flex items-center justify-between p-3 rounded-lg border bg-card">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-green-600" />
+                    <div>
+                      <p className="text-sm font-medium">Connected</p>
+                      <p className="text-xs text-muted-foreground">Appointments sync to Google Calendar</p>
+                    </div>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={handleCalendarDisconnect} className="text-destructive border-destructive/30 text-xs">
+                    Disconnect
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">Connect to sync appointment bookings to Google Calendar.</p>
+                  <a href="/api/google/calendar-connect">
+                    <Button variant="outline" size="sm" className="gap-2">
+                      <Calendar className="h-4 w-4" />
+                      Connect Google Calendar
+                    </Button>
+                  </a>
+                </div>
+              )}
+            </div>
+
+            {/* Dealer Locations */}
+            <div className="pt-2 border-t">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-semibold">Locations</p>
+                <Button variant="outline" size="sm" onClick={() => setAddLocOpen(p => !p)} className="gap-1">
+                  <Plus className="h-3.5 w-3.5" /> Add
+                </Button>
+              </div>
+
+              {addLocOpen && (
+                <div className="rounded-lg border bg-muted/40 p-3 space-y-2 mb-3">
+                  <Input placeholder="Location Name (e.g. Main Lot)" value={newLoc.name} onChange={e => setNewLoc(p => ({ ...p, name: e.target.value }))} className="h-9 text-sm" />
+                  <Input placeholder="Address" value={newLoc.address} onChange={e => setNewLoc(p => ({ ...p, address: e.target.value }))} className="h-9 text-sm" />
+                  <Input placeholder="Phone (optional)" value={newLoc.phone} onChange={e => setNewLoc(p => ({ ...p, phone: e.target.value }))} className="h-9 text-sm" />
+                  <label className="flex items-center gap-2 text-xs">
+                    <input type="checkbox" checked={newLoc.is_primary} onChange={e => setNewLoc(p => ({ ...p, is_primary: e.target.checked }))} className="rounded" />
+                    Set as primary location
+                  </label>
+                  <Button size="sm" onClick={addLocation} className="w-full">Add Location</Button>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                {locations.map(loc => (
+                  <div key={loc.id} className="flex items-start justify-between p-3 rounded-lg border bg-card gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <p className="text-sm font-medium truncate">{loc.name}</p>
+                        {loc.is_primary && <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">Primary</span>}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5 ml-5">{loc.address}</p>
+                      {loc.phone && <p className="text-xs text-muted-foreground ml-5">{loc.phone}</p>}
+                    </div>
+                    <button onClick={() => removeLocation(loc.id)} className="text-muted-foreground hover:text-destructive shrink-0">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+                {locations.length === 0 && (
+                  <p className="text-xs text-muted-foreground">No locations added yet.</p>
+                )}
+              </div>
+            </div>
+
+            {/* Email from domain (read-only) */}
+            {form.resend_from_domain && (
+              <div className="pt-2 border-t">
+                <p className="text-sm font-semibold mb-2">Email From Domain</p>
+                <div className="flex items-center gap-2 p-3 rounded-lg border bg-muted/40">
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  <p className="text-sm font-mono">{form.resend_from_domain}</p>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Contact{' '}
+                  <a href="mailto:support@dealerwyze.com" className="underline">support@dealerwyze.com</a>
+                  {' '}to configure a custom email domain.
+                </p>
+              </div>
+            )}
 
             <div className="pt-2">
               <Button className="w-full" onClick={handleSave} disabled={saving}>
                 {saving ? 'Saving…' : saved ? 'Saved!' : 'Save Changes'}
               </Button>
             </div>
+
+            {isAdmin && (
+              <div className="border-t pt-4 mt-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Danger Zone</p>
+                <a href="/settings/transfer" className="flex items-center gap-2 w-full rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900 px-4 py-3 text-sm text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/40 transition-colors">
+                  <ArrowRightLeft className="h-4 w-4 shrink-0" />
+                  Transfer Business Ownership
+                </a>
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  Sell or transfer this dealership to a new owner. Your account will be deactivated.
+                </p>
+              </div>
+            )}
           </>
         )}
       </div>

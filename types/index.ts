@@ -5,7 +5,26 @@ export type ActivityPriority = 'high' | 'normal' | 'low'
 export type VehicleStatus = 'available' | 'pending' | 'sold'
 export type InterestLevel = 'hot' | 'warm' | 'cold'
 export type TemplateChannel = 'sms' | 'email'
-export type UserRole = 'admin' | 'agent'
+export type UserRole =
+  | 'dealer_admin'
+  | 'dealer_manager'
+  | 'dealer_finance'
+  | 'dealer_rep'
+  | 'dealer_staff'
+  | 'admin'   // legacy alias → treated as dealer_admin
+  | 'agent'   // legacy alias → treated as dealer_staff
+
+/** Returns true if the role has dealer-admin level privileges */
+export function isDealerAdmin(role: UserRole): boolean {
+  return role === 'dealer_admin' || role === 'admin'
+}
+
+/** Returns true if the role can see all org data (not rep-restricted) */
+export function hasFullOrgAccess(role: UserRole): boolean {
+  return role === 'dealer_admin' || role === 'dealer_manager' ||
+         role === 'dealer_finance' || role === 'dealer_staff' ||
+         role === 'admin' || role === 'agent'
+}
 
 export interface Profile {
   id: string
@@ -162,7 +181,7 @@ export interface VehicleDocument {
 export interface VoiceSummaryJson {
   caller_name?:                 string | null
   vehicle_interest?:            string | null
-  location?:                    'Simi Valley' | 'El Monte' | null
+  location?:                    string | null
   appointment_exact?:           string | null
   appointment_range?:           string | null
   intent?:                      string | null

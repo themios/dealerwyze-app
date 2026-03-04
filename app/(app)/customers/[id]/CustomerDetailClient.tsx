@@ -17,6 +17,7 @@ import VoiceRecorder from '@/components/call/VoiceRecorder'
 import AssignDropdown from '@/components/customer/AssignDropdown'
 import DocumentsSection from '@/components/customer/DocumentsSection'
 import { usePendingCall } from '@/components/call/usePendingCall'
+import { useOrgSettings } from '@/hooks/useOrgSettings'
 import { formatPhone } from '@/lib/utils'
 import LeadStateSelector from '@/components/customer/LeadStateSelector'
 import { Badge } from '@/components/ui/badge'
@@ -58,6 +59,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
   const [selling, setSelling]    = useState(false)
   const [sellError, setSellError] = useState<string | null>(null)
   const { pendingCall, modalOpen, dismissModal } = usePendingCall()
+  const orgSettings = useOrgSettings()
   const supabase = createClient()
   const router = useRouter()
 
@@ -350,7 +352,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
         <ActivityTimeline activities={activities} />
       </div>
 
-      <AddTaskModal open={taskOpen} onClose={() => setTaskOpen(false)} customerId={customer.id} customerName={customer.name} onSaved={refreshActivities} />
+      <AddTaskModal open={taskOpen} onClose={() => setTaskOpen(false)} customerId={customer.id} customerName={customer.name} vehicleId={primaryVehicle?.id} orgName={orgSettings.dealerName} orgPhone={orgSettings.dealerPhone} orgAddress={orgSettings.dealerAddress} onSaved={refreshActivities} />
       <AddNoteModal open={noteOpen} onClose={() => setNoteOpen(false)} customerId={customer.id} onSaved={refreshActivities} />
       <AfterCallModal open={modalOpen} pendingCall={pendingCall} onDismiss={() => { dismissModal(); refreshActivities() }} />
     </div>

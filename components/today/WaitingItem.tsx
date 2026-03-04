@@ -38,7 +38,7 @@ export default function WaitingItem({ activity, onUpdate }: WaitingItemProps) {
           ) : (
             <p className="font-medium text-sm">Unknown customer</p>
           )}
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <p className="text-xs text-muted-foreground mt-0.5" suppressHydrationWarning>
             {typeLabel} {formatRelativeTime(activity.created_at)} — no reply
           </p>
           {activity.body && (

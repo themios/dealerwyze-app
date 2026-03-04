@@ -41,9 +41,9 @@ export default function LoginPage() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-2">
-            <Image src="/logo.jpg" alt="Apollo Auto" width={96} height={96} className="rounded-xl" />
+            <Image src="/logo.jpg" alt="DealerWyze" width={96} height={96} className="rounded-xl" />
           </div>
-          <CardTitle className="text-2xl">Apollo Auto CRM</CardTitle>
+          <CardTitle className="text-2xl">DealerWyze</CardTitle>
           <CardDescription>Sign in to your account</CardDescription>
         </CardHeader>
         <CardContent>
@@ -53,7 +53,7 @@ export default function LoginPage() {
               <Input
                 id="email"
                 type="email"
-                placeholder="you@apolloauto.com"
+                placeholder="you@example.com"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required

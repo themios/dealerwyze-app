@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { CheckCircle, AlertCircle, CreditCard, MessageSquare, Zap } from 'lucide-react'
+import { CheckCircle, AlertCircle, CreditCard, MessageSquare, Zap, ScanLine } from 'lucide-react'
 import { PLAN_LABEL, PLAN_PRICE, SMS_TIER_PRICE, SMS_TIER_LABEL, SMS_TIER_QUOTA, type PlanTier, type SmsTier } from '@/lib/stripe'
 
 interface BillingStatus {
@@ -19,6 +19,8 @@ interface BillingStatus {
   billing_cycle_end: string | null
   voice_minutes_quota: number | null
   monthly_voice_seconds: number | null
+  monthly_scan_image_count: number | null
+  monthly_scan_pdf_count: number | null
 }
 
 function QuotaBar({ used, quota, label }: { used: number; quota: number; label: string }) {
@@ -96,6 +98,15 @@ export default function BillingPage() {
   const voiceMinUsed  = Math.floor(voiceSeconds / 60)
   const hasVoice      = voiceMinQuota > 0
 
+  // Scan quotas — indexed by plan tier
+  const SCAN_IMG_QUOTA: Record<string, number> = { tier1: 100, tier2: 200, tier3: 500 }
+  const SCAN_PDF_QUOTA: Record<string, number> = { tier1: 25,  tier2: 50,  tier3: 150 }
+  const planKey       = (status?.plan ?? 'tier1') as string
+  const scanImgLimit  = SCAN_IMG_QUOTA[planKey] ?? 100
+  const scanPdfLimit  = SCAN_PDF_QUOTA[planKey] ?? 25
+  const scanImgUsed   = status?.monthly_scan_image_count ?? 0
+  const scanPdfUsed   = status?.monthly_scan_pdf_count ?? 0
+
   return (
     <div className="p-4 space-y-4">
       <h2 className="text-base font-semibold">Billing & Plan</h2>
@@ -110,7 +121,7 @@ export default function BillingPage() {
             {isTrial
               ? 'Free Trial'
               : isActive
-                ? `Apollo CRM — ${PLAN_LABEL[smsPlan as PlanTier] ?? 'Active'}`
+                ? `DealerWyze — ${PLAN_LABEL[smsPlan as PlanTier] ?? 'Active'}`
                 : isPastDue
                   ? 'Payment Failed'
                   : 'Subscription Inactive'}
@@ -239,6 +250,26 @@ export default function BillingPage() {
             )}
           </div>
           <QuotaBar used={voiceMinUsed} quota={voiceMinQuota} label="Minutes used" />
+        </div>
+      )}
+
+      {/* Scan quota usage — shown for all active plans */}
+      {isActive && (
+        <div className="rounded-xl border p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <ScanLine className="h-4 w-4 text-indigo-500" />
+            <p className="text-sm font-medium">AI Lead Scan Usage This Month</p>
+            {cycleEnd && (
+              <span className="ml-auto text-xs text-muted-foreground">
+                Resets {cycleEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </span>
+            )}
+          </div>
+          <QuotaBar used={scanImgUsed} quota={scanImgLimit} label="Image scans" />
+          <QuotaBar used={scanPdfUsed} quota={scanPdfLimit} label="PDF scans" />
+          <p className="text-xs text-muted-foreground">
+            Scans available on Customers page (camera / photos / files)
+          </p>
         </div>
       )}
 

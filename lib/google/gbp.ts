@@ -16,12 +16,18 @@ export interface GbpReview {
   replyTime:    string | null
 }
 
-async function getAccessToken(): Promise<string> {
+export interface GbpCredentials {
+  refreshToken: string
+  locationId:   string   // e.g. "locations/3595854674576679340"
+  accountId?:   string   // e.g. "accounts/123" — defaults to wildcard "accounts/-"
+}
+
+async function getAccessToken(refreshToken: string): Promise<string> {
   const oauth2 = new google.auth.OAuth2(
     process.env.GMAIL_CLIENT_ID,
     process.env.GMAIL_CLIENT_SECRET,
   )
-  oauth2.setCredentials({ refresh_token: process.env.GMAIL_CALENDAR_REFRESH_TOKEN })
+  oauth2.setCredentials({ refresh_token: refreshToken })
   return new Promise((resolve, reject) => {
     oauth2.getAccessToken((err, token) => {
       if (err || !token) reject(err ?? new Error('No access token'))
@@ -30,28 +36,32 @@ async function getAccessToken(): Promise<string> {
   })
 }
 
-export async function fetchGbpReviews(): Promise<GbpReview[]> {
-  const locationId = process.env.GBP_LOCATION_ID
+/**
+ * Fetch GBP reviews for a specific org using their stored credentials.
+ * No env var fallbacks — each org must have credentials in org_google_tokens + org_settings.
+ */
+export async function fetchGbpReviews(creds?: GbpCredentials): Promise<GbpReview[]> {
+  const refreshToken = creds?.refreshToken ?? null
+  const locationId   = creds?.locationId   ?? null
+  const accountId    = creds?.accountId    ?? 'accounts/-'
+
   if (!locationId) {
-    console.warn('[gbp] GBP_LOCATION_ID not set — skipping')
+    console.warn('[gbp] locationId not configured for org — skipping')
     return []
   }
-  // GBP_ACCOUNT_ID is optional — defaults to "accounts/-" (wildcard across all accounts).
-  // Set it explicitly if the wildcard causes permission errors.
-  const accountId = process.env.GBP_ACCOUNT_ID ?? 'accounts/-'
+  if (!refreshToken) {
+    console.warn('[gbp] refreshToken not configured for org — skipping')
+    return []
+  }
 
   let accessToken: string
   try {
-    accessToken = await getAccessToken()
+    accessToken = await getAccessToken(refreshToken)
   } catch (err) {
     console.error('[gbp] Failed to get access token:', err)
     return []
   }
 
-  // GBP My Business API v4 reviews endpoint.
-  // locationId env var format: "locations/3595854674576679340"
-  // If Google has migrated your account to the v1 Business Profile API, change to:
-  //   https://mybusiness.googleapis.com/v1/${locationId}/reviews
   const url = `https://mybusiness.googleapis.com/v4/${accountId}/${locationId}/reviews?pageSize=50`
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -87,14 +97,16 @@ export async function fetchGbpReviews(): Promise<GbpReview[]> {
   }))
 }
 
-export async function replyToGbpReview(reviewId: string, replyText: string): Promise<boolean> {
-  const locationId = process.env.GBP_LOCATION_ID
-  if (!locationId) return false
-  const accountId = process.env.GBP_ACCOUNT_ID ?? 'accounts/-'
+export async function replyToGbpReview(reviewId: string, replyText: string, creds?: GbpCredentials): Promise<boolean> {
+  const refreshToken = creds?.refreshToken ?? null
+  const locationId   = creds?.locationId   ?? null
+  const accountId    = creds?.accountId    ?? 'accounts/-'
+
+  if (!locationId || !refreshToken) return false
 
   let accessToken: string
   try {
-    accessToken = await getAccessToken()
+    accessToken = await getAccessToken(refreshToken)
   } catch (err) {
     console.error('[gbp] Failed to get access token for reply:', err)
     return false

@@ -75,6 +75,6 @@ export function isWithinSendHours(tz: string): boolean {
  */
 export const CONSENT_DISCLOSURE =
   'By providing your phone number, you agree to receive automated payment reminders ' +
-  'and account notifications from Apollo Auto at the number provided. ' +
+  'and account notifications from the dealership at the number provided. ' +
   'Approx. 4–6 msg/month. Msg & data rates may apply. Reply STOP to cancel, HELP for info. ' +
   'Consent is not a condition of purchase.'

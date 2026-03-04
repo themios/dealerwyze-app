@@ -1,7 +1,7 @@
 {
-  "name": "Apollo Auto CRM",
-  "short_name": "Apollo CRM",
-  "description": "Mobile-first CRM for Apollo Auto dealership",
+  "name": "DealerWyze",
+  "short_name": "DealerWyze",
+  "description": "The Intelligent Operating System for Independent Dealers",
   "start_url": "/today",
   "display": "standalone",
   "background_color": "#0a0a0a",

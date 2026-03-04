@@ -1,16 +1,26 @@
 import { NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
+import { requirePlatformSuperAdmin } from '@/lib/auth/platform'
 
-const PLAN_MRR: Record<string, number> = {
-  tier1: 49.94,
-  tier2: 64.95,
-  tier3: 249.95,
+// Base plan pricing (CRM subscription, active orgs only)
+const BASE_PLAN_MRR: Record<string, number> = {
+  tier1: 49,
+  tier2: 99,
+  tier3: 249,
+}
+
+// SMS add-on pricing (on top of base plan)
+const SMS_ADDON_MRR: Record<string, number> = {
+  smsTier1: 14.99,
+  smsTier2: 29.99,
+  smsTier3: 59.99,
 }
 
 export async function GET() {
   const profile = await requireProfile()
-  if (profile.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const denied = await requirePlatformSuperAdmin(profile.id)
+  if (denied) return denied
 
   const supabase = createServiceClient()
   const now = Date.now()
@@ -46,10 +56,23 @@ export async function GET() {
   const pastDue  = rows.filter(o => o.subscription_status === 'past_due').length
   const canceled = rows.filter(o => o.subscription_status === 'canceled').length
 
-  // MRR — only count active orgs
-  const mrr = rows
-    .filter(o => o.subscription_status === 'active')
-    .reduce((sum, o) => sum + (PLAN_MRR[o.sms_plan ?? 'tier1'] ?? PLAN_MRR.tier1), 0)
+  // MRR — base plan + SMS addon, active subs only
+  const activeRows = rows.filter(o => o.subscription_status === 'active')
+  const mrr = activeRows.reduce((sum, o) => {
+    const base = BASE_PLAN_MRR[o.plan ?? 'tier1'] ?? BASE_PLAN_MRR.tier1
+    const addon = SMS_ADDON_MRR[o.sms_plan ?? ''] ?? 0
+    return sum + base + addon
+  }, 0)
+  const arr = Math.round(mrr * 12 * 100) / 100
+
+  // Net new MRR (from orgs that became active in last 30d)
+  const netNewMrr = rows
+    .filter(o => o.subscription_status === 'active' && o.created_at >= since30d)
+    .reduce((sum, o) => {
+      const base = BASE_PLAN_MRR[o.plan ?? 'tier1'] ?? 0
+      const addon = SMS_ADDON_MRR[o.sms_plan ?? ''] ?? 0
+      return sum + base + addon
+    }, 0)
 
   const newOrgs30d = rows.filter(o => o.created_at >= since30d).length
   const newOrgs7d  = rows.filter(o => o.created_at >= since7d).length
@@ -90,7 +113,9 @@ export async function GET() {
 
   return NextResponse.json({
     summary: { total, active, trialing, past_due: pastDue, canceled },
-    mrr: Math.round(mrr * 100) / 100,
+    mrr:          Math.round(mrr * 100) / 100,
+    arr,
+    net_new_mrr_30d: Math.round(netNewMrr * 100) / 100,
     new_orgs_30d: newOrgs30d,
     new_orgs_7d:  newOrgs7d,
     platform_sms_30d:           platformSms,
