@@ -12,19 +12,24 @@ import Image from 'next/image'
 
 export default function SignupPage() {
   const [form, setForm] = useState({ display_name: '', email: '', password: '', invite_code: '' })
+  const [agreedToTerms, setAgreedToTerms] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!agreedToTerms) {
+      setError('You must agree to the Terms of Service and Privacy Policy to create an account.')
+      return
+    }
     setLoading(true)
     setError('')
 
     const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      body: JSON.stringify({ ...form, agreed_to_terms: true, agreed_to_terms_at: new Date().toISOString() }),
     })
     const data = await res.json()
 
@@ -111,20 +116,31 @@ export default function SignupPage() {
                 className="h-12 text-base font-mono tracking-widest"
               />
             </div>
+            {/* Clickwrap consent — legally required for ToS enforceability */}
+            <label className="flex items-start gap-2.5 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={agreedToTerms}
+                onChange={e => setAgreedToTerms(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-primary cursor-pointer"
+                required
+              />
+              <span className="text-xs text-muted-foreground leading-snug">
+                I agree to the{' '}
+                <a href="/terms.html" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">Terms of Service</a>
+                {' '}and{' '}
+                <a href="/privacy.html" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">Privacy Policy</a>
+                , including the Acceptable Use Policy. I confirm I am authorized to bind my dealership to this agreement.
+              </span>
+            </label>
             {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" className="w-full h-12 text-base" disabled={loading}>
+            <Button type="submit" className="w-full h-12 text-base" disabled={loading || !agreedToTerms}>
               {loading ? 'Creating account…' : form.invite_code ? 'Join Team' : 'Create Account'}
             </Button>
           </form>
           <p className="text-center text-sm text-muted-foreground mt-4">
             Already have an account?{' '}
             <Link href="/login" className="text-primary underline underline-offset-4">Sign in</Link>
-          </p>
-          <p className="text-center text-xs text-muted-foreground mt-3">
-            By creating an account you agree to our{' '}
-            <a href="/terms.html" className="underline underline-offset-2">Terms of Service</a>
-            {' '}and{' '}
-            <a href="/privacy.html" className="underline underline-offset-2">Privacy Policy</a>
           </p>
         </CardContent>
       </Card>

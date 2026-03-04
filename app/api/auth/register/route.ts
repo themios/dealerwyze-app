@@ -26,13 +26,17 @@ const DISPOSABLE_DOMAINS = new Set([
 ])
 
 export async function POST(req: NextRequest) {
-  const { email, password, display_name, invite_code, phone } = await req.json()
+  const { email, password, display_name, invite_code, phone, agreed_to_terms, agreed_to_terms_at } = await req.json()
 
   if (!email || !password || !display_name) {
     return NextResponse.json({ error: 'email, password, and display_name are required' }, { status: 400 })
   }
   if (password.length < 8) {
     return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
+  }
+  // Clickwrap consent is required — reject server-side even if client bypassed
+  if (!agreed_to_terms) {
+    return NextResponse.json({ error: 'You must agree to the Terms of Service to create an account.' }, { status: 400 })
   }
 
   const service = createServiceClient()
@@ -111,6 +115,8 @@ export async function POST(req: NextRequest) {
     // approved_at intentionally omitted — new orgs start in pending state.
     // The create_org_on_signup trigger also does this, but explicit creation here
     // is more reliable when RLS deny policies are in place.
+    const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? null
+
     const { error: orgErr } = await service.from('organizations').insert({
       id: orgId,
       name: `${display_name}'s Dealership`,
@@ -118,6 +124,9 @@ export async function POST(req: NextRequest) {
       signup_email_domain:     emailDomain || null,
       signup_phone_normalized: phoneNorm,
       churn_risk_flagged:      churnRiskFlagged,
+      // Clickwrap consent record — legally required for ToS enforceability
+      terms_agreed_at: agreed_to_terms_at ?? new Date().toISOString(),
+      terms_ip:        clientIp,
     })
     if (orgErr && !orgErr.message.includes('duplicate') && !orgErr.code?.includes('23505')) {
       await service.auth.admin.deleteUser(userId)
