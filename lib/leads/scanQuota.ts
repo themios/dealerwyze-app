@@ -1,4 +1,4 @@
-import type { PlanTier } from '@/lib/stripe'
+import type { PlanTier } from '@/lib/stripeConstants'
 import { createServiceClient } from '@/lib/supabase/service'
 
 // ── Quota limits per plan tier ────────────────────────────────────────────────

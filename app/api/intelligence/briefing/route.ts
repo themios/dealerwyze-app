@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { computePayload } from '@/lib/intelligence/metrics'
-import { generateBriefing } from '@/lib/intelligence/claude'
 import { fetchMarketSignals } from '@/lib/intelligence/rss'
 
 export const maxDuration = 60
@@ -67,9 +66,10 @@ async function generateAndCache(supabase: Awaited<ReturnType<typeof createClient
   // Compute structured payload
   const payload = await computePayload(supabase, orgId, dealerName, forDate, signals)
 
-  // Call Claude
+  // Call LLM — dynamic import so Groq SDK is never bundled in client
   let result
   try {
+    const { generateBriefing } = await import('@/lib/intelligence/claude')
     result = await generateBriefing(payload)
   } catch (err) {
     return NextResponse.json(

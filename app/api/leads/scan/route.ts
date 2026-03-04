@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 import { checkScanQuota } from '@/lib/leads/scanQuota'
-import { scanLeadImage, scanLeadPdf } from '@/lib/leads/visionIngest'
 
 const ALLOWED_IMAGE_TYPES = new Set([
   'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif',
@@ -53,9 +52,10 @@ export async function POST(req: NextRequest) {
   const buffer = await file.arrayBuffer()
   const base64 = Buffer.from(buffer).toString('base64')
 
-  // Run AI extraction
+  // Run AI extraction — dynamic import so Anthropic SDK is never bundled in client
   let scan
   try {
+    const { scanLeadImage, scanLeadPdf } = await import('@/lib/leads/visionIngest')
     if (isPdf) {
       scan = await scanLeadPdf(base64)
     } else {

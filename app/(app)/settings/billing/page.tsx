@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { CheckCircle, AlertCircle, CreditCard, MessageSquare, Zap, ScanLine } from 'lucide-react'
-import { PLAN_LABEL, PLAN_PRICE, SMS_TIER_PRICE, SMS_TIER_LABEL, SMS_TIER_QUOTA, type PlanTier, type SmsTier } from '@/lib/stripe'
+import { PLAN_LABEL, PLAN_PRICE, SMS_TIER_PRICE, SMS_TIER_LABEL, SMS_TIER_QUOTA, type PlanTier, type SmsTier } from '@/lib/stripeConstants'
 
 interface BillingStatus {
   plan: string

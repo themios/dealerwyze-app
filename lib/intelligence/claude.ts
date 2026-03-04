@@ -1,4 +1,4 @@
-import Groq from 'groq-sdk'
+import 'server-only'
 import { IntelligencePayload } from './metrics'
 
 const SYSTEM_PROMPT = `You are a sharp operations analyst for small independent used-car dealers.
@@ -53,6 +53,8 @@ export async function generateBriefing(payload: IntelligencePayload): Promise<Br
   const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) throw new Error('GROQ_API_KEY is not set in environment variables')
 
+  // Lazy-load so groq-sdk is never required at module eval (avoids client bundle loading it)
+  const { default: Groq } = await import('groq-sdk')
   const client = new Groq({ apiKey })
   const completion = await client.chat.completions.create({
     model: 'llama-3.3-70b-versatile',

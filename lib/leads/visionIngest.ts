@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
+import 'server-only'
 import type { ParsedLead } from './parser'
 import type { LeadScanResult } from './visionIngestTypes'
 
@@ -65,6 +65,7 @@ export async function scanLeadImage(
 ): Promise<LeadScanResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
+  const { default: Anthropic } = await import('@anthropic-ai/sdk')
   const client = new Anthropic({ apiKey })
 
   const response = await client.messages.create({
@@ -89,6 +90,7 @@ export async function scanLeadImage(
 export async function scanLeadPdf(pdfBase64: string): Promise<LeadScanResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
+  const { default: Anthropic } = await import('@anthropic-ai/sdk')
   const client = new Anthropic({ apiKey })
 
   const response = await client.messages.create({

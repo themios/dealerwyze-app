@@ -4,8 +4,7 @@ import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 import { incrementScanCount } from '@/lib/leads/scanQuota'
 import { ingestLead } from '@/lib/leads/ingest'
-import type { LeadScanResult } from '@/lib/leads/visionIngest'
-import { scanResultToParsedLead } from '@/lib/leads/visionIngest'
+import type { LeadScanResult } from '@/lib/leads/visionIngestTypes'
 
 export interface CreateFromScanBody {
   scan:           LeadScanResult
@@ -52,6 +51,7 @@ export async function POST(req: NextRequest) {
     notes:         { ...scan.notes,         value: overrides.notes         ?? scan.notes.value },
   }
 
+  const { scanResultToParsedLead } = await import('@/lib/leads/visionIngest')
   const parsedLead = scanResultToParsedLead(merged)
   const externalId = `scan-${orgId}-${Date.now()}`
 
