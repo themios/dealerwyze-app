@@ -66,6 +66,12 @@ export async function POST(req: NextRequest) {
   }
   const sigHeader = req.headers.get('x-retell-signature') ?? ''
   if (!validateRetellSignature(retellSecret, rawBody, sigHeader)) {
+    // Log signature failure to security_events (fire-and-forget)
+    void createServiceClient().from('security_events').insert({
+      event_type: 'sig_failure',
+      ip: req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? null,
+      details: { provider: 'retell', sig_header: sigHeader.slice(0, 60) },
+    })
     return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
   }
 
@@ -120,6 +126,29 @@ export async function POST(req: NextRequest) {
 
   const supabase = createServiceClient()
 
+  // ── Per-caller daily abuse detection (Vector 7) ──────────────────────────
+  // >2 calls from same number in 24h → log security_event + admin_alert
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+  const { count: callerCount } = await supabase
+    .from('voice_calls')
+    .select('id', { count: 'exact', head: true })
+    .eq('org_id', orgId)
+    .eq('from_number', fromNumber)
+    .gte('created_at', yesterday)
+
+  if ((callerCount ?? 0) >= 2) {
+    void supabase.from('security_events').insert({
+      event_type: 'caller_abuse',
+      org_id: orgId,
+      details: { from_number: fromNumber, calls_in_24h: (callerCount ?? 0) + 1, call_id: callId },
+    })
+    void supabase.from('admin_alerts').insert({
+      org_id,
+      alert_type: 'repeated_caller',
+      severity: 'warning',
+    }).maybeSingle()
+  }
+
   // Upsert voice_calls record
   await supabase.from('voice_calls').upsert(
     {
@@ -134,6 +163,41 @@ export async function POST(req: NextRequest) {
     },
     { onConflict: 'call_sid' }
   )
+
+  // ── Voice monthly minute cap enforcement (Vector 7) ───────────────────────
+  // Sum all call seconds this calendar month; if org > voice_minutes_cap → disable
+  const monthStart = new Date()
+  monthStart.setDate(1)
+  monthStart.setHours(0, 0, 0, 0)
+  const { data: orgCaps } = await supabase
+    .from('org_settings')
+    .select('voice_enabled, voice_minutes_cap')
+    .eq('org_id', orgId)
+    .maybeSingle()
+
+  const cap = (orgCaps?.voice_minutes_cap ?? 60000)
+  if (cap > 0 && (orgCaps?.voice_enabled !== false)) {
+    const { data: monthSecs } = await supabase
+      .from('voice_calls')
+      .select('duration_seconds')
+      .eq('org_id', orgId)
+      .gte('created_at', monthStart.toISOString())
+    const totalSecs = (monthSecs ?? []).reduce((s, r) => s + (r.duration_seconds ?? 0), 0)
+    await supabase
+      .from('org_settings')
+      .update({ voice_minutes_month: totalSecs })
+      .eq('org_id', orgId)
+    if (totalSecs >= cap) {
+      // Disable voice for remainder of billing cycle + alert
+      await supabase.from('org_settings').update({ voice_enabled: false }).eq('org_id', orgId)
+      void supabase.from('admin_alerts').insert({
+        org_id,
+        alert_type: 'voice_cap_reached',
+        severity: 'warning',
+      }).maybeSingle()
+      console.warn(`[retell-callback] voice cap reached for org ${orgId}: ${totalSecs}s / ${cap}s`)
+    }
+  }
 
   // Run after response is sent — prevents Vercel from killing it mid-flight
   after(

@@ -28,6 +28,12 @@ export async function POST(req: NextRequest) {
   try {
     event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET!)
   } catch {
+    // Log signature failure to security_events (fire-and-forget)
+    void createServiceClient().from('security_events').insert({
+      event_type: 'sig_failure',
+      ip: req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? null,
+      details: { provider: 'stripe' },
+    })
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 

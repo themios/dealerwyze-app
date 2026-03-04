@@ -14,6 +14,17 @@ function normalizePhone(raw: string): string {
   return digits.length >= 10 ? digits.slice(-10) : digits
 }
 
+// Vector 1: known disposable / throwaway email domains — flag-only (non-blocking)
+const DISPOSABLE_DOMAINS = new Set([
+  'mailinator.com', 'guerrillamail.com', 'guerrillamailblock.com', 'tempmail.com',
+  'temp-mail.org', 'throwaway.email', 'yopmail.com', '10minutemail.com', 'maildrop.cc',
+  'sharklasers.com', 'trashmail.com', 'dispostable.com', 'getairmail.com', 'fakeinbox.com',
+  'spamgourmet.com', 'spamspot.com', 'discard.email', 'mailnull.com', 'crapmail.org',
+  'tempr.email', 'trashmail.io', 'spam4.me', 'throwam.com', 'mintemail.com',
+  'safetymail.info', 'fakemail.net', 'mailnesia.com', 'mytrashmail.com', 'sogetthis.com',
+  'spamherelots.com', 'trashmail.at', 'trashmail.me', 'trashmail.net',
+])
+
 export async function POST(req: NextRequest) {
   const { email, password, display_name, invite_code, phone } = await req.json()
 
@@ -33,6 +44,7 @@ export async function POST(req: NextRequest) {
   const phoneNorm   = phone ? normalizePhone(String(phone)) : null
 
   let churnRiskFlagged = false
+  const disposableDomain = emailDomain ? DISPOSABLE_DOMAINS.has(emailDomain) : false
 
   if (emailDomain) {
     const { data: priorByDomain } = await service
@@ -124,6 +136,19 @@ export async function POST(req: NextRequest) {
           email_domain: emailDomain,
           phone_normalized: phoneNorm,
           note: 'Prior canceled org detected with same email domain or phone. No trial period — billing starts immediately on approval.',
+        },
+      })
+    }
+
+    // Vector 1: disposable email domain flag (non-blocking — admin reviews at approval)
+    if (disposableDomain) {
+      await service.from('abuse_flags').insert({
+        org_id:    orgId,
+        flag_type: 'disposable_email',
+        severity:  'medium',
+        details: {
+          email_domain: emailDomain,
+          note: 'Signup used a known disposable/throwaway email domain. Review before approving.',
         },
       })
     }

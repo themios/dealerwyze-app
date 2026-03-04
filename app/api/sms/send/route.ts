@@ -35,13 +35,10 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Abuse: rate limit (50 msgs/min per org)
+  // Abuse: velocity caps (20/min, 300/day per org — Vector 8)
   const rateLimit = await checkRateLimit(orgId)
   if (!rateLimit.allowed) {
-    return NextResponse.json(
-      { error: `Rate limit exceeded: ${rateLimit.count} messages sent in the last minute (max 50). Try again shortly.` },
-      { status: 429 }
-    )
+    return NextResponse.json({ error: rateLimit.reason ?? 'Rate limit exceeded' }, { status: 429 })
   }
 
   // Quota check

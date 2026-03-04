@@ -5,6 +5,57 @@ Each entry includes the date, category, migration (if any), and what was built.
 
 ---
 
+## 2026-03-04 — Security Gap Closure (Session 3)
+
+### Gap Closure: All Implementable P0 + P1 Controls
+**Category:** Security
+**Migration:** `045_security_caps.sql`
+
+**Why:** After creating the comprehensive LAUNCH_SECURITY_ASSESSMENT.md, all code-implementable gaps were closed in one session. Config-only items (Retell dashboard, Stripe Radar, A2P 10DLC) remain as manual actions.
+
+**What was built:**
+
+#### Migration 045 — `supabase/migrations/045_security_caps.sql`
+- `security_events` table: logs sig failures, rate-limit triggers, caller abuse anomalies (`event_type`, `ip`, `org_id`, `details JSONB`)
+- `org_settings.voice_enabled BOOLEAN DEFAULT true` — kill switch per org
+- `org_settings.voice_minutes_cap INT DEFAULT 60000` — 1,000 min × 60 sec monthly hard cap
+- `org_settings.voice_minutes_month INT DEFAULT 0` — running monthly usage counter
+- `org_settings.autofill_topups_today SMALLINT DEFAULT 0` — daily charge counter
+- `org_settings.autofill_topups_month SMALLINT DEFAULT 0` — monthly charge counter
+
+#### Voice Caps — `app/api/voice/retell-callback/route.ts`
+- **Per-caller daily abuse detection**: counts `voice_calls` from same `from_number` in last 24h; if ≥2 → insert `security_events` (`caller_abuse`) + `admin_alerts`
+- **Monthly minute cap**: after each call, sums all `duration_seconds` for current calendar month; if `totalSecs ≥ voice_minutes_cap` → sets `org_settings.voice_enabled = false` + `admin_alerts` (`voice_cap_reached`)
+- **Retell sig failure logging**: on bad signature → insert `security_events` (`sig_failure`, provider: retell)
+
+#### Stripe Sig Failure Logging — `app/api/stripe/webhook/route.ts`
+- On signature failure → insert `security_events` (`sig_failure`, provider: stripe) before returning 400
+
+#### SMS Velocity — `lib/sms/rateLimit.ts`
+- MAX_PER_MINUTE tightened: **50 → 20** (per security plan spec)
+- Added **300/day per org** check: counts outbound `activities` in last 24h — blocks with clear error message
+- `checkRateLimit()` now returns `{ allowed, count, reason? }` — send route uses `reason` directly
+
+#### Disposable Email Detection — `app/api/auth/register/route.ts`
+- Added `DISPOSABLE_DOMAINS` Set (33 known throwaway providers: mailinator, guerrillamail, tempmail, yopmail, etc.)
+- On signup: if `emailDomain` matches → insert `abuse_flags` (`disposable_email`, severity: medium) for admin review
+- Non-blocking — doesn't prevent signup; admin sees flag at approval queue
+
+**Confirmed as already done (were listed as gaps — not gaps):**
+- Twilio `X-Twilio-Signature` HMAC-SHA1 verification: fully implemented in `app/api/twilio/inbound/route.ts` lines 23–87
+- Fax file type validation (PDF/JPEG/PNG/TIFF): `app/api/fax/send/route.ts` line 11
+- Fax max size (10 MB): `app/api/fax/send/route.ts` line 10
+- SMS per-minute rate limit: already existed at 50/min (now tightened to 20)
+
+**What still needs manual action (P0 — cannot be done in code):**
+1. Retell dashboard: set max call duration = 180s, max turns = 12
+2. Retell agent system prompt: add AI bot disclosure + call recording consent disclosure
+3. Stripe dashboard: Radar rules — block if CVC fails, block if ZIP fails
+4. Twilio Trust Hub: A2P 10DLC brand + campaign registration (3–5 business days)
+5. Signup register page: add "I agree to Terms + AUP" clickwrap checkbox (frontend)
+
+---
+
 ## Phase 3 — SaaS Multi-Tenancy (Per-Org Infrastructure)
 
 ### Per-Org Twilio Phone Provisioning (Phase 3A)
