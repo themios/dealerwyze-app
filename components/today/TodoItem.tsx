@@ -512,9 +512,9 @@ export default function TodoItem({ task, onComplete, onSnooze, onUpdate }: Props
             </div>
           </div>
 
-          {/* Due + chevron */}
+          {/* Due + chevron — label is time-relative (e.g. "in 5m") so suppress hydration mismatch */}
           <div className="flex items-center gap-1 shrink-0">
-            <span className={`text-xs ${dueCls}`}>{dueLabel}</span>
+            <span className={`text-xs ${dueCls}`} suppressHydrationWarning>{dueLabel}</span>
             <ChevronRight className="h-4 w-4 text-muted-foreground/50" aria-hidden="true" />
           </div>
         </div>

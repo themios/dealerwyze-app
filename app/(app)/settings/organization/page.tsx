@@ -549,7 +549,7 @@ export default function OrganizationPage() {
                             {' · '}
                             {acct.last_error
                               ? <span className="text-destructive">Error — check credentials</span>
-                              : `Synced ${formatLastPolled(acct.last_polled_at)}`
+                              : <span suppressHydrationWarning>Synced {formatLastPolled(acct.last_polled_at)}</span>
                             }
                           </p>
                         </div>

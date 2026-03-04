@@ -1,9 +1,9 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Camera, FileText, Image, X, ChevronRight, AlertTriangle, CheckCircle, XCircle } from 'lucide-react'
-import type { LeadScanResult, Confidence, ScanField } from '@/lib/leads/visionIngest'
+import type { LeadScanResult, Confidence, ScanField } from '@/lib/leads/visionIngestTypes'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -67,12 +67,12 @@ function Field({
   label, field, override, onEdit,
 }: {
   label:    string
-  field:    ScanField
+  field:    ScanField<string | number>
   override: string | undefined
   onEdit:   (val: string) => void
-}) {
-  const display = override !== undefined ? override : (field.value ?? '')
-  const conf    = display ? field.confidence : 'low'
+}): React.ReactElement {
+  const display = String(override !== undefined ? override : (field.value ?? ''))
+  const conf: Confidence = display ? field.confidence : 'low'
   return (
     <div className="flex items-center gap-2">
       <ConfBadge confidence={conf} />
@@ -86,7 +86,7 @@ function Field({
         />
       </div>
     </div>
-  )
+  ) as React.ReactElement
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -132,7 +132,7 @@ export default function LeadScanner({ onClose }: { onClose?: () => void }) {
     }
 
     const data = await res.json()
-    setScan(data.scan)
+    setScan(data.scan as LeadScanResult)
     setDuplicate(data.duplicate ?? null)
     setIsPdf(data.isPdf ?? false)
     setOverrides({})
@@ -162,7 +162,7 @@ export default function LeadScanner({ onClose }: { onClose?: () => void }) {
     onClose?.()
   }
 
-  const scanValue = (f: ScanField<unknown>) => f.value
+  const scanValue = <T,>(f: ScanField<T>): T | null => f.value
 
   return (
     <div className="flex flex-col h-full">
@@ -293,7 +293,7 @@ export default function LeadScanner({ onClose }: { onClose?: () => void }) {
           {/* Vehicle fields */}
           <section className="space-y-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vehicle Interest</p>
-            <Field label="Year"  field={scan.vehicle_year  as ScanField} override={overrides.vehicle_year  != null ? String(overrides.vehicle_year) : undefined} onEdit={v => set('vehicle_year', v ? Number(v) : null)} />
+            <Field label="Year"  field={scan.vehicle_year  as ScanField<string | number>} override={overrides.vehicle_year  != null ? String(overrides.vehicle_year) : undefined} onEdit={v => set('vehicle_year', v ? Number(v) : null)} />
             <Field label="Make"  field={scan.vehicle_make}  override={overrides.vehicle_make}  onEdit={v => set('vehicle_make', v)} />
             <Field label="Model" field={scan.vehicle_model} override={overrides.vehicle_model} onEdit={v => set('vehicle_model', v)} />
             <Field label="Trim"  field={scan.vehicle_trim}  override={overrides.vehicle_trim}  onEdit={v => set('vehicle_trim', v)} />

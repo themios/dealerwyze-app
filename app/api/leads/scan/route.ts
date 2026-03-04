@@ -76,29 +76,34 @@ export async function POST(req: NextRequest) {
   const phone = scan.phone.value
   const email = scan.email.value
 
+  type CustomerRow = { id: string; name: string; primary_phone: string } | null
   if (phone || email) {
-    const checks: Promise<{ data: { id: string; name: string; primary_phone: string } | null }>[] = []
+    const checks: Promise<{ data: CustomerRow }>[] = []
 
     if (phone) {
       checks.push(
-        supabase
-          .from('customers')
-          .select('id, name, primary_phone')
-          .eq('user_id', orgId)
-          .eq('primary_phone', phone)
-          .maybeSingle()
-          .then(r => r)
+        Promise.resolve(
+          supabase
+            .from('customers')
+            .select('id, name, primary_phone')
+            .eq('user_id', orgId)
+            .eq('primary_phone', phone)
+            .maybeSingle()
+            .then(r => ({ data: r.data as CustomerRow }))
+        )
       )
     }
     if (email) {
       checks.push(
-        supabase
-          .from('customers')
-          .select('id, name, primary_phone')
-          .eq('user_id', orgId)
-          .eq('email', email)
-          .maybeSingle()
-          .then(r => r)
+        Promise.resolve(
+          supabase
+            .from('customers')
+            .select('id, name, primary_phone')
+            .eq('user_id', orgId)
+            .eq('email', email)
+            .maybeSingle()
+            .then(r => ({ data: r.data as CustomerRow }))
+        )
       )
     }
 

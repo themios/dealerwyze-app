@@ -43,7 +43,7 @@ function PipelineCard({ customer }: { customer: PipelineCustomer }) {
         {customer.lead_source && (
           <span className="text-[10px] text-muted-foreground truncate">{customer.lead_source}</span>
         )}
-        <span className="text-[10px] text-muted-foreground shrink-0 ml-auto">
+        <span className="text-[10px] text-muted-foreground shrink-0 ml-auto" suppressHydrationWarning>
           {timeAgo(customer.lead_state_changed_at ?? customer.created_at)}
         </span>
       </div>

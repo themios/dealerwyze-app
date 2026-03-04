@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server'
+import { requireProfile } from '@/lib/auth/profile'
 import { requirePlatformSuperAdmin } from '@/lib/auth/platform'
 import { createServiceClient } from '@/lib/supabase/service'
 
 // GET — list all pending transfers for SuperAdmin review
 export async function GET() {
-  await requirePlatformSuperAdmin()
+  const profile = await requireProfile()
+  const denied = await requirePlatformSuperAdmin(profile.id)
+  if (denied) return denied
   const supabase = createServiceClient()
 
   const { data: transfers, error } = await supabase

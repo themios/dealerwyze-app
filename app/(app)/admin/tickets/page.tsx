@@ -130,7 +130,7 @@ export default function AdminTicketsPage() {
                       </span>
                     )}
                     {sla && (
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${sla.cls}`}>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${sla.cls}`} suppressHydrationWarning>
                         {sla.label}
                       </span>
                     )}

@@ -1,36 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { ParsedLead } from './parser'
+import type { LeadScanResult } from './visionIngestTypes'
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-export type Confidence = 'high' | 'medium' | 'low'
-
-export interface ScanField<T = string> {
-  value: T | null
-  confidence: Confidence
-}
-
-export interface LeadScanResult {
-  first_name:     ScanField
-  last_name:      ScanField
-  phone:          ScanField
-  phone2:         ScanField
-  email:          ScanField
-  city:           ScanField
-  state:          ScanField
-  zip:            ScanField
-  vehicle_year:   ScanField<number>
-  vehicle_make:   ScanField
-  vehicle_model:  ScanField
-  vehicle_trim:   ScanField
-  vehicle_vin:    ScanField
-  budget:         ScanField<number>
-  lead_source:    ScanField
-  notes:          ScanField
-  urgency:        ScanField        // 'high' | 'normal' | 'low'
-  trade_in:       ScanField        // short description if present
-  overall_confidence: Confidence
-}
+export type { Confidence, ScanField, LeadScanResult } from './visionIngestTypes'
 
 // ── Prompts ───────────────────────────────────────────────────────────────────
 
@@ -91,7 +63,9 @@ export async function scanLeadImage(
   imageBase64: string,
   mimeType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif',
 ): Promise<LeadScanResult> {
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
+  const client = new Anthropic({ apiKey })
 
   const response = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
@@ -113,7 +87,9 @@ export async function scanLeadImage(
 // ── PDF scan (Sonnet — better multi-page reasoning) ───────────────────────────
 
 export async function scanLeadPdf(pdfBase64: string): Promise<LeadScanResult> {
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
+  const client = new Anthropic({ apiKey })
 
   const response = await client.messages.create({
     model: 'claude-sonnet-4-6',

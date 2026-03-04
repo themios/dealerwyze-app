@@ -200,7 +200,7 @@ export default function FaxPage() {
                 </div>
                 <div className="flex flex-col items-end gap-1 flex-shrink-0">
                   <StatusBadge status={fax.status} />
-                  <span className="text-[10px] text-muted-foreground">{timeAgo(fax.created_at)}</span>
+                  <span className="text-[10px] text-muted-foreground" suppressHydrationWarning>{timeAgo(fax.created_at)}</span>
                 </div>
               </div>
             ))
