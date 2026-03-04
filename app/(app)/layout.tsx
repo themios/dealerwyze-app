@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { headers, cookies } from 'next/headers'
 import BottomNav from '@/components/layout/BottomNav'
+import DesktopSidebar from '@/components/layout/DesktopSidebar'
 import PushPermission from '@/components/push/PushPermission'
 import PastDueBanner from '@/components/layout/PastDueBanner'
 import ImpersonationBanner from '@/components/admin/ImpersonationBanner'
@@ -64,6 +65,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   // Check for platform staff impersonation session
   let impersonationOrgName: string | null = null
+  let orgName: string | null = null
+
+  // Fetch org name for desktop sidebar
+  if (profile.org_id) {
+    const service = createServiceClient()
+    const { data: orgRow } = await service
+      .from('organizations')
+      .select('name')
+      .eq('id', profile.org_id)
+      .maybeSingle()
+    orgName = orgRow?.name ?? null
+  }
+
   if (isPlatformUser) {
     const cookieStore = await cookies()
     const staffOrgId = getStaffOrgOverride(cookieStore)
@@ -75,20 +89,31 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         .eq('id', staffOrgId)
         .single()
       impersonationOrgName = impOrg?.name ?? null
+      orgName = impersonationOrgName // show impersonated org in sidebar
     }
   }
 
   return (
-    <div className="flex flex-col h-dvh max-w-md mx-auto relative">
-      {impersonationOrgName && (
-        <ImpersonationBanner orgName={impersonationOrgName} />
-      )}
-      <PushPermission />
-      <main className="flex-1 overflow-y-auto pb-20">
-        <PastDueBanner />
-        {children}
-      </main>
-      <BottomNav />
+    // Mobile: single-column, max-w-md centered
+    // Desktop (lg+): full-width flex row — sidebar + content
+    <div className="flex h-dvh w-full lg:max-w-none max-w-md mx-auto relative">
+      {/* Desktop sidebar — hidden on mobile */}
+      <DesktopSidebar orgName={orgName} />
+
+      {/* Main content column */}
+      <div className="flex flex-col flex-1 min-w-0 relative">
+        {impersonationOrgName && (
+          <ImpersonationBanner orgName={impersonationOrgName} />
+        )}
+        <PushPermission />
+        {/* pb-20 on mobile for BottomNav; no padding needed on desktop */}
+        <main className="flex-1 overflow-y-auto pb-20 lg:pb-0">
+          <PastDueBanner />
+          {children}
+        </main>
+        {/* BottomNav — hidden on desktop */}
+        <BottomNav />
+      </div>
     </div>
   )
 }

@@ -3,6 +3,7 @@ import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
 import { logAdminAction } from '@/lib/admin/audit'
 import { canAccessAdminArea, requirePlatformSuperAdmin } from '@/lib/auth/platform'
+import { sendNotificationEmail } from '@/lib/email/notify'
 
 export async function GET(
   _req: NextRequest,
@@ -72,12 +73,29 @@ export async function PATCH(
     })
     // Move to in_progress when admin replies; stamp first_staff_response_at
     if (body.action === 'reply') {
-      const { data: t } = await supabase.from('support_tickets').select('status, first_staff_response_at').eq('id', id).single()
+      const { data: t } = await supabase.from('support_tickets').select('status, first_staff_response_at, subject, created_by, org_id').eq('id', id).single()
       const update: Record<string, unknown> = {}
       if (t?.status === 'open') update.status = 'in_progress'
       if (!t?.first_staff_response_at) update.first_staff_response_at = new Date().toISOString()
       if (Object.keys(update).length > 0) {
         await supabase.from('support_tickets').update(update).eq('id', id)
+      }
+      // G30: Notify dealer of staff reply (fire-and-forget)
+      if (t?.created_by) {
+        const { data: authUser } = await supabase.auth.admin.getUserById(t.created_by)
+        const dealerEmail = authUser?.user?.email
+        if (dealerEmail) {
+          void sendNotificationEmail({
+            to: dealerEmail,
+            subject: `Re: ${t.subject ?? 'Your support ticket'}`,
+            html: `<p>Your support ticket has a new reply from the DealerWyze team:</p>
+<hr>
+<p>${body.message.trim().replace(/\n/g, '<br>')}</p>
+<hr>
+<p><a href="${process.env.NEXT_PUBLIC_APP_URL}/support">View your ticket</a></p>
+<p style="color:#888;font-size:12px">You are receiving this because you submitted a support ticket at DealerWyze.</p>`,
+          })
+        }
       }
     }
   }

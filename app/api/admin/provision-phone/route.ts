@@ -28,6 +28,21 @@ export async function POST(req: NextRequest) {
     phone_number?: string   // only for type='existing'
   }
 
+  const targetOrgIdCheck = body.org_id ?? profile.org_id
+  const { data: targetOrg } = await supabase
+    .from('organizations')
+    .select('subscription_status')
+    .eq('id', targetOrgIdCheck)
+    .single()
+
+  // Block DealerWyze-provisioned numbers on free trial (dealers use their own number during trial)
+  if (targetOrg?.subscription_status === 'trialing' && body.type !== 'existing') {
+    return NextResponse.json(
+      { error: 'Phone number provisioning requires an active subscription. Register your own number (BYON) during trial.' },
+      { status: 403 }
+    )
+  }
+
   const targetOrgId    = body.org_id ?? profile.org_id
   const dealershipName = body.dealership_name ?? 'Dealer'
 

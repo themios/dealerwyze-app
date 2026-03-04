@@ -299,7 +299,7 @@ export async function GET(req: NextRequest) {
 
   const { data: allOrgs } = await supabase
     .from('organizations')
-    .select('id, subscription_status, trial_ends_at')
+    .select('id, subscription_status, trial_ends_at, monthly_message_count, sms_quota')
     .neq('id', '00000000-0000-0000-0000-000000000001')
     .not('approved_at', 'is', null)
 
@@ -318,6 +318,13 @@ export async function GET(req: NextRequest) {
     // Past due
     if (org.subscription_status === 'past_due') {
       alertsToInsert.push({ org_id: org.id, alert_type: 'past_due', severity: 'critical' })
+    }
+
+    // 2× quota exceeded in a single billing cycle (G22)
+    const quota = org.sms_quota ?? 0
+    const used  = org.monthly_message_count ?? 0
+    if (quota > 0 && used > quota * 2) {
+      alertsToInsert.push({ org_id: org.id, alert_type: '2x_quota_exceeded', severity: 'warning' })
     }
 
     for (const alert of alertsToInsert) {
@@ -348,6 +355,40 @@ export async function GET(req: NextRequest) {
       .maybeSingle()
   }
 
+  // ── Job 9: Data retention — hard-delete data for orgs canceled 90+ days ago ─
+  // Keeps: organizations row (anonymized), admin_audit_log, billing records.
+  // Deletes: activities, voice_calls, customers, vehicles, tasks, receipts,
+  //          support_ticket_messages, support_tickets.
+  let purgedOrgs = 0
+
+  const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString()
+  const { data: expiredCanceledOrgs } = await supabase
+    .from('organizations')
+    .select('id')
+    .eq('subscription_status', 'canceled')
+    .not('canceled_at', 'is', null)
+    .lt('canceled_at', ninetyDaysAgo)
+
+  for (const expOrg of expiredCanceledOrgs ?? []) {
+    const oid = expOrg.id
+    // Delete in dependency order (children first)
+    await supabase.from('activities').delete().eq('user_id', oid)
+    await supabase.from('voice_calls').delete().eq('user_id', oid)
+    await supabase.from('tasks').delete().eq('user_id', oid)
+    await supabase.from('receipts').delete().eq('user_id', oid)
+    await supabase.from('vehicles').delete().eq('user_id', oid)
+    await supabase.from('customers').delete().eq('user_id', oid)
+    // Support tickets (support_ticket_messages cascade on delete via FK)
+    await supabase.from('support_tickets').delete().eq('org_id', oid)
+    // Anonymize org row — keep id + billing fields, clear PII
+    await supabase.from('organizations').update({
+      name: '[deleted]',
+      slug: `deleted-${oid.slice(0, 8)}`,
+      updated_at: new Date().toISOString(),
+    }).eq('id', oid)
+    purgedOrgs++
+  }
+
   await finishCronRun(runId, 'success', (allOrgs ?? []).length)
 
   return NextResponse.json({
@@ -358,5 +399,6 @@ export async function GET(req: NextRequest) {
     appointment_reminders_sent: remindersent,
     response_alerts: responseAlerts,
     admin_alerts: adminAlerts,
+    purged_orgs: purgedOrgs,
   })
 }

@@ -9,7 +9,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
-import { MessageSquare, Send, Zap } from 'lucide-react'
+import { MessageSquare, Send, Zap, MessageSquareOff } from 'lucide-react'
 
 const SMS_TEMPLATES = [
   // First contact
@@ -110,6 +110,7 @@ export default function TemplatePicker({ customer, vehicle }: TemplatePickerProp
   }
 
   async function handleOpenMessages() {
+    if (customer.sms_opt_out) return
     await logActivity()
     const tel = formatPhoneForTel(customer.primary_phone)
     window.location.href = `sms:${tel}?body=${encodeURIComponent(body)}`
@@ -151,6 +152,15 @@ export default function TemplatePicker({ customer, vehicle }: TemplatePickerProp
     t.name.toLowerCase().includes(search.toLowerCase()) ||
     t.body.toLowerCase().includes(search.toLowerCase())
   ) : SMS_TEMPLATES
+
+  if (customer.sms_opt_out) {
+    return (
+      <Button variant="outline" size="lg" disabled className="border-muted text-muted-foreground opacity-60 cursor-not-allowed" title="Customer opted out of SMS (STOP)">
+        <MessageSquareOff className="h-4 w-4 mr-2" />
+        SMS Off
+      </Button>
+    )
+  }
 
   return (
     <>

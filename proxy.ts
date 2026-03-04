@@ -8,11 +8,16 @@ interface RateEntry { count: number; resetAt: number }
 const store = new Map<string, RateEntry>()
 
 const RATE_ROUTES: Array<{ prefix: string; limit: number; windowMs: number }> = [
-  { prefix: '/api/twilio/inbound',          limit: 60,  windowMs: 60_000 },
-  { prefix: '/api/voice/retell-callback',   limit: 30,  windowMs: 60_000 },
-  { prefix: '/api/gmail/webhook',           limit: 60,  windowMs: 60_000 },
-  { prefix: '/api/inventory/cargurus-feed', limit: 10,  windowMs: 60_000 },
-  { prefix: '/api/inventory/facebook-feed', limit: 10,  windowMs: 60_000 },
+  { prefix: '/api/twilio/inbound',          limit: 60,  windowMs:  60_000 },
+  { prefix: '/api/voice/retell-callback',   limit: 30,  windowMs:  60_000 },
+  { prefix: '/api/gmail/webhook',           limit: 60,  windowMs:  60_000 },
+  // Inventory feed endpoints deprecated 2026-03-04; now return 410 Gone (no rate limit needed)
+  // Vector 5: tighter per-IP limit on data-heavy read endpoints
+  { prefix: '/api/customers',               limit: 100, windowMs:  60_000 }, // 100/min max per IP
+  { prefix: '/api/vehicles',                limit: 100, windowMs:  60_000 },
+  // Vector 12: brute-force / credential stuffing protection
+  { prefix: '/api/auth/login',              limit:   8, windowMs: 300_000 }, // 8 attempts / 5 min per IP
+  { prefix: '/api/auth/register',           limit:   3, windowMs: 600_000 }, // 3 signups / 10 min per IP
 ]
 
 function getIp(req: NextRequest): string {

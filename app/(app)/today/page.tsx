@@ -5,8 +5,8 @@ import { Search, Receipt, CalendarDays } from 'lucide-react'
 import TopBar from '@/components/layout/TopBar'
 import TodayContent from './TodayContent'
 import SyncGmailButton from '@/components/leads/SyncGmailButton'
-import DealerBrief from '@/components/today/DealerBrief'
 import TodoSection from '@/components/today/TodoSection'
+import DealerBriefClient from '@/components/today/DealerBriefClient'
 import OnboardingChecklist from '@/components/today/OnboardingChecklist'
 import ResponseTimeWidget from '@/components/today/ResponseTimeWidget'
 import ReviewsSection from '@/components/today/ReviewsSection'
@@ -27,7 +27,7 @@ export default async function TodayPage() {
 
   const { data: newLeads } = await supabase
     .from('activities')
-    .select('*, customer:customers(id, name, primary_phone, email)')
+    .select('*, customer:customers(id, name, primary_phone, email, sms_opt_out)')
     .eq('user_id', orgId)
     .eq('type', 'email')
     .eq('direction', 'inbound')
@@ -141,6 +141,12 @@ export default async function TodayPage() {
   // Filter out activities whose customer join returned null (orphaned activities)
   const safeApptRequests = (apptRequests || []).filter(a => a.customer != null)
 
+  const newLeadCount    = safeNewLeads.length
+  const apptCount       = safeApptRequests.length
+  const voiceCount      = (voiceLeadsRaw ?? []).length
+  const waitingCount    = waiting.length
+  const overdueCount    = (tasks ?? []).filter(t => t.due_at && new Date(t.due_at) < new Date()).length
+
   return (
     <div>
       <TopBar
@@ -153,32 +159,65 @@ export default async function TodayPage() {
           </>
         }
       />
-      <DealerBrief />
-      <ResponseTimeWidget orgId={orgId} />
-      {(gbpReviews?.length ?? 0) > 0 && (
-        <ReviewsSection initialReviews={gbpReviews!} />
-      )}
-      <OnboardingChecklist
-        orgId={orgId}
-        onboardingCompletedAt={orgSettings?.onboarding_completed_at ?? null}
-        checkItems={{
-          hasCustomer:    (customerCount ?? 0) > 0,
-          hasEmail:       (emailAccounts?.length ?? 0) > 0,
-          hasSmsTemplate: (leadTemplates?.length ?? 0) > 0,
-          hasTeamMember:  (teamCount ?? 0) > 1,
-          hasPlan:        !!(orgBilling?.stripe_customer_id),
-        }}
-      />
-      <TodayContent
-        initialNewLeads={safeNewLeads}
-        initialTasks={tasks || []}
-        initialWaiting={waiting}
-        leadTemplates={leadTemplates || []}
-        initialApptRequests={safeApptRequests}
-        initialVoiceLeads={voiceLeadsRaw || []}
-        businessName={orgSettings?.business_name ?? undefined}
-      />
-      <TodoSection initialTasks={todos ?? []} />
+
+      {/* Desktop KPI strip — hidden on mobile */}
+      <div className="hidden lg:grid lg:grid-cols-5 gap-3 px-6 py-4 border-b border-border bg-card/50">
+        {[
+          { label: 'New Leads',       value: newLeadCount,  color: newLeadCount > 0  ? 'text-blue-500'   : 'text-muted-foreground' },
+          { label: 'Appt Requests',   value: apptCount,     color: apptCount > 0     ? 'text-orange-500' : 'text-muted-foreground' },
+          { label: 'Voice Leads',     value: voiceCount,    color: voiceCount > 0    ? 'text-purple-500' : 'text-muted-foreground' },
+          { label: 'Waiting',         value: waitingCount,  color: waitingCount > 0  ? 'text-yellow-500' : 'text-muted-foreground' },
+          { label: 'Overdue',         value: overdueCount,  color: overdueCount > 0  ? 'text-red-500'    : 'text-muted-foreground' },
+        ].map(({ label, value, color }) => (
+          <div key={label} className="flex flex-col items-center py-2">
+            <span className={`text-3xl font-bold tabular-nums ${color}`}>{value}</span>
+            <span className="text-xs text-muted-foreground mt-0.5">{label}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop 3-column grid — mobile: single column (stacked, unchanged) */}
+      <div className="lg:grid lg:grid-cols-3 lg:gap-0 lg:items-start lg:h-[calc(100dvh-7rem)]">
+
+        {/* Left column: Intelligence — DealerBrief, ResponseTime, Reviews */}
+        <div className="lg:border-r lg:border-border lg:overflow-y-auto lg:h-full">
+          <DealerBriefClient />
+          <ResponseTimeWidget orgId={orgId} />
+          {(gbpReviews?.length ?? 0) > 0 && (
+            <ReviewsSection initialReviews={gbpReviews!} />
+          )}
+          <OnboardingChecklist
+            orgId={orgId}
+            onboardingCompletedAt={orgSettings?.onboarding_completed_at ?? null}
+            checkItems={{
+              hasCustomer:    (customerCount ?? 0) > 0,
+              hasEmail:       (emailAccounts?.length ?? 0) > 0,
+              hasSmsTemplate: (leadTemplates?.length ?? 0) > 0,
+              hasTeamMember:  (teamCount ?? 0) > 1,
+              hasPlan:        !!(orgBilling?.stripe_customer_id),
+            }}
+          />
+        </div>
+
+        {/* Center column: Lead activity feed */}
+        <div className="lg:border-r lg:border-border lg:overflow-y-auto lg:h-full">
+          <TodayContent
+            initialNewLeads={safeNewLeads}
+            initialTasks={tasks || []}
+            initialWaiting={waiting}
+            leadTemplates={leadTemplates || []}
+            initialApptRequests={safeApptRequests}
+            initialVoiceLeads={voiceLeadsRaw || []}
+            businessName={orgSettings?.business_name ?? undefined}
+          />
+        </div>
+
+        {/* Right column: Tasks & To-Dos */}
+        <div className="lg:overflow-y-auto lg:h-full">
+          <TodoSection initialTasks={todos ?? []} />
+        </div>
+
+      </div>
     </div>
   )
 }

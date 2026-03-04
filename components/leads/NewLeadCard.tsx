@@ -44,7 +44,7 @@ const SOURCE_LABELS: Record<string, string> = {
 
 interface NewLeadCardProps {
   activity: Activity & {
-    customer: { id: string; name: string; primary_phone: string; email?: string }
+    customer: { id: string; name: string; primary_phone: string; email?: string; sms_opt_out?: boolean }
   }
   templates: Template[]
   onUpdate: () => void

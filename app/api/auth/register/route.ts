@@ -8,8 +8,14 @@ function generateInviteCode(): string {
   return code
 }
 
+/** Normalize phone: strip non-digits, keep last 10 digits */
+function normalizePhone(raw: string): string {
+  const digits = raw.replace(/\D/g, '')
+  return digits.length >= 10 ? digits.slice(-10) : digits
+}
+
 export async function POST(req: NextRequest) {
-  const { email, password, display_name, invite_code } = await req.json()
+  const { email, password, display_name, invite_code, phone } = await req.json()
 
   if (!email || !password || !display_name) {
     return NextResponse.json({ error: 'email, password, and display_name are required' }, { status: 400 })
@@ -19,6 +25,37 @@ export async function POST(req: NextRequest) {
   }
 
   const service = createServiceClient()
+
+  // ── Churn / re-signup detection ────────────────────────────────────────────
+  // If this email domain or phone number previously had a canceled org, skip trial.
+  // This discourages the "sign up → use product → cancel → re-sign up for free trial" pattern.
+  const emailDomain = email.split('@')[1]?.toLowerCase() ?? ''
+  const phoneNorm   = phone ? normalizePhone(String(phone)) : null
+
+  let churnRiskFlagged = false
+
+  if (emailDomain) {
+    const { data: priorByDomain } = await service
+      .from('organizations')
+      .select('id, subscription_status')
+      .eq('signup_email_domain', emailDomain)
+      .eq('subscription_status', 'canceled')
+      .limit(1)
+      .maybeSingle()
+    if (priorByDomain) churnRiskFlagged = true
+  }
+
+  if (!churnRiskFlagged && phoneNorm) {
+    const { data: priorByPhone } = await service
+      .from('organizations')
+      .select('id, subscription_status')
+      .eq('signup_phone_normalized', phoneNorm)
+      .eq('subscription_status', 'canceled')
+      .limit(1)
+      .maybeSingle()
+    if (priorByPhone) churnRiskFlagged = true
+  }
+  // ── End churn detection ────────────────────────────────────────────────────
 
   // Resolve org from invite code (if provided)
   let orgId: string | null = null
@@ -66,6 +103,9 @@ export async function POST(req: NextRequest) {
       id: orgId,
       name: `${display_name}'s Dealership`,
       // approved_at: omitted → NULL → pending approval
+      signup_email_domain:     emailDomain || null,
+      signup_phone_normalized: phoneNorm,
+      churn_risk_flagged:      churnRiskFlagged,
     })
     if (orgErr && !orgErr.message.includes('duplicate') && !orgErr.code?.includes('23505')) {
       await service.auth.admin.deleteUser(userId)
@@ -73,6 +113,20 @@ export async function POST(req: NextRequest) {
     }
 
     await service.from('org_settings').insert({ org_id: orgId })
+
+    // Log churn risk flag so SuperAdmin sees it on the approval queue
+    if (churnRiskFlagged) {
+      await service.from('abuse_flags').insert({
+        org_id:    orgId,
+        flag_type: 'churn_reregister',
+        severity:  'high',
+        details: {
+          email_domain: emailDomain,
+          phone_normalized: phoneNorm,
+          note: 'Prior canceled org detected with same email domain or phone. No trial period — billing starts immediately on approval.',
+        },
+      })
+    }
   }
 
   const { error: profileErr } = await service.from('profiles').insert({

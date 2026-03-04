@@ -157,10 +157,10 @@ export default function AnalyticsDashboard() {
   const funnelMax = data?.funnel[0]?.count || 1
 
   return (
-    <div className="px-4 py-4 space-y-6 pb-24">
+    <div className="px-4 py-4 pb-24 space-y-6 lg:px-6">
 
       {/* Date range pills + CSV export */}
-      <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 no-scrollbar">
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 lg:mx-0 lg:px-0 no-scrollbar">
         {PRESETS.map(p => (
           <button
             key={p.label}
@@ -199,149 +199,157 @@ export default function AnalyticsDashboard() {
 
       {data && !loading && (
         <>
-          {/* Leads by source */}
-          <section>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-              Leads by Source
-            </p>
-            {Object.keys(data.leads.by_source).length === 0 ? (
-              <p className="text-sm text-muted-foreground">No leads in this period.</p>
-            ) : (
-              <div className="space-y-2">
-                {Object.entries(data.leads.by_source)
-                  .sort(([, a], [, b]) => b - a)
-                  .map(([src, count]) => (
-                    <div key={src} className="rounded-lg border bg-card p-3">
-                      <div className="flex justify-between items-center mb-1.5">
-                        <span className="text-sm font-medium">{SOURCE_LABELS[src] ?? src}</span>
-                        <span className="text-sm font-bold">{count}</span>
-                      </div>
-                      <CssBar pct={data.leads.total > 0 ? Math.round((count / data.leads.total) * 100) : 0} />
-                    </div>
-                  ))}
-              </div>
-            )}
-          </section>
+          {/* Desktop: 2-column grid for top sections; Mobile: single column */}
+          <div className="lg:grid lg:grid-cols-2 lg:gap-6 space-y-6 lg:space-y-0">
 
-          {/* Conversion funnel */}
-          <section>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-              Conversion Funnel
-            </p>
-            <div className="space-y-2">
-              {data.funnel.map(({ state, count }) => (
-                <div key={state} className="rounded-lg border bg-card p-3">
-                  <div className="flex justify-between items-center mb-1.5">
-                    <span className="text-sm text-muted-foreground">{FUNNEL_LABELS[state] ?? state}</span>
-                    <span className="text-sm font-bold">{count}</span>
+            {/* Left column: Leads by Source + Response Time */}
+            <div className="space-y-6">
+              <section>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                  Leads by Source
+                </p>
+                {Object.keys(data.leads.by_source).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No leads in this period.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {Object.entries(data.leads.by_source)
+                      .sort(([, a], [, b]) => b - a)
+                      .map(([src, count]) => (
+                        <div key={src} className="rounded-lg border bg-card p-3">
+                          <div className="flex justify-between items-center mb-1.5">
+                            <span className="text-sm font-medium">{SOURCE_LABELS[src] ?? src}</span>
+                            <span className="text-sm font-bold">{count}</span>
+                          </div>
+                          <CssBar pct={data.leads.total > 0 ? Math.round((count / data.leads.total) * 100) : 0} />
+                        </div>
+                      ))}
                   </div>
-                  <CssBar
-                    pct={funnelMax > 0 ? Math.round((count / funnelMax) * 100) : 0}
-                    color={state === 'sold' ? 'bg-green-500' : 'bg-primary'}
+                )}
+              </section>
+
+              <section>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                  Response Time
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <StatCard
+                    label="Avg Response"
+                    value={data.leads.avg_response_seconds != null
+                      ? formatDuration(data.leads.avg_response_seconds)
+                      : '—'}
+                    color={
+                      data.leads.avg_response_seconds == null ? '' :
+                      data.leads.avg_response_seconds < 300  ? 'text-green-600' :
+                      data.leads.avg_response_seconds < 600  ? 'text-yellow-600' :
+                      'text-destructive'
+                    }
+                  />
+                  <StatCard label="Leads Tracked" value={data.leads.total} sub="in period" />
+                </div>
+              </section>
+
+              {/* SMS */}
+              <section>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">SMS</p>
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+                  <StatCard label="Sent"    value={data.sms.sent} />
+                  <StatCard label="Replied" value={data.sms.replied} color="text-primary" />
+                  <StatCard
+                    label="Reply Rate"
+                    value={data.sms.sent > 0
+                      ? `${Math.round((data.sms.replied / data.sms.sent) * 100)}%`
+                      : '—'}
+                    color={
+                      data.sms.sent === 0 ? '' :
+                      (data.sms.replied / data.sms.sent) >= 0.3 ? 'text-green-600' :
+                      (data.sms.replied / data.sms.sent) >= 0.1 ? 'text-yellow-600' :
+                      'text-muted-foreground'
+                    }
                   />
                 </div>
-              ))}
+              </section>
             </div>
-          </section>
 
-          {/* Response time */}
-          <section>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-              Response Time
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              <StatCard
-                label="Avg Response"
-                value={data.leads.avg_response_seconds != null
-                  ? formatDuration(data.leads.avg_response_seconds)
-                  : '—'}
-                color={
-                  data.leads.avg_response_seconds == null ? '' :
-                  data.leads.avg_response_seconds < 300  ? 'text-green-600' :
-                  data.leads.avg_response_seconds < 600  ? 'text-yellow-600' :
-                  'text-destructive'
-                }
-              />
-              <StatCard label="Leads Tracked" value={data.leads.total} sub="in period" />
-            </div>
-          </section>
+            {/* Right column: Conversion Funnel + Voice */}
+            <div className="space-y-6">
+              <section>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                  Conversion Funnel
+                </p>
+                <div className="space-y-2">
+                  {data.funnel.map(({ state, count }) => (
+                    <div key={state} className="rounded-lg border bg-card p-3">
+                      <div className="flex justify-between items-center mb-1.5">
+                        <span className="text-sm text-muted-foreground">{FUNNEL_LABELS[state] ?? state}</span>
+                        <span className="text-sm font-bold">{count}</span>
+                      </div>
+                      <CssBar
+                        pct={funnelMax > 0 ? Math.round((count / funnelMax) * 100) : 0}
+                        color={state === 'sold' ? 'bg-green-500' : 'bg-primary'}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </section>
 
-          {/* SMS — Issue #4 + #12: 2-column layout, no misleading "Delivered", add Reply Rate */}
-          <section>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">SMS</p>
-            <div className="grid grid-cols-2 gap-3">
-              <StatCard label="Sent"       value={data.sms.sent} />
-              <StatCard label="Replied"    value={data.sms.replied} color="text-primary" />
-              <StatCard
-                label="Reply Rate"
-                value={data.sms.sent > 0
-                  ? `${Math.round((data.sms.replied / data.sms.sent) * 100)}%`
-                  : '—'}
-                color={
-                  data.sms.sent === 0 ? '' :
-                  (data.sms.replied / data.sms.sent) >= 0.3 ? 'text-green-600' :
-                  (data.sms.replied / data.sms.sent) >= 0.1 ? 'text-yellow-600' :
-                  'text-muted-foreground'
-                }
-              />
+              {/* Voice */}
+              <section>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Voice Calls</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <StatCard label="Total Calls"   value={data.voice.total} />
+                  <StatCard
+                    label="Avg Duration"
+                    value={data.voice.avg_duration_seconds
+                      ? formatDuration(data.voice.avg_duration_seconds)
+                      : '—'}
+                  />
+                  <StatCard label="Total Minutes" value={Math.round(data.voice.total_seconds / 60)} />
+                  <StatCard
+                    label="Est. Cost"
+                    value={`$${data.voice.estimated_cost.toFixed(2)}`}
+                    sub="@ $0.01/min"
+                    color="text-muted-foreground"
+                  />
+                </div>
+              </section>
             </div>
-          </section>
+          </div>
 
-          {/* Voice */}
-          <section>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Voice Calls</p>
-            <div className="grid grid-cols-2 gap-3">
-              <StatCard label="Total Calls"   value={data.voice.total} />
-              <StatCard
-                label="Avg Duration"
-                value={data.voice.avg_duration_seconds
-                  ? formatDuration(data.voice.avg_duration_seconds)
-                  : '—'}
-              />
-              <StatCard label="Total Minutes" value={Math.round(data.voice.total_seconds / 60)} />
-              <StatCard
-                label="Est. Cost"
-                value={`$${data.voice.estimated_cost.toFixed(2)}`}
-                sub="@ $0.01/min"
-                color="text-muted-foreground"
-              />
-            </div>
-          </section>
+          {/* Revenue + BHPH — full width on both mobile and desktop */}
+          <div className="lg:grid lg:grid-cols-2 lg:gap-6 space-y-6 lg:space-y-0">
+            <section>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Revenue</p>
+              <div className="grid grid-cols-2 gap-3">
+                <StatCard label="Units Sold" value={data.revenue.units_sold} />
+                <StatCard label="Revenue" value={formatCurrency(data.revenue.total)} color="text-green-600" />
+              </div>
+            </section>
 
-          {/* Revenue */}
-          <section>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Revenue</p>
-            <div className="grid grid-cols-2 gap-3">
-              <StatCard label="Units Sold" value={data.revenue.units_sold} />
-              <StatCard label="Revenue" value={formatCurrency(data.revenue.total)} color="text-green-600" />
-            </div>
-          </section>
-
-          {/* BHPH — Issue #13: collection rate uses loan_amount only (not down_payment) */}
-          <section>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-              BHPH (All-Time)
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              <StatCard
-                label="Collection Rate"
-                value={data.bhph.collection_rate_pct != null
-                  ? `${data.bhph.collection_rate_pct}%`
-                  : '—'}
-                color={
-                  data.bhph.collection_rate_pct == null ? '' :
-                  data.bhph.collection_rate_pct >= 80   ? 'text-green-600' :
-                  data.bhph.collection_rate_pct >= 60   ? 'text-yellow-600' :
-                  'text-destructive'
-                }
-              />
-              <StatCard
-                label="Total Collected"
-                value={formatCurrency(data.bhph.total_paid)}
-                color="text-primary"
-              />
-            </div>
-          </section>
+            <section>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                BHPH (All-Time)
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <StatCard
+                  label="Collection Rate"
+                  value={data.bhph.collection_rate_pct != null
+                    ? `${data.bhph.collection_rate_pct}%`
+                    : '—'}
+                  color={
+                    data.bhph.collection_rate_pct == null ? '' :
+                    data.bhph.collection_rate_pct >= 80   ? 'text-green-600' :
+                    data.bhph.collection_rate_pct >= 60   ? 'text-yellow-600' :
+                    'text-destructive'
+                  }
+                />
+                <StatCard
+                  label="Total Collected"
+                  value={formatCurrency(data.bhph.total_paid)}
+                  color="text-primary"
+                />
+              </div>
+            </section>
+          </div>
         </>
       )}
     </div>

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 import { canAccessReports } from '@/lib/auth/dealerRoles'
+import { trackBulkFetch } from '@/lib/security/abuseDetector'
 import type { UserRole } from '@/types/index'
 import * as XLSX from 'xlsx'
 
@@ -18,6 +19,19 @@ export async function GET() {
 
   const supabase = await createClient()
   const orgId = profile.org_id
+
+  // Block data export during free trial — prevents trial abuse (use product, export data, cancel)
+  const { data: org } = await supabase
+    .from('organizations')
+    .select('subscription_status')
+    .eq('id', orgId)
+    .single()
+  if (org?.subscription_status === 'trialing') {
+    return NextResponse.json(
+      { error: 'Data export is not available during the free trial. Upgrade to export your data.' },
+      { status: 403 }
+    )
+  }
 
   const results = await Promise.allSettled([
     supabase
@@ -163,6 +177,9 @@ export async function GET() {
       c.website ?? '', c.notes ?? '', c.created_at,
     ]),
   ]), 'Contacts')
+
+  // Track bulk fetch for abuse detection (Vector 8)
+  trackBulkFetch(orgId, customers.length + vehicles.length + activities.length + contacts.length)
 
   const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer
   const date = new Date().toISOString().slice(0, 10)

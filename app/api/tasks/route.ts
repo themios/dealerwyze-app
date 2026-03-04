@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
     linked_customer_id?: string
     linked_receipt_id?: string
     notes?: string
+    assigned_to_user_id?: string | null
   }
 
   if (!body.title?.trim()) {
@@ -88,6 +89,7 @@ export async function POST(req: NextRequest) {
       linked_customer_id: body.linked_customer_id ?? null,
       linked_receipt_id: body.linked_receipt_id ?? null,
       notes: body.notes ?? null,
+      assigned_to_user_id: body.assigned_to_user_id ?? null,
     })
     .select()
     .single()

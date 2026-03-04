@@ -51,6 +51,8 @@ export default function CustomerDetailClient({ customer, activities: initialActi
   const [localTasks, setLocalTasks] = useState<TaskItem[]>(initialTasks)
   const [quickTaskOpen, setQuickTaskOpen] = useState(false)
   const [quickTaskTitle, setQuickTaskTitle] = useState('')
+  const [quickTaskAssignee, setQuickTaskAssignee] = useState('')
+  const [teamMembers, setTeamMembers] = useState<{ id: string; display_name: string }[]>([])
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [archiveReason, setArchiveReason] = useState('')
   const [archiving, setArchiving] = useState(false)
@@ -114,6 +116,16 @@ export default function CustomerDetailClient({ customer, activities: initialActi
     setLocalTasks(prev => prev.filter(t => t.id !== id))
   }
 
+  async function loadTeamMembers() {
+    if (teamMembers.length > 0) return
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, display_name')
+      .is('deactivated_at', null)
+      .order('display_name')
+    setTeamMembers(data ?? [])
+  }
+
   async function addQuickTask() {
     if (!quickTaskTitle.trim()) return
     const res = await fetch('/api/tasks', {
@@ -124,6 +136,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
         task_type: 'manual',
         priority: 'should',
         linked_customer_id: customer.id,
+        assigned_to_user_id: quickTaskAssignee || null,
       }),
     })
     if (res.ok) {
@@ -132,6 +145,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
         setLocalTasks(prev => [data.task!, ...prev])
       }
       setQuickTaskTitle('')
+      setQuickTaskAssignee('')
       setQuickTaskOpen(false)
     }
   }
@@ -288,7 +302,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide border-l-2 border-[#F07018] pl-2">Open Tasks</h3>
           <button
-            onClick={() => setQuickTaskOpen(true)}
+            onClick={() => { setQuickTaskOpen(true); void loadTeamMembers() }}
             className="text-xs text-primary font-medium flex items-center gap-1"
           >
             <Plus className="h-3.5 w-3.5" /> Add
@@ -319,24 +333,38 @@ export default function CustomerDetailClient({ customer, activities: initialActi
           </div>
         )}
         {quickTaskOpen && (
-          <div className="mt-2 flex gap-2">
-            <input
-              autoFocus
-              type="text"
-              value={quickTaskTitle}
-              onChange={e => setQuickTaskTitle(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') void addQuickTask(); if (e.key === 'Escape') setQuickTaskOpen(false) }}
-              placeholder="Task title…"
-              className="flex-1 rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F07018]"
-            />
-            <button
-              onClick={() => void addQuickTask()}
-              disabled={!quickTaskTitle.trim()}
-              className="rounded-md bg-[#F07018] text-white px-3 py-1.5 text-sm font-medium disabled:opacity-50"
-            >Add</button>
-            <button onClick={() => setQuickTaskOpen(false)} className="p-1.5 text-muted-foreground">
-              <X className="h-4 w-4" />
-            </button>
+          <div className="mt-2 space-y-2">
+            <div className="flex gap-2">
+              <input
+                autoFocus
+                type="text"
+                value={quickTaskTitle}
+                onChange={e => setQuickTaskTitle(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') void addQuickTask(); if (e.key === 'Escape') setQuickTaskOpen(false) }}
+                placeholder="Task title…"
+                className="flex-1 rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F07018]"
+              />
+              <button
+                onClick={() => void addQuickTask()}
+                disabled={!quickTaskTitle.trim()}
+                className="rounded-md bg-[#F07018] text-white px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+              >Add</button>
+              <button onClick={() => { setQuickTaskOpen(false); setQuickTaskAssignee('') }} className="p-1.5 text-muted-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            {isAdmin && teamMembers.length > 0 && (
+              <select
+                value={quickTaskAssignee}
+                onChange={e => setQuickTaskAssignee(e.target.value)}
+                className="w-full rounded-md border bg-background px-3 py-1.5 text-sm text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#F07018]"
+              >
+                <option value="">Assign to… (optional)</option>
+                {teamMembers.map(m => (
+                  <option key={m.id} value={m.id}>{m.display_name}</option>
+                ))}
+              </select>
+            )}
           </div>
         )}
       </div>

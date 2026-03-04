@@ -34,7 +34,7 @@ export default function BottomNav() {
   const pathname = usePathname()
 
   return (
-    <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md border-t border-[#1B4A8A] bg-[#0D2B55]">
+    <nav className="lg:hidden fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md border-t border-[#1B4A8A] bg-[#0D2B55]">
       <div className="flex items-center justify-around h-16">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
           // /more is active for BHPH, analytics, admin sub-paths too

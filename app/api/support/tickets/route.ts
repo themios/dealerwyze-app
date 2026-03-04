@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
+import { sendNotificationEmail } from '@/lib/email/notify'
 
 export async function GET() {
   const profile = await requireProfile()
@@ -51,6 +52,22 @@ export async function POST(req: NextRequest) {
     author_name: profile.display_name,
     body:        body.message.trim(),
     is_internal: false,
+  })
+
+  // G29: Notify DealerWyze support of new ticket (fire-and-forget)
+  const { data: org } = await supabase.from('organizations').select('name').eq('id', profile.org_id).maybeSingle()
+  const supportEmail = process.env.SUPPORT_EMAIL ?? 'support@dealerwyze.com'
+  const priorityLabel = priority.charAt(0).toUpperCase() + priority.slice(1)
+  void sendNotificationEmail({
+    to: supportEmail,
+    from: `DealerWyze Tickets <tickets@${process.env.RESEND_FROM_DOMAIN ?? 'mail.dealerwyze.com'}>`,
+    subject: `[New Ticket] ${org?.name ?? 'Unknown Org'} — ${body.subject.trim()}`,
+    html: `<p><strong>Org:</strong> ${org?.name ?? profile.org_id}<br>
+<strong>Priority:</strong> ${priorityLabel}<br>
+<strong>Subject:</strong> ${body.subject.trim()}</p>
+<hr>
+<p>${body.message.trim().replace(/\n/g, '<br>')}</p>
+<p><a href="${process.env.NEXT_PUBLIC_APP_URL}/admin/tickets/${ticket.id}">View ticket in admin</a></p>`,
   })
 
   return NextResponse.json({ id: ticket.id }, { status: 201 })

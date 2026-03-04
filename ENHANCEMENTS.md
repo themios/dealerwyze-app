@@ -579,6 +579,275 @@ loans, inventory, history) without any manual DB work. No mechanism existed for 
 
 ---
 
+## 2026-03-03 — Gap Analysis Fixes
+
+### TCPA Opt-Out Enforcement in UI (G1 + G2)
+**Category:** Legal / Compliance
+**Migration:** none
+
+**Why:** The server-side SMS send path already blocked opted-out customers, but two UI gaps remained: (1) the "Text" button in TemplatePicker was visible and clickable for opted-out customers, potentially confusing staff; (2) the native `sms:` URI path in TemplatePicker bypassed the API entirely (no opt-out check), and also incorrectly logged an activity before opening the Messages app.
+
+**What was fixed:**
+- `components/sms/TemplatePicker.tsx` — early return when `customer.sms_opt_out`: renders a disabled "SMS Off" button with `MessageSquareOff` icon instead of "Text". `handleOpenMessages()` also guards and returns early if opted out (prevents activity log + sms: link)
+- `app/(app)/today/page.tsx` — new leads query now includes `sms_opt_out` field so TemplatePicker in NewLeadCard receives the correct value
+- `components/leads/NewLeadCard.tsx` — customer type extended with `sms_opt_out?: boolean`
+
+**Design decisions:**
+- Disabled button (not hidden): staff can see the customer is blocked rather than wondering why there's no Text button
+- Guard both paths (`sms:` URI + Twilio API) even though server blocks the API path — defense in depth
+
+---
+
+### Ticket Email Notifications (G29 + G30)
+**Category:** Admin / Support
+**Migration:** none
+
+**Why:** Support staff had no notification when dealers submitted tickets. Dealers had no notification when staff replied. Both relied on manually checking the admin/support UI.
+
+**What was built:**
+- `lib/email/notify.ts` — `sendNotificationEmail({ to, subject, html, from? })`: lightweight Resend helper; non-fatal (no-ops if `RESEND_API_KEY` unset); fire-and-forget via `void`
+- `app/api/support/tickets/route.ts` (POST) — after ticket creation, sends email to `SUPPORT_EMAIL` env var (fallback `support@dealerwyze.com`) with org name, priority, subject, message, and link to admin ticket page
+- `app/api/admin/tickets/[id]/route.ts` (PATCH, action=reply) — after staff reply inserted, looks up ticket creator email via `supabase.auth.admin.getUserById(ticket.created_by)` and sends notification with reply body and link to `/support`
+
+**Design decisions:**
+- `void sendNotificationEmail(...)` — non-blocking; email failure never delays or fails the API response
+- `SUPPORT_EMAIL` env var overrides default — allows routing to a ticketing system (Intercom, Freshdesk) later
+- Only non-internal notes trigger dealer notification (internal_note action is staff-only by design)
+
+---
+
+### Task Assign-to-User UI (G13)
+**Category:** CRM / Team
+**Migration:** none
+
+**Why:** The `assigned_to_user_id` column existed on the `tasks` table and the GET/PATCH API already supported it, but the POST API did not accept it and no UI existed to set it.
+
+**What was built:**
+- `app/api/tasks/route.ts` (POST) — `assigned_to_user_id` added to accepted body fields and inserted into tasks table
+- `app/(app)/customers/[id]/CustomerDetailClient.tsx` — quick task row now loads team members (`profiles` table) when opened; adds an optional `<select>` assign dropdown (shown to admins only) below the title input; passes `assigned_to_user_id` to POST `/api/tasks`
+
+**Design decisions:**
+- Team members loaded lazily (on first open, cached in state) — no extra DB call on page load
+- Assign picker shown only when `isAdmin` prop is true — reps don't assign tasks
+- Optional (empty = unassigned) — same as current behavior when no assignee selected
+
+---
+
+### Communication Quota Verification (G4, G5, G6)
+**Category:** Platform Ops / Billing
+**Migration:** none
+
+**Why:** Gaps listed in GAP_ANALYSIS.md — these were already implemented but not documented.
+
+**What was verified:**
+- `lib/sms/quota.ts` — `WARN_SOFT=0.80`, `WARN_HARD=0.95`. `MMS_CAP=50`. `checkQuota()` returns `warning_level` + `is_mms_blocked` + `reason`. `incrementUsage()` calls `increment_sms_usage` RPC with `p_is_mms` param
+- `app/api/sms/send/route.ts` — `checkQuota()` called before every Twilio send; 402 returned on quota exceeded; `warning` field returned in response at 80%/95% thresholds
+
+---
+
+### Admin 2× Quota Alert (G22)
+**Category:** Platform Ops / Admin
+**Migration:** none
+
+**Why:** ROADMAP Phase 7A deferred item — flag orgs using more than twice their monthly quota so platform staff can investigate potential abuse or recommend plan upgrades.
+
+**What was built:**
+- `app/api/cron/check-tasks/route.ts` Job 8 — allOrgs query now includes `monthly_message_count` + `sms_quota`. When `used > quota * 2`, inserts `alert_type='2x_quota_exceeded'` into `admin_alerts` (idempotent via unique constraint). Surfaces on `/admin/alerts`.
+
+---
+
+### Dunning Email on Payment Failure (G28)
+**Category:** Billing / Retention
+**Migration:** none
+
+**Why:** When a Stripe payment fails, the org is marked `past_due` in DB but the dealer admin had no notification. Dealers may not realize they're at risk of access loss.
+
+**What was built:**
+- `app/api/stripe/webhook/route.ts` (`invoice.payment_failed`) — after marking org `past_due`, looks up `dealer_admin` profile for the org, fetches their auth email via `supabase.auth.admin.getUserById()`, fires `sendNotificationEmail()` with payment failure alert and CTA link to `/settings/billing`
+
+**Design decisions:**
+- Non-blocking (`void`) — email failure never fails the webhook response
+- Only targets `dealer_admin` role (not managers/reps) — correct escalation path
+
+---
+
+### Data Retention — 90-Day Post-Cancel Purge (G9)
+**Category:** Compliance / Platform Ops
+**Migration:** `043_data_retention.sql` — adds `organizations.canceled_at TIMESTAMPTZ`
+
+**Why:** GDPR/CCPA best practice and platform hygiene: tenant data should be hard-deleted after a reasonable post-cancellation window. Anonymized org + billing records are retained for revenue reporting.
+
+**What was built:**
+- Migration `043_data_retention.sql` — `organizations.canceled_at` column
+- `app/api/stripe/webhook/route.ts` (`customer.subscription.deleted`) — stamps `canceled_at = NOW()` (only on first cancellation; doesn't overwrite if already set)
+- `app/api/cron/check-tasks/route.ts` Job 9 — finds orgs with `subscription_status='canceled'` AND `canceled_at < 90 days ago`; deletes `activities`, `voice_calls`, `tasks`, `receipts`, `vehicles`, `customers`, `support_tickets`; anonymizes org row (`name='[deleted]'`, `slug='deleted-{id}'`). `admin_audit_log` and billing fields preserved.
+
+**Design decisions:**
+- 90 days grace period before deletion (3 months post-cancel policy)
+- Org row anonymized rather than deleted — preserves billing/revenue history
+- `admin_audit_log` explicitly NOT deleted — compliance record
+- Job runs daily (idempotent — no-op once purged)
+
+---
+
+### Desktop / Responsive Interface ✅ COMPLETE (2026-03-03)
+**Category:** UX
+**Migration:** none
+
+**Why:** DealerWyze was built as a 100% mobile PWA locked to `max-w-md` (428px) with zero responsive breakpoints. The dealership owner needs a richer dashboard experience on a larger screen — multi-panel Today view, sortable data tables, and side-by-side analytics — that the phone form factor can't support.
+
+**Approach:** Progressive responsive upgrade using `lg:` (1024px) breakpoints. Mobile experience is 100% preserved. No new routes — all pages work at both screen sizes.
+
+**What was built:**
+
+#### Phase 1 — Layout Shell
+- `app/(app)/layout.tsx` — removed hard `max-w-md` lock; now `max-w-md mx-auto` on mobile, `flex h-dvh w-full` on desktop; added `<DesktopSidebar>` + org name fetch; `pb-20 lg:pb-0` for BottomNav clearance
+- `components/layout/DesktopSidebar.tsx` *(new)* — `hidden lg:flex` left sidebar (240px, brand dark blue `#0D2B55`); fetches `/api/auth/me` for role; role-aware nav: BHPH hidden for `dealer_rep`, Analytics hidden for non-manager/admin; active state: orange `#F07018` text + `bg-white/10`; DealerWyze logo + org name at top; platform admin link at bottom
+- `components/layout/BottomNav.tsx` — added `lg:hidden` to nav element
+- `components/layout/TopBar.tsx` — added `lg:border-b lg:border-[#1B4A8A]`
+
+#### Phase 2 — Today Page (Owner Dashboard)
+- `app/(app)/today/page.tsx` — KPI strip (`hidden lg:grid lg:grid-cols-5`): New Leads, Appt Requests, Voice Leads, Waiting, Overdue — computed from existing data fetches; 3-column grid (`lg:grid-cols-3`): Left (DealerBrief + ResponseTimeWidget + Reviews + OnboardingChecklist), Center (TodayContent lead feed), Right (TodoSection); each column `lg:overflow-y-auto lg:h-full` for independent scroll
+
+#### Phase 3 — Analytics
+- `app/(app)/analytics/AnalyticsDashboard.tsx` — `lg:grid lg:grid-cols-2 lg:gap-6` for main sections (Leads by Source + Response Time + SMS on left, Conversion Funnel + Voice on right); Revenue + BHPH side-by-side at `lg:` below; mobile single-column unchanged
+
+#### Phase 4 — Customer List Data Table
+- `components/customer/CustomersListClient.tsx` — mobile card list wrapped in `lg:hidden`; new `hidden lg:block` table with columns: Name (avatar initials), Phone, Source (label map), State (colored badge), Assigned (agent name), Last Active (time-ago), Response Time (green/yellow/red); clickable column headers for Name + Last Active wire to existing sort state; per-row archive confirm; floating assign bar adjusted to `bottom-4` on desktop; `agentMap` memo for O(1) agent lookup
+
+#### Phase 5 — Admin Panel Tables
+- `app/(app)/admin/page.tsx` — stats grid `grid-cols-2 → lg:grid-cols-6` (single strip); quick links `grid-cols-2 → lg:grid-cols-4`; org list: mobile cards wrapped in `lg:hidden` + `hidden lg:block` table (Health dot, Name + Suspended/No-Email badges, Status, Plan, SMS mini progress bar, Last Active, Billing date)
+
+**Design decisions:**
+- CSS-only breakpoints (no JS media query detection) — no hydration mismatch
+- Both views share the same data and state — no duplicate fetches
+- `lg:hidden` / `hidden lg:block` pattern — clean separation, no conditional rendering
+- DesktopSidebar is a client component (needs `usePathname`) — fetches role from `/api/auth/me` (already exists)
+- BottomNav and DesktopSidebar are mutually exclusive — never both visible simultaneously
+- Fixed: `import dynamic from 'next/dynamic'` naming conflict with `export const dynamic = 'force-dynamic'` in `today/page.tsx` — renamed import to `nextDynamic`
+
+---
+
+## 2026-03-04 — Risk Guardbands (Pre-Launch Security)
+
+### Risk Guardbands — Abuse Protection & Launch Controls
+**Category:** Security / Platform Ops / Compliance
+**Migration:** `044_risk_guardbands.sql` — apply manually in Supabase SQL editor
+
+**Why:** Financial model identified 10 abuse vectors that could materially increase COGS or allow platform gaming. These guardbands close the highest-impact vectors before first paying customers.
+
+**What was built:**
+
+#### Schema (migration 044)
+- `org_settings.autofill_enabled` — dealer pre-approves $20 overage top-ups
+- `org_settings.autofill_approved_at / autofill_approved_via` — tracks approval method (email/sms/voice)
+- `org_settings.feed_token` — rotatable hex token required for inventory feed access; backfilled for all existing orgs
+- `organizations.quota_soft_notified_at` — prevents duplicate 80% quota emails per billing cycle
+- `organizations.signup_email_domain / signup_phone_normalized` — indexed for re-signup detection
+- `organizations.churn_risk_flagged` — boolean set at signup if prior canceled org detected
+- `organizations.signup_fingerprint` — device fingerprint placeholder (12-month post-cancel retention)
+- `abuse_flags` table — consolidated abuse event log (`bulk_export`, `churn_reregister`, `quota_abuse`, `feed_scrape`, `multi_org_duplicate`, `trial_abuse`)
+
+#### Trial Protections
+- `app/api/export/route.ts` — blocks XLSX data export for `trialing` orgs (prevents "use → export → cancel" abuse)
+- `app/api/admin/provision-phone/route.ts` — blocks DealerWyze-provisioned numbers during trial; BYON (bring-your-own-number) still allowed
+
+#### Quota Notifications (lib/sms/quota.ts)
+- MMS cap updated from 50 → **200/mo** to match new plan specs
+- 80% and 95% thresholds trigger transactional email to dealer admin (once per billing cycle via `quota_soft_notified_at`)
+- Notification email includes auto-refill CTA and link to billing settings
+- `admin_alerts` row inserted (`quota_80pct` / `quota_exceeded`) for platform visibility
+
+#### Inventory Feed Token Auth (Vector 9)
+- `cargurus-feed/[slug]/route.ts` + `facebook-feed/[slug]/route.ts` — if `feed_token` is set, requests without `?token=<hex>` return 401
+- Rate limit tightened: 6 requests per 10 minutes per IP (was 10/min) — blocks minute-by-minute scrapers
+- Dealers register their feed URLs with token in CarGurus/Facebook portals; token is rotatable from settings
+
+#### API Scraping Protection (Vector 8)
+- `proxy.ts` — `/api/customers` and `/api/vehicles` added to rate-limited routes (100 req/min per IP)
+- `lib/security/abuseDetector.ts` — NEW: `trackBulkFetch(orgId, count)` sliding 10-minute window; if >500 records fetched → logs to `abuse_flags` + `admin_audit_log`
+- Export route wires `trackBulkFetch` to detect automated mass-export patterns
+
+#### Churn / Re-signup Detection (Vector 10)
+- `app/api/auth/register/route.ts` — on new dealer signup, checks `signup_email_domain` and `signup_phone_normalized` against prior canceled orgs
+- If match found: `churn_risk_flagged = true` on new org + `abuse_flags` row inserted (`churn_reregister`, severity: high)
+- SuperAdmin sees the flag on the approval queue — can deny trial and require immediate billing
+
+**Design decisions:**
+- Autofill config columns added but Stripe charge logic is deferred — requires dealer to have payment method on file (billing settings UI); columns are ready for wiring
+- Feed token is optional per-org (not enforced until token is set) — allows existing feed URLs to keep working; admin can set token on org detail page
+- Churn detection is non-blocking — doesn't prevent signup, only flags for admin review at approval
+- All abuse flags are in one table for a single admin view (`/admin/alerts` expanded to include `abuse_flags`)
+- `quota_soft_notified_at` stamped atomically before email send — prevents race condition on concurrent SMS sends
+
+**What still needs manual configuration:**
+- Run migration `044_risk_guardbands.sql` in Supabase
+- Update Terms of Service to include: email domain / phone tracking for churn detection, device fingerprinting, feed token requirement
+- Set feed tokens for existing orgs via admin panel after migration
+- Wire autofill Stripe charge in `settings/billing` UI (future sprint)
+- Add `abuse_flags` view to `/admin/alerts` page (future sprint)
+
+---
+
+---
+
+## 2026-03-04 — Plan Change + Security Hardening (Session 2)
+
+### Inventory Feed Deprecation
+**Category:** Platform Ops
+**Migration:** none
+
+**Why:** Inventory will be sourced from the dealer's own website (www.apolloauto-em.com) rather than published as CarGurus/Facebook CSV feeds. The feed routes are no longer needed.
+
+**What was built:**
+- `app/api/inventory/cargurus-feed/[slug]/route.ts` — replaced with 410 Gone stub
+- `app/api/inventory/facebook-feed/[slug]/route.ts` — replaced with 410 Gone stub
+- `proxy.ts` — removed feed-endpoint rate-limit entries (routes now return 410 before middleware matters)
+- Earlier feed token auth + CDN cache headers are now moot; stubs return no data
+
+---
+
+### Security Hardening Round 2 (Gap Analysis vs SECURITY_ABUSE_MITIGATION_PLAN.md)
+**Category:** Security
+**Migration:** none (code-only)
+
+**Why:** Reviewed the security plan document against all implemented controls and found three quick wins: CDN caching on feeds (pre-deprecation), auth rate limiting, and Stripe event idempotency.
+
+**What was built:**
+- `proxy.ts` — added login rate limit: `/api/auth/login` → 8 attempts per 5 minutes per IP (Vector 12: credential stuffing)
+- `proxy.ts` — added signup rate limit: `/api/auth/register` → 3 signups per 10 minutes per IP (Vector 1: trial farming)
+- `app/api/stripe/webhook/route.ts` — added in-process event idempotency using a TTL Map (15-min window); returns `{received:true, duplicate:true}` on retried events — prevents double-billing and double-email on Stripe retries
+
+**Design decisions:**
+- Login rate limit set at 8/5min (permissive enough for slow typists; blocks brute-force)
+- Signup rate limit set at 3/10min (a single person legitimately needs at most 1; 3 allows some retries)
+- Stripe idempotency is in-process only (single serverless instance); cross-instance dedup requires a DB-backed `stripe_event_log` table — documented as P1 gap
+
+---
+
+### Comprehensive Security Assessment + Compliance Documents
+**Category:** Security / Compliance
+**Migration:** none
+
+**Why:** Pre-launch readiness requires a single authoritative document covering all risks, implementation status, regulatory requirements, and launch checklist. Also required complete overhaul of Terms of Service and Privacy Policy to reflect DealerWyze brand, new plan pricing, and new features.
+
+**What was created/updated:**
+- `/home/tim/Applications/ApolloCRM/LAUNCH_SECURITY_ASSESSMENT.md` — NEW comprehensive 12-vector risk register, compliance requirements (TCPA, A2P 10DLC, CCPA, CA §632 recording consent, CA BPC §17941 AI disclosure, FTC AI voice rules, PCI DSS scope, CFPB/BHPH), vendor risk, infrastructure checklist, incident response runbook, P0/P1/P2 launch checklist, financial exposure model, and 15 items the operator may have missed
+- `apollo-crm/public/terms.md` — REWRITTEN: DealerWyze brand, $99.95/$199 pricing, BHPH disclaimer (not a lender), Voice AI disclosure requirements, §5.4 re-registration restriction, §7.4 usage caps/throttling, Auto-Refill terms, 90-day data retention, AUP expanded, indemnification expanded
+- `apollo-crm/public/privacy.md` — REWRITTEN: DealerWyze brand, all 9 sub-processors documented (added Retell, Anthropic, Groq, Resend), fraud prevention fingerprinting disclosed, voice recordings section, 90-day retention, BHPH data disclosed, signup fingerprint data disclosed
+
+**Key compliance gaps documented (P0 — must fix before launch):**
+1. Twilio `X-Twilio-Signature` verification — check `app/api/twilio/inbound/route.ts`
+2. Retell call duration cap (180s) + turn limit (12) — Retell dashboard config
+3. AI Bot Disclosure at call start — update all Retell agent system prompts
+4. Call recording consent disclosure — first utterance of every Retell call
+5. Stripe Radar rules (CVC + ZIP) — Stripe dashboard config
+6. A2P 10DLC brand + campaign registration — Twilio Trust Hub (3–5 days)
+7. Cross-tenant isolation automated test — CI pipeline
+8. Data breach notification runbook — written + team briefed
+
+---
+
 ## Template
 
 ```

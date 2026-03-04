@@ -211,7 +211,7 @@ export default async function AdminPage() {
   return (
     <div>
       <TopBar title="Admin" />
-      <div className="px-4 py-4 space-y-6">
+      <div className="px-4 py-4 lg:px-6 space-y-6">
 
         {/* Alert banner */}
         {alertCount > 0 && (
@@ -224,7 +224,7 @@ export default async function AdminPage() {
         )}
 
         {/* Summary cards */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
           {summaryCards.map(({ label, value }) => (
             <div key={label} className="rounded-xl border bg-card p-4">
               <p className="text-2xl font-bold">{value}</p>
@@ -240,7 +240,7 @@ export default async function AdminPage() {
         </div>
 
         {/* Quick links */}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
           <Link href="/admin/tickets" className="flex items-center justify-center gap-1.5 p-3 rounded-xl border bg-card text-sm font-medium hover:bg-accent transition-colors">
             Tickets
           </Link>
@@ -293,19 +293,17 @@ export default async function AdminPage() {
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
             All Dealerships
           </p>
-          <div className="space-y-2">
+
+          {/* Mobile cards */}
+          <div className="lg:hidden space-y-2">
             {approvedRows.map(org => {
               const status = org.subscription_status ?? null
-              const billingDate =
-                status === 'trialing'
-                  ? org.trial_ends_at ?? null
-                  : org.current_period_end ?? null
+              const billingDate = status === 'trialing' ? org.trial_ends_at ?? null : org.current_period_end ?? null
               const billingLabel = status === 'trialing' ? 'Trial ends' : 'Next billing'
-              const healthScore  = (org as OrgRow).health_score ?? 50
-              const smsUsedPct   = (org as OrgRow).sms_used_pct ?? 0
-              const lastActive   = (org as OrgRow).last_active_at ?? null
-              const hasEmail     = (org as OrgRow).has_active_email ?? false
-
+              const healthScore = org.health_score ?? 50
+              const smsUsedPct = org.sms_used_pct ?? 0
+              const lastActive = org.last_active_at ?? null
+              const hasEmail = org.has_active_email ?? false
               return (
                 <Link key={org.id} href={`/admin/orgs/${org.id}`} className="block rounded-xl border bg-card p-4 space-y-2 active:opacity-70">
                   <div className="flex items-start justify-between gap-2">
@@ -321,37 +319,84 @@ export default async function AdminPage() {
                     </div>
                   </div>
                   <div className="space-y-1">
-                    {/* SMS usage bar */}
                     {smsUsedPct > 0 && (
                       <div className="flex items-center gap-2">
                         <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${smsUsedPct >= 90 ? 'bg-red-500' : smsUsedPct >= 70 ? 'bg-yellow-500' : 'bg-green-500'}`}
-                            style={{ width: `${Math.min(100, smsUsedPct)}%` }}
-                          />
+                          <div className={`h-full rounded-full ${smsUsedPct >= 90 ? 'bg-red-500' : smsUsedPct >= 70 ? 'bg-yellow-500' : 'bg-green-500'}`} style={{ width: `${Math.min(100, smsUsedPct)}%` }} />
                         </div>
                         <span className="text-[10px] text-muted-foreground shrink-0">{smsUsedPct}% SMS</span>
                       </div>
                     )}
                     <div className="flex items-center gap-3 flex-wrap">
-                      <p className="text-xs text-muted-foreground">
-                        Active: {humanizeAgo(lastActive)}
-                      </p>
+                      <p className="text-xs text-muted-foreground">Active: {humanizeAgo(lastActive)}</p>
                       {!hasEmail && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-50 border border-yellow-200 text-yellow-700">No Email</span>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      {billingLabel}: {formatDate(billingDate)}
-                    </p>
+                    <p className="text-xs text-muted-foreground">{billingLabel}: {formatDate(billingDate)}</p>
                   </div>
                 </Link>
               )
             })}
-
             {approvedRows.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-8">No organizations found.</p>
             )}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden lg:block">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b text-xs text-muted-foreground font-medium">
+                  <th className="py-2 w-5" />
+                  <th className="py-2 text-left">Name</th>
+                  <th className="py-2 text-left">Status</th>
+                  <th className="py-2 text-left">Plan</th>
+                  <th className="py-2 text-left">SMS Usage</th>
+                  <th className="py-2 text-left">Last Active</th>
+                  <th className="py-2 text-left">Billing</th>
+                </tr>
+              </thead>
+              <tbody>
+                {approvedRows.map(org => {
+                  const status = org.subscription_status ?? null
+                  const billingDate = status === 'trialing' ? org.trial_ends_at ?? null : org.current_period_end ?? null
+                  const healthScore = org.health_score ?? 50
+                  const smsUsedPct = org.sms_used_pct ?? 0
+                  const lastActive = org.last_active_at ?? null
+                  const hasEmail = org.has_active_email ?? false
+                  return (
+                    <tr key={org.id} className="border-b hover:bg-accent/40 transition-colors">
+                      <td className="py-2.5 pr-3"><HealthDot score={healthScore} /></td>
+                      <td className="py-2.5 pr-4">
+                        <Link href={`/admin/orgs/${org.id}`} className="font-medium hover:text-primary flex items-center gap-1.5">
+                          {org.suspended_at && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium">Suspended</span>}
+                          {!hasEmail && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-50 border border-yellow-200 text-yellow-700">No Email</span>}
+                          {org.name || 'Unnamed'}
+                        </Link>
+                      </td>
+                      <td className="py-2.5 pr-4"><StatusBadge status={status} /></td>
+                      <td className="py-2.5 pr-4 text-muted-foreground uppercase text-xs">{org.plan}</td>
+                      <td className="py-2.5 pr-4">
+                        <div className="flex items-center gap-2">
+                          <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full ${smsUsedPct >= 90 ? 'bg-red-500' : smsUsedPct >= 70 ? 'bg-yellow-500' : 'bg-green-500'}`} style={{ width: `${Math.min(100, smsUsedPct)}%` }} />
+                          </div>
+                          <span className="text-xs text-muted-foreground">{smsUsedPct}%</span>
+                        </div>
+                      </td>
+                      <td className="py-2.5 pr-4 text-xs text-muted-foreground">{humanizeAgo(lastActive)}</td>
+                      <td className="py-2.5 text-xs text-muted-foreground">{formatDate(billingDate)}</td>
+                    </tr>
+                  )
+                })}
+                {approvedRows.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-sm text-muted-foreground">No organizations found.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </section>
       </div>

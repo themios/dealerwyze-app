@@ -405,7 +405,7 @@
 
 ### 11.7 Final sign-off
 - 🔲 All 11.2–11.6 tests pass
-- 🔲 Update `MEMORY.md` with completion status
+- ✅ Update `MEMORY.md` with completion status
 - 🔲 Update `SAAS_MASTER_PLAN.md` status to `COMPLETE`
 - 🔲 Tag release in git: `git tag v2.0.0-saas`
 
@@ -434,18 +434,16 @@
 
 ---
 
-## Critical Path (minimum to safely onboard first external dealer)
+## Status Summary
 
-```
-Phase 1 (DB migration 039) ← APPLY MANUALLY
-     ↓
-Phase 2 (Signup approval gate) ✅ CODE DONE
-     ↓
-Phase 3 (RBAC basics) ✅ CODE DONE
-     ↓
-Phase 9 (Admin approval UI) ✅ CODE DONE
-     ↓
-Phase 11 partial (data isolation smoke test) ← TODO
-```
+**Phases 1–10: ALL CODE COMPLETE ✅**
 
-Phases 1–10 code complete. Remaining work: Phase 8.3 (remove Vercel env vars manually), then run Phase 11 two-tenant smoke tests and External Systems migration after dealerwyze.com DNS is live.
+### Remaining (manual only)
+1. **Phase 11** — Two-tenant smoke tests (11.1–11.6): create test accounts, verify isolation, RBAC, impersonation
+2. **Phase 11.7** — After tests pass: update SAAS_MASTER_PLAN.md + `git tag v2.0.0-saas`
+3. **External Systems** (after dealerwyze.com DNS confirmed live):
+   - Twilio SMS + Fax webhook URLs → dealerwyze.com
+   - Retell post-call + tool-call webhook URLs → dealerwyze.com
+   - Stripe: add dealerwyze.com endpoint, run parallel 7 days, remove old
+   - cron-job.org: update all 5 cron URLs → dealerwyze.com
+   - Facebook feed URL in Business Manager portal
