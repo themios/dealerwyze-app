@@ -52,7 +52,32 @@ Each entry includes the date, category, migration (if any), and what was built.
 2. Retell agent system prompt: add AI bot disclosure + call recording consent disclosure
 3. Stripe dashboard: Radar rules — block if CVC fails, block if ZIP fails
 4. Twilio Trust Hub: A2P 10DLC brand + campaign registration (3–5 business days)
-5. Signup register page: add "I agree to Terms + AUP" clickwrap checkbox (frontend)
+
+---
+
+## 2026-03-04 — Signup Clickwrap Consent (Session 4)
+
+### P0 Compliance: Legal Enforceability of ToS
+**Category:** Security / Legal
+**Migration:** `046_terms_consent.sql`
+
+**Why:** ToS enforceability requires affirmative clickwrap at signup — passive "by creating an account" language doesn't satisfy TCPA, CAN-SPAM, or standard SaaS contract law.
+
+**What was built:**
+
+#### Migration 046 — `supabase/migrations/046_terms_consent.sql`
+- `organizations.terms_agreed_at TIMESTAMPTZ` — UTC timestamp of checkbox check
+- `organizations.terms_ip TEXT` — client IP at moment of consent (legal evidence)
+
+#### Signup Page — `app/(auth)/signup/page.tsx`
+- Added required checkbox: "I agree to the Terms of Service and Privacy Policy, including the AUP. I confirm I am authorized to bind my dealership to this agreement."
+- Submit button disabled until checkbox is checked
+- Sends `agreed_to_terms: true` + `agreed_to_terms_at: ISO timestamp` to API
+- Removed passive notice (replaced by the explicit checkbox)
+
+#### Register API — `app/api/auth/register/route.ts`
+- Server-side validation: returns 400 if `agreed_to_terms` is falsy (prevents bypass)
+- Stores `terms_agreed_at` + client IP (`x-forwarded-for`) on org row at creation
 
 ---
 
