@@ -5,6 +5,78 @@ Each entry includes the date, category, migration (if any), and what was built.
 
 ---
 
+## 2026-03-07 — Free Beta Tier
+
+**Category:** Growth / Billing
+**Migration:** `053_free_tier_caps.sql`
+
+**Why:** Open the product to early users during active beta with no credit card required. Collect real feedback, validate the product, and build a user base before charging. Paid plans (Core $99.95, Core+Voice $199) launch after beta ends.
+
+**What was built:**
+
+- **Registration auto-approval** (`app/api/auth/register/route.ts`): new orgs created with `subscription_status = 'free'` and `approved_at = now()`. Redirect goes to `/today` directly (no pending queue). Abuse flags (IP clustering, device fingerprint, churn detection) still run before org creation.
+- **Landing page** (`components/landing/LandingPage.tsx`):
+  - Pricing section redesigned: **Beta Access ($0)** card featured in navy/orange; Core and Core+Voice shown greyed-out as "Coming Soon".
+  - Orange beta notice banner above pricing cards explaining the testing phase and 30-day conversion notice commitment.
+  - All hero and CTA copy updated: "Start Free — No Card Needed" / "Free during beta · No credit card · No commitment".
+- **In-app Beta Banner** (`components/layout/BetaBanner.tsx`): dismissible amber banner at the top of every app page. Links to support@dealerwyze.com and reminds users they're in beta.
+- **Feedback Button** (`components/layout/FeedbackButton.tsx`): floating navy button (bottom-right, above mobile nav). Opens a modal with type selector (Bug / Suggestion / Question / Compliment) and message field. Sends email to support@dealerwyze.com via Resend with user name and org ID.
+- **Feedback API** (`app/api/feedback/route.ts`): authenticated POST — validates input, sends formatted email via `sendNotificationEmail()`.
+- **Usage caps** (free tier: 200 contacts, 100 vehicles):
+  - Client-side: count check before each insert in `customers/new/page.tsx` and `vehicles/new/page.tsx`; shows alert at limit.
+  - DB-level: `053_free_tier_caps.sql` adds `BEFORE INSERT` triggers on `customers` and `vehicles` that raise an exception for `subscription_status = 'free'` orgs at the cap. Bypasses client entirely — protects against direct SDK calls.
+
+**Beta transition plan (embedded in landing page):**
+- Current: full access, no card, $0
+- End of beta: 30 days notice minimum; early beta users get discounted rate
+- After beta: Core $99.95/mo or Core+Voice $199/mo (both shown on pricing page)
+
+---
+
+## 2026-03-07 — Security Hardening (Critical + High Priority Fixes)
+
+**Category:** Security
+**Migration:** none (all code changes)
+
+**Why:** Full security audit (report: `security-scan-20260306.md`) identified 3 Critical, 9 High, and 7 Medium findings. This batch addresses all Critical and most High items.
+
+**What was built / fixed:**
+
+- **C-1 — Deleted `/api/dev-login`**: Production backdoor (magic-link bypass protected only by a brute-forceable secret) removed entirely.
+- **C-3 — Twilio HMAC on bhph/webhook and fax/callback** (`app/api/bhph/webhook/route.ts`, `app/api/fax/callback/route.ts`): added `validateTwilioSignature()` (HMAC-SHA1, `timingSafeEqual`) before reading any body params. Unauthenticated Twilio requests now return 403.
+- **C-2 + M-1 — Deactivated user access** (`lib/auth/profile.ts`): `requireProfile()` now checks `deactivated_at` (signs user out + redirects) and null `org_id` (redirects to `/login?reason=no_org`).
+- **H-5 — Staff session secret** (`lib/auth/staffSession.ts`): `STAFF_SESSION_SECRET` env var is now required — throws on missing (app crash on startup without it). Replaced fallback chain that silently used the Supabase service role key.
+- **M-4 — Staff write-mode TTL** (`lib/auth/staffSession.ts`): Remote Admin (write-mode) impersonation TTL reduced from 2h to 30min. Read-only stays at 2h.
+- **H-7 — VAPI callback timing-safe** (`app/api/voice/vapi-callback/route.ts`): replaced `!==` string comparison with `crypto.timingSafeEqual()`.
+- **H-2 — Raw 'admin' role strings** (5 routes): replaced `role !== 'admin'` checks with canonical role helpers (`isDealerAdmin`, `canAccessBhph`, `requirePlatformSuperAdmin`):
+  - `app/api/bhph/create/route.ts`
+  - `app/api/receipts/ledger/[id]/route.ts`
+  - `app/api/admin/provision-voice/route.ts`
+  - `app/api/inventory/sync/route.ts`
+  - `app/api/admin/provision-phone/route.ts`
+- **M-7 — Data retention uses canceled_at** (`app/api/cron/data-retention/route.ts`): fixed org expiry query to use `canceled_at` (not `updated_at`) so orgs canceled but never updated don't skip purge.
+- **H-9 — Analytics date range cap** (`app/api/analytics/route.ts`): added 365-day max validation; returns 400 on invalid or over-range dates.
+- **M-2 — Receipt upload size cap** (`app/api/receipts/upload/route.ts`): added 4MB base64 length check before `Buffer.from()` to prevent memory exhaustion.
+- **H-4 — Gmail webhook OIDC verification** (`app/api/gmail/webhook/route.ts`): added full Google OIDC JWT verification (fetches Google JWKs, validates signature, checks audience + expiry). Unauthenticated Pub/Sub pushes now return 401. **Requires Google Cloud Console Pub/Sub subscription to be configured with OIDC auth + audience `https://dealerwyze.com/api/gmail/webhook`.**
+- **CLAUDE.md created** with security-first mindset section, architecture rules, webhook patterns, role helper reference, and pre-commit security checklist.
+
+---
+
+## 2026-03-07 — Abuse Mitigation at Registration
+
+**Category:** Security / Abuse Prevention
+**Migration:** none (register route + existing `abuse_flags` table)
+
+**Why:** Fraudulent signups (multi-account abuse, bot farms, VoIP/SMS farming) needed detection at the registration boundary before an org gains access.
+
+**What was built** (`app/api/auth/register/route.ts`):
+
+- **IP /24 subnet clustering** (Vector 2): extracts client IP, derives /24 subnet, counts organizations from the same subnet registered in the last 7 days. If > 2 → inserts `abuse_flags` row (`flag_type: 'ip_clustering'`, severity: high, details: subnet + count).
+- **Device fingerprint** (Vector 3): SHA-256 hash of `IP + normalized User-Agent`. Stored on the org row (`signup_fingerprint`). If another org used the same fingerprint in the last 30 days → inserts `abuse_flags` (flag_type: `device_fingerprint_match`, severity: high).
+- Both checks are non-blocking (signup proceeds) but flag the org for admin review in the `abuse_flags` table. Combined with existing churn re-register detection and disposable email flagging.
+
+---
+
 ## 2026-03-06 — Response Time Stamped for All Outbound Responses
 
 **Category:** UX / Data
