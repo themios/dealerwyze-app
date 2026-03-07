@@ -48,8 +48,8 @@ export async function POST(req: NextRequest) {
     commission_recurring_pct,
   } = body
 
-  if (!code || !type || !owner_name) {
-    return NextResponse.json({ error: 'code, type, owner_name required' }, { status: 400 })
+  if (!type || !owner_name) {
+    return NextResponse.json({ error: 'type, owner_name required' }, { status: 400 })
   }
   if (!['flyer', 'advisor'].includes(type)) {
     return NextResponse.json({ error: 'type must be flyer or advisor' }, { status: 400 })
@@ -61,10 +61,31 @@ export async function POST(req: NextRequest) {
     : type === 'advisor' ? 2 : 0
 
   const supabase = createServiceClient()
+
+  // Auto-generate code if not provided (AFF-XXXX, no O/0/I/1 confusion)
+  let finalCode: string
+  if (code) {
+    finalCode = String(code).toUpperCase().trim()
+  } else {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+    let candidate = ''
+    let attempts = 0
+    do {
+      candidate = 'AFF-' + Array.from({ length: 4 }, () =>
+        chars[Math.floor(Math.random() * chars.length)]
+      ).join('')
+      const { data: existing } = await supabase
+        .from('affiliate_codes').select('code').eq('code', candidate).maybeSingle()
+      if (!existing) break
+      attempts++
+    } while (attempts < 10)
+    finalCode = candidate
+  }
+
   const { data, error } = await supabase
     .from('affiliate_codes')
     .insert({
-      code:                     code.toUpperCase().trim(),
+      code:                     finalCode,
       type,
       owner_name,
       owner_email:              owner_email ?? null,
@@ -77,7 +98,7 @@ export async function POST(req: NextRequest) {
 
   if (error) {
     if (error.code === '23505') {
-      return NextResponse.json({ error: `Code "${code.toUpperCase()}" already exists` }, { status: 409 })
+      return NextResponse.json({ error: `Code "${finalCode}" already exists` }, { status: 409 })
     }
     return NextResponse.json({ error: error.message }, { status: 500 })
   }

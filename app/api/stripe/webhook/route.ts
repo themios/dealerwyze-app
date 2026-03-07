@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { stripe, tierFromPriceId, smsTierFromPriceId, PLAN_QUOTA, SMS_TIER_QUOTA } from '@/lib/stripe'
 import { createServiceClient } from '@/lib/supabase/service'
 import { sendNotificationEmail } from '@/lib/email/notify'
+import { recordCommission } from '@/lib/stripe/commissions'
 import Stripe from 'stripe'
 
 // In-process idempotency: skip duplicate Stripe events within the same instance lifetime.
@@ -62,6 +63,36 @@ export async function POST(req: NextRequest) {
       const tier = tierFromPriceId(crmPriceId)
       const smsTier = smsPriceId ? smsTierFromPriceId(smsPriceId) : null
       const smsQuota = smsTier ? SMS_TIER_QUOTA[smsTier] : PLAN_QUOTA[tier]
+
+      // Commission: record first_month or free_to_paid before updating subscription_status
+      {
+        const { data: orgRow } = await supabase
+          .from('organizations')
+          .select('affiliate_code, subscription_status')
+          .eq('id', orgId)
+          .maybeSingle()
+
+        if (orgRow?.affiliate_code) {
+          const { data: aff } = await supabase
+            .from('affiliate_codes')
+            .select('commission_first_pct, is_active')
+            .eq('code', orgRow.affiliate_code)
+            .maybeSingle()
+
+          if (aff?.is_active) {
+            const eventType = orgRow.subscription_status === 'free' ? 'free_to_paid' : 'first_month'
+            await recordCommission({
+              affiliateCode:      orgRow.affiliate_code,
+              orgId,
+              eventType,
+              invoiceAmountCents: session.amount_total ?? 0,
+              billingPeriod:      new Date().toISOString().slice(0, 7),
+              stripeInvoiceId:    typeof session.invoice === 'string' ? session.invoice : '',
+              commissionPct:      aff.commission_first_pct,
+            })
+          }
+        }
+      }
 
       await supabase.from('organizations').update({
         stripe_subscription_id: sub.id,
@@ -128,6 +159,46 @@ export async function POST(req: NextRequest) {
         canceled_at: orgRow?.canceled_at ?? new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }).eq('id', orgId)
+      break
+    }
+
+    case 'invoice.payment_succeeded': {
+      // Recurring commission (month 2+) — advisor-type affiliates only
+      const invoice = event.data.object as Stripe.Invoice & { billing_reason?: string; subscription?: string | null; period_start?: number; amount_paid?: number }
+      if (invoice.billing_reason !== 'subscription_cycle' || !invoice.subscription) break
+
+      const recSub = await stripe.subscriptions.retrieve(invoice.subscription as string)
+      const orgId = recSub.metadata?.org_id
+      if (!orgId) break
+
+      const { data: orgRow } = await supabase
+        .from('organizations')
+        .select('affiliate_code')
+        .eq('id', orgId)
+        .maybeSingle()
+
+      if (orgRow?.affiliate_code) {
+        const { data: aff } = await supabase
+          .from('affiliate_codes')
+          .select('commission_recurring_pct, type, is_active')
+          .eq('code', orgRow.affiliate_code)
+          .maybeSingle()
+
+        if (aff?.is_active && aff.type === 'advisor' && (aff.commission_recurring_pct ?? 0) > 0) {
+          const periodStart = typeof (invoice as { period_start?: number }).period_start === 'number'
+            ? (invoice as { period_start: number }).period_start
+            : Math.floor(Date.now() / 1000)
+          await recordCommission({
+            affiliateCode:      orgRow.affiliate_code,
+            orgId,
+            eventType:          'recurring',
+            invoiceAmountCents: (invoice as { amount_paid?: number }).amount_paid ?? 0,
+            billingPeriod:      new Date(periodStart * 1000).toISOString().slice(0, 7),
+            stripeInvoiceId:    invoice.id ?? '',
+            commissionPct:      aff.commission_recurring_pct,
+          })
+        }
+      }
       break
     }
 
