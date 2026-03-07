@@ -4,12 +4,12 @@
  * Do NOT import the Stripe SDK or env-dependent config here — use @/lib/stripe on the server.
  *
  * PLAN MODEL (as of March 2026):
- *   free  — Free plan       $0/mo      (250 contacts, 100 vehicles; no SMS/voice/fax/scan)
- *   tier1 — Complete CRM   $149.95/mo (SMS, fax, scan, contacts, inventory, BHPH, analytics)
- *   tier2 — Voice AI       $199.95/mo (standalone AI receptionist; pairs with tier1 for full stack)
+ *   free  — Free plan       $0/mo      (200 contacts, 100 vehicles; no SMS/voice/fax/scan)
+ *   tier1 — Complete CRM   $150/mo    (SMS, fax, scan, contacts, inventory, BHPH, analytics)
+ *   tier2 — Voice AI       $200/mo    (standalone AI receptionist; pairs with tier1 for full stack)
  *   tier3 — LEGACY         kept for backwards-compat with existing DB records; do not sell
  *
- * ANNUAL BILLING: 10% discount — $134.96/mo (tier1) / $179.96/mo (tier2)
+ * ANNUAL BILLING: 10% discount — $135/mo (tier1) / $180/mo (tier2)
  *
  * OVERAGE (opt-in only, dealer must agree):
  *   Voice: $0.12/min over 700 min/mo included cap  (~53% margin over $0.0785/min cost)
@@ -26,7 +26,7 @@ export const ANNUAL_DISCOUNT = 0.10
 
 /** Free plan hard limits */
 export const FREE_PLAN_LIMITS = {
-  contacts: 250,
+  contacts: 200,
   vehicles: 100,
 } as const
 
@@ -53,8 +53,8 @@ export const SMS_TIER_QUOTA: Record<SmsTier, number> = {
 
 export const PLAN_PRICE: Record<PlanTier, number> = {
   free:  0,
-  tier1: 149.95,
-  tier2: 199.95,
+  tier1: 150,
+  tier2: 200,
   tier3: 249.95,  // Legacy — not sold; kept for existing records
 }
 
@@ -78,7 +78,7 @@ export const PLAN_LABEL: Record<PlanTier, string> = {
 }
 
 export const PLAN_DESCRIPTION: Record<PlanTier, string> = {
-  free:  'Up to 250 contacts · 100 vehicles · No SMS/voice/fax',
+  free:  'Up to 200 contacts · 100 vehicles · No SMS/voice/fax',
   tier1: 'CRM · SMS · Fax · Scan · Contacts · Inventory · BHPH · Analytics',
   tier2: 'AI Receptionist · Lead Capture · Appointments (pairs with Complete CRM)',
   tier3: 'Legacy plan',

@@ -37,8 +37,8 @@ interface PendingOrgRow {
 type SubscriptionStatus = 'active' | 'trialing' | 'past_due' | 'canceled' | string
 
 const PLAN_MRR: Record<string, number> = {
-  tier1: 100,   // Complete CRM $99.95
-  tier2: 200,   // Voice AI $199.95
+  tier1: 150,   // Complete CRM $150
+  tier2: 200,   // Voice AI $200
   tier3: 250,   // Legacy
 }
 

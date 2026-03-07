@@ -702,12 +702,12 @@ const voiceFeatures = [
 
 function PricingSection() {
   // Annual pricing: 10% off monthly rate
-  const crmMonthly   = 149
-  const voiceAddon   = 199.95
-  const crmAnnual    = +(crmMonthly * 0.9).toFixed(2)          // 134.10
-  const fullAnnual   = +((crmMonthly + voiceAddon) * 0.9).toFixed(2) // 314.06
-  const crmSavings   = Math.round(crmMonthly * 12 - crmAnnual * 12)   // ~179
-  const fullSavings  = Math.round((crmMonthly + voiceAddon) * 12 - fullAnnual * 12) // ~419
+  const crmMonthly   = 150
+  const voiceAddon   = 200
+  const crmAnnual    = +(crmMonthly * 0.9).toFixed(2)          // 135
+  const fullAnnual   = +((crmMonthly + voiceAddon) * 0.9).toFixed(2) // 315
+  const crmSavings   = Math.round(crmMonthly * 12 - crmAnnual * 12)   // 180
+  const fullSavings  = Math.round((crmMonthly + voiceAddon) * 12 - fullAnnual * 12) // 420
 
   return (
     <section id="pricing" className="bg-white py-20 lg:py-28">
@@ -834,7 +834,7 @@ function PricingSection() {
                 <span className="text-sm pb-1.5" style={{ color: '#6B6355' }}>/mo</span>
               </div>
               <p className="text-xs mt-1" style={{ color: '#6B6355' }}>
-                $149 CRM + $199.95 Voice add-on
+                $150 CRM + $200 Voice add-on
               </p>
               <p className="text-xs mt-0.5" style={{ color: '#9A3412' }}>
                 or <strong>${fullAnnual}/mo</strong> billed annually — save ${fullSavings}/yr
@@ -898,15 +898,15 @@ const faqs = [
   },
   {
     q: 'What\'s included in Complete CRM?',
-    a: 'Complete CRM ($149/mo) is all-inclusive: unlimited contacts and leads, two-way SMS with a dedicated business number, fax, Gmail sync, AI Lead Scanner, AI Dealer Brief, AI Receipt OCR, BHPH loan tracking, bookkeeping, analytics, and team management. No add-ons or hidden fees.',
+    a: 'Complete CRM ($150/mo) is all-inclusive: unlimited contacts and leads, two-way SMS with a dedicated business number, fax, Gmail sync, AI Lead Scanner, AI Dealer Brief, AI Receipt OCR, BHPH loan tracking, bookkeeping, analytics, and team management. No add-ons or hidden fees.',
   },
   {
     q: 'What does the Voice AI add-on do?',
-    a: 'The Voice AI add-on ($199.95/mo, requires Complete CRM) adds a Retell AI phone agent that answers inbound calls 24/7, qualifies leads, and writes call transcripts directly to the customer record — even when you\'re on the lot or after hours. Includes 1,000 voice minutes/month.',
+    a: 'The Voice AI add-on ($200/mo, requires Complete CRM) adds a Retell AI phone agent that answers inbound calls 24/7, qualifies leads, and writes call transcripts directly to the customer record — even when you\'re on the lot or after hours. Includes 1,000 voice minutes/month.',
   },
   {
     q: 'Is there an annual discount?',
-    a: 'Yes — 10% off when you pay annually. Complete CRM drops from $149/mo to $134.10/mo (saving ~$179/yr). The full CRM + Voice stack drops from $348.95/mo to $314.06/mo (saving ~$419/yr).',
+    a: 'Yes — 10% off when you pay annually. Complete CRM drops from $150/mo to $135/mo (saving $180/yr). The full CRM + Voice stack drops from $350/mo to $315/mo (saving $420/yr).',
   },
   {
     q: 'Is two-way SMS included?',
