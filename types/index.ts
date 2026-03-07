@@ -123,10 +123,12 @@ export interface Activity {
   due_at?: string
   completed_at?: string
   snoozed_until?: string
+  addressed_at?: string | null
   duration_seconds?: number
   priority: ActivityPriority
   sequence_day?: number | null
   external_id?: string | null
+  created_by?: string | null
   created_at: string
   customer?: Customer
   vehicle?: Vehicle

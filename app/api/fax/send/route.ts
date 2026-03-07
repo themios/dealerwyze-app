@@ -58,6 +58,21 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const supabase = await createClient()
   const service  = createServiceClient()
 
+  // ── Fax page cap check (50 pages/mo default) ─────────────────────────────
+  const { data: orgUsage } = await service
+    .from('organizations')
+    .select('monthly_fax_pages, fax_page_cap, subscription_status')
+    .eq('id', profile.org_id)
+    .maybeSingle()
+
+  const faxPagesUsed = orgUsage?.monthly_fax_pages ?? 0
+  const faxPageCap   = orgUsage?.fax_page_cap ?? 50
+  if (orgUsage?.subscription_status === 'active' && faxPagesUsed >= faxPageCap) {
+    return NextResponse.json({
+      error: `Monthly fax page limit reached (${faxPagesUsed}/${faxPageCap} pages). Resets on your next billing cycle.`,
+    }, { status: 429 })
+  }
+
   // Resolve From number: org's provisioned number → env fallback
   const { data: orgSettings } = await supabase
     .from('org_settings')
@@ -124,6 +139,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     console.error('[fax/send] db insert error:', dbErr?.message)
     // Fax is already queued in Twilio — log but don't block
   }
+
+  // Increment fax page counter (1 page per fax; adjust if multi-page support added later)
+  void service.rpc('increment_fax_pages', { p_org_id: profile.org_id, p_pages: 1 })
 
   return NextResponse.json({ success: true, fax: faxRow }, { status: 201 })
 }

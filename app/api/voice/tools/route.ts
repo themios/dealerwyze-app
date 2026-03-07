@@ -8,7 +8,8 @@ export const maxDuration = 15
 /**
  * Retell AI tool-call webhook.
  * Configure in Retell dashboard → Tool Call Webhook URL:
- *   https://dealerwyze.com/api/voice/tools?secret=LEADS_POLL_SECRET
+ *   https://dealerwyze.com/api/voice/tools
+ *   Custom header: x-retell-tool-secret: <value of RETELL_TOOL_SECRET env var>
  *
  * Retell sends:
  *   { event: "tool_call", call: {...}, tool_call_list: [{ tool_call_id, name, arguments }] }
@@ -17,9 +18,10 @@ export const maxDuration = 15
  *   [{ tool_call_id, content: "..." }]
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  // Auth check
-  const secret = req.nextUrl.searchParams.get('secret')
-  if (secret !== process.env.LEADS_POLL_SECRET) {
+  // Auth check — secret must be in header, not URL (prevents secret appearing in logs)
+  const secret = req.headers.get('x-retell-tool-secret') ?? ''
+  const expected = process.env.RETELL_TOOL_SECRET ?? ''
+  if (!secret || secret !== expected) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

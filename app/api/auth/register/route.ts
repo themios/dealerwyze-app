@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
+import crypto from 'crypto'
 
 function generateInviteCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -26,7 +27,12 @@ const DISPOSABLE_DOMAINS = new Set([
 ])
 
 export async function POST(req: NextRequest) {
-  const { email, password, display_name, invite_code, phone, agreed_to_terms, agreed_to_terms_at } = await req.json()
+  const {
+    email, password, display_name, invite_code, phone,
+    agreed_to_terms, agreed_to_terms_at,
+    ref_code,         // affiliate/flyer code from URL param ?ref=CODE
+    referred_by_slug, // referral from existing dealer (?via=their-slug)
+  } = await req.json()
 
   if (!email || !password || !display_name) {
     return NextResponse.json({ error: 'email, password, and display_name are required' }, { status: 400 })
@@ -117,16 +123,47 @@ export async function POST(req: NextRequest) {
     // is more reliable when RLS deny policies are in place.
     const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? null
 
+    // Validate affiliate code if provided
+    let validatedAffiliateCode: string | null = null
+    if (ref_code) {
+      const code = String(ref_code).toUpperCase().trim()
+      const { data: affCode } = await service
+        .from('affiliate_codes')
+        .select('code')
+        .eq('code', code)
+        .eq('is_active', true)
+        .maybeSingle()
+      validatedAffiliateCode = affCode?.code ?? null
+      // If code doesn't exist we still allow signup — just don't attribute it
+    }
+
+    // Validate referring org slug if provided (existing dealer referral)
+    let referredByOrgId: string | null = null
+    if (referred_by_slug) {
+      const { data: referrer } = await service
+        .from('organizations')
+        .select('id')
+        .eq('slug', String(referred_by_slug).toLowerCase().trim())
+        .eq('subscription_status', 'active')
+        .maybeSingle()
+      referredByOrgId = referrer?.id ?? null
+    }
+
     const { error: orgErr } = await service.from('organizations').insert({
       id: orgId,
       name: `${display_name}'s Dealership`,
-      // approved_at: omitted → NULL → pending approval
+      // Free beta tier: auto-approve immediately (no superadmin review gate)
+      approved_at:         new Date().toISOString(),
+      subscription_status: 'free',
       signup_email_domain:     emailDomain || null,
       signup_phone_normalized: phoneNorm,
       churn_risk_flagged:      churnRiskFlagged,
       // Clickwrap consent record — legally required for ToS enforceability
       terms_agreed_at: agreed_to_terms_at ?? new Date().toISOString(),
       terms_ip:        clientIp,
+      // Affiliate / referral attribution
+      affiliate_code:       validatedAffiliateCode,
+      referred_by_org_id:   referredByOrgId,
     })
     if (orgErr && !orgErr.message.includes('duplicate') && !orgErr.code?.includes('23505')) {
       await service.auth.admin.deleteUser(userId)
@@ -134,6 +171,14 @@ export async function POST(req: NextRequest) {
     }
 
     await service.from('org_settings').insert({ org_id: orgId })
+
+    // If referred by an existing active dealer, activate their 5% referral discount
+    if (referredByOrgId) {
+      await service
+        .from('organizations')
+        .update({ referral_discount_pct: 5 })
+        .eq('id', referredByOrgId)
+    }
 
     // Log churn risk flag so SuperAdmin sees it on the approval queue
     if (churnRiskFlagged) {
@@ -161,6 +206,65 @@ export async function POST(req: NextRequest) {
         },
       })
     }
+
+    // ── IP /24 subnet clustering (Vector 2) ──────────────────────────────────
+    // > 2 orgs registered from the same /24 subnet in 7 days → high-risk flag.
+    const subnet24 = clientIp && /^\d+\.\d+\.\d+\.\d+$/.test(clientIp)
+      ? clientIp.split('.').slice(0, 3).join('.')
+      : null
+
+    if (subnet24) {
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+      const { count: subnetCount } = await service
+        .from('organizations')
+        .select('id', { count: 'exact', head: true })
+        .like('terms_ip', `${subnet24}.%`)
+        .gte('created_at', sevenDaysAgo)
+
+      if ((subnetCount ?? 0) >= 2) {
+        void service.from('abuse_flags').insert({
+          org_id:    orgId,
+          flag_type: 'ip_clustering',
+          severity:  'high',
+          details: {
+            subnet:    `${subnet24}.0/24`,
+            org_count: (subnetCount ?? 0) + 1,
+            ip:        clientIp,
+            note:      'More than 2 registrations from the same /24 subnet in 7 days.',
+          },
+        })
+      }
+    }
+
+    // ── Device fingerprint (Vector 3) ────────────────────────────────────────
+    // Server-side fingerprint: SHA-256 of IP + stripped User-Agent.
+    // signup_fingerprint column added in migration 044.
+    const ua = req.headers.get('user-agent') ?? ''
+    const fpRaw = `${clientIp ?? ''}|${ua.toLowerCase().replace(/[\d.]+/g, '').trim()}`
+    const fingerprint = crypto.createHash('sha256').update(fpRaw).digest('hex')
+
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+    const { count: fpCount } = await service
+      .from('organizations')
+      .select('id', { count: 'exact', head: true })
+      .eq('signup_fingerprint', fingerprint)
+      .gte('created_at', thirtyDaysAgo)
+
+    // Store fingerprint on org row
+    void service.from('organizations').update({ signup_fingerprint: fingerprint }).eq('id', orgId)
+
+    if ((fpCount ?? 0) >= 1) {
+      void service.from('abuse_flags').insert({
+        org_id:    orgId,
+        flag_type: 'device_fingerprint_match',
+        severity:  'high',
+        details: {
+          fp_prefix:  fingerprint.slice(0, 16),
+          prior_orgs: fpCount,
+          note:       'Same device fingerprint (IP+UA) used to register another org in the past 30 days.',
+        },
+      })
+    }
   }
 
   const { error: profileErr } = await service.from('profiles').insert({
@@ -178,8 +282,8 @@ export async function POST(req: NextRequest) {
   }
 
   if (role === 'admin') {
-    // New dealer orgs start pending — redirect to waiting room
-    return NextResponse.json({ id: userId, role, success: true, redirect: '/pending' })
+    // Free beta tier: auto-approved, go straight to app
+    return NextResponse.json({ id: userId, role, success: true, redirect: '/today' })
   }
 
   return NextResponse.json({ id: userId, role, success: true })

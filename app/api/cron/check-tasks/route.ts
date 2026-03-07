@@ -150,10 +150,19 @@ export async function GET(req: NextRequest) {
       .update({
         monthly_message_count: 0,
         monthly_mms_count: 0,
+        monthly_fax_pages: 0,
+        sms_overage_count: 0,
+        mms_overage_count: 0,
+        voice_overage_minutes: 0,
         billing_cycle_start: cycleStart,
         billing_cycle_end: cycleEnd,
       })
       .eq('id', org.id)
+    // Also reset voice minutes tracker in org_settings
+    await supabase
+      .from('org_settings')
+      .update({ voice_minutes_month: 0, voice_overage_notified_at: null })
+      .eq('org_id', org.id)
     quotasReset++
   }
 
@@ -334,7 +343,13 @@ export async function GET(req: NextRequest) {
         // unique constraint (org_id, alert_type, resolved_at=null) prevents duplicates
         .select('id')
         .maybeSingle()
-      if (!error) adminAlerts++
+      if (!error) {
+        adminAlerts++
+        if (alert.alert_type === '2x_quota_exceeded') {
+          const { fireCogsAlertBackground } = await import('@/lib/cogs/alertWebhook')
+          fireCogsAlertBackground({ org_id: org.id, alert_type: '2x_quota_exceeded', severity: alert.severity, created_at: nowIso })
+        }
+      }
     }
   }
 

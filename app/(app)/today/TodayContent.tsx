@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Activity, Template, VoiceCall } from '@/types'
 import { createClient } from '@/lib/supabase/client'
+import { shouldShowAddressedActivity } from '@/lib/utils'
 import TaskItem from '@/components/today/TaskItem'
 import WaitingItem from '@/components/today/WaitingItem'
 import TodayFilters from '@/components/today/TodayFilters'
@@ -35,6 +36,10 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
   const [leadSort, setLeadSort] = useState<'newest' | 'oldest'>('newest')
   const { pendingCall, modalOpen, dismissModal } = usePendingCall()
   const supabase = createClient()
+  const [dateLabel, setDateLabel] = useState('')
+  useEffect(() => {
+    setDateLabel(new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }))
+  }, [])
 
   const refresh = useCallback(async () => {
     const now = new Date().toISOString()
@@ -81,7 +86,13 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
     })
 
     // Guard against orphaned rows where the customer join is null
-    const safeLeads = (leads || []).filter(a => a.customer != null)
+    // Hide addressed cards until next day or follow-up
+    const todayRef = new Date()
+    const safeLeads = (leads || []).filter(
+      a => a.customer != null && shouldShowAddressedActivity(a, todayRef)
+    )
+
+    const tasksFiltered = (t || []).filter(a => shouldShowAddressedActivity(a, todayRef))
 
     const { data: appts } = await supabase
       .from('activities')
@@ -107,10 +118,14 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
         !v.task_id || v.linked_task?.status !== 'done'
     )
 
+    const apptsFiltered = (appts || []).filter(
+      a => a.customer != null && shouldShowAddressedActivity(a, todayRef)
+    )
+
     setNewLeads(safeLeads)
-    setTasks(t || [])
+    setTasks(tasksFiltered)
     setWaiting(dedupedWaiting)
-    setApptRequests(appts || [])
+    setApptRequests(apptsFiltered)
     setVoiceLeads(activeVoices)
   }, [supabase])
 
@@ -141,7 +156,7 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
         <div>
           <p className="text-base font-bold leading-tight">Good morning 👋</p>
           <p className="text-xs opacity-70 mt-0.5" suppressHydrationWarning>
-            {businessName} · {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+            {businessName} · {dateLabel || '…'}
           </p>
         </div>
       </div>

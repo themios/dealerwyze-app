@@ -6,6 +6,10 @@ export interface OrgSettings {
   dealerName:    string
   dealerPhone:   string
   dealerAddress: string
+  /** Base URL for dealer website (e.g. https://www.apolloauto-em.com) */
+  dealerWebsiteUrl?: string | null
+  /** Path to inventory/cars-for-sale page (e.g. /cars-for-sale) */
+  dealerWebsiteInventoryPath?: string | null
 }
 
 const DEFAULT: OrgSettings = { dealerName: 'the dealership', dealerPhone: '', dealerAddress: '' }
@@ -30,6 +34,8 @@ export function useOrgSettings(): OrgSettings {
             dealerName:    data?.business_name ?? data?.name ?? 'the dealership',
             dealerPhone:   data?.dealer_cell_number ?? '',
             dealerAddress: data?.business_address ?? '',
+            dealerWebsiteUrl: data?.dealer_website_url ?? null,
+            dealerWebsiteInventoryPath: data?.dealer_website_inventory_path ?? '/cars-for-sale',
           }
           _cached = s
           return s

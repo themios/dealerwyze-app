@@ -20,6 +20,11 @@ export async function POST(req: NextRequest) {
   if (!body.image_base64 || !body.mime_type) {
     return NextResponse.json({ error: 'image_base64 and mime_type are required' }, { status: 400 })
   }
+  // ~4MB base64 string ≈ 3MB decoded image — prevent memory exhaustion
+  const MAX_BASE64_LEN = 4 * 1024 * 1024
+  if (body.image_base64.length > MAX_BASE64_LEN) {
+    return NextResponse.json({ error: 'Image too large (max 3 MB)' }, { status: 413 })
+  }
 
   // Create receipt record (status=processing)
   const { data: receipt, error: createErr } = await supabase

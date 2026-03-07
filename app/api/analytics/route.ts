@@ -13,8 +13,17 @@ export async function GET(req: NextRequest) {
   const orgId = profile.org_id
 
   const { searchParams } = new URL(req.url)
-  const from = searchParams.get('from') ?? new Date(Date.now() - 30 * 86400000).toISOString()
-  const to   = searchParams.get('to')   ?? new Date().toISOString()
+  const rawFrom = searchParams.get('from')
+  const rawTo   = searchParams.get('to')
+  const toDate   = rawTo   ? new Date(rawTo)   : new Date()
+  const fromDate = rawFrom ? new Date(rawFrom) : new Date(Date.now() - 30 * 86400000)
+  // Cap range to 365 days to prevent full-table scans / PII over-exposure
+  if (isNaN(toDate.getTime()) || isNaN(fromDate.getTime()) ||
+      (toDate.getTime() - fromDate.getTime()) / 86400000 > 365) {
+    return NextResponse.json({ error: 'Date range invalid or exceeds 365 days' }, { status: 400 })
+  }
+  const from = fromDate.toISOString()
+  const to   = toDate.toISOString()
 
   // Issue #6: use Promise.allSettled so one failing query never kills the whole route
   const results = await Promise.allSettled([

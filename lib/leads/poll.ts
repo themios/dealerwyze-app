@@ -28,7 +28,7 @@ async function pollWithClient(
 
   try {
     // Exclude facebookmail.com — each FB Marketplace email triggers Gmail push; they have no contact info and cause a webhook storm. Broad skip in ingest is safety net.
-    const senderQuery = 'from:cargurus.com OR from:autotrader.com OR from:offerup.com'
+    const senderQuery = 'from:cargurus.com OR from:autotrader.com OR from:offerup.com OR from:kbb.com OR from:autolist.com OR from:carsforsalemail.com'
     const q = scanMode
       ? 'newer_than:2d'
       : `(${senderQuery}) newer_than:2d`
@@ -125,14 +125,16 @@ async function pollWithClient(
  * Handles both Gmail OAuth accounts and IMAP accounts.
  * All tenants go through this path — no single-tenant fallback.
  */
-export async function runLeadPollForOrg(
-  orgId: string,
-): Promise<{ processed: number; results: PollResult[] } | { error: string }> {
+export type LeadPollSuccess = { processed: number; results: PollResult[] }
+export type LeadPollError = { error: string; accountEmail?: string }
+export type LeadPollResult = LeadPollSuccess | LeadPollError
+
+export async function runLeadPollForOrg(orgId: string): Promise<LeadPollResult> {
   const supabase = createServiceClient()
 
   const { data: accounts } = await supabase
     .from('email_accounts')
-    .select('id, org_id, provider, oauth_refresh_token, imap_host, imap_port, imap_user, imap_pass')
+    .select('id, org_id, email, provider, oauth_refresh_token, imap_host, imap_port, imap_user, imap_pass')
     .eq('org_id', orgId)
     .eq('enabled', true)
 
@@ -141,6 +143,7 @@ export async function runLeadPollForOrg(
   const allResults: PollResult[] = []
 
   for (const account of accounts) {
+    const accountEmail = account.email ?? account.imap_user ?? ''
     let result: { processed: number; results: PollResult[] } | { error: string }
 
     if (account.oauth_refresh_token) {
@@ -174,7 +177,8 @@ export async function runLeadPollForOrg(
       })
       .eq('id', account.id)
 
-    if ('results' in result) allResults.push(...result.results)
+    if ('error' in result) return { error: result.error, accountEmail }
+    allResults.push(...result.results)
   }
 
   return { processed: allResults.length, results: allResults }

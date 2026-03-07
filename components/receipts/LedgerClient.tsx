@@ -31,9 +31,10 @@ interface Transaction {
   memo: string | null
   tags: string[] | null
   vehicle_id: string | null
+  category_id: string | null
   created_at: string
-  receipt_categories: { name: string }[] | { name: string } | null
-  vehicles: VehicleJoin[] | VehicleJoin | null
+  receipt_categories?: { name: string }[] | { name: string } | null
+  vehicles?: VehicleJoin[] | VehicleJoin | null
 }
 
 interface Category {
@@ -46,16 +47,25 @@ interface Props {
   categories: Category[]
   lotVehicles: Vehicle[]
   soldVehicles: Vehicle[]
+  allVehicles: Vehicle[]
   isAdmin: boolean
 }
 
-function getCatName(t: Transaction): string {
+function getCatName(t: Transaction, categories: Category[]): string {
+  if (t.category_id && categories.length) {
+    const cat = categories.find(c => c.id === t.category_id)
+    if (cat) return cat.name
+  }
   const c = t.receipt_categories
   if (!c) return 'Uncategorized'
   return Array.isArray(c) ? (c[0]?.name ?? 'Uncategorized') : c.name
 }
 
-function getVehicle(t: Transaction): VehicleJoin | null {
+function getVehicle(t: Transaction, allVehicles: Vehicle[]): VehicleJoin | null {
+  if (t.vehicle_id && allVehicles.length) {
+    const v = allVehicles.find(v => v.id === t.vehicle_id)
+    if (v) return { stock_no: v.stock_no, year: v.year, make: v.make, model: v.model }
+  }
   if (!t.vehicles) return null
   return Array.isArray(t.vehicles) ? (t.vehicles[0] ?? null) : t.vehicles
 }
@@ -83,8 +93,8 @@ function EditSheet({
   const allVehicles = [...lotVehicles, ...soldVehicles]
   const [categoryId, setCategoryId] = useState(
     (() => {
-      // Try to find category id by name (we only have name in the join)
-      const name = getCatName(tx)
+      if (tx.category_id) return tx.category_id
+      const name = getCatName(tx, categories)
       return categories.find(c => c.name === name)?.id ?? ''
     })()
   )
@@ -274,6 +284,7 @@ export default function LedgerClient({
   categories,
   lotVehicles,
   soldVehicles,
+  allVehicles,
   isAdmin,
 }: Props) {
   const [transactions, setTransactions] = useState(initial)
@@ -287,18 +298,18 @@ export default function LedgerClient({
     return transactions.filter(t => {
       const vendor = (t.vendor_norm ?? '').toLowerCase()
       const memo = (t.memo ?? '').toLowerCase()
-      const veh = getVehicle(t)
+      const veh = getVehicle(t, allVehicles)
       const vehText = veh ? `${veh.year} ${veh.make} ${veh.model} ${veh.stock_no}`.toLowerCase() : ''
       const q = search.toLowerCase()
 
       if (search && !vendor.includes(q) && !memo.includes(q) && !vehText.includes(q)) return false
-      if (filterCat && getCatName(t) !== filterCat) return false
+      if (filterCat && getCatName(t, categories) !== filterCat) return false
       const txDate = (t.date ?? '').slice(0, 10)
       if (dateFrom && txDate < dateFrom) return false
       if (dateTo && txDate > dateTo) return false
       return true
     })
-  }, [transactions, search, filterCat, dateFrom, dateTo])
+  }, [transactions, search, filterCat, dateFrom, dateTo, categories, allVehicles])
 
   const totalAmount = filtered.reduce((sum, t) => sum + (t.amount_total ?? 0), 0)
   const hasFilters = search || filterCat || dateFrom || dateTo
@@ -387,12 +398,19 @@ export default function LedgerClient({
       {/* Transaction list */}
       {filtered.length === 0 ? (
         <div className="text-center py-10 text-muted-foreground">
-          <p className="text-sm">No transactions match your filters</p>
+          {transactions.length === 0 ? (
+            <>
+              <p className="text-sm font-medium">No ledger entries yet</p>
+              <p className="text-xs mt-1">Post receipts from the Receipts tab to see expenses here.</p>
+            </>
+          ) : (
+            <p className="text-sm">No transactions match your filters</p>
+          )}
         </div>
       ) : (
         <div className="divide-y rounded-xl border bg-card overflow-hidden">
           {filtered.map(t => {
-            const veh = getVehicle(t)
+            const veh = getVehicle(t, allVehicles)
             return (
               <div key={t.id} className="flex items-start gap-3 px-4 py-3">
                 <div className="flex-1 min-w-0">
@@ -400,7 +418,7 @@ export default function LedgerClient({
                     {t.vendor_norm ?? 'Unknown vendor'}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {getCatName(t)}{t.memo ? ` · ${t.memo}` : ''}
+                    {getCatName(t, categories)}{t.memo ? ` · ${t.memo}` : ''}
                   </p>
                   {veh && (
                     <p className="flex items-center gap-1 text-xs text-primary mt-0.5">
@@ -410,7 +428,7 @@ export default function LedgerClient({
                   )}
                 </div>
                 <div className="flex items-start gap-2 flex-shrink-0">
-                  <div className="text-right">
+                  <div className="text-right" suppressHydrationWarning>
                     <p className="text-sm font-semibold">
                       {t.amount_total != null ? `$${Number(t.amount_total).toFixed(2)}` : '—'}
                     </p>

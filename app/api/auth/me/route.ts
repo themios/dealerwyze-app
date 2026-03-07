@@ -10,6 +10,7 @@ export async function GET() {
     id: profile.id,
     role: profile.role,
     org_id: profile.org_id,
+    display_name: profile.display_name,
     is_platform_admin,
   })
 }

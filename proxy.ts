@@ -50,21 +50,49 @@ function maybePrune() {
   }
 }
 
-// ── Staff impersonation: block mutations ──────────────────────────────────────
+// ── Staff impersonation: block mutations (read-only mode only) ────────────────
+
+import { createHmac, timingSafeEqual } from 'crypto'
 
 const IMPERSONATION_COOKIE = 'dealerwyze_staff_org_id'
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
-// Routes allowed to mutate during impersonation (impersonate end + auth)
+// Routes allowed to mutate regardless of impersonation mode (end session + auth)
 const IMPERSONATION_ALLOWED_PREFIXES = ['/api/admin/impersonate', '/api/auth/']
+
+const _SECRET = process.env.STAFF_SESSION_SECRET ?? ''
+
+function _verifyStaffCookie(signed: string): string | null {
+  const lastDot = signed.lastIndexOf('.')
+  if (lastDot === -1) return null
+  const value = signed.slice(0, lastDot)
+  const mac   = signed.slice(lastDot + 1)
+  const expected = createHmac('sha256', _SECRET).update(value).digest('hex')
+  try {
+    const a = Buffer.from(mac,      'hex')
+    const b = Buffer.from(expected, 'hex')
+    if (a.length !== b.length) return null
+    return timingSafeEqual(a, b) ? value : null
+  } catch { return null }
+}
 
 function isImpersonationBlocked(request: NextRequest): boolean {
   if (!MUTATING_METHODS.has(request.method)) return false
-  const cookie = request.cookies.get(IMPERSONATION_COOKIE)?.value
-  if (!cookie) return false
+  const raw = request.cookies.get(IMPERSONATION_COOKIE)?.value
+  if (!raw) return false
   const { pathname } = request.nextUrl
   if (!pathname.startsWith('/api/')) return false
   if (IMPERSONATION_ALLOWED_PREFIXES.some(p => pathname.startsWith(p))) return false
-  return true
+
+  // Decode cookie to check write mode
+  const payload = _verifyStaffCookie(raw)
+  if (!payload) return false  // invalid cookie — don't block (will fail auth downstream)
+
+  // payload format: `orgId|1` (write) or `orgId|0` / `orgId` (read-only)
+  const pipeIdx = payload.lastIndexOf('|')
+  const writeMode = pipeIdx !== -1 && payload.slice(pipeIdx + 1) === '1'
+
+  // Block mutations only in read-only mode
+  return !writeMode
 }
 
 // ── Auth + subscription gating (original proxy.ts) ───────────────────────────

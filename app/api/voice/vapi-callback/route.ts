@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { processVoiceCall } from '@/lib/voice/ingest'
 import { getOrgIdByPhone, requireOrgId } from '@/lib/orgs/lookup'
+import { timingSafeEqual } from 'crypto'
 
 export const runtime = 'nodejs'
 export const maxDuration = 15
@@ -16,8 +17,14 @@ export const maxDuration = 15
  */
 export async function POST(req: NextRequest) {
   // Auth: VAPI sends the secret you configure in the dashboard
-  const secret = req.headers.get('x-vapi-secret')
-  if (secret !== process.env.VAPI_WEBHOOK_SECRET) {
+  const secret   = req.headers.get('x-vapi-secret') ?? ''
+  const expected = process.env.VAPI_WEBHOOK_SECRET   ?? ''
+  let authorized = false
+  try {
+    const a = Buffer.from(secret);   const b = Buffer.from(expected)
+    authorized = a.length === b.length && timingSafeEqual(a, b)
+  } catch { authorized = false }
+  if (!authorized) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

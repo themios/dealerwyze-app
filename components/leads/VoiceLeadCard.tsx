@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Phone, Car, Clock } from 'lucide-react'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 interface VoiceLeadCardProps {
   call: VoiceCall
@@ -31,6 +31,7 @@ function formatDuration(seconds?: number | null): string {
 export default function VoiceLeadCard({ call, onUpdate }: VoiceLeadCardProps) {
   const [loading, setLoading] = useState<'call' | 'dismiss' | null>(null)
   const supabase = createClient()
+  const router = useRouter()
 
   const summary    = call.summary_json
   const callerName = summary?.caller_name || call.customer?.name || formatPhone(call.from_number)
@@ -88,9 +89,20 @@ export default function VoiceLeadCard({ call, onUpdate }: VoiceLeadCardProps) {
     onUpdate()
   }
 
+  const handleCardClick = () => {
+    if (call.customer_id) router.push(`/customers/${call.customer_id}`)
+  }
+
   return (
     <div className="rounded-lg border-2 border-orange-500/20 bg-orange-500/5 p-4 space-y-3">
-      <div className="flex items-start gap-2">
+      <div
+        className="flex items-start gap-2 cursor-pointer hover:opacity-90"
+        onClick={handleCardClick}
+        onKeyDown={e => e.key === 'Enter' && handleCardClick()}
+        role={call.customer_id ? 'button' : undefined}
+        tabIndex={call.customer_id ? 0 : undefined}
+        aria-label={call.customer_id ? `Open ${callerName}` : undefined}
+      >
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <Badge variant="outline" className="text-xs border-orange-500/40 text-orange-600 bg-orange-500/10">
@@ -104,13 +116,7 @@ export default function VoiceLeadCard({ call, onUpdate }: VoiceLeadCardProps) {
             )}
           </div>
 
-          {call.customer_id ? (
-            <Link href={`/customers/${call.customer_id}`} className="font-semibold text-sm hover:underline">
-              {callerName}
-            </Link>
-          ) : (
-            <p className="font-semibold text-sm">{callerName}</p>
-          )}
+          <p className="font-semibold text-sm">{callerName}</p>
 
           {vehicle && (
             <p className="text-sm text-muted-foreground flex items-center gap-1 mt-0.5">
@@ -120,14 +126,12 @@ export default function VoiceLeadCard({ call, onUpdate }: VoiceLeadCardProps) {
           )}
         </div>
 
-        {/* Age badge */}
         <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 bg-orange-500/10 text-orange-600">
           Voice
         </span>
       </div>
 
-      {/* Details */}
-      <div className="space-y-1 text-xs text-muted-foreground">
+      <div className="space-y-1 text-xs text-muted-foreground" onClick={e => e.stopPropagation()}>
         <p className="flex items-center gap-1.5">
           <Phone className="h-3 w-3" />
           <a href={`tel:${call.from_number}`} className="text-primary underline">{phone}</a>
@@ -146,7 +150,7 @@ export default function VoiceLeadCard({ call, onUpdate }: VoiceLeadCardProps) {
         </p>
       )}
 
-      <div className="flex gap-2">
+      <div className="flex gap-2" onClick={e => e.stopPropagation()}>
         <Button
           size="lg"
           className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"

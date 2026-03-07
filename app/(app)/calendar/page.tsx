@@ -154,7 +154,7 @@ export default function CalendarPage() {
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => navigate(-1)}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="text-xs font-medium min-w-0 text-center px-1 truncate max-w-[140px]">
+          <span className="text-xs font-medium min-w-0 text-center px-1 truncate max-w-[140px]" suppressHydrationWarning>
             {formatHeader(view, current)}
           </span>
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => navigate(1)}>
@@ -266,7 +266,7 @@ function WeekView({ current, eventsByDate, todayStr, onDayClick }: {
           const isToday = key === todayStr
           return (
             <div key={key} className="text-center py-2 border-r last:border-r-0 cursor-pointer hover:bg-accent/50" onClick={() => onDayClick(d)}>
-              <div className="text-xs text-muted-foreground">{d.toLocaleDateString('en-US', { weekday: 'short' })}</div>
+              <div className="text-xs text-muted-foreground" suppressHydrationWarning>{d.toLocaleDateString('en-US', { weekday: 'short' })}</div>
               <div className={cn(
                 'text-sm font-semibold w-7 h-7 flex items-center justify-center rounded-full mx-auto mt-0.5',
                 isToday ? 'bg-primary text-primary-foreground' : ''

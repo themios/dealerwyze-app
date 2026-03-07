@@ -10,7 +10,16 @@ export default function ExportDataButton() {
     setLoading(true)
     try {
       const res = await fetch('/api/export')
-      if (!res.ok) throw new Error('Export failed')
+      if (!res.ok) {
+        const contentType = res.headers.get('content-type') ?? ''
+        if (contentType.includes('application/json')) {
+          const body = await res.json() as { error?: string }
+          alert(body.error ?? 'Export failed. Please try again.')
+        } else {
+          alert('Export failed. Please try again.')
+        }
+        return
+      }
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -19,7 +28,7 @@ export default function ExportDataButton() {
       a.click()
       URL.revokeObjectURL(url)
     } catch {
-      alert('Export failed. Please try again.')
+      alert('Export failed. Please check your connection and try again.')
     } finally {
       setLoading(false)
     }

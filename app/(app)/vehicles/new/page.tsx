@@ -40,6 +40,14 @@ export default function NewVehiclePage() {
     if (!form.stock_no || !form.year || !form.make || !form.model) return
     setSaving(true)
 
+    // Free tier cap: 100 vehicles
+    const { count } = await supabase.from('vehicles').select('id', { count: 'exact', head: true })
+    if ((count ?? 0) >= 100) {
+      setSaving(false)
+      alert('You\'ve reached the 100-vehicle limit for the free beta tier. Contact support@dealerwyze.com if you need more.')
+      return
+    }
+
     const { data, error } = await supabase
       .from('vehicles')
       .insert({

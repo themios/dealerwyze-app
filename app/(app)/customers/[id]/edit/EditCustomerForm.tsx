@@ -112,6 +112,9 @@ export default function EditCustomerForm({ customer }: Props) {
               <SelectItem value="direct">Direct</SelectItem>
               <SelectItem value="cargurus">CarGurus</SelectItem>
               <SelectItem value="autotrader">AutoTrader</SelectItem>
+              <SelectItem value="kbb">KBB</SelectItem>
+              <SelectItem value="autolist">Autolist</SelectItem>
+              <SelectItem value="carsforsale">Carsforsale.com</SelectItem>
               <SelectItem value="offerup">OfferUp</SelectItem>
               <SelectItem value="facebook">Facebook</SelectItem>
               <SelectItem value="craigslist">Craigslist</SelectItem>

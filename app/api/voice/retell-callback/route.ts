@@ -2,6 +2,7 @@ import { NextRequest, NextResponse, after } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { processVoiceCall } from '@/lib/voice/ingest'
 import { getOrgIdByPhone, requireOrgId } from '@/lib/orgs/lookup'
+import { fireCogsAlertBackground } from '@/lib/cogs/alertWebhook'
 import crypto from 'crypto'
 
 export const runtime = 'nodejs'
@@ -136,17 +137,18 @@ export async function POST(req: NextRequest) {
     .eq('from_number', fromNumber)
     .gte('created_at', yesterday)
 
-  if ((callerCount ?? 0) >= 2) {
+  if ((callerCount ?? 0) >= 5) {
     void supabase.from('security_events').insert({
       event_type: 'caller_abuse',
       org_id: orgId,
       details: { from_number: fromNumber, calls_in_24h: (callerCount ?? 0) + 1, call_id: callId },
     })
     void supabase.from('admin_alerts').insert({
-      org_id,
+      org_id: orgId,
       alert_type: 'repeated_caller',
       severity: 'warning',
     }).maybeSingle()
+    fireCogsAlertBackground({ org_id: orgId, alert_type: 'repeated_caller', severity: 'warning', created_at: new Date().toISOString() })
   }
 
   // Upsert voice_calls record
@@ -164,38 +166,146 @@ export async function POST(req: NextRequest) {
     { onConflict: 'call_sid' }
   )
 
-  // ── Voice monthly minute cap enforcement (Vector 7) ───────────────────────
-  // Sum all call seconds this calendar month; if org > voice_minutes_cap → disable
+  // ── Voice spike detector (Vector 7b) ─────────────────────────────────────
+  // > 10 calls from this org in the past hour is anomalous. Alert once per 2h.
+  {
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+    const { count: hourlyCount } = await supabase
+      .from('voice_calls')
+      .select('id', { count: 'exact', head: true })
+      .eq('org_id', orgId)
+      .gte('created_at', oneHourAgo)
+
+    if ((hourlyCount ?? 0) > 10) {
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+      const { count: recentSpike } = await supabase
+        .from('admin_alerts')
+        .select('id', { count: 'exact', head: true })
+        .eq('org_id', orgId)
+        .eq('alert_type', 'voice_spike')
+        .gte('created_at', twoHoursAgo)
+
+      if ((recentSpike ?? 0) === 0) {
+        void supabase.from('admin_alerts').insert({
+          org_id: orgId,
+          alert_type: 'voice_spike',
+          severity: 'high',
+          metadata: { calls_in_last_hour: hourlyCount, threshold: 10 },
+        }).maybeSingle()
+        fireCogsAlertBackground({ org_id: orgId, alert_type: 'voice_spike', severity: 'high', metadata: { calls_in_last_hour: hourlyCount, threshold: 10 }, created_at: new Date().toISOString() })
+        void supabase.from('security_events').insert({
+          event_type: 'voice_spike_detected',
+          org_id: orgId,
+          details: { calls_in_last_hour: hourlyCount },
+        })
+        console.warn(`[retell-callback] voice spike for org ${orgId}: ${hourlyCount} calls in last hour`)
+      }
+    }
+  }
+
+  // ── Voice monthly minute cap + overage enforcement ───────────────────────
+  // Included cap: 700 min/mo (42,000 sec). Stored as voice_minutes_cap in org_settings.
+  // If org has voice_overage_enabled=true → track overage minutes (billed at $0.12/min).
+  // If not opted in and over cap → disable voice for rest of billing cycle.
+  // Hard abuse limit: 90,000 sec (1,500 min) → disable regardless of overage opt-in.
+  const HARD_ABUSE_CAP = 90000  // 1,500 min — suspend regardless of opt-in
+  const ALERT_THRESHOLD = 30000 // 500 min — send usage warning email
+
   const monthStart = new Date()
   monthStart.setDate(1)
   monthStart.setHours(0, 0, 0, 0)
+
   const { data: orgCaps } = await supabase
     .from('org_settings')
-    .select('voice_enabled, voice_minutes_cap')
+    .select('voice_enabled, voice_minutes_cap, voice_overage_notified_at')
     .eq('org_id', orgId)
     .maybeSingle()
 
-  const cap = (orgCaps?.voice_minutes_cap ?? 60000)
-  if (cap > 0 && (orgCaps?.voice_enabled !== false)) {
+  const { data: orgOverage } = await supabase
+    .from('organizations')
+    .select('voice_overage_enabled, billing_cycle_start, created_at')
+    .eq('id', orgId)
+    .maybeSingle()
+
+  const includedCap    = (orgCaps?.voice_minutes_cap ?? 42000)  // default 700 min
+  const overageOptedIn = orgOverage?.voice_overage_enabled ?? false
+
+  // Progressive trust: new orgs (< 14 days) get 50% voice cap for their first billing cycle
+  const orgAgeDays = orgOverage?.created_at
+    ? (Date.now() - new Date(orgOverage.created_at as string).getTime()) / 86_400_000
+    : 999
+  const effectiveIncludedCap = orgAgeDays < 14 ? Math.floor(includedCap * 0.5) : includedCap
+
+  if (includedCap > 0 && (orgCaps?.voice_enabled !== false)) {
     const { data: monthSecs } = await supabase
       .from('voice_calls')
       .select('duration_seconds')
       .eq('org_id', orgId)
       .gte('created_at', monthStart.toISOString())
     const totalSecs = (monthSecs ?? []).reduce((s, r) => s + (r.duration_seconds ?? 0), 0)
+
+    // Always update the running monthly total
     await supabase
       .from('org_settings')
       .update({ voice_minutes_month: totalSecs })
       .eq('org_id', orgId)
-    if (totalSecs >= cap) {
-      // Disable voice for remainder of billing cycle + alert
+
+    // Compute overage seconds (above included cap)
+    const overageSecs = Math.max(0, totalSecs - effectiveIncludedCap)
+    if (overageSecs > 0) {
+      const overageMinutes = Math.ceil(overageSecs / 60)
+      await supabase
+        .from('organizations')
+        .update({ voice_overage_minutes: overageMinutes })
+        .eq('id', orgId)
+    }
+
+    // Hard abuse cap — disable unconditionally above 1,500 min
+    if (totalSecs >= HARD_ABUSE_CAP) {
       await supabase.from('org_settings').update({ voice_enabled: false }).eq('org_id', orgId)
       void supabase.from('admin_alerts').insert({
-        org_id,
-        alert_type: 'voice_cap_reached',
-        severity: 'warning',
+        org_id: orgId,
+        alert_type: 'voice_abuse_hard_cap',
+        severity: 'critical',
+        metadata: { total_seconds: totalSecs, cap_seconds: HARD_ABUSE_CAP },
       }).maybeSingle()
-      console.warn(`[retell-callback] voice cap reached for org ${orgId}: ${totalSecs}s / ${cap}s`)
+      fireCogsAlertBackground({ org_id: orgId, alert_type: 'voice_abuse_hard_cap', severity: 'critical', metadata: { total_seconds: totalSecs, cap_seconds: HARD_ABUSE_CAP }, created_at: new Date().toISOString() })
+      console.warn(`[retell-callback] HARD ABUSE CAP reached for org ${orgId}: ${totalSecs}s`)
+
+    // Effective included cap exceeded — check overage opt-in
+    } else if (totalSecs >= effectiveIncludedCap) {
+      if (!overageOptedIn) {
+        // No overage agreement → disable voice for rest of billing cycle
+        await supabase.from('org_settings').update({ voice_enabled: false }).eq('org_id', orgId)
+        void supabase.from('admin_alerts').insert({
+          org_id: orgId,
+          alert_type: 'voice_cap_reached',
+          severity: 'warning',
+          metadata: { total_seconds: totalSecs, cap_seconds: effectiveIncludedCap, new_org_reduced: orgAgeDays < 14 },
+        }).maybeSingle()
+        fireCogsAlertBackground({ org_id: orgId, alert_type: 'voice_cap_reached', severity: 'warning', metadata: { total_seconds: totalSecs, cap_seconds: effectiveIncludedCap, new_org_reduced: orgAgeDays < 14 }, created_at: new Date().toISOString() })
+        console.warn(`[retell-callback] voice cap reached (no overage opt-in) for org ${orgId}: ${totalSecs}s / ${effectiveIncludedCap}s`)
+      }
+      // If overageOptedIn → continue; overage minutes tracked above for billing
+
+    // 500 min alert threshold
+    } else if (totalSecs >= ALERT_THRESHOLD) {
+      const cycleStart   = orgOverage?.billing_cycle_start as string | null
+      const notifiedAt   = orgCaps?.voice_overage_notified_at as string | null
+      const alreadySent  = notifiedAt && cycleStart && notifiedAt >= cycleStart
+      if (!alreadySent) {
+        await supabase.from('org_settings')
+          .update({ voice_overage_notified_at: new Date().toISOString() })
+          .eq('org_id', orgId)
+        void supabase.from('admin_alerts').insert({
+          org_id: orgId,
+          alert_type: 'voice_500min_warning',
+          severity: 'info',
+          metadata: { total_seconds: totalSecs, cap_seconds: includedCap },
+        }).maybeSingle()
+        fireCogsAlertBackground({ org_id: orgId, alert_type: 'voice_500min_warning', severity: 'info', metadata: { total_seconds: totalSecs, cap_seconds: includedCap }, created_at: new Date().toISOString() })
+        console.info(`[retell-callback] 500 min voice warning sent for org ${orgId}`)
+      }
     }
   }
 

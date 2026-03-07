@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronDown, ChevronRight, Plus, X, Mic, MicOff } from 'lucide-react'
 import TodoItem, { type Task } from './TodoItem'
@@ -89,6 +89,26 @@ export default function TodoSection({ initialTasks }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null)
+
+  const fetchTasks = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tasks?status=open')
+      if (!res.ok) return
+      const json = await res.json() as { tasks?: Task[] }
+      const list = json.tasks ?? []
+      setTasks(list)
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void fetchTasks()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [fetchTasks])
 
   const startVoice = useCallback(() => {
     type AnyRecognition = {

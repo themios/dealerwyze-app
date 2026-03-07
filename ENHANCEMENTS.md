@@ -5,6 +5,489 @@ Each entry includes the date, category, migration (if any), and what was built.
 
 ---
 
+## 2026-03-06 — Response Time Stamped for All Outbound Responses
+
+**Category:** UX / Data
+**Migration:** `052_stamp_response_time_on_activity.sql`
+
+**Why:** Response time (`first_response_at`, `response_time_seconds`) was only updated when sending SMS via the Twilio API. Reps who responded by email or call did not get their response time recorded.
+
+**What was built:**
+- **Trigger** `trg_stamp_response_time_on_activity` (AFTER INSERT on `activities`): when an outbound activity (type `sms`, `email`, or `call`) with a `customer_id` is inserted, the trigger atomically updates the customer’s `first_response_at` and `response_time_seconds` if not already set. Response timestamp used is `COALESCE(completed_at, created_at)`.
+- **API** `app/api/sms/send/route.ts` — removed duplicate application-level stamp; all channels now rely on the trigger so email and call responses also update response time.
+
+---
+
+## 2026-03-06 — Editable Notes (Creator or Admin)
+
+**Category:** UX
+**Migration:** `051_activities_created_by.sql`
+
+**Why:** Notes should be editable by the person who created them or by an org admin. A dedicated permission model avoids accidental edits and supports accountability.
+
+**What was built:**
+- **DB:** `activities.created_by` (UUID, FK to auth.users, nullable). Trigger on INSERT sets `created_by = auth.uid()` when not provided, so all new activities (including notes) are stamped with the creator. Legacy notes have `created_by` null and are editable only by admin.
+- **API:** `PATCH /api/activities/[id]` accepts `body` for type `note`; allows update only if the current user is the note creator (`created_by === profile.id`) or has dealer-admin role (`isDealerAdmin(profile.role)`). Returns 403 otherwise.
+- **Types:** `Activity` includes optional `created_by`.
+- **UI:** Customer detail page passes `currentUserId` (profile.id) and `isAdmin` (via `isDealerAdmin(profile.role)`) to `ActivityTimeline`. Timeline shows an Edit (pencil) button on notes when the user can edit; opening it shows a sheet with the note body; Save calls the PATCH and refreshes the activity list.
+
+---
+
+## 2026-03-06 — Author Name Prefix on Notes, Comments, and Tasks
+
+**Category:** UX
+**Migration:** none
+
+**Why:** When multiple users leave notes, comments, or tasks for a lead/customer, the entry should show who wrote it. The user's name is now captured and prefixed to the body as `name: FirstName LastName` so every note/comment/task displays its author.
+
+**What was built:**
+- `lib/utils.ts` — **prefixWithAuthorName(displayName, body)** helper; prefixes body with `name: {displayName}\n` when displayName is present.
+- `app/api/auth/me/route.ts` — GET response now includes **display_name** for use by client components.
+- **Client components that create notes/tasks/appointments** now fetch display_name (from /api/auth/me when open) and prefix the saved body:
+  - `components/customer/AddNoteModal.tsx` — note body prefixed before insert.
+  - `components/call/VoiceRecorder.tsx` — voice note body prefixed before insert.
+  - `components/call/AfterCallModal.tsx` — call outcome notes and follow-up task body prefixed.
+  - `components/calendar/AddAppointmentSheet.tsx` — appointment body prefixed (profile select now includes display_name).
+  - `components/customer/AddTaskModal.tsx` — task body prefixed before insert.
+- **API routes** that create notes now prefix with profile.display_name:
+  - `app/api/customers/[id]/state/route.ts` — lead state change note.
+  - `app/api/leads/paste/route.ts` — pasted lead note (single and CarGurus digest).
+- **Outbound email, SMS, and voice** now store the acting user’s name on the activity:
+  - `components/customer/EmailButton.tsx` — outbound email body prefixed when logging.
+  - `components/leads/NewLeadCard.tsx` — initial and scheduled follow-up email bodies prefixed.
+  - `components/leads/EmailFollowUpItem.tsx` — follow-up email and next scheduled body prefixed.
+  - `components/sms/TemplatePicker.tsx` — outbound SMS body prefixed when logging (native app and Twilio path).
+  - `app/api/sms/send/route.ts` — outbound SMS body prefixed when logging (Twilio send).
+  - `components/call/CallButton.tsx` — outbound call activity created with prefixed body (`name: …\nOutbound call`); `AfterCallModal` keeps author and uses notes or “Outbound call” when completing.
+
+---
+
+## 2026-03-06 — Lead Response: Virtual Appointments, Driveway Delivery, Virtual Financing
+
+**Category:** UX
+**Migration:** none
+
+**Why:** Buyers who select “Virtual Appointments, Driveway Delivery, Virtual Financing” on listings (e.g. Cars For Sale) are asking how to do the deal remotely, not for more vehicle specs. A dedicated first-touch response clarifies next steps and reduces back-and-forth.
+
+**What was built:**
+- `components/sms/TemplatePicker.tsx` — New First Contact template “Virtual + delivery + financing”: confirms vehicle/price and offers virtual walkthrough, delivery, and financing with a single CTA (preferred time for virtual look). Uses {firstName}, {vehicle}, {price}, {dealerName}.
+- `LEAD_RESPONSE_VIRTUAL_DELIVERY.md` — Doc explaining what these buyers are looking for, ready-to-use auto-text and auto-email copy, and how to add the email template in Settings → Lead Response Templates. **Update:** Added a detailed email template for leads with no phone number (self-contained body explaining virtual appointment, delivery, and financing with clear CTAs and optional “reply with your phone number”).
+
+---
+
+## 2026-03-06 — Email {link} = Actual Car Listing (from Synced Inventory)
+
+**Category:** UX
+**Migration:** none
+
+**Why:** The `{link}` variable must point to the specific vehicle the customer is interested in, not the main cars-for-sale page. Listing URLs are stored when inventory is synchronized from the dealer website.
+
+**What was built:**
+- `app/api/inventory/sync/route.ts` — Sync always updates `listing_url` on matched vehicles from scraped page links (removed `.is('listing_url', null)`), so every sync refreshes the stored vehicle link.
+- `components/leads/NewLeadCard.tsx` — Resolve listing URL from DB: try VIN lookup first; if no result, parse year/make/model from lead vehicle line and look up a vehicle with `listing_url` set. Added `parseYearMakeModel()` for "2009 Acura MDX"–style lines. `{link}` is now the actual car when we have a match in synced inventory; otherwise falls back to org inventory page.
+- `components/customer/EmailButton.tsx` and org settings (unchanged): already use vehicle `listing_url` when present; fallback to main page only when no vehicle or no `listing_url`.
+
+---
+
+## 2026-03-06 — Paste Lead: CarGurus Multi-Lead Digest
+
+**Category:** UX / Integrations
+**Migration:** none
+
+**Why:** Pasting a CarGurus daily LeadAI digest email (multiple leads in one email) failed because the paste flow only handled single leads and did not call the existing CarGurus digest parser.
+
+**What was built:**
+- **Paste API** (`app/api/leads/paste/route.ts`): Before single-lead detection, call `parseCarGurusDigest('', text)`. If it returns one or more leads, process each (find or create customer by phone/email, insert activity), then return `{ multiple: true, results: [...] }`. Skips leads with no phone and no email; returns 422 if digest had no valid leads.
+- **PasteLeadDialog** (`components/customer/PasteLeadDialog.tsx`): When response has `multiple: true`, show "✅ N leads imported" and a scrollable list of each lead with name, vehicle, phone/email, and "View contact" link; single-lead response unchanged.
+
+---
+
+## 2026-03-06 — Paste Lead: Labeled-Field (CRM) Format
+
+**Category:** UX / Integrations
+**Migration:** none
+
+**Why:** Pasting a lead from a CRM or dealer lead view (e.g. Carsforsale.com card with "Email:", "Phone: N/A", "Lead Source:") failed to import because the paste flow only recognized OfferUp/AutoTrader or relied on AI, which could fail or be unconfigured.
+
+**What was built:**
+- `lib/leads/parseLabeledPaste.ts` — **isLabeledLeadPaste(text)** detects text with Email:/Phone: and Lead Source or Contact Type; **parseLabeledLeadPaste(text)** extracts name (first line), email, phone (N/A treated as null), vehicle (year make model + price), note, and source (carsforsale, cargurus, etc.). Supports values on the next line (e.g. "Email:\nbrown@..."). 
+- `app/api/leads/paste/route.ts` — Run labeled parser before AI fallback; validate that parsed lead has name and (phone or email) and return 422 with clear message if not.
+
+---
+
+## 2026-03-06 — Customer Email Picker Uses Settings Templates
+
+**Category:** UX
+**Migration:** none
+
+**Why:** Email templates created in Settings → Lead Response Templates were saved to the database but the customer Email flow used only a hardcoded list, so custom templates never appeared when emailing a customer.
+
+**What was built:**
+- `components/customer/EmailButton.tsx` — Fetches email templates from `templates` (channel = email) when the sheet opens; picker now shows org templates from the DB. Empty state: "No email templates yet. Add them in Settings → Lead Response Templates." Removed hardcoded `EMAIL_TEMPLATES` array.
+
+---
+
+## 2026-03-06 — COGS Alert Webhook + SMS Overage UI
+
+### COGS alert webhook
+**Category:** Platform Ops / Observability
+**Migration:** none
+
+**Why:** Platform staff need visibility into usage/cost-related alerts (voice cap, SMS quota, abuse) in a single channel (e.g. Slack) without opening the admin panel.
+
+**What was built:**
+- `lib/cogs/alertWebhook.ts` — `fireCogsAlertBackground(payload)` can deliver to one or more of: **webhook** (POST JSON to URL), **Telegram**, **SMS** (Twilio). Payload: `org_id`, `alert_type`, `severity`, `metadata?`, `created_at`, `source: 'dealerwyze-cogs'`. Fire-and-forget; 5s timeout; failures logged only.
+- **Voice alerts** — `app/api/voice/retell-callback/route.ts`: after each COGS-related `admin_alerts` insert, call `fireCogsAlertBackground` for `repeated_caller`, `voice_spike`, `voice_abuse_hard_cap`, `voice_cap_reached`, `voice_500min_warning`.
+- **SMS quota alerts** — `lib/sms/quota.ts`: after `quota_80pct` / `quota_exceeded` insert, call `fireCogsAlertBackground`.
+- **2× quota exceeded** — `app/api/cron/check-tasks/route.ts`: after inserting `2x_quota_exceeded`, call `fireCogsAlertBackground`.
+
+**Setup (use any combination; all optional):**
+- **Webhook:** `COGS_ALERT_WEBHOOK_URL` — e.g. Slack Incoming Webhook URL; receives full JSON.
+- **Telegram (easiest, no new system):** `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`. Create a bot via [@BotFather](https://t.me/BotFather), get token; send the bot a message, then open `https://api.telegram.org/bot<token>/getUpdates` to see your `chat_id`. Messages are short one-liners (e.g. "DealerWyze: quota_exceeded — org abc123…").
+- **SMS (uses existing Twilio):** `COGS_ALERT_PHONE` — E.164 number to receive alerts. Throttled: same alert_type+org at most once per 15 min to avoid spam. Requires `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` already set.
+
+### SMS overage rate UI
+**Category:** Billing / UX
+**Migration:** none
+
+- Admin org page: copy updated from "$0.03/msg" to "$0.08/msg" for SMS overage.
+- Settings billing page: overage copy now uses `SMS_OVERAGE_RATE` from `stripeConstants` (single source of truth; displays $0.08/msg).
+
+---
+
+## 2026-03-06 — Desktop Responsive Layer (All Phases Complete)
+
+### Progressive responsive upgrade for lg: (1024px+) breakpoints
+**Category:** UX / Frontend
+**Migration:** none
+
+**Why:** DealerWyze was 100% mobile PWA locked to `max-w-md` (428px). Dealership owners on desktop needed richer multi-panel views: side-by-side analytics, data tables, and a dashboard — things the phone form factor can't support. The goal was a responsive layer that activates at `lg:` without breaking the existing mobile experience.
+
+**What was built:**
+
+#### Phase 1 — Layout Shell
+
+**`app/(app)/layout.tsx`**
+- Removed `max-w-md` hard lock → responsive container: mobile (`< lg`) keeps `max-w-md mx-auto`; desktop (`lg+`) uses `flex h-dvh w-full` (sidebar + content pane)
+- Added `<DesktopSidebar>` rendered only on `lg:` (hidden on mobile)
+- `<BottomNav>` wrapped with `lg:hidden`; content area uses `pb-20 lg:pb-0`
+- Fetches org name server-side for sidebar branding; passes impersonated org name when staff session active
+
+**`components/layout/DesktopSidebar.tsx`** *(new)*
+- Sticky left sidebar, 240px wide, dark blue (`#0D2B55`) with `#1B4A8A` border/dividers
+- Nav groups: Base (Today, Leads, Inventory, Contacts) + Role nav (BHPH hidden for `dealer_rep`; Analytics hidden for `dealer_rep`; Fax, Support, Settings always visible) + Platform Admin link (superadmin only)
+- Role-awareness via client-side `GET /api/auth/me` call (same source as BottomNav More page)
+- Active state: `bg-white/10 text-[#F07018]` + orange left-border accent indicator
+- DealerWyze logo + org name at top; org name in `text-white/50` truncated
+
+**`components/layout/BottomNav.tsx`**
+- Added `lg:hidden` to `<nav>` wrapper — hidden on desktop, unchanged on mobile
+
+**`components/layout/TopBar.tsx`**
+- Standardized to `sticky top-0` with `lg:border-b` — works in both contexts
+
+#### Phase 2 — Owner Dashboard (Today Page)
+
+**`app/(app)/today/page.tsx`**
+- **KPI strip** (`hidden lg:grid lg:grid-cols-5`): New Leads | Appt Requests | Voice Leads | Waiting | Overdue — counts computed server-side, color-coded by threshold
+- **3-column grid** (`lg:grid lg:grid-cols-3 lg:gap-0 lg:h-[calc(100dvh-7rem)]`) with per-column scroll (`lg:overflow-y-auto lg:h-full`) and column dividers (`lg:border-r`)
+  - **Left column**: DealerBriefClient, ResponseTimeWidget, ReviewsSection, OnboardingChecklist
+  - **Center column**: TodayContent (full lead activity feed — unchanged mobile component)
+  - **Right column**: TodoSection (open tasks)
+- Mobile: single-column stacked layout identical to pre-desktop build
+
+#### Phase 3 — Analytics Desktop Layout
+
+**`app/(app)/analytics/AnalyticsDashboard.tsx`**
+- Date range pills: `overflow-x-auto` pill strip on mobile → `lg:mx-0 lg:px-0` inline on desktop
+- Leads + Funnel section: `lg:grid lg:grid-cols-2 lg:gap-6` (side by side)
+- SMS + Voice section: same 2-col grid
+- Revenue + BHPH: full-width strip at bottom (unchanged)
+- Outer wrapper: `lg:px-6` for wider breathing room on desktop
+
+#### Phase 4 — Customer List: Desktop Data Table
+
+**`components/customer/CustomersListClient.tsx`**
+- Mobile card list wrapped in `lg:hidden` (unchanged behavior)
+- **Desktop table** (`hidden lg:block px-6 pb-6`): sortable table with columns — Name (avatar + initials) | Phone | Source | State (badge with pipeline color) | Assigned To | Last Active | Response Time | Archive action
+- Sort by Name or Last Active via column header buttons with `ArrowUpDown` icon
+- Click row → navigate to `/customers/[id]` (or toggle select in select mode)
+- Archive inline: expand to show reason input + OK/Cancel without leaving the page
+- Bulk assignment floating bar: `lg:bottom-4` (vs `bottom-20` mobile) for desktop positioning
+
+#### Phase 5 — Admin Panel: Org Table View
+
+**`app/(app)/admin/page.tsx`**
+- Stats strip: `grid-cols-2 lg:grid-cols-6` — 6 stats inline on desktop
+- Mobile org cards wrapped in `lg:hidden`
+- **Desktop org table** (`hidden lg:block`): Name (with health dot) | Status badge | Plan | SMS Usage bar + % | Last Active | Billing date — full-width, hover highlight, click row → org detail
+- Pending org list unchanged (mobile-only; small list)
+
+**Design decisions:**
+- Same URLs — deep links work identically on mobile and desktop
+- No recharts — CSS bar charts in analytics sufficient for current scale
+- Role gating in DesktopSidebar mirrors `more/page.tsx` logic (same `dealerRoles.ts` functions)
+- `Sheet` component (side="right") available for future customer detail slide-in panel — not activated in Phase 4 (full page nav chosen for simplicity)
+
+---
+
+## 2026-03-05 — Pricing, Affiliate/Coupon System, Overage Controls, Abuse Mitigations
+
+### Pricing Model Update
+**Category:** Billing / SaaS
+**Migration:** 049, 050
+
+Updated plan pricing and added Free tier:
+- **Free**: $0/mo (250 contacts, 100 vehicles; no SMS/voice/fax/scan)
+- **Plan 1 (Complete CRM)**: $149.95/mo (was $99.95)
+- **Plan 2 (Voice AI)**: $199.95/mo (unchanged)
+- **Annual discount**: 10% → $134.96/mo P1 / $179.96/mo P2
+- `stripeConstants.ts`: Added `FREE_PLAN_LIMITS`, `ANNUAL_DISCOUNT`, `VOICE_MINUTES_INCLUDED=700`, `isFreePlan()`, `SMS_OVERAGE_RATE=0.08` (was 0.02), `free` plan tier in all Records.
+
+### Affiliate Code + Commission Program
+**Category:** Growth / Revenue
+**Migration:** 049
+
+Two-tier affiliate system tracked in DB, manually paid by admin:
+- **`affiliate_codes` table**: `code` (unique), `type` (flyer|advisor), `owner_name`, `commission_first_pct` (default 10%), `commission_recurring_pct` (flyer=0%, advisor=2%)
+- **Flyer codes**: 10% first month only — for registration office cards, DMV flyers
+- **Advisor codes**: 10% first month + 2% recurring — for sales reps, finance advisors
+- Admin API `POST/GET /api/admin/affiliates` — superadmin only, returns active dealer count per code
+- Signup captures `?ref=CODE` → stored as `organizations.affiliate_code` (validated against DB; invalid codes silently dropped)
+
+### Customer Referral Discount
+**Category:** Growth / Billing
+**Migration:** 049
+
+Existing dealers who refer new dealers get 5% off their plan while the referral stays active:
+- Signup captures `?via=slug` → `organizations.referred_by_org_id`
+- On new org creation, `referred_by_org_id` dealer's `referral_discount_pct` set to 5%
+- Referral field on org for billing system to apply
+
+### Coupon System (Admin-Only)
+**Category:** Billing / Admin
+**Migration:** 049, 050
+
+Superadmin-only discount codes with full audit trail:
+- **`coupons` table**: code, discount_type (percent|fixed), discount_value, org_id (org-specific or open), max_uses, duration_months, valid_until, created_by, notes
+- **`coupon_redemptions` table**: audit trail of applied coupons (who used what when)
+- **`organizations.active_coupon_id`** / `active_coupon_discount` / `coupon_expires_at`
+- Admin API `POST/GET /api/admin/coupons` — create and list; `PATCH/DELETE /api/admin/coupons/[id]` — edit or delete (delete blocked if ever used)
+- Only platform superadmin can create coupons; no self-service for dealers
+
+### Voice Abuse Policy & Cap Enforcement
+**Category:** Security / Billing
+**Migration:** 049
+
+Replaced the loose 60,000 sec (1,000 hr!) default voice cap with proper limits:
+- **Included**: 700 min/mo (42,000 sec) — standard AI receptionist usage
+- **Alert**: 500 min → admin alert logged, `voice_overage_notified_at` stamped to prevent duplicate notifications
+- **Overage opt-in**: `voice_overage_enabled` on org — if opted in, overage minutes tracked at $0.12/min instead of disabling
+- **Hard abuse cap**: 1,500 min (90,000 sec) → voice disabled + `voice_abuse_hard_cap` critical alert regardless of opt-in
+- `app/api/voice/retell-callback/route.ts`: rewritten cap logic with three tiers (alert/overage/hard-disable), voice_overage_minutes tracked
+
+### SMS/MMS Overage Tracking
+**Category:** Security / Billing
+**Migration:** 049, 050
+
+Extended quota system to track overage messages for future billing:
+- `quota.ts`: When `sms_overage_enabled_v2=true` and count≥quota, message is allowed AND `sms_overage_count` incremented via `increment_sms_overage()` RPC
+- MMS overage tracked via `increment_mms_overage()` RPC
+- `is_overage: boolean` added to `QuotaStatus` response so calling code can tag overage activities
+- Both counters reset each billing cycle alongside `monthly_message_count`
+
+### Per-Org Limit Adjustment (Superadmin)
+**Category:** Admin / Operations
+
+New endpoint `GET/PATCH /api/admin/orgs/[id]/limits` — superadmin only:
+- Adjustable per org: `voice_minutes_cap` (in minutes or seconds), `voice_enabled`, `voice_overage_enabled`, `sms_quota`, `sms_overage_enabled`, `scan_image_monthly_cap`, `scan_pdf_monthly_cap`
+- All changes require `reason` field → written to `admin_audit_log`
+- GET returns current limits with human-readable minutes alongside raw seconds
+
+### Fax Page Cap (Monte Carlo Mitigation)
+**Category:** Security / Billing
+**Migration:** 050
+
+- Added `monthly_fax_pages` (counter) and `fax_page_cap` (default 50/mo) to organizations
+- `fax/send/route.ts`: checks cap before accepting fax; returns 429 if at limit
+- Increments counter via `increment_fax_pages()` RPC after successful Twilio submission
+- Fax pages reset each billing cycle alongside SMS quota
+
+### Billing Cycle Reset — Full Overage Reset
+**Category:** Billing / Cron
+
+`/api/cron/check-tasks` quota reset now also resets:
+- `monthly_fax_pages`, `sms_overage_count`, `mms_overage_count`, `voice_overage_minutes`
+- `org_settings.voice_minutes_month`, `voice_overage_notified_at`
+
+---
+
+## 2026-03-05 — Edit Email Account (Name / Credentials)
+
+### Edit email account details in Settings → Organization
+**Category:** UX / Settings
+**Migration:** none
+
+**Why:** Users could add and remove email accounts but not change the display name (label) or update credentials (e.g. new app password, different IMAP host). They need to edit account details without removing and re-adding.
+
+**What was built:**
+
+#### API — `app/api/integrations/email/[id]/route.ts`
+- **GET** — Returns one account for editing: id, label, email, provider, imap_host, imap_port, imap_user (no password). Org-scoped. Used to pre-fill the edit form and to detect OAuth vs IMAP (no imap_host ⇒ Gmail OAuth).
+- **PATCH** — Updates account. **Gmail OAuth:** only `label` can be updated. **IMAP:** `label`, `email`, `provider`, `imap_host`, `imap_port`, `imap_user`, and optionally `imap_pass` (if provided, connection is tested before saving; omit to keep current password). Org-scoped.
+
+#### UI — `app/(app)/settings/organization/page.tsx`
+- **Edit** button (pencil) next to Remove for each email account. List shows **label** (or email) and email underneath.
+- **Edit flow:** Click Edit → fetch GET `/api/integrations/email/[id]` → show edit form. **Gmail OAuth:** form has only "Display name" (label) and Update/Cancel; note that only the label can be changed. **IMAP:** full form (label, provider, email, app password with "leave blank to keep current", host/port for generic IMAP, IMAP user) and Update/Cancel.
+- **Update:** PATCH with form values; on success the list is updated and edit form closed. Password sent only when non-empty so users can change name/email/host without re-entering password.
+
+---
+
+## 2026-03-05 — Lead Import in Settings + Editable Locations
+
+### Lead Import section under Settings → Organization; Locations editable
+**Category:** UX / Settings
+**Migration:** none
+
+**Why:** Users should be able to download the lead-import template and upload spreadsheets from Settings → Organization alongside email integrations. Locations were display-only (add/remove only); users need to edit name, address, phone, and primary flag without deleting and re-adding.
+
+**What was built:**
+
+#### Settings → Organization — `app/(app)/settings/organization/page.tsx`
+- **Lead Import section** (in the same card as Email Integrations): "Lead Import" heading; short description; **Download template (CSV)** button (calls `GET /api/leads/import/template`); file input (CSV/XLSX, max 2 MB, 500 rows); **Import** button; error message; after success, summary (created, duplicate, skipped, errors, over_limit). Uses existing `POST /api/leads/import` and `handleDownloadImportTemplate` / `handleImportLeads` handlers.
+- **Locations editable:** For each location card, added **Edit** (pencil) button. When editing, the card shows inline inputs for Name, Address, Phone, and "Set as primary location" plus **Cancel** and **Save**. **Save** updates the location in state (and clears other primary if this one is set primary); user must click **Save Changes** at bottom to persist. **Cancel** discards the draft. `editingLocationId` and `editLocDraft` state; `startEditLocation`, `saveEditLocation`, `cancelEditLocation`; `removeLocation` clears edit state when removing the edited location.
+
+---
+
+## 2026-03-05 — Spreadsheet Lead Import (Template + Flexible Columns)
+
+### Import leads from CSV or Excel with template and column synonyms
+**Category:** Integrations / UX
+**Migration:** none
+
+**Why:** Users manage leads in many ways and often have spreadsheets. We provide a canonical template (Name, Phone, Email, Vehicle, VIN, ZIP, Source, Comments) and accept uploads that match it or use common variations (e.g. "Customer Name", "Phone Number", "E-mail Address") so we can parse "countless variations" without manual column mapping in the UI.
+
+**What was built:**
+
+#### Library — `lib/leads/spreadsheetImport.ts`
+- **TEMPLATE_HEADERS:** Name, Phone, Email, Vehicle, VIN, ZIP, Source, Comments.
+- **Column synonyms:** Each canonical field has a list of accepted header names (e.g. name: "Full Name", "Customer Name", "Lead Name", "Contact"; phone: "Phone Number", "Mobile", "Cell"; email: "Email Address", "E-mail"; vehicle: "Car", "Interest", "Vehicle of Interest"; etc.).
+- **buildColumnMap(headers):** Maps header index → canonical field using synonyms.
+- **rowToLead(row, columnMap, rowIndex):** Converts one row to **ParsedLead**; requires Name + (Phone or Email); normalizes phone to 10 digits; normalizes source to LeadSource; uses name as primary_phone placeholder when only email provided (DB NOT NULL).
+- **parseCsv(csv):** Splits on newlines, parses quoted CSV; returns { headers, rows }.
+- **parseXlsx(buffer):** Uses `xlsx`; first sheet, first row = headers; returns { headers, rows }.
+- **generateTemplateCsv():** Returns CSV string with template headers + one example row.
+
+#### API
+- **GET /api/leads/import/template** — Authenticated; returns CSV file download `leads-import-template.csv`.
+- **POST /api/leads/import** — FormData with `file` (CSV or XLSX); max 2 MB, max 500 rows processed; validates that spreadsheet has Name and (Phone or Email) columns; builds column map, converts each row to ParsedLead, calls **ingestLead** with external_id `spreadsheet-{orgId}-{timestamp}-{rowIndex}`; returns **summary** (total_rows, processed, created, duplicate, skipped, errors, over_limit) and first 100 results.
+
+#### UI — `components/leads/ImportLeadsDialog.tsx`
+- Trigger button (spreadsheet icon) on Customers page next to Paste and Scan.
+- Dialog: short description; **Download template (CSV)** button; file input (accept .csv, .xlsx, .xls); Import button; error message; after success, **Import complete** block with created/duplicate/skipped/errors/over_limit.
+
+#### Customers page
+- **ImportLeadsDialog** added to TopBar right (with ScanLeadButton, PasteLeadDialog, Add).
+
+**Design:** Template-first so users get a known-good format; flexible synonyms so existing spreadsheets often work without changing headers. Future: optional step to map "Column A → Name" for odd layouts.
+
+---
+
+## 2026-03-05 — Parse & Import All Sample Email Types (KBB, Autolist, Carsforsale, CarGurus Phone, etc.)
+
+### Email and paste support for every format in Sample_Emails
+**Category:** Integrations
+**Migration:** none
+
+**Why:** Users receive leads from KBB, Autolist, Carsforsale.com, CarGurus phone leads, AutoTrader shopper reminders, and Facebook group messages. The system only parsed OfferUp, AutoTrader (wallet), and CarGurus submission emails. All sample types in `Sample_Emails/` should be parseable when received by email or when pasted.
+
+**What was built:**
+
+#### Parser — `lib/leads/parser.ts`
+- **LeadSource** extended with `kbb`, `autolist`, `carsforsale`.
+- **parseCarGurusPhoneLead:** "Phone Lead from CarGurus" — Caller Id, Phone, Zip, State (source: cargurus).
+- **parseAutoTraderLead:** Now also matches **"Name:"** (Lead / Phone Lead / Shopper Reminder variants from dealerleads@autotrader.com and email@messages.autotrader.com).
+- **parseKBBLead:** Dealer Price Quote and Phone Lead from dealerleads@kbb.com — same structure as AutoTrader (Name, E-Mail, Phone, ZIP, Buyer Comments, Vehicle).
+- **parseAutolistLead:** "New connection from Autolist", referrals@autolist.com — name, email, comments, vehicle, VIN, price.
+- **parseCarsforsaleLead:** New Lead / New Loan App from carsforsalemail.com — name, phone, city, loan/down amount, vehicle from subject.
+- **parseFacebookMarketplaceLead:** Extended to match **"X sent a message to the group conversation"** from facebookmail.com (name from subject).
+- **emailField:** Treats "Customer did not specify" / "Not specified" / "N/A" as empty.
+- **AutoTrader/KBB phone:** Normalize "Not Provided by Shopper" / "Customer did not specify" to empty string.
+- **parseAnyLead:** Runs CarGurus submission → CarGurus phone → AutoTrader → KBB → Autolist → Carsforsale → OfferUp → Facebook.
+
+#### IMAP & Gmail — `lib/leads/pollImap.ts`, `lib/leads/poll.ts`
+- **LEAD_DOMAINS:** added `messages.autotrader.com`, `messages.offerup.com`, `kbb.com`, `autolist.com`, `carsforsalemail.com`, `facebookmail.com`.
+- **Gmail sender query:** added `from:kbb.com OR from:autolist.com OR from:carsforsalemail.com` so these leads are fetched and parsed.
+
+#### UI — lead source labels and options
+- **NewLeadCard.tsx**, **CustomersListClient.tsx:** SOURCE_LABELS for `kbb`, `autolist`, `carsforsale`.
+- **customers/new/page.tsx**, **EditCustomerForm.tsx:** SelectItem options for KBB, Autolist, Carsforsale.com.
+
+#### Paste & AI — `app/api/leads/paste/route.ts`, `lib/leads/visionIngest.ts`
+- Paste API and **scanResultToParsedLead** map AI-detected source to `kbb`, `autolist`, `carsforsale` when pasting.
+- **TEXT_LEAD_PROMPT** updated so **lead_source** can be "KBB", "Autolist", "Carsforsale".
+
+**Sample_Emails coverage:** Lead Submission from CarGurus, Phone Lead from CarGurus, AutoTrader Phone Lead, Lead: Autotrader Vehicle, Autotrader Shopper Lead Reminder, KBB Dealer Price Quote, Phone Lead KBB, Autolist, Carsforsale New Loan App, Carsforsale New Lead (and Re: reply), Facebook "sent a message to the group", OfferUp Re: vehicle.
+
+---
+
+## 2026-03-02 — Paste Lead: AI Parsing for CarGurus and Any Format
+
+### AI fallback when pasted lead is not OfferUp or AutoTrader
+**Category:** UX / Integrations
+**Migration:** none
+
+**Why:** Users paste CarGurus leads (and other formats) into Paste Lead; the system only recognized OfferUp and AutoTrader and showed "Could not detect lead format. Supported: OfferUp, AutoTrader." Using AI makes it easy to support any pasted format without hardcoding each one.
+
+**What was built:**
+
+#### visionIngest — `lib/leads/visionIngest.ts`
+- **TEXT_LEAD_PROMPT:** Prompt for pasted text (CarGurus, AutoTrader, OfferUp, or generic) asking for the same JSON structure as the image scanner (first_name, last_name, phone, email, vehicle_*, lead_source, notes, etc.).
+- **scanLeadText(pastedText):** Calls Claude Haiku with the prompt; returns **LeadScanResult**; uses existing **parseResponse** so no new schema.
+
+#### Paste API — `app/api/leads/paste/route.ts`
+- When **OfferUp** and **AutoTrader** parsers both fail, **AI fallback:** calls **scanLeadText(text)**, then **scanResultToParsedLead(scan)**; maps result to the route’s **ParsedLead** (name, phone, email, note, vehicle, vin, zip) and sets **source** from scan (cargurus, autotrader, offerup, facebook, other).
+- Phone normalized to 10 digits for display; 503 if ANTHROPIC_API_KEY is missing; 422 with a friendly message if AI parse fails.
+
+#### UI — `components/customer/PasteLeadDialog.tsx`
+- Copy updated: "Paste a lead (CarGurus, AutoTrader, OfferUp, or any format). Name, phone, email, and vehicle are extracted automatically—AI handles unknown formats."
+
+---
+
+## 2026-03-02 — Email Sync Error UX & 504 Mitigation
+
+### User-facing sync errors: message, reason, action, support code, account email
+**Category:** UX / Integrations
+**Migration:** none
+
+**Why:** After email sync, users sometimes saw a generic 504 or a raw error. They need a clear message, the reason, what to do next, and a support reference code. If they have multiple email accounts, they need to know which account failed.
+
+**What was built:**
+
+#### 504 mitigation — `app/api/cron/sync-leads/route.ts` & `app/api/leads/sync/route.ts`
+- **Cron sync:** Org polls run in **parallel** (`Promise.allSettled`) with a **per-org 45s timeout** so the route responds before the gateway 504 (maxDuration 60s).
+- **Manual sync:** Same **45s timeout**; returns a structured error instead of 504 when the single-org poll exceeds the limit.
+
+#### Structured sync errors — `lib/syncErrors.ts`
+- **SyncErrorDetail:** `message`, `reason`, `action`, `code`, optional **`accountEmail`** (which account failed or list for timeout).
+- **Codes:** SYNC-001 (timeout), SYNC-002 (sync service error), SYNC-003 (reserved, e.g. disconnected).
+- **getSyncError(code, options?)** with `technicalReason` and `accountEmail` for support and multi-account clarity.
+
+#### API — `app/api/leads/sync/route.ts`
+- On timeout: fetches enabled `email_accounts` for the org and includes comma-separated **accountEmail** in the error (so user knows which accounts were involved).
+- On poll error: returns **errorDetail** with **accountEmail** from the failing account (from `runLeadPollForOrg`).
+
+#### Poll — `lib/leads/poll.ts`
+- **runLeadPollForOrg** now returns **{ error, accountEmail }** on first account failure (so the UI can show which account failed).
+- Select includes `email` from `email_accounts`; exported **LeadPollResult** / **LeadPollError** types.
+
+#### UI — `components/leads/SyncGmailButton.tsx`
+- On 500 with **errorDetail**: shows **message**, **reason**, **action**, and **Reference: SYNC-XXX — include this code in a support ticket so we can look up the details.**
+- When **accountEmail** is present, shows **Account: a@x.com** (or **Account: a@x.com, b@y.com** for timeout) so the user knows which account failed with multiple accounts.
+- Error state stays visible 12s so the code can be copied.
+
+---
+
 ## 2026-03-04 — Security Gap Closure (Session 3)
 
 ### Gap Closure: All Implementable P0 + P1 Controls
@@ -865,6 +1348,61 @@ loans, inventory, history) without any manual DB work. No mechanism existed for 
 
 ---
 
+## 2026-03-06 — Monte Carlo Abuse Mitigation (v6 Financial Model)
+
+### Mitigating “abusers” identified in Monte Carlo simulation
+**Category:** Security / Platform Ops / Financial Model
+**Reference:** `Monte_Carlo_Abuse_Mitigation.md` (project root); workbook `DealerWyze_Financial_Model_v6.xlsx` — Monte Carlo sheet
+
+**Why:** The v6 Monte Carlo runs 1,000 trials with random **SMS x** and **Voice x** multipliers (0.5–2.5×). High-usage trials increase COGS and can push M36 EBITDA negative. We need to map those simulated abusers to existing controls and document remaining mitigations so launch and ops are aligned with the model.
+
+**What the Monte Carlo “abuse” represents:**
+- **SMS x** — multiplier on expected SMS/MMS usage per P1 sub; high value → higher COGS.
+- **Voice x** — multiplier on expected voice minutes per P2 sub; high value → higher COGS.
+
+**Already covered by hard limits (no code change required for volume abuse):**
+- **SMS:** Monthly quota per org (e.g. 1,500), 20/min + 300/day rate limits (`lib/sms/quota.ts`, `lib/sms/rateLimit.ts`). At cap, send blocked unless overage/autofill enabled.
+- **MMS:** 200/mo cap in `lib/sms/quota.ts`; over cap = block with message to send as SMS.
+- **Voice:** `voice_minutes_cap` per org; when month-to-date seconds ≥ cap, `voice_enabled` set false + admin alert (`app/api/voice/retell-callback/route.ts`).
+- **Overage opt-in:** SMS/voice overage at $0.08/min or per-msg; protects margin when dealers allow overage.
+
+**Remaining mitigations (backlog / follow-up):**
+
+#### Multi-org / trial farming
+- Churn re-register block (email/phone) — already in `register/route.ts` → `abuse_flags`. Keep enabled; extend to device fingerprint if needed.
+- Device fingerprint + IP /24 clustering: >2 orgs same fingerprint or same /24 in 7 days → `abuse_flags` (see SECURITY_ABUSE_MITIGATION_PLAN, Vector 1).
+- No phone/SMS/voice on trial; card required before paid comms — enforce in product/billing.
+
+#### Voice: loop / concurrent / duration abuse
+- **Retell config:** Max call duration (e.g. 3 min hard hangup), max turns per call (e.g. 12). Document in SECURITY_ABUSE_MITIGATION_PLAN Vector 7.
+- **Per-caller daily limit:** Same `from_number` >2 calls in 24h → log to `security_events` (caller_abuse) + optional route to voicemail.
+- **Spike detector:** Org voice minutes in 1h >3× baseline → auto-throttle or admin alert.
+- **Concurrent call cap per org:** If supported by Retell, limit (e.g. 2) active calls per org.
+
+#### Billing-cycle boundary burst
+- Daily sub-limits (300/day SMS) already in place; idempotent quota increments (`increment_sms_usage`) avoid double-count. Consider rolling 24h if boundary gaming appears.
+
+#### Fax / scan abuse
+- **Fax:** Enforce page cap (e.g. 100/mo) at send time; alert at 80%.
+- **Scan:** Monthly + daily caps in `lib/leads/scanQuota.ts` — keep. Optional: flag when org exceeds 3× typical daily scan usage (Vector 9).
+
+#### API / data extraction
+- Block export for trialing orgs — `app/api/export/route.ts` (already in place).
+- Bulk fetch detection >500 records/10min → `abuse_flags` via `lib/security/abuseDetector.ts` — keep; surface in admin.
+
+#### Operational
+- **Shadow billing ledger:** For flagged orgs, compute “what usage would have cost” at overage rates; use to tune caps and pricing.
+- **Progressive trust:** New paid accounts — lower caps or tighter rate limits for first 7–14 days.
+- **Admin kill switch:** One-click disable voice (and optionally SMS) per org from admin when abuse is confirmed.
+
+**Checklist (post–Monte Carlo):**
+- [ ] SMS/MMS/voice volume — rely on existing quotas + rate limits + voice cap; confirm overage/autofill behavior.
+- [ ] Multi-org / trial — churn block on; add device fingerprint + /24 clustering if multi-org patterns appear.
+- [ ] Voice — Retell max duration + max turns; add per-caller daily limit and spike detector if not already.
+- [ ] Fax/scan — enforce fax cap; keep scan quota + daily burst; optional anomaly flag.
+- [ ] API — no export for trial; bulk fetch → abuse_flags + admin view.
+- [ ] Operational — shadow billing for flagged orgs; admin kill switch for voice (and SMS if needed).
+
 ---
 
 ## 2026-03-04 — Plan Change + Security Hardening (Session 2)
@@ -921,6 +1459,104 @@ loans, inventory, history) without any manual DB work. No mechanism existed for 
 6. A2P 10DLC brand + campaign registration — Twilio Trust Hub (3–5 days)
 7. Cross-tenant isolation automated test — CI pipeline
 8. Data breach notification runbook — written + team briefed
+
+---
+
+## 2026-03-06 — Abuse Mitigation: Monte Carlo Open Items
+
+### Multi-layer abuse prevention for voice, SMS, and registration
+**Category:** Security / Platform Ops
+**Migration:** none (uses existing columns from migrations 044, 049, 050)
+
+**Why:** Post Monte Carlo financial modelling identified 6 open mitigation items not yet coded. These directly bound the upper-tail cost scenarios (multi-org fraud, voice loops, burst registration attacks) that would push M36 EBITDA negative. Implemented all 6 in a single pass.
+
+**What was built:**
+
+**`app/api/voice/retell-callback/route.ts`**
+- Per-caller daily limit raised from 2 → 5 calls/24h (3-min hard cap = max 15 min exposure/day)
+- Voice spike detector: >10 calls/hr from same org → `admin_alert (voice_spike, high)` + `security_event`, deduped to one alert per 2h
+- Progressive trust: orgs < 14 days old get 50% of their `voice_minutes_cap` (`effectiveIncludedCap`)
+
+**`app/api/auth/register/route.ts`**
+- IP /24 subnet clustering (Vector 2): >2 org registrations from same /24 in 7 days → `abuse_flags (ip_clustering, high)`; uses existing `terms_ip` column
+- Device fingerprint (Vector 3): server-side SHA-256 of `IP + stripped User-Agent`; stored in existing `signup_fingerprint` column (migration 044); match against prior orgs in last 30 days → `abuse_flags (device_fingerprint_match, high)`
+
+**`lib/sms/quota.ts`**
+- Progressive trust: orgs < 14 days old get 50% of their `sms_quota` as `effectiveQuota`; applies to all quota checks, MMS cap checks, and the 80% notification threshold
+
+**`app/api/admin/orgs/[id]/shadow-billing/route.ts`** *(new)*
+- GET endpoint (superadmin only) returning per-org list-rate exposure: SMS overage × $0.08, MMS overage × $0.15, voice overage × $0.12, fax overage × $0.10, and total
+- Pure computed read — no DB writes
+
+**`app/(app)/admin/orgs/[id]/page.tsx`**
+- Shadow billing collapsible widget in admin org detail page; shows $0.00 in green or non-zero in orange; expands to line-item breakdown with units × rate
+
+**Design decisions:**
+- 5 calls/24h chosen over doc's original 2 — gives customers headroom for dropped calls; 3-min hard cap in Retell bounds total exposure to 15 min/caller/day
+- Spike threshold fixed at 10 calls/hr (not dynamic baseline) — simpler, sufficient; most dealers average 1–3 calls/hr peak
+- Progressive trust 50% / 14 days applies at quota-check time (not at provisioning) — no extra cron needed, no new DB columns
+- Server-side fingerprint (no client JS required) — not as unique as a full browser fingerprint but requires zero frontend changes and is unblockable at signup
+- Shadow billing is display-only — no alerts, no hard actions; useful for pricing validation and identifying heavy users before they trigger hard caps
+
+---
+
+## 2026-03-06 — Remote Admin (Staff Write-Mode Impersonation)
+
+### Platform staff can take over a customer org to make live configuration changes
+**Category:** Platform Ops / Security
+**Migration:** none
+
+**Why:** Support staff need to go beyond read-only viewing and actually configure settings on behalf of a struggling dealer — without requiring the dealer to share credentials or describe every step. Remote Admin provides a controlled write-enabled session with a visible warning banner and full audit trail.
+
+**What was built:**
+
+**`lib/auth/staffSession.ts`**
+- Extended HMAC-signed cookie payload from `orgId.mac` → `orgId|writeMode.mac` (`1` = write, `0` = read-only)
+- Added `StaffSession` interface and `getStaffSessionInfo()` → `{ orgId, writeMode }`
+- `getStaffOrgOverride()` kept as `@deprecated` alias
+- `buildStaffOrgCookie(orgId, writeMode = false)` updated to encode writeMode flag
+- Backward-compatible: legacy cookies without `|` treated as read-only
+
+**`proxy.ts`**
+- `isImpersonationBlocked()` now decodes the cookie payload inline (HMAC verify + `|` split)
+- Returns `false` (allow) when `writeMode = 1`; returns `true` (block) for read-only sessions
+- All POST/PUT/PATCH/DELETE mutations flow through normally during Remote Admin sessions
+
+**`app/api/admin/impersonate/route.ts`**
+- POST accepts `write_mode: boolean` (default `false`)
+- Logs `staff_remote_admin_start` vs `staff_impersonate_start` in `admin_audit_log`
+- Calls `buildStaffOrgCookie(org_id, !!write_mode)` to encode the flag
+
+**`components/admin/ImpersonationBanner.tsx`**
+- Added `writeMode: boolean` prop
+- **Orange banner** (`bg-orange-500 text-white`) + Pencil icon: "Remote Admin — **OrgName** — changes are live"
+- **Yellow banner** (unchanged) for read-only: "Viewing **OrgName** as read-only staff"
+
+**`app/(app)/layout.tsx`**
+- Switched import: `getStaffOrgOverride` → `getStaffSessionInfo`
+- Reads `session.orgId` + `session.writeMode`; passes `writeMode` prop to `<ImpersonationBanner>`
+
+**`app/(app)/admin/orgs/[id]/page.tsx`**
+- Added "Remote Support" card section with two buttons:
+  - **View as Org** — read-only impersonation (yellow banner)
+  - **Remote Admin** — write-enabled (orange banner), guarded by `window.confirm` dialog warning changes are live
+- `startImpersonation(writeMode)` helper calls `POST /api/admin/impersonate` with `write_mode` flag then navigates to `/`
+- Removed duplicate Eye icon from the page header (replaced by the section buttons)
+
+**Flow:**
+1. Staff clicks **Remote Admin** on `/admin/orgs/[id]` → confirm dialog
+2. API sets signed cookie with `orgId|1`; logs `staff_remote_admin_start` in audit log
+3. Proxy detects write-mode flag → allows all mutations to pass through
+4. Orange "Remote Admin — changes are live" banner appears at top of app
+5. Staff makes changes; they land in the customer's org as the customer would see them
+6. Staff clicks **End Session** → `DELETE /api/admin/impersonate` clears cookie → redirected to `/admin`
+
+**Design decisions:**
+- Write-mode encoded in the HMAC-signed cookie — no extra DB state, tamper-proof
+- Orange vs yellow banner provides unmistakable visual distinction between write and read mode
+- Confirm dialog on Remote Admin button prevents accidental activation
+- All sessions (read and write) logged in `admin_audit_log` with distinct action types
+- Mutations still subject to existing API auth + RLS — Remote Admin is not a privilege escalation, just org context switching
 
 ---
 

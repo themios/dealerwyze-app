@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { Activity } from '@/types'
 import { createClient } from '@/lib/supabase/client'
-import { tomorrow9am, fillTemplate } from '@/lib/utils'
+import { tomorrow9am, fillTemplate, prefixWithAuthorName } from '@/lib/utils'
 import { useOrgSettings } from '@/hooks/useOrgSettings'
+import { useOpenCustomer } from '@/components/today/useOpenCustomer'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -51,6 +52,7 @@ export default function EmailFollowUpItem({ activity, onUpdate }: Props) {
   const [loading, setLoading] = useState<string | null>(null)
   const supabase = createClient()
   const orgSettings = useOrgSettings()
+  const openCustomer = useOpenCustomer()
 
   const data = parseFollowUpBody(activity.body || '')
   const day = data?.sequence_day ?? 2
@@ -69,11 +71,15 @@ export default function EmailFollowUpItem({ activity, onUpdate }: Props) {
     if (!data?.to) return
     setLoading('send')
 
+    const { display_name } = (await fetch('/api/auth/me').then(r => r.ok ? r.json() : {}).catch(() => ({}))) as { display_name?: string }
+
     await supabase
       .from('activities')
       .update({ completed_at: new Date().toISOString() })
       .eq('id', activity.id)
 
+    const currentBody = `Subject: ${subject}\n\n${emailBody}`
+    const bodyWithAuthor = prefixWithAuthorName(display_name, currentBody)
     await supabase.from('activities').insert({
       user_id: activity.user_id,
       customer_id: activity.customer_id,
@@ -81,7 +87,7 @@ export default function EmailFollowUpItem({ activity, onUpdate }: Props) {
       direction: 'outbound',
       outcome: 'pending',
       priority: 'normal',
-      body: `Subject: ${subject}\n\n${emailBody}`,
+      body: bodyWithAuthor,
       completed_at: new Date().toISOString(),
       sequence_day: day,
     })
@@ -90,7 +96,7 @@ export default function EmailFollowUpItem({ activity, onUpdate }: Props) {
     if (nextDay <= 5 && FOLLOWUP_TEMPLATES[nextDay]) {
       const vars = { firstName, vehicle: data.vehicle, dealerName: orgSettings.dealerName, dealerPhone: orgSettings.dealerPhone }
       const nextTpl = FOLLOWUP_TEMPLATES[nextDay]
-      const nextBody = JSON.stringify({
+      const nextBodyRaw = JSON.stringify({
         to: data.to,
         subject: fillTemplate(nextTpl.subject, vars),
         body: fillTemplate(nextTpl.body, vars),
@@ -98,6 +104,7 @@ export default function EmailFollowUpItem({ activity, onUpdate }: Props) {
         customer_name: data.customer_name,
         vehicle: data.vehicle,
       })
+      const nextBodyWithAuthor = prefixWithAuthorName(display_name, nextBodyRaw)
 
       await supabase.from('activities').insert({
         user_id: activity.user_id,
@@ -106,7 +113,7 @@ export default function EmailFollowUpItem({ activity, onUpdate }: Props) {
         direction: 'outbound',
         outcome: 'pending',
         priority: 'normal',
-        body: nextBody,
+        body: nextBodyWithAuthor,
         due_at: tomorrow9am().toISOString(),
         sequence_day: nextDay,
       })
@@ -133,10 +140,22 @@ export default function EmailFollowUpItem({ activity, onUpdate }: Props) {
     onUpdate()
   }
 
+  const customerId = activity.customer?.id
+  const handleCardClick = () => {
+    if (customerId) openCustomer(activity.id, customerId)
+  }
+
   return (
     <>
       <div className={`rounded-lg border bg-card p-4 space-y-3 ${isOverdue ? 'border-destructive/40' : ''}`}>
-        <div className="flex items-start gap-3">
+        <div
+          className="flex items-start gap-3 cursor-pointer hover:opacity-90"
+          onClick={handleCardClick}
+          onKeyDown={e => e.key === 'Enter' && handleCardClick()}
+          role="button"
+          tabIndex={0}
+          aria-label={`Open ${data.customer_name}`}
+        >
           <Mail className={`h-4 w-4 mt-0.5 flex-shrink-0 ${isOverdue ? 'text-destructive' : 'text-muted-foreground'}`} />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-0.5">
@@ -145,7 +164,7 @@ export default function EmailFollowUpItem({ activity, onUpdate }: Props) {
             </div>
             <p className="text-xs text-muted-foreground">{data.customer_name}</p>
             {activity.due_at && (
-              <p className={`text-xs mt-1 ${isOverdue ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+              <p className={`text-xs mt-1 ${isOverdue ? 'text-destructive font-medium' : 'text-muted-foreground'}`} suppressHydrationWarning>
                 {isOverdue ? 'Overdue · ' : 'Due · '}
                 {new Date(activity.due_at).toLocaleDateString('en-US', {
                   month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
@@ -155,7 +174,7 @@ export default function EmailFollowUpItem({ activity, onUpdate }: Props) {
           </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2" onClick={e => e.stopPropagation()}>
           <Button size="sm" className="flex-1 h-9" onClick={openSheet} disabled={loading !== null}>
             <Mail className="h-3.5 w-3.5 mr-1.5" />
             Send Follow-up

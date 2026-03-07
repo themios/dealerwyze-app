@@ -10,15 +10,38 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getOrgIdByPhone } from '@/lib/orgs/lookup'
+import crypto from 'crypto'
 
 const STOP_KEYWORDS  = ['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT']
 const START_KEYWORDS = ['START', 'UNSTOP', 'YES']
 const HELP_KEYWORDS  = ['HELP', 'INFO']
 
+function validateTwilioSignature(
+  authToken: string,
+  signature: string,
+  url: string,
+  params: Record<string, string>
+): boolean {
+  const sortedParams = Object.keys(params).sort().reduce((s, k) => s + k + params[k], '')
+  const expected = crypto.createHmac('sha1', authToken).update(url + sortedParams).digest('base64')
+  try {
+    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature))
+  } catch { return false }
+}
+
 export async function POST(req: NextRequest) {
   // Twilio sends form-encoded body
   const body = await req.text()
   const params = new URLSearchParams(body)
+
+  // Verify Twilio signature before processing
+  const authToken   = process.env.TWILIO_AUTH_TOKEN ?? ''
+  const signature   = req.headers.get('x-twilio-signature') ?? ''
+  const webhookUrl  = `${process.env.NEXT_PUBLIC_APP_URL}/api/bhph/webhook`
+  const paramObj    = Object.fromEntries(params.entries())
+  if (!validateTwilioSignature(authToken, signature, webhookUrl, paramObj)) {
+    return new NextResponse('Forbidden', { status: 403 })
+  }
   const from = params.get('From') ?? ''
   const to   = params.get('To')   ?? ''
   const msgBody = (params.get('Body') ?? '').trim().toUpperCase()

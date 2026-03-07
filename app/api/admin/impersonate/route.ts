@@ -4,7 +4,11 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { canAccessAdminArea } from '@/lib/auth/platform'
 import { buildStaffOrgCookie, clearStaffOrgCookie } from '@/lib/auth/staffSession'
 
-/** POST /api/admin/impersonate { org_id } — start read-only impersonation session */
+/**
+ * POST /api/admin/impersonate { org_id, write_mode? }
+ * write_mode=false (default) — read-only view; mutations blocked by proxy.ts
+ * write_mode=true            — Remote Admin mode; mutations allowed, all audited
+ */
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -13,7 +17,7 @@ export async function POST(req: NextRequest) {
   const canAccess = await canAccessAdminArea(user.id)
   if (!canAccess) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { org_id } = await req.json()
+  const { org_id, write_mode = false } = await req.json()
   if (!org_id) return NextResponse.json({ error: 'org_id required' }, { status: 400 })
 
   // Verify the target org exists and is not the sentinel org
@@ -27,16 +31,16 @@ export async function POST(req: NextRequest) {
 
   if (!org) return NextResponse.json({ error: 'Org not found' }, { status: 404 })
 
-  // Log impersonation start
+  // Log start — distinguish read-only vs write-enabled for audit
   await service.from('admin_audit_log').insert({
     admin_user_id: user.id,
     target_org_id: org_id,
-    action: 'staff_impersonate_start',
-    details: { org_name: org.name },
+    action: write_mode ? 'staff_remote_admin_start' : 'staff_impersonate_start',
+    details: { org_name: org.name, write_mode: !!write_mode },
   })
 
-  const cookie = buildStaffOrgCookie(org_id)
-  const res = NextResponse.json({ success: true, org_id, org_name: org.name })
+  const cookie = buildStaffOrgCookie(org_id, !!write_mode)
+  const res = NextResponse.json({ success: true, org_id, org_name: org.name, write_mode: !!write_mode })
   res.cookies.set(cookie)
   return res
 }

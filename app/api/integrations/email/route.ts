@@ -40,13 +40,22 @@ export async function POST(req: NextRequest) {
     imap_pass:  string
   }
 
-  if (!body.email || !body.imap_host || !body.imap_user || !body.imap_pass) {
+  const host = (body.imap_host ?? '').trim()
+  const user = (body.imap_user ?? '').trim()
+  let pass = (body.imap_pass ?? '').trim()
+  const email = (body.email ?? '').trim()
+
+  if (!email || !host || !user || !pass) {
     return NextResponse.json({ error: 'email, imap_host, imap_user, and imap_pass are required' }, { status: 400 })
   }
 
+  const isGmail = host.includes('gmail.com')
+  const imapUser = isGmail ? user.toLowerCase() : user
+  if (isGmail) pass = pass.replace(/\s/g, '')
+
   // Test connection before saving credentials
   const port = body.imap_port ?? 993
-  const test = await testImapConnection(body.imap_host, port, body.imap_user, body.imap_pass)
+  const test = await testImapConnection(host, port, imapUser, pass)
   if (!test.ok) {
     return NextResponse.json({ error: `Connection failed: ${test.error}` }, { status: 422 })
   }
@@ -55,13 +64,13 @@ export async function POST(req: NextRequest) {
     .from('email_accounts')
     .insert({
       org_id:    profile.org_id,
-      label:     body.label || body.email,
-      email:     body.email,
+      label:     (body.label ?? '').trim() || email,
+      email,
       provider:  body.provider,
-      imap_host: body.imap_host,
+      imap_host: host,
       imap_port: port,
-      imap_user: body.imap_user,
-      imap_pass: body.imap_pass,
+      imap_user: imapUser,
+      imap_pass: pass,
     })
     .select('id, label, email, provider, enabled, last_polled_at, last_error')
     .single()

@@ -9,8 +9,10 @@ import DesktopSidebar from '@/components/layout/DesktopSidebar'
 import PushPermission from '@/components/push/PushPermission'
 import PastDueBanner from '@/components/layout/PastDueBanner'
 import ImpersonationBanner from '@/components/admin/ImpersonationBanner'
+import BetaBanner from '@/components/layout/BetaBanner'
+import FeedbackButton from '@/components/layout/FeedbackButton'
 import { isDealerAdmin } from '@/types/index'
-import { getStaffOrgOverride } from '@/lib/auth/staffSession'
+import { getStaffSessionInfo } from '@/lib/auth/staffSession'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -65,6 +67,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   // Check for platform staff impersonation session
   let impersonationOrgName: string | null = null
+  let impersonationWriteMode = false
   let orgName: string | null = null
 
   // Fetch org name for desktop sidebar
@@ -80,15 +83,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   if (isPlatformUser) {
     const cookieStore = await cookies()
-    const staffOrgId = getStaffOrgOverride(cookieStore)
-    if (staffOrgId) {
+    const session = getStaffSessionInfo(cookieStore)
+    if (session) {
       const service = createServiceClient()
       const { data: impOrg } = await service
         .from('organizations')
         .select('name')
-        .eq('id', staffOrgId)
+        .eq('id', session.orgId)
         .single()
-      impersonationOrgName = impOrg?.name ?? null
+      impersonationOrgName  = impOrg?.name ?? null
+      impersonationWriteMode = session.writeMode
       orgName = impersonationOrgName // show impersonated org in sidebar
     }
   }
@@ -103,16 +107,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {/* Main content column */}
       <div className="flex flex-col flex-1 min-w-0 relative">
         {impersonationOrgName && (
-          <ImpersonationBanner orgName={impersonationOrgName} />
+          <ImpersonationBanner orgName={impersonationOrgName} writeMode={impersonationWriteMode} />
         )}
+        <BetaBanner />
         <PushPermission />
         {/* pb-20 on mobile for BottomNav; no padding needed on desktop */}
-        <main className="flex-1 overflow-y-auto pb-20 lg:pb-0">
+        <main className="flex-1 overflow-y-auto pb-20 lg:pb-0" suppressHydrationWarning>
           <PastDueBanner />
           {children}
         </main>
         {/* BottomNav — hidden on desktop */}
         <BottomNav />
+        <FeedbackButton />
       </div>
     </div>
   )

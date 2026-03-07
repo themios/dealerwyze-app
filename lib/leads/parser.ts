@@ -1,4 +1,4 @@
-export type LeadSource = 'cargurus' | 'autotrader' | 'offerup' | 'cargurus_digest' | 'facebook' | 'other'
+export type LeadSource = 'cargurus' | 'autotrader' | 'offerup' | 'cargurus_digest' | 'facebook' | 'kbb' | 'autolist' | 'carsforsale' | 'other'
 
 export interface ParsedLead {
   name: string
@@ -20,8 +20,9 @@ function field(text: string, label: string): string {
 
 function emailField(text: string, label: string): string {
   const raw = field(text, label)
+  if (/not specified|customer did not specify|n\/a/i.test(raw)) return ''
   const match = raw.match(/[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}/)
-  return match?.[0] || raw
+  return match?.[0] || ''
 }
 
 function parsePrice(s: string): number | null {
@@ -32,6 +33,28 @@ function parsePrice(s: string): number | null {
 function extractComments(text: string): string {
   const match = text.match(/Comments\s*\n+([\s\S]+?)(?:\n\s*\n|\nListing|\nVIN:|$)/i)
   return match?.[1]?.trim() || ''
+}
+
+/** CarGurus phone lead — "Phone Lead from CarGurus" (caller info only) */
+export function parseCarGurusPhoneLead(subject: string, textBody: string): ParsedLead | null {
+  if (!subject.includes('Phone Lead from CarGurus') && !textBody.includes('Phone Lead from CarGurus')) return null
+  const callerId = field(textBody, 'Caller Id')
+  const phone = field(textBody, 'Phone')
+  const zip = field(textBody, 'Zip')
+  const state = field(textBody, 'State')
+  if (!phone) return null
+  return {
+    name: callerId || 'CarGurus Caller',
+    email: '',
+    phone,
+    zip: zip || '',
+    vehicle: '',
+    vin: '',
+    listed_price: null,
+    comments: state ? `State: ${state}` : 'Phone lead from CarGurus',
+    source: 'cargurus',
+    raw_text: textBody,
+  }
 }
 
 /** CarGurus individual lead — "Lead Submission from CarGurus" */
@@ -177,8 +200,8 @@ export function parseAutoTraderLead(subject: string, textBody: string, fromEmail
 
   if (!isAutoTrader) return null
 
-  // AutoTrader can use "Contact Name:" or separate "First Name:" / "Last Name:"
-  const contactName = field(textBody, 'Contact Name') || field(textBody, 'Customer Name')
+  // AutoTrader: Name, Contact Name, Customer Name, or First/Last Name (Lead, Phone Lead, Shopper Reminder all use "Name:")
+  const contactName = field(textBody, 'Contact Name') || field(textBody, 'Customer Name') || field(textBody, 'Name')
   const firstName = field(textBody, 'First Name')
   const lastName = field(textBody, 'Last Name')
   const name = contactName || `${firstName} ${lastName}`.trim()
@@ -193,17 +216,111 @@ export function parseAutoTraderLead(subject: string, textBody: string, fromEmail
   const commentsMatch = textBody.match(
     /(?:Message|Comments|Customer Message|Buyer's Message)[:\s]*\n*([\s\S]+?)(?:\n\s*\n|Vehicle Details:|Listing Details:|$)/i
   )
-
+  let phone = field(textBody, 'Phone') || field(textBody, 'Telephone') || field(textBody, 'Mobile')
+  if (phone && /not provided|not specified|customer did not specify|n\/a/i.test(phone)) phone = ''
   return {
     name,
     email: emailField(textBody, 'Email') || emailField(textBody, 'Email Address'),
-    phone: field(textBody, 'Phone') || field(textBody, 'Telephone') || field(textBody, 'Mobile'),
+    phone,
     zip: field(textBody, 'Zip') || field(textBody, 'ZIP') || field(textBody, 'Zip Code'),
     vehicle: vehicleLine,
     vin: field(textBody, 'VIN'),
     listed_price: parsePrice(priceStr),
     comments: commentsMatch?.[1]?.trim() || field(textBody, 'Message'),
     source: 'autotrader',
+    raw_text: textBody,
+  }
+}
+
+/** KBB lead — same structure as AutoTrader (Dealer Price Quote / Phone Lead from dealerleads@kbb.com) */
+export function parseKBBLead(subject: string, textBody: string, fromEmail: string): ParsedLead | null {
+  const isKBB =
+    fromEmail.toLowerCase().includes('kbb.com') ||
+    subject.toLowerCase().includes('kbb') ||
+    textBody.includes('Kelley Blue Book')
+  if (!isKBB) return null
+  const name = field(textBody, 'Name') || field(textBody, 'Contact Name')
+  if (!name) return null
+  const vehicleLine = field(textBody, 'Vehicle') ||
+    `${field(textBody, 'Year')} ${field(textBody, 'Make')} ${field(textBody, 'Model')}`.trim()
+  const commentsMatch = textBody.match(
+    /(?:Message|Comments|Customer Message|Buyer Comments?)[:\s]*\n*([\s\S]+?)(?:\n\s*\n|Vehicle Information|Vehicle Details|Fraud Awareness|$)/i
+  )
+  let phone = field(textBody, 'Phone') || field(textBody, 'Telephone')
+  if (phone && /not provided|not specified|customer did not specify|n\/a/i.test(phone)) phone = ''
+  return {
+    name,
+    email: emailField(textBody, 'E-Mail Address') || emailField(textBody, 'Email'),
+    phone,
+    zip: field(textBody, 'ZIP Code') || field(textBody, 'Zip'),
+    vehicle: vehicleLine,
+    vin: field(textBody, 'VIN'),
+    listed_price: parsePrice(field(textBody, 'Price')),
+    comments: commentsMatch?.[1]?.trim() || '',
+    source: 'kbb',
+    raw_text: textBody,
+  }
+}
+
+/** Autolist — "New connection from Autolist", referrals@autolist.com */
+export function parseAutolistLead(subject: string, textBody: string, fromEmail: string): ParsedLead | null {
+  const isAutolist =
+    fromEmail.toLowerCase().includes('autolist.com') ||
+    subject.toLowerCase().includes('autolist') ||
+    textBody.includes('New connection from Autolist')
+  if (!isAutolist) return null
+  // "Christina Ward" then "INTERESTED IN YOUR LISTING" and "Email: ...", "Comments: ..."
+  const nameMatch = textBody.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s+INTERESTED IN YOUR LISTING/i)
+    || textBody.match(/New connection from Autolist\s*\n\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/i)
+  const emailMatch = textBody.match(/Email:\s*([\w.%+-]+@[\w.-]+\.[A-Za-z]{2,})/i)
+  const commentsMatch = textBody.match(/Comments:\s*\n([\s\S]+?)(?=\n\s*\n|\d{4}\s|Vin:|$)/i)
+  const vehicleMatch = textBody.match(/(\d{4}\s+[\w\s-]+(?:FWD|RWD|AWD)?)\s*(?:\n|City:)/m)
+    || subject.match(/Interested in buying\s+(.+)/i)
+  const vinMatch = textBody.match(/Vin:\s*([A-HJ-NPR-Z0-9]{17})/i)
+  const priceMatch = textBody.match(/Price:\s*\$?([\d,]+)/)
+  const name = nameMatch?.[1]?.trim() || 'Autolist Buyer'
+  const email = emailMatch?.[1]?.trim() || ''
+  if (!name && !email && !commentsMatch?.[1]) return null
+  return {
+    name,
+    email: email || '',
+    phone: '',
+    zip: '',
+    vehicle: vehicleMatch?.[1]?.trim() || '',
+    vin: vinMatch?.[1]?.trim() || '',
+    listed_price: priceMatch?.[1] ? parseInt(priceMatch[1].replace(/,/g, ''), 10) : null,
+    comments: commentsMatch?.[1]?.trim() || '',
+    source: 'autolist',
+    raw_text: textBody,
+  }
+}
+
+/** Carsforsale.com — New Lead, New Loan App; from carsforsalemail.com */
+export function parseCarsforsaleLead(subject: string, textBody: string, fromEmail: string): ParsedLead | null {
+  const isCarsforsale =
+    fromEmail.toLowerCase().includes('carsforsale') ||
+    subject.toLowerCase().includes('carsforsale.com')
+  if (!isCarsforsale) return null
+  // New Loan App: "Michael Allen", "4065898821", "agoura hills, CA"
+  const nameMatch = textBody.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s*\n\s*(\d{10,11})/m)
+    || textBody.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s*\n\s*[\w.%+-]+@/m)
+  const phoneMatch = textBody.match(/(\d{10,11})/) || textBody.match(/(\d{3}[-.\s]?\d{3}[-.\s]?\d{4})/)
+  const cityMatch = textBody.match(/([a-z\s]+,\s*[A-Z]{2})/im)
+  const loanMatch = textBody.match(/Loan Amount:\s*(\d+)/i)
+  const downMatch = textBody.match(/Down Payment:\s*(\d+)/i)
+  const name = nameMatch?.[1]?.trim() || 'Carsforsale Lead'
+  const phone = phoneMatch ? (phoneMatch[1] || '').replace(/\D/g, '') : ''
+  const comments = [cityMatch?.[0], loanMatch ? `Loan: $${loanMatch[1]}` : null, downMatch ? `Down: $${downMatch[1]}` : null].filter(Boolean).join(', ')
+  return {
+    name,
+    email: '',
+    phone: phone.length >= 10 ? phone.slice(-10) : '',
+    zip: '',
+    vehicle: subject.match(/New Lead[^\w]*([^–-]+)/i)?.[1]?.trim() || subject.match(/(\d{4}\s+[\w\s]+)/)?.[1]?.trim() || '',
+    vin: '',
+    listed_price: loanMatch ? parseInt(loanMatch[1], 10) : null,
+    comments: comments || 'Carsforsale.com lead',
+    source: 'carsforsale',
     raw_text: textBody,
   }
 }
@@ -243,22 +360,19 @@ export function parseOfferUpLead(subject: string, textBody: string, fromEmail: s
 
 /** Facebook Marketplace buyer inquiry email */
 export function parseFacebookMarketplaceLead(subject: string, textBody: string, fromEmail: string): ParsedLead | null {
-  // Primary: sender domain is authoritative. Secondary: body must also confirm Facebook
-  // to avoid false-positives from other platforms using similar subject phrasing.
   const isFacebook =
     fromEmail.includes('facebookmail.com') ||
     (
       textBody.includes('Facebook Marketplace') &&
-      (
-        subject.toLowerCase().includes('interested in your') ||
-        subject.toLowerCase().includes('new message about your')
-      )
-    )
+      (subject.toLowerCase().includes('interested in your') || subject.toLowerCase().includes('new message about your'))
+    ) ||
+    (fromEmail.includes('facebookmail.com') && subject.toLowerCase().includes('sent a message'))
 
   if (!isFacebook) return null
 
-  // Extract buyer name from subject or body
+  // Extract buyer name: "X sent a message to the group" or "X is interested" or "X sent you a message"
   const nameMatch =
+    subject.match(/([A-Z][a-z]+(?: [A-Z][a-z]+)*) sent a message to the group/i) ||
     subject.match(/^([A-Z][a-z]+(?: [A-Z][a-z]+)*) (?:is interested in your|sent you a message)/i) ||
     textBody.match(/^([A-Z][a-z]+(?: [A-Z][a-z]+)*) sent you a message/im)
 
@@ -301,7 +415,11 @@ export function parseAnyLead(
 ): ParsedLead | null {
   return (
     parseCarGurusLead(subject, textBody) ||
+    parseCarGurusPhoneLead(subject, textBody) ||
     parseAutoTraderLead(subject, textBody, fromEmail) ||
+    parseKBBLead(subject, textBody, fromEmail) ||
+    parseAutolistLead(subject, textBody, fromEmail) ||
+    parseCarsforsaleLead(subject, textBody, fromEmail) ||
     parseOfferUpLead(subject, textBody, fromEmail) ||
     parseFacebookMarketplaceLead(subject, textBody, fromEmail) ||
     null

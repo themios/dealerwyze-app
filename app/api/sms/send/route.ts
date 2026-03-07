@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from '@/lib/auth/profile'
+import { prefixWithAuthorName } from '@/lib/utils'
 import { checkQuota, incrementUsage } from '@/lib/sms/quota'
 import { checkRateLimit } from '@/lib/sms/rateLimit'
 import { transitionThreadState } from '@/lib/sms/threadState'
@@ -96,14 +97,15 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // Log activity
+  // Log activity (prefixed with sender name)
+  const bodyWithAuthor = prefixWithAuthorName(profile.display_name, body)
   await supabase.from('activities').insert({
     user_id: orgId,
     type: 'sms',
     direction: 'outbound',
     customer_id: customer_id || null,
     vehicle_id: vehicle_id || null,
-    body,
+    body: bodyWithAuthor,
     priority: 'normal',
     external_id: twilioData.sid || null,
     completed_at: new Date().toISOString(),
@@ -112,27 +114,8 @@ export async function POST(req: NextRequest) {
   // Increment usage counter (fire and forget)
   incrementUsage(orgId, is_mms).catch(() => {})
 
-  // Stamp first_response_at if this is the first outbound contact.
-  // Fetches created_at first, then updates atomically with WHERE first_response_at IS NULL
-  // so concurrent sends can't overwrite each other.
-  if (customer_id) {
-    const { data: cust } = await supabase
-      .from('customers')
-      .select('created_at')
-      .eq('id', customer_id)
-      .single()
-
-    if (cust) {
-      const secs = Math.max(0, Math.round(
-        (Date.now() - new Date(cust.created_at).getTime()) / 1000
-      ))
-      await supabase
-        .from('customers')
-        .update({ first_response_at: new Date().toISOString(), response_time_seconds: secs })
-        .eq('id', customer_id)
-        .is('first_response_at', null)  // atomic: no-op if already stamped
-    }
-  }
+  // first_response_at / response_time_seconds are stamped by DB trigger
+  // trg_stamp_response_time_on_activity on activities INSERT (all outbound email/sms/call).
 
   // Thread state transition
   if (customer_id) {

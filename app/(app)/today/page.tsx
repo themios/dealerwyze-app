@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from '@/lib/auth/profile'
+import { shouldShowAddressedActivity } from '@/lib/utils'
 import Link from 'next/link'
 import { Search, Receipt, CalendarDays } from 'lucide-react'
 import TopBar from '@/components/layout/TopBar'
@@ -36,9 +37,13 @@ export default async function TodayPage() {
     .order('created_at', { ascending: false })
 
   // Filter out activities whose customer join returned null (orphaned activities)
-  const safeNewLeads = (newLeads || []).filter(a => a.customer != null)
+  // Hide addressed cards until next day or follow-up due date
+  const todayRef = new Date()
+  const safeNewLeads = (newLeads || []).filter(
+    a => a.customer != null && shouldShowAddressedActivity(a, todayRef)
+  )
 
-  const { data: tasks } = await supabase
+  const { data: tasksRaw } = await supabase
     .from('activities')
     .select('*, customer:customers(id, name, primary_phone, email)')
     .eq('user_id', orgId)
@@ -50,6 +55,8 @@ export default async function TodayPage() {
     .not('due_at', 'is', null)
     .order('priority', { ascending: false })
     .order('due_at', { ascending: true })
+
+  const tasks = (tasksRaw || []).filter(a => shouldShowAddressedActivity(a, todayRef))
 
   const { data: waitingRaw } = await supabase
     .from('activities')
@@ -81,6 +88,7 @@ export default async function TodayPage() {
   const seenCustomers = new Set<string>()
   const waiting = (waitingRaw || []).filter(a => {
     if (!a.customer_id || seenCustomers.has(a.customer_id)) return false
+    if (!shouldShowAddressedActivity(a, todayRef)) return false
     seenCustomers.add(a.customer_id)
     return true
   })
@@ -139,13 +147,16 @@ export default async function TodayPage() {
     .order('created_at', { ascending: false })
 
   // Filter out activities whose customer join returned null (orphaned activities)
-  const safeApptRequests = (apptRequests || []).filter(a => a.customer != null)
+  // Hide addressed until next day or follow-up
+  const safeApptRequests = (apptRequests || []).filter(
+    a => a.customer != null && shouldShowAddressedActivity(a, todayRef)
+  )
 
   const newLeadCount    = safeNewLeads.length
   const apptCount       = safeApptRequests.length
   const voiceCount      = (voiceLeadsRaw ?? []).length
   const waitingCount    = waiting.length
-  const overdueCount    = (tasks ?? []).filter(t => t.due_at && new Date(t.due_at) < new Date()).length
+  const overdueCount    = tasks.filter(t => t.due_at && new Date(t.due_at) < new Date()).length
 
   return (
     <div>

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import type { UserRole } from '@/types/index'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 export interface Profile {
   id: string
@@ -29,7 +30,15 @@ export async function getProfile(): Promise<Profile | null> {
 
 /** Get profile or redirect to login. Use in server components. */
 export async function requireProfile(): Promise<Profile> {
+  const supabase = await createClient()
   const profile = await getProfile()
   if (!profile) redirect('/login')
+  // Guard: null org_id means incomplete provisioning
+  if (!profile.org_id) redirect('/login?reason=no_org')
+  // Guard: deactivated users — sign them out as a safety net
+  if (profile.deactivated_at) {
+    await (supabase as SupabaseClient).auth.signOut()
+    redirect('/login?reason=deactivated')
+  }
   return profile
 }

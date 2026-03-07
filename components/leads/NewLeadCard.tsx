@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Activity, Template } from '@/types'
 import { createClient } from '@/lib/supabase/client'
-import { fillTemplate, tomorrow9am, leadAgeBadge } from '@/lib/utils'
+import { fillTemplate, tomorrow9am, leadAgeBadge, prefixWithAuthorName } from '@/lib/utils'
 import { useOrgSettings } from '@/hooks/useOrgSettings'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
@@ -11,8 +11,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Mail, Phone, MapPin, Car } from 'lucide-react'
-import Link from 'next/link'
 import CallButton from '@/components/call/CallButton'
+import { useOpenCustomer } from '@/components/today/useOpenCustomer'
 import TemplatePicker from '@/components/sms/TemplatePicker'
 
 const FOLLOWUP_TEMPLATES: Record<number, { subject: string; body: string }> = {
@@ -40,6 +40,9 @@ const SOURCE_LABELS: Record<string, string> = {
   offerup: 'OfferUp',
   cargurus_digest: 'CarGurus Digest',
   facebook: 'Facebook',
+  kbb: 'KBB',
+  autolist: 'Autolist',
+  carsforsale: 'Carsforsale.com',
 }
 
 interface NewLeadCardProps {
@@ -60,6 +63,17 @@ function parseLead(body: string) {
     vin: get('VIN:'),
     comments: lines.slice(lines.findIndex(l => l.startsWith('"'))).join('\n').replace(/^"|"$/g, '').trim(),
   }
+}
+
+/** Parse "2009 Acura MDX" or "2024 Honda HR-V" into { year, make, model } for DB lookup */
+function parseYearMakeModel(vehicleLine: string): { year: number; make: string; model: string } | null {
+  const trimmed = vehicleLine.split(' — ')[0].trim()
+  const match = trimmed.match(/^((?:19|20)\d{2})\s+(\S+)\s+(.+)$/)
+  if (!match) return null
+  const year = parseInt(match[1], 10)
+  const make = match[2].trim()
+  const model = match[3].trim()
+  return year && make && model ? { year, make, model } : null
 }
 
 /** Rule-based lead score 0–10 */
@@ -94,21 +108,52 @@ export default function NewLeadCard({ activity, templates, onUpdate }: NewLeadCa
   const [emailBody, setEmailBody] = useState('')
   const [loading, setLoading] = useState<string | null>(null)
   const [listingUrl, setListingUrl] = useState('')
+  const [displayName, setDisplayName] = useState<string | null>(null)
   const supabase = createClient()
   const orgSettings = useOrgSettings()
+  const openCustomer = useOpenCustomer()
 
   useEffect(() => {
-    if (!lead.vin) return
-    supabase
-      .from('vehicles')
-      .select('listing_url')
-      .eq('vin', lead.vin)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data?.listing_url) setListingUrl(data.listing_url)
-      })
+    if (open) {
+      fetch('/api/auth/me')
+        .then(r => r.ok ? r.json() : null)
+        .then(d => setDisplayName(d?.display_name ?? null))
+        .catch(() => setDisplayName(null))
+    }
+  }, [open])
+
+  // Resolve vehicle listing URL from DB (synced inventory): VIN first, then year/make/model so {link} is the actual car
+  useEffect(() => {
+    let cancelled = false
+    async function resolve() {
+      if (lead.vin) {
+        const { data } = await supabase
+          .from('vehicles')
+          .select('listing_url')
+          .eq('vin', lead.vin)
+          .maybeSingle()
+        if (!cancelled && data?.listing_url) {
+          setListingUrl(data.listing_url)
+          return
+        }
+      }
+      const parsed = parseYearMakeModel(lead.vehicleLine || '')
+      if (!parsed) return
+      const { data } = await supabase
+        .from('vehicles')
+        .select('listing_url')
+        .eq('year', parsed.year)
+        .eq('make', parsed.make)
+        .eq('model', parsed.model)
+        .not('listing_url', 'is', null)
+        .limit(1)
+        .maybeSingle()
+      if (!cancelled && data?.listing_url) setListingUrl(data.listing_url)
+    }
+    resolve()
+    return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lead.vin])
+  }, [lead.vin, lead.vehicleLine])
   const customer = activity.customer
   const firstName = customer.name.split(' ')[0]
   const vehicleParts = lead.vehicleLine.split(' — ')
@@ -120,12 +165,19 @@ export default function NewLeadCard({ activity, templates, onUpdate }: NewLeadCa
   const sourceLabel = SOURCE_LABELS[(activity as any).customer?.lead_source ?? ''] ?? 'Lead'
 
   function getVars() {
+    const baseUrl = (orgSettings.dealerWebsiteUrl ?? '').replace(/\/$/, '')
+    const inventoryPath = orgSettings.dealerWebsiteInventoryPath ?? '/cars-for-sale'
+    const link = listingUrl
+      ? listingUrl
+      : baseUrl
+        ? `${baseUrl}${inventoryPath.startsWith('/') ? '' : '/'}${inventoryPath}`
+        : 'https://www.apolloauto-em.com/cars-for-sale'
     return {
       firstName,
       vehicle:     vehicleName || '{vehicle}',
       price:       priceStr ? ` at ${priceStr}` : '',
       vinLine:     lead.vin ? `• VIN: ${lead.vin}` : '',
-      link:        listingUrl,
+      link,
       dealerName:  orgSettings.dealerName,
       dealerPhone: orgSettings.dealerPhone,
     }
@@ -148,6 +200,8 @@ export default function NewLeadCard({ activity, templates, onUpdate }: NewLeadCa
       body: JSON.stringify({ completed_at: new Date().toISOString(), outcome: 'answered' }),
     })
 
+    const firstBody = `Subject: ${subject}\n\n${emailBody}`
+    const body1WithAuthor = prefixWithAuthorName(displayName, firstBody)
     await supabase.from('activities').insert({
       user_id: activity.user_id,
       customer_id: customer.id,
@@ -155,13 +209,22 @@ export default function NewLeadCard({ activity, templates, onUpdate }: NewLeadCa
       direction: 'outbound',
       outcome: 'pending',
       priority: 'normal',
-      body: `Subject: ${subject}\n\n${emailBody}`,
+      body: body1WithAuthor,
       completed_at: new Date().toISOString(),
       sequence_day: 1,
     })
 
     const vars = getVars()
     const day2 = FOLLOWUP_TEMPLATES[2]
+    const day2Body = JSON.stringify({
+      to: customer.email,
+      subject: fillTemplate(day2.subject, vars),
+      body: fillTemplate(day2.body, vars),
+      sequence_day: 2,
+      customer_name: customer.name,
+      vehicle: vehicleName,
+    })
+    const body2WithAuthor = prefixWithAuthorName(displayName, day2Body)
     await supabase.from('activities').insert({
       user_id: activity.user_id,
       customer_id: customer.id,
@@ -169,14 +232,7 @@ export default function NewLeadCard({ activity, templates, onUpdate }: NewLeadCa
       direction: 'outbound',
       outcome: 'pending',
       priority: 'normal',
-      body: JSON.stringify({
-        to: customer.email,
-        subject: fillTemplate(day2.subject, vars),
-        body: fillTemplate(day2.body, vars),
-        sequence_day: 2,
-        customer_name: customer.name,
-        vehicle: vehicleName,
-      }),
+      body: body2WithAuthor,
       due_at: tomorrow9am().toISOString(),
       sequence_day: 2,
     })
@@ -202,17 +258,26 @@ export default function NewLeadCard({ activity, templates, onUpdate }: NewLeadCa
     onUpdate()
   }
 
+  const handleCardClick = () => openCustomer(activity.id, customer.id)
+
   return (
     <>
       <div className="rounded-lg border-2 border-primary/20 bg-primary/5 p-4 space-y-3">
-        <div className="flex items-start gap-2">
+        <div
+          className="flex items-start gap-2 cursor-pointer hover:opacity-90"
+          onClick={handleCardClick}
+          onKeyDown={e => e.key === 'Enter' && handleCardClick()}
+          role="button"
+          tabIndex={0}
+          aria-label={`Open ${customer.name}`}
+        >
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <Badge variant="default" className="text-xs">New Lead</Badge>
               <span className="text-xs text-muted-foreground">{sourceLabel}</span>
               <ScoreBadge score={score} />
             </div>
-            <Link href={`/customers/${customer.id}`} className="font-semibold text-sm hover:underline">{customer.name}</Link>
+            <p className="font-semibold text-sm">{customer.name}</p>
             {vehicleName && (
               <p className="text-sm text-muted-foreground flex items-center gap-1 mt-0.5">
                 <Car className="h-3 w-3" />
@@ -220,7 +285,6 @@ export default function NewLeadCard({ activity, templates, onUpdate }: NewLeadCa
               </p>
             )}
           </div>
-          {/* Lead age badge top-right */}
           {(() => { const b = leadAgeBadge(activity.created_at); return (
             <span suppressHydrationWarning className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${b.cls}`}>
               {b.label}
@@ -228,7 +292,7 @@ export default function NewLeadCard({ activity, templates, onUpdate }: NewLeadCa
           )})()}
         </div>
 
-        <div className="space-y-1 text-xs text-muted-foreground">
+        <div className="space-y-1 text-xs text-muted-foreground" onClick={e => e.stopPropagation()}>
           {lead.phone && (
             <p className="flex items-center gap-1.5">
               <Phone className="h-3 w-3" />
@@ -255,7 +319,7 @@ export default function NewLeadCard({ activity, templates, onUpdate }: NewLeadCa
           </p>
         )}
 
-        <div className="flex gap-2">
+        <div className="flex gap-2" onClick={e => e.stopPropagation()}>
           <CallButton
             customerId={customer.id}
             customerName={customer.name}

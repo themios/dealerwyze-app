@@ -5,7 +5,7 @@ import { Activity } from '@/types'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Calendar, MessageSquare, X } from 'lucide-react'
-import Link from 'next/link'
+import { useOpenCustomer } from '@/components/today/useOpenCustomer'
 
 interface Props {
   activity: Activity & {
@@ -22,7 +22,10 @@ function toLocalDatetimeValue(d: Date): string {
 
 export default function AppointmentRequestCard({ activity, onUpdate }: Props) {
   const customer = activity.customer
+  const openCustomer = useOpenCustomer()
   if (!customer) return null
+
+  const handleCardClick = () => openCustomer(activity.id, customer.id)
 
   // Pre-fill with detected date or tomorrow 10am
   const defaultDate = activity.due_at
@@ -64,17 +67,22 @@ export default function AppointmentRequestCard({ activity, onUpdate }: Props) {
   return (
     <div className="rounded-lg border-2 border-blue-500/30 bg-blue-500/5 p-4 space-y-3">
       <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2">
+        <div
+          className="flex items-center gap-2 cursor-pointer hover:opacity-90 min-w-0 flex-1"
+          onClick={handleCardClick}
+          onKeyDown={e => e.key === 'Enter' && handleCardClick()}
+          role="button"
+          tabIndex={0}
+          aria-label={`Open ${customer.name}`}
+        >
           <Calendar className="h-4 w-4 text-blue-500 flex-shrink-0" />
-          <div>
-            <Link href={`/customers/${customer.id}`} className="font-semibold text-sm hover:underline">
-              {customer.name}
-            </Link>
+          <div className="min-w-0">
+            <p className="font-semibold text-sm">{customer.name}</p>
             <p className="text-xs text-muted-foreground">Appointment request</p>
           </div>
         </div>
         <button
-          onClick={handleDismiss}
+          onClick={e => { e.stopPropagation(); handleDismiss() }}
           disabled={dismissing}
           className="text-muted-foreground hover:text-foreground p-1 flex-shrink-0"
         >

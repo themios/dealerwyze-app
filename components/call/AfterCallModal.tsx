@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { clearPendingCall } from './usePendingCall'
 import { PendingCall, ActivityOutcome } from '@/types'
-import { tomorrow9am, in2hours } from '@/lib/utils'
+import { tomorrow9am, in2hours, prefixWithAuthorName } from '@/lib/utils'
 import {
   Sheet,
   SheetContent,
@@ -38,12 +38,19 @@ export default function AfterCallModal({ open, pendingCall, onDismiss }: AfterCa
     setSaving(true)
 
     try {
+      const { display_name } = (await fetch('/api/auth/me').then(r => r.ok ? r.json() : {}).catch(() => ({}))) as { display_name?: string }
+      const callBody = prefixWithAuthorName(
+        display_name,
+        notes?.trim() ? notes.trim() : 'Outbound call'
+      )
+      const taskBody = prefixWithAuthorName(display_name, `Follow up with ${pendingCall.customerName}`)
+
       // 1. Update the pending call activity
       await supabase
         .from('activities')
         .update({
           outcome,
-          body: notes || null,
+          body: callBody,
           completed_at: new Date().toISOString(),
         })
         .eq('id', pendingCall.activityId)
@@ -59,7 +66,7 @@ export default function AfterCallModal({ open, pendingCall, onDismiss }: AfterCa
           await supabase.from('activities').insert({
             type: 'task',
             customer_id: pendingCall.customerId,
-            body: `Follow up with ${pendingCall.customerName}`,
+            body: taskBody,
             due_at: dueAt.toISOString(),
             priority: 'normal',
           })

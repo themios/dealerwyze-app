@@ -123,7 +123,7 @@ export default function DealerBrief() {
           <div className="flex items-center gap-2 mb-1">
             <TrendingUp className="h-4 w-4 text-primary flex-shrink-0" />
             <span className="text-xs font-semibold text-primary uppercase tracking-wide">Dealer Brief</span>
-            <span className="text-xs text-muted-foreground">· {timeStr}</span>
+            <span className="text-xs text-muted-foreground" suppressHydrationWarning>· {timeStr}</span>
           </div>
           <p className="text-sm font-semibold leading-snug">{r.headline}</p>
         </div>

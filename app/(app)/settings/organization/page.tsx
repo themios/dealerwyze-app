@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Phone, X, Loader2, Mail, CheckCircle2, AlertCircle, Plus, MapPin, ExternalLink, Calendar, ArrowRightLeft } from 'lucide-react'
+import { Phone, X, Loader2, Mail, CheckCircle2, AlertCircle, Plus, MapPin, ExternalLink, Calendar, ArrowRightLeft, Eye, EyeOff, Download, Pencil } from 'lucide-react'
 
 interface DealerLocation {
   id: string
@@ -117,6 +117,14 @@ export default function OrganizationPage() {
   const [locations, setLocations] = useState<DealerLocation[]>([])
   const [addLocOpen, setAddLocOpen] = useState(false)
   const [newLoc, setNewLoc] = useState<Omit<DealerLocation, 'id'>>({ name: '', address: '', phone: '', is_primary: false })
+  const [editingLocationId, setEditingLocationId] = useState<string | null>(null)
+  const [editLocDraft, setEditLocDraft] = useState<DealerLocation | null>(null)
+
+  // Lead import (spreadsheet)
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [importLoading, setImportLoading] = useState(false)
+  const [importError, setImportError] = useState<string | null>(null)
+  const [importSummary, setImportSummary] = useState<{ created: number; duplicate: number; skipped: number; errors: number; over_limit: number } | null>(null)
 
   // Voice agent provisioning state
   const [voiceProvisioning, setVoiceProvisioning]   = useState(false)
@@ -142,10 +150,13 @@ export default function OrganizationPage() {
   const [imapPort, setImapPort]               = useState('993')
   const [imapUser, setImapUser]               = useState('')
   const [imapPass, setImapPass]               = useState('')
+  const [showImapPass, setShowImapPass]       = useState(false)
   const [imapEmail, setImapEmail]             = useState('')
   const [imapLabel, setImapLabel]             = useState('')
   const [imapSaving, setImapSaving]           = useState(false)
   const [imapError, setImapError]             = useState<string | null>(null)
+  const [editingAccountId, setEditingAccountId] = useState<string | null>(null)
+  const [editAccountIsOAuth, setEditAccountIsOAuth] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -225,6 +236,72 @@ export default function OrganizationPage() {
 
   function removeLocation(id: string) {
     setLocations(prev => prev.filter(l => l.id !== id))
+    if (editingLocationId === id) {
+      setEditingLocationId(null)
+      setEditLocDraft(null)
+    }
+  }
+
+  function startEditLocation(loc: DealerLocation) {
+    setEditingLocationId(loc.id)
+    setEditLocDraft({ ...loc })
+  }
+
+  function saveEditLocation() {
+    if (!editLocDraft || editLocDraft.name.trim() === '' || editLocDraft.address.trim() === '') return
+    setLocations(prev => {
+      const next = prev.map(l => (l.id === editLocDraft.id ? editLocDraft : l))
+      if (editLocDraft.is_primary) {
+        return next.map(l => (l.id === editLocDraft.id ? { ...l, is_primary: true } : { ...l, is_primary: false }))
+      }
+      return next
+    })
+    setEditingLocationId(null)
+    setEditLocDraft(null)
+    setSaved(false)
+  }
+
+  function cancelEditLocation() {
+    setEditingLocationId(null)
+    setEditLocDraft(null)
+  }
+
+  async function handleDownloadImportTemplate() {
+    const res = await fetch('/api/leads/import/template')
+    if (!res.ok) return
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'leads-import-template.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  async function handleImportLeads() {
+    if (!importFile) {
+      setImportError('Choose a file first')
+      return
+    }
+    setImportError(null)
+    setImportSummary(null)
+    setImportLoading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', importFile)
+      const res = await fetch('/api/leads/import', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (!res.ok) {
+        setImportError(data.error ?? 'Import failed')
+      } else {
+        setImportSummary(data.summary)
+        setImportFile(null)
+      }
+    } catch {
+      setImportError('Network error — please try again')
+    } finally {
+      setImportLoading(false)
+    }
   }
 
   async function handleCalendarDisconnect() {
@@ -314,7 +391,12 @@ export default function OrganizationPage() {
   }
 
   async function handleAddImap() {
-    if (!imapEmail || !imapHost || !imapUser || !imapPass) {
+    const email = imapEmail.trim()
+    const user = imapUser.trim() || email
+    let pass = imapPass
+    if (imapProvider === 'gmail') pass = pass.replace(/\s/g, '')
+    pass = pass.trim()
+    if (!email || !imapHost?.trim() || !user || !pass) {
       setImapError('All fields are required.')
       return
     }
@@ -324,13 +406,13 @@ export default function OrganizationPage() {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({
-        label:     imapLabel || imapEmail,
-        email:     imapEmail,
+        label:     imapLabel?.trim() || email,
+        email,
         provider:  imapProvider,
-        imap_host: imapHost,
+        imap_host: imapHost.trim(),
         imap_port: parseInt(imapPort) || 993,
-        imap_user: imapUser,
-        imap_pass: imapPass,
+        imap_user: user,
+        imap_pass: pass,
       }),
     })
     const data = await res.json() as EmailAccount & { error?: string }
@@ -340,6 +422,7 @@ export default function OrganizationPage() {
     } else {
       setEmailAccounts(prev => [...prev, data])
       setAddImapOpen(false)
+      setShowImapPass(false)
       setImapUser('')
       setImapPass('')
       setImapEmail('')
@@ -354,6 +437,101 @@ export default function OrganizationPage() {
     await fetch(`/api/integrations/email/${id}`, { method: 'DELETE' })
     setRemovingId(null)
     setEmailAccounts(prev => prev.filter(a => a.id !== id))
+    if (editingAccountId === id) {
+      setEditingAccountId(null)
+      setEditAccountIsOAuth(false)
+    }
+  }
+
+  async function startEditAccount(acct: EmailAccount) {
+    const res = await fetch(`/api/integrations/email/${acct.id}`)
+    if (!res.ok) return
+    const data = await res.json() as { id: string; label: string; email: string; provider: string; imap_host?: string; imap_port?: number; imap_user?: string }
+    setAddImapOpen(false)
+    setEditingAccountId(acct.id)
+    setEditAccountIsOAuth(!data.imap_host)
+    setImapLabel(data.label ?? '')
+    setImapEmail(data.email ?? '')
+    setImapProvider(data.provider ?? 'imap')
+    const preset = EMAIL_PROVIDERS.find(p => p.value === (data.provider ?? 'imap'))
+    setImapHost(data.imap_host ?? preset?.host ?? '')
+    setImapPort(String(data.imap_port ?? 993))
+    setImapUser(data.imap_user ?? data.email ?? '')
+    setImapPass('')
+    setImapError(null)
+    setShowImapPass(false)
+  }
+
+  function cancelEditAccount() {
+    setEditingAccountId(null)
+    setEditAccountIsOAuth(false)
+    setImapLabel('')
+    setImapEmail('')
+    setImapUser('')
+    setImapPass('')
+    setImapError(null)
+  }
+
+  async function handleUpdateAccount() {
+    if (!editingAccountId) return
+    if (editAccountIsOAuth) {
+      const label = imapLabel.trim() || imapEmail.trim()
+      if (!label) {
+        setImapError('Label is required')
+        return
+      }
+      setImapSaving(true)
+      setImapError(null)
+      const res = await fetch(`/api/integrations/email/${editingAccountId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: label }),
+      })
+      const data = await res.json() as EmailAccount & { error?: string }
+      setImapSaving(false)
+      if (!res.ok) {
+        setImapError(data.error ?? 'Update failed')
+      } else {
+        setEmailAccounts(prev => prev.map(a => a.id === editingAccountId ? data : a))
+        setEditingAccountId(null)
+        setEditAccountIsOAuth(false)
+      }
+      return
+    }
+    const email = imapEmail.trim()
+    const user = imapUser.trim() || email
+    const pass = imapPass.trim()
+    if (!email || !imapHost?.trim() || !user) {
+      setImapError('Email, host, and user are required.')
+      return
+    }
+    setImapSaving(true)
+    setImapError(null)
+    const body: Record<string, unknown> = {
+      label:     imapLabel.trim() || email,
+      email,
+      provider:  imapProvider,
+      imap_host: imapHost.trim(),
+      imap_port: parseInt(imapPort) || 993,
+      imap_user: user,
+    }
+    if (pass) body.imap_pass = pass
+    const res = await fetch(`/api/integrations/email/${editingAccountId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    const data = await res.json() as EmailAccount & { error?: string }
+    setImapSaving(false)
+    if (!res.ok) {
+      setImapError(data.error ?? 'Update failed')
+    } else {
+      setEmailAccounts(prev => prev.map(a => a.id === editingAccountId ? data : a))
+      setEditingAccountId(null)
+      setEditAccountIsOAuth(false)
+      setImapPass('')
+      setShowImapPass(false)
+    }
   }
 
   const selectedProvider = EMAIL_PROVIDERS.find(p => p.value === imapProvider)
@@ -536,14 +714,15 @@ export default function OrganizationPage() {
               )}
 
               {/* Connected accounts list */}
-              {emailAccounts.length > 0 && (
+              {emailAccounts.length > 0 && !editingAccountId && (
                 <div className="space-y-2 mb-3">
                   {emailAccounts.map(acct => (
                     <div key={acct.id} className="flex items-center justify-between p-2.5 rounded-lg border bg-card">
                       <div className="flex items-center gap-2 min-w-0">
                         <Mail className="h-4 w-4 text-primary shrink-0" />
                         <div className="min-w-0">
-                          <p className="text-sm font-mono truncate">{acct.email}</p>
+                          <p className="text-sm font-medium truncate">{acct.label || acct.email}</p>
+                          <p className="text-[10px] text-muted-foreground font-mono truncate">{acct.email}</p>
                           <p className="text-[10px] text-muted-foreground">
                             {PROVIDER_LABELS[acct.provider] ?? acct.provider}
                             {' · '}
@@ -554,27 +733,115 @@ export default function OrganizationPage() {
                           </p>
                         </div>
                       </div>
-                      <Button
-                        variant="ghost" size="sm"
-                        className="text-destructive text-xs shrink-0"
-                        onClick={() => handleRemoveAccount(acct.id)}
-                        disabled={removingId === acct.id}
-                      >
-                        {removingId === acct.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Remove'}
-                      </Button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button variant="ghost" size="sm" className="text-xs" onClick={() => startEditAccount(acct)} title="Edit">
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost" size="sm"
+                          className="text-destructive text-xs"
+                          onClick={() => handleRemoveAccount(acct.id)}
+                          disabled={removingId === acct.id}
+                        >
+                          {removingId === acct.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Remove'}
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
               )}
 
-              {emailAccounts.length === 0 && !addImapOpen && (
+              {emailAccounts.length === 0 && !addImapOpen && !editingAccountId && (
                 <p className="text-xs text-muted-foreground mb-3">
                   Connect an email inbox to automatically import CarGurus, AutoTrader, and OfferUp leads every 15 minutes.
                 </p>
               )}
 
+              {/* Edit email account form */}
+              {editingAccountId && (
+                <div className="space-y-3 p-3 rounded-lg border bg-card mb-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">{editAccountIsOAuth ? 'Edit account label' : 'Edit Email Account'}</p>
+                    <button onClick={cancelEditAccount} className="text-muted-foreground hover:text-foreground">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                  {editAccountIsOAuth ? (
+                    <div className="space-y-2">
+                      <Label className="text-xs">Display name (e.g. Main Inbox)</Label>
+                      <Input
+                        placeholder="Label"
+                        value={imapLabel}
+                        onChange={e => setImapLabel(e.target.value)}
+                        className="h-9"
+                      />
+                      <p className="text-[10px] text-muted-foreground">Gmail OAuth accounts: only the label can be changed. To use different credentials, remove and reconnect.</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Label (optional)</Label>
+                        <Input placeholder="e.g. Main Inbox" value={imapLabel} onChange={e => setImapLabel(e.target.value)} className="h-9" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Provider</Label>
+                        <Select value={imapProvider} onValueChange={handleProviderChange}>
+                          <SelectTrigger className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {EMAIL_PROVIDERS.map(p => (
+                              <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Email Address</Label>
+                        <Input type="email" placeholder="you@example.com" value={imapEmail} onChange={e => setImapEmail(e.target.value)} className="h-9" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">App Password (leave blank to keep current)</Label>
+                        <div className="relative">
+                          <Input
+                            type={showImapPass ? 'text' : 'password'}
+                            placeholder="••••••••••••••••"
+                            value={imapPass}
+                            onChange={e => setImapPass(e.target.value)}
+                            className="h-9 font-mono pr-9"
+                          />
+                          <button type="button" onClick={() => setShowImapPass(p => !p)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground rounded" aria-label={showImapPass ? 'Hide password' : 'Show password'}>
+                            {showImapPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                      </div>
+                      {imapProvider === 'imap' && (
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="col-span-2 space-y-1">
+                            <Label className="text-xs">IMAP Host</Label>
+                            <Input placeholder="imap.example.com" value={imapHost} onChange={e => setImapHost(e.target.value)} className="h-9 font-mono text-xs" />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Port</Label>
+                            <Input value={imapPort} onChange={e => setImapPort(e.target.value.replace(/\D/g, ''))} className="h-9 font-mono text-xs" />
+                          </div>
+                        </div>
+                      )}
+                      <div className="space-y-1">
+                        <Label className="text-xs">IMAP User (if different from email)</Label>
+                        <Input placeholder="Leave blank to use email" value={imapUser} onChange={e => setImapUser(e.target.value)} className="h-9" />
+                      </div>
+                    </>
+                  )}
+                  {imapError && <p className="text-xs text-destructive">{imapError}</p>}
+                  <Button className="w-full" size="sm" onClick={handleUpdateAccount} disabled={imapSaving}>
+                    {imapSaving ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Updating…</> : 'Update'}
+                  </Button>
+                </div>
+              )}
+
               {/* Add buttons */}
-              {!addImapOpen && (
+              {!addImapOpen && !editingAccountId && (
                 <div className="flex flex-wrap gap-2">
                   <a href="/api/integrations/gmail/connect">
                     <Button variant="outline" size="sm">
@@ -594,7 +861,7 @@ export default function OrganizationPage() {
                 <div className="space-y-3 p-3 rounded-lg border bg-card">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium">Add Email Account</p>
-                    <button onClick={() => { setAddImapOpen(false); setImapError(null) }}>
+                    <button onClick={() => { setAddImapOpen(false); setImapError(null); setShowImapPass(false) }}>
                       <X className="h-4 w-4 text-muted-foreground" />
                     </button>
                   </div>
@@ -629,13 +896,28 @@ export default function OrganizationPage() {
 
                   <div className="space-y-1">
                     <Label className="text-xs">App Password</Label>
-                    <Input
-                      type="password"
-                      placeholder="••••••••••••••••"
-                      value={imapPass}
-                      onChange={e => setImapPass(e.target.value)}
-                      className="h-9 font-mono"
-                    />
+                    <div className="relative">
+                      <Input
+                        type={showImapPass ? 'text' : 'password'}
+                        placeholder="••••••••••••••••"
+                        value={imapPass}
+                        onChange={e => setImapPass(e.target.value)}
+                        className="h-9 font-mono pr-9"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowImapPass(p => !p)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground rounded"
+                        aria-label={showImapPass ? 'Hide password' : 'Show password'}
+                      >
+                        {showImapPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    {imapProvider === 'gmail' && (
+                      <p className="text-[10px] text-muted-foreground">
+                        Use a Gmail App Password, not your regular password. Create one at myaccount.google.com → Security → 2-Step Verification → App passwords.
+                      </p>
+                    )}
                   </div>
 
                   {imapProvider === 'imap' && (
@@ -675,6 +957,58 @@ export default function OrganizationPage() {
                   </Button>
                 </div>
               )}
+
+              {/* Lead Import */}
+              <div className="pt-2 border-t">
+                <p className="text-sm font-semibold mb-2">Lead Import</p>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Upload a CSV or Excel file with columns for Name and Phone or Email. Use the template or your own — we recognize many column names.
+                </p>
+                <div className="flex flex-col gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-center gap-2"
+                    onClick={handleDownloadImportTemplate}
+                  >
+                    <Download className="h-4 w-4" />
+                    Download template (CSV)
+                  </Button>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium">Your file (CSV or XLSX, max 2 MB, 500 rows)</label>
+                    <input
+                      type="file"
+                      accept=".csv,.xlsx,.xls"
+                      className="text-sm file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-primary file:text-primary-foreground file:text-sm"
+                      onChange={e => {
+                        setImportFile(e.target.files?.[0] ?? null)
+                        setImportError(null)
+                        setImportSummary(null)
+                      }}
+                    />
+                  </div>
+                  {importError && <p className="text-xs text-destructive">{importError}</p>}
+                  {importSummary && (
+                    <div className="rounded-lg border bg-muted/50 p-2 text-xs space-y-0.5">
+                      <p className="font-medium">Import complete</p>
+                      <p>{importSummary.created} created</p>
+                      {importSummary.duplicate > 0 && <p>{importSummary.duplicate} duplicates skipped</p>}
+                      {importSummary.skipped > 0 && <p>{importSummary.skipped} skipped (no name or contact)</p>}
+                      {importSummary.errors > 0 && <p>{importSummary.errors} errors</p>}
+                      {importSummary.over_limit > 0 && <p className="text-muted-foreground">First 500 rows only; {importSummary.over_limit} not imported.</p>}
+                    </div>
+                  )}
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    onClick={handleImportLeads}
+                    disabled={importLoading || !importFile}
+                  >
+                    {importLoading ? 'Importing…' : 'Import'}
+                  </Button>
+                </div>
+              </div>
             </div>
 
             {/* Voice Agent Settings */}
@@ -827,18 +1161,61 @@ export default function OrganizationPage() {
               <div className="space-y-2">
                 {locations.map(loc => (
                   <div key={loc.id} className="flex items-start justify-between p-3 rounded-lg border bg-card gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                        <p className="text-sm font-medium truncate">{loc.name}</p>
-                        {loc.is_primary && <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">Primary</span>}
+                    {editingLocationId === loc.id && editLocDraft?.id === loc.id ? (
+                      <div className="flex-1 space-y-2 min-w-0">
+                        <Input
+                          placeholder="Location Name"
+                          value={editLocDraft.name}
+                          onChange={e => setEditLocDraft(d => d ? { ...d, name: e.target.value } : null)}
+                          className="h-9 text-sm"
+                        />
+                        <Input
+                          placeholder="Address"
+                          value={editLocDraft.address}
+                          onChange={e => setEditLocDraft(d => d ? { ...d, address: e.target.value } : null)}
+                          className="h-9 text-sm"
+                        />
+                        <Input
+                          placeholder="Phone (optional)"
+                          value={editLocDraft.phone}
+                          onChange={e => setEditLocDraft(d => d ? { ...d, phone: e.target.value } : null)}
+                          className="h-9 text-sm"
+                        />
+                        <label className="flex items-center gap-2 text-xs">
+                          <input
+                            type="checkbox"
+                            checked={editLocDraft.is_primary}
+                            onChange={e => setEditLocDraft(d => d ? { ...d, is_primary: e.target.checked } : null)}
+                            className="rounded"
+                          />
+                          Set as primary location
+                        </label>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" onClick={cancelEditLocation}>Cancel</Button>
+                          <Button size="sm" onClick={saveEditLocation} disabled={!editLocDraft.name.trim() || !editLocDraft.address.trim()}>Save</Button>
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5 ml-5">{loc.address}</p>
-                      {loc.phone && <p className="text-xs text-muted-foreground ml-5">{loc.phone}</p>}
-                    </div>
-                    <button onClick={() => removeLocation(loc.id)} className="text-muted-foreground hover:text-destructive shrink-0">
-                      <X className="h-4 w-4" />
-                    </button>
+                    ) : (
+                      <>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <p className="text-sm font-medium truncate">{loc.name}</p>
+                            {loc.is_primary && <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">Primary</span>}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5 ml-5">{loc.address}</p>
+                          {loc.phone && <p className="text-xs text-muted-foreground ml-5">{loc.phone}</p>}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button onClick={() => startEditLocation(loc)} className="p-1.5 text-muted-foreground hover:text-foreground rounded" title="Edit">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button onClick={() => removeLocation(loc.id)} className="p-1.5 text-muted-foreground hover:text-destructive rounded" title="Remove">
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
                 {locations.length === 0 && (

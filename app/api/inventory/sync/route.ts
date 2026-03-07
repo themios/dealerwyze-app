@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from '@/lib/auth/profile'
+import { isDealerAdmin } from '@/types/index'
+import type { UserRole } from '@/types/index'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -143,7 +145,7 @@ function vehicleLinkKey(v: ScrapedVehicle): string {
 
 export async function POST(req: NextRequest) {
   const profile = await requireProfile()
-  if (profile.role !== 'admin') {
+  if (!isDealerAdmin(profile.role as UserRole)) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 })
   }
 
@@ -242,7 +244,7 @@ export async function POST(req: NextRequest) {
     if (!error) added = toAdd.length
   }
 
-  // Update listing_url on existing vehicles that now have a URL
+  // Update listing_url on existing vehicles from scraped data (so email {link} uses actual car page)
   for (const v of (existing || [])) {
     const scraped = scrapedByKey.get(v.stock_no)
     if (scraped?.listing_url) {
@@ -250,7 +252,6 @@ export async function POST(req: NextRequest) {
         .from('vehicles')
         .update({ listing_url: scraped.listing_url })
         .eq('id', v.id)
-        .is('listing_url', null)
     }
   }
 

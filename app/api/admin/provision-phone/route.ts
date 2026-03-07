@@ -145,9 +145,8 @@ export async function POST(req: NextRequest) {
  */
 export async function DELETE(req: NextRequest) {
   const profile = await requireProfile()
-  if (profile.role !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  const denied  = await requirePlatformSuperAdmin(profile.id)
+  if (denied) return denied
 
   const supabase = createServiceClient()
   const body = await req.json() as { org_id?: string }

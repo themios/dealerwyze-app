@@ -46,6 +46,13 @@ RULES:
 - For screenshots: read all visible text including sender names, timestamps if helpful
 - budget: extract as integer (e.g. 25000 from "$25,000" or "25k")`
 
+const TEXT_LEAD_PROMPT = `The following is pasted lead text (e.g. from a CarGurus, AutoTrader, OfferUp, or generic lead form/email). Extract all car buyer lead information.
+
+Each field must have a "value" and "confidence" ("high" | "medium" | "low"). Use null for value when not found.
+lead_source: set to "CarGurus", "AutoTrader", "OfferUp", "Facebook", "KBB", "Autolist", "Carsforsale", or "other" based on wording (e.g. "Lead Submission from CarGurus" → "CarGurus", "Kelley Blue Book" or "KBB" → "KBB").
+phone: normalize to digits only in value; if you see (951) 427-9675, use "9514279675" and high confidence.
+Return ONLY the same JSON structure as the image prompt (first_name, last_name, phone, email, city, state, zip, vehicle_*, vehicle_vin, budget, lead_source, notes, urgency, trade_in, overall_confidence). No markdown, no code fences.`
+
 // ── JSON extractor (same pattern as business card scanner) ────────────────────
 
 function parseResponse(text: string): LeadScanResult {
@@ -55,6 +62,28 @@ function parseResponse(text: string): LeadScanResult {
     throw new Error(`No JSON in AI response: ${text.slice(0, 200)}`)
   }
   return JSON.parse(text.slice(start, end + 1)) as LeadScanResult
+}
+
+// ── Pasted text scan (Haiku — any format: CarGurus, AutoTrader, OfferUp, generic) ─
+
+export async function scanLeadText(pastedText: string): Promise<LeadScanResult> {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
+  const { default: Anthropic } = await import('@anthropic-ai/sdk')
+  const client = new Anthropic({ apiKey })
+
+  const response = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 600,
+    system: SYSTEM_PROMPT,
+    messages: [{
+      role: 'user',
+      content: `${TEXT_LEAD_PROMPT}\n\n---\nTEXT:\n${pastedText.slice(0, 8000)}`,
+    }],
+  })
+
+  const text = response.content[0]?.type === 'text' ? response.content[0].text : ''
+  return parseResponse(text)
 }
 
 // ── Image scan (Haiku — fast + cheap) ─────────────────────────────────────────
@@ -138,10 +167,13 @@ export function scanResultToParsedLead(scan: LeadScanResult): ParsedLead {
 
   const src = scan.lead_source.value?.toLowerCase() ?? ''
   let source: ParsedLead['source'] = 'other'
-  if (src.includes('cargurus'))   source = 'cargurus'
+  if (src.includes('cargurus'))     source = 'cargurus'
   else if (src.includes('autotrader')) source = 'autotrader'
   else if (src.includes('offerup'))    source = 'offerup'
   else if (src.includes('facebook'))   source = 'facebook'
+  else if (src.includes('kbb'))        source = 'kbb'
+  else if (src.includes('autolist'))   source = 'autolist'
+  else if (src.includes('carsforsale')) source = 'carsforsale'
 
   return {
     name,

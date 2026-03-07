@@ -15,8 +15,8 @@ import { LEAD_STATE_CONFIG } from '@/lib/leads/states'
 const SOURCE_LABELS: Record<string, string> = {
   cargurus: 'CarGurus', cargurus_digest: 'CG Digest',
   autotrader: 'AutoTrader', offerup: 'OfferUp',
-  facebook: 'Facebook', voice: 'Voice',
-  manual: 'Manual', direct: 'Direct',
+  facebook: 'Facebook', kbb: 'KBB', autolist: 'Autolist', carsforsale: 'Carsforsale',
+  voice: 'Voice', manual: 'Manual', direct: 'Direct',
 }
 
 function timeAgo(iso: string | null | undefined): string {

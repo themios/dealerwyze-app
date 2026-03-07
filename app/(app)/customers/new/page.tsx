@@ -37,6 +37,14 @@ export default function NewCustomerPage() {
     if (!form.name) return
     setSaving(true)
 
+    // Free tier cap: 200 contacts
+    const { count } = await supabase.from('customers').select('id', { count: 'exact', head: true })
+    if ((count ?? 0) >= 200) {
+      setSaving(false)
+      alert('You\'ve reached the 200-contact limit for the free beta tier. Contact support@dealerwyze.com if you need more.')
+      return
+    }
+
     const { data, error } = await supabase
       .from('customers')
       .insert({
@@ -110,6 +118,9 @@ export default function NewCustomerPage() {
               <SelectItem value="craigslist">Craigslist</SelectItem>
               <SelectItem value="cargurus">CarGurus</SelectItem>
               <SelectItem value="autotrader">AutoTrader</SelectItem>
+              <SelectItem value="kbb">KBB</SelectItem>
+              <SelectItem value="autolist">Autolist</SelectItem>
+              <SelectItem value="carsforsale">Carsforsale.com</SelectItem>
               <SelectItem value="referral">Referral</SelectItem>
               <SelectItem value="walkin">Walk-in</SelectItem>
               <SelectItem value="direct">Direct / Other</SelectItem>

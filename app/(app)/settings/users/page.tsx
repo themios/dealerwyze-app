@@ -59,7 +59,7 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [showDeactivated, setShowDeactivated] = useState(false)
-  const [form, setForm] = useState({ email: '', display_name: '', password: '', role: 'dealer_staff' as UserRole })
+  const [form, setForm] = useState({ email: '', display_name: '', password: '', role: 'dealer_rep' as UserRole })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState<string | null>(null)

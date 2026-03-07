@@ -1,0 +1,129 @@
+'use client'
+
+import { useState } from 'react'
+import { MessageSquarePlus, X, Send, Loader2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+
+type FeedbackType = 'bug' | 'suggestion' | 'question' | 'compliment'
+
+export default function FeedbackButton() {
+  const [open, setOpen]       = useState(false)
+  const [type, setType]       = useState<FeedbackType>('suggestion')
+  const [message, setMessage] = useState('')
+  const [sending, setSending] = useState(false)
+  const [sent, setSent]       = useState(false)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!message.trim()) return
+    setSending(true)
+    try {
+      await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, message }),
+      })
+      setSent(true)
+      setTimeout(() => {
+        setOpen(false)
+        setSent(false)
+        setMessage('')
+        setType('suggestion')
+      }, 2000)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <>
+      {/* Floating trigger button */}
+      <button
+        onClick={() => setOpen(true)}
+        className="fixed bottom-20 right-4 z-50 lg:bottom-6 lg:right-6 flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg font-semibold text-sm text-white transition-all hover:opacity-90 active:scale-95"
+        style={{ backgroundColor: '#0D2B55', boxShadow: '0 4px 16px rgba(13,43,85,0.35)' }}
+        aria-label="Send feedback">
+        <MessageSquarePlus className="w-4 h-4" />
+        <span className="hidden sm:inline">Feedback</span>
+      </button>
+
+      {/* Modal overlay */}
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setOpen(false) }}>
+          <div className="w-full max-w-md rounded-2xl p-6 shadow-2xl"
+            style={{ backgroundColor: '#fff' }}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-black" style={{ color: '#0D2B55' }}>
+                Share Your Feedback
+              </h2>
+              <button onClick={() => setOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors" aria-label="Close">
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+
+            {sent ? (
+              <div className="text-center py-8">
+                <div className="text-4xl mb-3">🙏</div>
+                <p className="font-bold text-lg" style={{ color: '#0D2B55' }}>Thank you!</p>
+                <p className="text-sm text-muted-foreground mt-1">Your feedback helps shape DealerWyze.</p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="feedback-type" className="text-sm font-semibold">Type</Label>
+                  <Select value={type} onValueChange={(v) => setType(v as FeedbackType)}>
+                    <SelectTrigger id="feedback-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bug">🐛 Bug report</SelectItem>
+                      <SelectItem value="suggestion">💡 Suggestion / improvement</SelectItem>
+                      <SelectItem value="question">❓ Question</SelectItem>
+                      <SelectItem value="compliment">⭐ Compliment</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="feedback-message" className="text-sm font-semibold">
+                    {type === 'bug' ? 'Describe the bug — what happened vs. what you expected' : 'Your message'}
+                  </Label>
+                  <Textarea
+                    id="feedback-message"
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    placeholder={
+                      type === 'bug'
+                        ? 'Steps to reproduce: 1. I went to... 2. I clicked... 3. Expected X but got Y'
+                        : 'Tell us what you think...'
+                    }
+                    rows={5}
+                    className="resize-none"
+                    required
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-1">
+                  <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={sending || !message.trim()} className="flex-1">
+                    {sending
+                      ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Sending…</>
+                      : <><Send className="w-4 h-4 mr-2" /> Send</>}
+                  </Button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  )
+}

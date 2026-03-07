@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ArrowLeft, Phone, Mic, Users, Loader2, RefreshCw, Eye, ExternalLink, AlertOctagon } from 'lucide-react'
+import { ArrowLeft, Phone, Mic, Users, Loader2, RefreshCw, Eye, ExternalLink, AlertOctagon, Pencil } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -62,6 +62,19 @@ interface ActivityFeed {
   feature_heatmap: Record<string, boolean>
 }
 
+interface ShadowLineItem {
+  label: string
+  units: number
+  rate: number
+  amount: number
+}
+
+interface ShadowBilling {
+  org_id: string
+  line_items: ShadowLineItem[]
+  total: number
+}
+
 const STATUS_STYLES: Record<string, string> = {
   active:    'bg-green-100 text-green-700',
   trialing:  'bg-blue-100 text-blue-700',
@@ -107,12 +120,14 @@ export default function AdminOrgDetailPage() {
   const { id: orgId } = useParams<{ id: string }>()
   const router = useRouter()
 
-  const [data, setData]           = useState<OrgDetail | null>(null)
-  const [activity, setActivity]   = useState<ActivityFeed | null>(null)
-  const [loading, setLoading]     = useState(true)
-  const [saving, setSaving]       = useState<string | null>(null)
-  const [error, setError]         = useState<string | null>(null)
-  const [success, setSuccess]     = useState<string | null>(null)
+  const [data, setData]             = useState<OrgDetail | null>(null)
+  const [activity, setActivity]     = useState<ActivityFeed | null>(null)
+  const [shadowBilling, setShadow]  = useState<ShadowBilling | null>(null)
+  const [showShadow, setShowShadow] = useState(false)
+  const [loading, setLoading]       = useState(true)
+  const [saving, setSaving]         = useState<string | null>(null)
+  const [error, setError]           = useState<string | null>(null)
+  const [success, setSuccess]       = useState<string | null>(null)
   const [impersonating, setImpersonating] = useState(false)
 
   const [planVal, setPlanVal]       = useState('')
@@ -139,20 +154,24 @@ export default function AdminOrgDetailPage() {
     fetch(`/api/admin/orgs/${orgId}/activity`)
       .then(r => r.ok ? r.json() : null)
       .then(d => d && setActivity(d))
+
+    fetch(`/api/admin/orgs/${orgId}/shadow-billing`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => d && setShadow(d))
   }, [orgId])
 
-  async function startImpersonation() {
+  async function startImpersonation(writeMode = false) {
     setImpersonating(true)
     const res = await fetch('/api/admin/impersonate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ org_id: orgId }),
+      body: JSON.stringify({ org_id: orgId, write_mode: writeMode }),
     })
     if (res.ok) {
       router.push('/today')
     } else {
       setImpersonating(false)
-      setError('Failed to start impersonation session')
+      setError('Failed to start session')
     }
   }
 
@@ -208,14 +227,6 @@ export default function AdminOrgDetailPage() {
           )}
         </div>
         <Badge label={org.subscription_status ?? org.plan} />
-        <button
-          onClick={startImpersonation}
-          disabled={impersonating}
-          title="View as this org (read-only)"
-          className="text-muted-foreground hover:text-foreground disabled:opacity-50"
-        >
-          <Eye className="h-5 w-5" />
-        </button>
       </div>
 
       <div className="px-4 py-4 space-y-5">
@@ -344,6 +355,79 @@ export default function AdminOrgDetailPage() {
           </section>
         )}
 
+        {/* Remote support */}
+        <section className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Remote Support</p>
+          <div className="rounded-xl border bg-card p-3 space-y-3">
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Start a session to assist this dealer. Read-only mode lets you browse without risk.
+              Remote Admin mode lets you make changes on their behalf — all actions are audited.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                size="sm" variant="outline" className="h-9 text-xs gap-1.5"
+                onClick={() => startImpersonation(false)}
+                disabled={impersonating}
+              >
+                {impersonating
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <Eye className="h-3.5 w-3.5" />}
+                View as Org
+              </Button>
+              <Button
+                size="sm"
+                className="h-9 text-xs gap-1.5 bg-orange-500 hover:bg-orange-600 text-white"
+                onClick={() => {
+                  if (!confirm(`Start Remote Admin session for ${org.name}?\n\nYou will be able to make changes on their behalf. All actions are logged to the audit trail.`)) return
+                  startImpersonation(true)
+                }}
+                disabled={impersonating}
+              >
+                {impersonating
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <Pencil className="h-3.5 w-3.5" />}
+                Remote Admin
+              </Button>
+            </div>
+          </div>
+        </section>
+
+        {/* Shadow billing ledger */}
+        {shadowBilling && (
+          <section className="space-y-2">
+            <button
+              className="flex items-center justify-between w-full text-xs font-semibold text-muted-foreground uppercase tracking-wide"
+              onClick={() => setShowShadow(v => !v)}
+            >
+              <span>Shadow Billing (list-rate exposure)</span>
+              <span className={`font-bold ${shadowBilling.total > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                {fmtCurrency(shadowBilling.total)} {showShadow ? '▲' : '▼'}
+              </span>
+            </button>
+            {showShadow && (
+              <div className="rounded-xl border bg-card divide-y text-sm">
+                {shadowBilling.line_items.map(item => (
+                  <div key={item.label} className="flex items-center justify-between px-3 py-2 gap-3">
+                    <div>
+                      <p className="text-xs">{item.label}</p>
+                      <p className="text-[10px] text-muted-foreground">{item.units} units × ${item.rate.toFixed(2)}</p>
+                    </div>
+                    <span className={`text-xs font-medium ${item.amount > 0 ? 'text-orange-600' : 'text-muted-foreground'}`}>
+                      {fmtCurrency(item.amount)}
+                    </span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between px-3 py-2.5 gap-3 font-semibold">
+                  <span className="text-xs">Total list-rate exposure</span>
+                  <span className={`text-sm ${shadowBilling.total > 0 ? 'text-orange-600' : 'text-muted-foreground'}`}>
+                    {fmtCurrency(shadowBilling.total)}
+                  </span>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
         {/* Actions */}
         <section className="space-y-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Actions</p>
@@ -408,7 +492,7 @@ export default function AdminOrgDetailPage() {
           <div className="rounded-xl border bg-card p-3 flex items-center justify-between">
             <div>
               <p className="text-xs font-medium">SMS Overage</p>
-              <p className="text-[10px] text-muted-foreground">Allow messages beyond quota at $0.03/msg</p>
+              <p className="text-[10px] text-muted-foreground">Allow messages beyond quota at $0.08/msg</p>
             </div>
             <Button
               size="sm" variant="outline" className="h-8 text-xs"
@@ -420,28 +504,33 @@ export default function AdminOrgDetailPage() {
           </div>
 
           {/* Billing / count resets */}
-          <div className="rounded-xl border bg-card p-3 space-y-2">
-            <p className="text-xs font-medium">Reset Actions</p>
+          <div className="rounded-xl border border-orange-200 bg-orange-50 dark:bg-orange-950/20 p-3 space-y-2">
+            <div>
+              <p className="text-xs font-medium text-orange-800 dark:text-orange-300">Manual Override Actions</p>
+              <p className="text-[10px] text-orange-700/70 dark:text-orange-400/70 mt-0.5">Use only when Stripe sync fails or customer support requires it</p>
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <Button
-                size="sm" variant="outline" className="h-8 text-xs"
+                size="sm" variant="outline" className="h-8 text-xs border-orange-300"
                 onClick={() => {
-                  if (!confirm('Reset the billing cycle? This zeroes SMS + voice counts and sets cycle start to today.')) return
+                  if (!confirm('Reset the billing cycle?\n\nThis zeroes SMS + voice counts and sets cycle start to today.\n\nUse only if Stripe billing cycle is out of sync.')) return
                   doAction('reset_billing', {}, 'Billing cycle reset')
                 }}
                 disabled={!!saving}
+                title="Zeroes usage counts and restarts billing cycle from today. Use if Stripe sync is misaligned."
               >
                 {saving === 'reset_billing'
                   ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   : <><RefreshCw className="h-3 w-3 mr-1" />Billing Cycle</>}
               </Button>
               <Button
-                size="sm" variant="outline" className="h-8 text-xs"
+                size="sm" variant="outline" className="h-8 text-xs border-orange-300"
                 onClick={() => {
-                  if (!confirm('Reset SMS count to 0?')) return
+                  if (!confirm('Reset SMS count to 0?\n\nOnly use this if the count is wrong due to a system error.')) return
                   doAction('reset_sms_count', {}, 'SMS count reset')
                 }}
                 disabled={!!saving}
+                title="Manually zeroes the SMS usage counter. Use only if count is incorrect."
               >
                 {saving === 'reset_sms_count'
                   ? <Loader2 className="h-3.5 w-3.5 animate-spin" />

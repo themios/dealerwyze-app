@@ -1,5 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
+import crypto from 'crypto'
+
+function validateTwilioSignature(
+  authToken: string,
+  signature: string,
+  url: string,
+  params: Record<string, string>
+): boolean {
+  const sortedParams = Object.keys(params).sort().reduce((s, k) => s + k + params[k], '')
+  const expected = crypto.createHmac('sha1', authToken).update(url + sortedParams).digest('base64')
+  try {
+    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature))
+  } catch { return false }
+}
 
 /**
  * POST /api/fax/callback
@@ -11,11 +25,21 @@ import { createServiceClient } from '@/lib/supabase/service'
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
   let body: URLSearchParams
+  let rawText: string
   try {
-    const text = await req.text()
-    body = new URLSearchParams(text)
+    rawText = await req.text()
+    body = new URLSearchParams(rawText)
   } catch {
     return new NextResponse('Bad Request', { status: 400 })
+  }
+
+  // Verify Twilio signature before processing
+  const authToken  = process.env.TWILIO_AUTH_TOKEN ?? ''
+  const signature  = req.headers.get('x-twilio-signature') ?? ''
+  const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/fax/callback`
+  const paramObj   = Object.fromEntries(body.entries())
+  if (!validateTwilioSignature(authToken, signature, webhookUrl, paramObj)) {
+    return new NextResponse('Forbidden', { status: 403 })
   }
 
   const faxSid      = body.get('FaxSid')

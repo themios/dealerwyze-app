@@ -11,6 +11,7 @@ interface ScanLimits {
 }
 
 export const SCAN_QUOTA: Record<PlanTier, ScanLimits> = {
+  free:  { monthly_images: 0,   monthly_pdfs: 0,   daily_images: 0, daily_pdfs: 0 },   // Free plan — no scan
   tier1: { monthly_images: 100, monthly_pdfs:  25, daily_images: 20, daily_pdfs: 10 },
   tier2: { monthly_images: 200, monthly_pdfs:  50, daily_images: 20, daily_pdfs: 10 },
   tier3: { monthly_images: 500, monthly_pdfs: 150, daily_images: 20, daily_pdfs: 10 },

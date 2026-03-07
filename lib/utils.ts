@@ -59,6 +59,13 @@ export function fillTemplate(template: string, vars: Record<string, string>): st
   return template.replace(/\{(\w+)\}/g, (match, key) => key in vars ? vars[key] : match)
 }
 
+/** Prefix activity/note body with author so entries show who wrote them. */
+export function prefixWithAuthorName(displayName: string | null | undefined, body: string): string {
+  const name = displayName?.trim()
+  if (!name) return body
+  return `name: ${name}\n${body}`
+}
+
 function daysSince(iso: string): number {
   return Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)
 }
@@ -84,4 +91,34 @@ export function lastContactBadge(lastAt: string | null): { label: string; cls: s
   if (d <= 7)  return { label: `${d}d ago`,      cls: 'bg-orange-100 text-orange-700' }
   if (d <= 30) return { label: `${Math.floor(d / 7)}w ago`, cls: 'bg-red-100 text-red-700' }
   return { label: `${Math.floor(d / 30)}mo ago`, cls: 'bg-red-200 text-red-800' }
+}
+
+/** Date-only (start of day) for comparison */
+function toDateKey(d: Date): string {
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * Whether an activity that was "addressed" (user opened customer from Today) should
+ * show again on the given date. Addressed cards hide until the next calendar day or
+ * the activity's follow-up due date, whichever applies.
+ */
+export function shouldShowAddressedActivity(
+  activity: { addressed_at?: string | null; due_at?: string | null },
+  asOf: Date = new Date()
+): boolean {
+  if (!activity.addressed_at) return true
+  const addressedDate = toDateKey(new Date(activity.addressed_at))
+  const today = toDateKey(asOf)
+  if (today === addressedDate) return false
+  if (today > addressedDate) {
+    const dueDate = activity.due_at ? toDateKey(new Date(activity.due_at)) : null
+    if (dueDate && dueDate > addressedDate && today < dueDate) return false
+    return true
+  }
+  if (activity.due_at) {
+    const dueDate = toDateKey(new Date(activity.due_at))
+    if (today >= dueDate) return true
+  }
+  return false
 }

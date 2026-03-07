@@ -15,11 +15,7 @@ export default async function LedgerPage() {
     await Promise.all([
       supabase
         .from('ledger_transactions')
-        .select(`
-          id, date, vendor_norm, amount_total, tax, memo, tags, vehicle_id, created_at,
-          receipt_categories(name),
-          vehicles(stock_no, year, make, model)
-        `)
+        .select('id, date, vendor_norm, amount_total, tax, memo, tags, vehicle_id, category_id, created_at')
         .eq('user_id', profile.org_id)
         .eq('status', 'posted')
         .order('date', { ascending: false })
@@ -46,6 +42,8 @@ export default async function LedgerPage() {
         .limit(40),
     ])
 
+  const allVehicles = [...(lotVehicles ?? []), ...(soldVehicles ?? [])]
+
   return (
     <div className="pb-4">
       <TopBar title="Ledger" />
@@ -54,7 +52,8 @@ export default async function LedgerPage() {
         categories={categories ?? []}
         lotVehicles={lotVehicles ?? []}
         soldVehicles={soldVehicles ?? []}
-        isAdmin={profile.role === 'admin'}
+        allVehicles={allVehicles}
+        isAdmin={profile.role === 'admin' || profile.role === 'dealer_admin'}
       />
     </div>
   )

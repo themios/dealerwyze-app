@@ -13,7 +13,18 @@ interface ImapAccount {
   imap_pass: string
 }
 
-const LEAD_DOMAINS = ['cargurus.com', 'autotrader.com', 'offerup.com']
+const LEAD_DOMAINS = [
+  'cargurus.com',
+  'messages.cargurus.com',
+  'autotrader.com',
+  'messages.autotrader.com',
+  'offerup.com',
+  'messages.offerup.com',
+  'kbb.com',
+  'autolist.com',
+  'carsforsalemail.com',
+  'facebookmail.com',
+]
 
 /**
  * Poll an IMAP mailbox for new lead emails.
@@ -39,11 +50,10 @@ export async function pollImapAccount(
     const lock = await client.getMailboxLock('INBOX')
 
     try {
-      const uidsRaw = await client.search({ since, seen: false })
+      const uidsRaw = await client.search({ since })
       const uids = Array.isArray(uidsRaw) ? uidsRaw : []
       if (!uids.length) return { processed: 0, results: [] }
 
-      // Cap at 20 most recent to avoid long runs
       const recentUids = uids.slice(-20)
 
       for await (const msg of client.fetch(recentUids, { source: true, envelope: true })) {
@@ -55,7 +65,10 @@ export async function pollImapAccount(
         const parsed    = await simpleParser(msg.source)
         const subject   = parsed.subject || ''
         const messageId = parsed.messageId || `imap-${account.imap_host}-${msg.uid}`
-        const text      = parsed.text || ''
+        let text        = parsed.text || ''
+        if (!text && parsed.html) {
+          text = parsed.html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+        }
 
         // Mark seen immediately so re-runs don't re-process
         await client.messageFlagsAdd(String(msg.uid), ['\\Seen'])
@@ -100,6 +113,28 @@ export async function pollImapAccount(
   return { processed: results.length, results }
 }
 
+function formatImapError(err: unknown, host?: string): string {
+  if (err instanceof Error) {
+    const msg = err.message?.trim() || String(err)
+    const extra = (err as { response?: { text?: string } }).response?.text
+      || (err as { responseText?: string }).responseText
+    const cause = (err as { cause?: Error }).cause?.message
+    let out = extra ? `${msg}: ${extra}` : cause ? `${msg} (${cause})` : msg
+    const isGmail = host && (host.includes('gmail.com') || host.includes('google'))
+    const isInvalidCreds = msg.includes('Invalid credentials') || msg.includes('Authentication failed')
+    const isVague = msg === 'Command failed' || msg.includes('Authentication') || msg.includes('Invalid credentials')
+    if (isGmail && isVague) {
+      if (isInvalidCreds) {
+        out += ' For Gmail: use an App Password (not your regular password) at myaccount.google.com → Security → 2-Step Verification → App passwords; ensure IMAP is enabled in Gmail → Settings → See all settings → Forwarding and POP/IMAP.'
+      } else if (!out.includes('App Password')) {
+        out += ' For Gmail, use an App Password (myaccount.google.com → Security → 2-Step Verification → App passwords).'
+      }
+    }
+    return out
+  }
+  return String(err)
+}
+
 /**
  * Test IMAP credentials without saving anything.
  * Used by the POST /api/integrations/email handler to validate before storing.
@@ -121,6 +156,6 @@ export async function testImapConnection(
     await client.logout()
     return { ok: true }
   } catch (err) {
-    return { ok: false, error: String(err) }
+    return { ok: false, error: formatImapError(err, host) }
   }
 }

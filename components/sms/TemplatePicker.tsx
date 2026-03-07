@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Customer, Vehicle } from '@/types'
-import { fillTemplate, formatPhoneForTel } from '@/lib/utils'
+import { fillTemplate, formatPhoneForTel, prefixWithAuthorName } from '@/lib/utils'
 import { useOrgSettings } from '@/hooks/useOrgSettings'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,7 @@ const SMS_TEMPLATES = [
   { category: 'First Contact', name: 'New lead response', body: 'Hi {firstName}, this is Tim at {dealerName}. I saw your inquiry about the {vehicle} — it\'s available! When works for a test drive?' },
   { category: 'First Contact', name: 'Share listing link', body: 'Hi {firstName}! Here\'s the direct link to the {vehicle}: {link} — Any questions? — Tim' },
   { category: 'First Contact', name: 'Online inquiry response', body: 'Hi {firstName}! The {vehicle} at {price} is available. Clean title, great condition. Want to come take a look?' },
+  { category: 'First Contact', name: 'Virtual + delivery + financing', body: 'Hi {firstName}! The {vehicle} at {price} is available. We do virtual walkthroughs, driveway delivery & virtual financing. What time works for a quick virtual look? — {dealerName}' },
 
   // Follow-up
   { category: 'Follow-Up', name: 'Checking in', body: 'Hi {firstName}, just checking in — still interested in the {vehicle}? Happy to answer any questions.' },
@@ -61,7 +62,17 @@ export default function TemplatePicker({ customer, vehicle }: TemplatePickerProp
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [history, setHistory] = useState<SmsMessage[]>([])
+  const [displayName, setDisplayName] = useState<string | null>(null)
   const supabase = createClient()
+
+  useEffect(() => {
+    if (open) {
+      fetch('/api/auth/me')
+        .then(r => r.ok ? r.json() : null)
+        .then(d => setDisplayName(d?.display_name ?? null))
+        .catch(() => setDisplayName(null))
+    }
+  }, [open])
 
   const twilioEnabled = process.env.NEXT_PUBLIC_TWILIO_ENABLED === 'true'
   const orgSettings = useOrgSettings()
@@ -98,12 +109,13 @@ export default function TemplatePicker({ customer, vehicle }: TemplatePickerProp
   }
 
   async function logActivity() {
+    const bodyWithAuthor = prefixWithAuthorName(displayName, body)
     await supabase.from('activities').insert({
       type: 'sms',
       direction: 'outbound',
       customer_id: customer.id,
       vehicle_id: vehicle?.id ?? null,
-      body,
+      body: bodyWithAuthor,
       priority: 'normal',
       completed_at: new Date().toISOString(),
     })

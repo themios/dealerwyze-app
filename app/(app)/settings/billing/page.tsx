@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { CheckCircle, AlertCircle, CreditCard, MessageSquare, Zap, ScanLine } from 'lucide-react'
-import { PLAN_LABEL, PLAN_PRICE, SMS_TIER_PRICE, SMS_TIER_LABEL, SMS_TIER_QUOTA, type PlanTier, type SmsTier } from '@/lib/stripeConstants'
+import { PLAN_LABEL, PLAN_PRICE, SMS_TIER_PRICE, SMS_TIER_LABEL, SMS_TIER_QUOTA, SMS_OVERAGE_RATE, type PlanTier, type SmsTier } from '@/lib/stripeConstants'
 
 interface BillingStatus {
   plan: string
@@ -134,7 +134,7 @@ export default function BillingPage() {
           </p>
         )}
         {isActive && !isTrial && periodEnd && (
-          <p className="text-sm text-muted-foreground mb-3">
+          <p className="text-sm text-muted-foreground mb-3" suppressHydrationWarning>
             Next billing: {periodEnd.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
           </p>
         )}
@@ -177,7 +177,7 @@ export default function BillingPage() {
             <MessageSquare className="h-4 w-4 text-blue-500" />
             <p className="text-sm font-medium">SMS Usage This Month</p>
             {cycleEnd && (
-              <span className="ml-auto text-xs text-muted-foreground">
+              <span className="ml-auto text-xs text-muted-foreground" suppressHydrationWarning>
                 Resets {cycleEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
               </span>
             )}
@@ -186,7 +186,7 @@ export default function BillingPage() {
           <QuotaBar used={mmsUsed} quota={50} label="MMS messages (cap: 50)" />
           {smsUsed > smsQuota && (
             <p className="text-xs text-amber-600 font-medium">
-              {(smsUsed - smsQuota).toLocaleString()} overage messages · billed at $0.03/msg
+              {(smsUsed - smsQuota).toLocaleString()} overage messages · billed at {`$${SMS_OVERAGE_RATE.toFixed(2)}/msg`}
             </p>
           )}
         </div>
@@ -260,7 +260,7 @@ export default function BillingPage() {
             <ScanLine className="h-4 w-4 text-indigo-500" />
             <p className="text-sm font-medium">AI Lead Scan Usage This Month</p>
             {cycleEnd && (
-              <span className="ml-auto text-xs text-muted-foreground">
+              <span className="ml-auto text-xs text-muted-foreground" suppressHydrationWarning>
                 Resets {cycleEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
               </span>
             )}

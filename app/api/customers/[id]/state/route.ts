@@ -48,12 +48,14 @@ export async function PATCH(
     return NextResponse.json({ error: 'Cannot move backward in pipeline', blocked: true }, { status: 409 })
   }
 
-  // Log state change as a note
+  // Log state change as a note (prefixed with author name)
+  const noteBody = `Lead state → "${state}"${reason ? `: ${reason}` : ''}`
+  const bodyWithAuthor = `name: ${profile.display_name}\n${noteBody}`
   await supabase.from('activities').insert({
     user_id:     profile.org_id,
     customer_id: customerId,
     type:        'note',
-    body:        `Lead state → "${state}"${reason ? `: ${reason}` : ''}`,
+    body:        bodyWithAuthor,
   })
 
   return NextResponse.json({ ok: true })

@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { in2hours, tomorrow9am } from '@/lib/utils'
+import { in2hours, tomorrow9am, prefixWithAuthorName } from '@/lib/utils'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -31,7 +31,17 @@ export default function AddTaskModal({ open, onClose, customerId, customerName, 
   const [customDate, setCustomDate] = useState('')
   const [priority, setPriority] = useState<'high' | 'normal'>('normal')
   const [saving, setSaving] = useState(false)
+  const [displayName, setDisplayName] = useState<string | null>(null)
   const supabase = createClient()
+
+  useEffect(() => {
+    if (open) {
+      fetch('/api/auth/me')
+        .then(r => r.ok ? r.json() : null)
+        .then(d => setDisplayName(d?.display_name ?? null))
+        .catch(() => setDisplayName(null))
+    }
+  }, [open])
 
   function getDueAt(): Date | null {
     if (duePreset === '2h') return in2hours()
@@ -43,11 +53,14 @@ export default function AddTaskModal({ open, onClose, customerId, customerName, 
   async function handleSave() {
     setSaving(true)
     const dueAt = getDueAt()
+    const bodyWithAuthor = body?.trim()
+      ? prefixWithAuthorName(displayName, body.trim())
+      : (displayName?.trim() ? `name: ${displayName.trim()}\n` : null)
     await supabase.from('activities').insert({
       type,
       customer_id: customerId,
       vehicle_id: vehicleId ?? null,
-      body: body || null,
+      body: bodyWithAuthor ?? null,
       due_at: dueAt?.toISOString() ?? null,
       priority,
     })

@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -60,10 +61,10 @@ export default function DesktopSidebar({ orgName }: { orgName?: string | null })
   return (
     <aside className="hidden lg:flex flex-col w-60 shrink-0 h-dvh bg-[#0D2B55] border-r border-[#1B4A8A] overflow-y-auto">
       {/* Logo / org name */}
-      <div className="px-5 py-5 border-b border-[#1B4A8A]">
-        <p className="text-[#F07018] font-bold text-lg tracking-tight leading-none">DealerWyze</p>
+      <div className="px-4 py-4 border-b border-[#1B4A8A]">
+        <Image src="/logo.png" alt="DealerWyze" width={160} height={53} className="object-contain rounded-sm" />
         {orgName && (
-          <p className="text-white/50 text-xs mt-1 truncate">{orgName}</p>
+          <p className="text-white/50 text-xs mt-2 truncate">{orgName}</p>
         )}
       </div>
 

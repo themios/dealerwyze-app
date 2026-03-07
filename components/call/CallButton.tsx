@@ -3,7 +3,7 @@
 import { Phone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
-import { formatPhoneForTel } from '@/lib/utils'
+import { formatPhoneForTel, prefixWithAuthorName } from '@/lib/utils'
 import { setPendingCall } from './usePendingCall'
 
 interface CallButtonProps {
@@ -17,6 +17,9 @@ export default function CallButton({ customerId, customerName, phone, className 
   const supabase = createClient()
 
   async function handleCall() {
+    const { display_name } = (await fetch('/api/auth/me').then(r => r.ok ? r.json() : {}).catch(() => ({}))) as { display_name?: string }
+    const bodyWithAuthor = prefixWithAuthorName(display_name, 'Outbound call')
+
     // 1. Create pending activity in DB
     const { data, error } = await supabase
       .from('activities')
@@ -25,6 +28,7 @@ export default function CallButton({ customerId, customerName, phone, className 
         direction: 'outbound',
         outcome: 'pending',
         customer_id: customerId,
+        body: bodyWithAuthor,
         priority: 'normal',
       })
       .select('id')

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { prefixWithAuthorName } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Mic, Square, Play, Pause, Trash2, Upload } from 'lucide-react'
 
@@ -102,11 +103,14 @@ export default function VoiceRecorder({ customerId, activityId, onSaved }: Voice
     }
 
     const { data: { publicUrl } } = supabase.storage.from('voice-notes').getPublicUrl(filename)
+    const noteBody = `🎤 Voice note (${duration}s)`
+    const me = (await fetch('/api/auth/me').then(r => r.ok ? r.json() : {}).catch(() => ({}))) as { display_name?: string }
+    const bodyWithAuthor = prefixWithAuthorName(me?.display_name, noteBody)
 
     await supabase.from('activities').insert({
       type: 'note',
       customer_id: customerId,
-      body: `🎤 Voice note (${duration}s)`,
+      body: bodyWithAuthor,
       completed_at: new Date().toISOString(),
       priority: 'normal',
       ...(activityId ? {} : {}),

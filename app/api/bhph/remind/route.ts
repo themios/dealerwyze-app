@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
   const service = createServiceClient()
 
-  // Load all active BHPH contracts with customer + vehicle + org timezone
+  // Load all active BHPH contracts with customer + vehicle (no profiles join — user_id FKs to auth.users)
   const { data: contracts, error } = await service
     .from('bhph_payments')
     .select(`
@@ -33,9 +33,8 @@ export async function GET(req: NextRequest) {
       monthly_payment, next_due_date, payment_frequency,
       last_reminder_type, reminder_sequence_status,
       sms_consent, email_consent, customer_email,
-      customer:customers(id, name, primary_phone, sms_opted_out),
-      vehicle:vehicles(year, make, model),
-      org:profiles!user_id(timezone)
+      customer:customers(id, name, primary_phone, sms_opt_out),
+      vehicle:vehicles(year, make, model)
     `)
     .eq('status', 'active')
     .eq('reminder_sequence_status', 'active')
@@ -48,14 +47,25 @@ export async function GET(req: NextRequest) {
   const dealerPhone = process.env.DEALER_PHONE ?? '(805) 555-0100'
   const results: Record<string, unknown>[] = []
 
+  type CustomerRow = { id: string; name: string; primary_phone: string; sms_opt_out?: boolean }
+  type VehicleRow = { year: number; make: string; model: string }
+
   for (const contract of contracts ?? []) {
-    const customer = contract.customer as any
-    const vehicle = contract.vehicle as any
-    const org = contract.org as any
+    const rawCustomer = contract.customer as unknown
+    const customer = (Array.isArray(rawCustomer) ? rawCustomer[0] : rawCustomer) as CustomerRow | null
+    const rawVehicle = contract.vehicle as unknown
+    const vehicle = (Array.isArray(rawVehicle) ? rawVehicle[0] : rawVehicle) as VehicleRow | null
 
     if (!customer || !vehicle) continue
 
-    const tz: string = org?.timezone ?? 'America/Los_Angeles'
+    const { data: orgSettings } = await service
+      .from('org_settings')
+      .select('business_name, timezone')
+      .eq('org_id', contract.user_id)
+      .maybeSingle()
+    const tz: string = orgSettings?.timezone ?? 'America/Los_Angeles'
+    const dealerName = orgSettings?.business_name ?? 'the dealership'
+
     const today = todayInTimezone(tz)
     const daysUntilDue = daysBetween(today, contract.next_due_date)
 
@@ -75,20 +85,13 @@ export async function GET(req: NextRequest) {
 
     const vehicleLabel = `${vehicle.year} ${vehicle.make} ${vehicle.model}`
 
-    const { data: orgSettings } = await service
-      .from('org_settings')
-      .select('business_name')
-      .eq('org_id', contract.user_id)
-      .maybeSingle()
-    const dealerName = orgSettings?.business_name ?? 'the dealership'
-
     const sendResult = await sendBhphReminder({
       bhphId: contract.id,
       userId: contract.user_id,
       customerId: contract.customer_id,
       customerPhone: customer.primary_phone,
       customerEmail: contract.customer_email ?? null,
-      customerSmsOptedOut: customer.sms_opted_out ?? false,
+      customerSmsOptedOut: customer.sms_opt_out ?? false,
       reminderType,
       dealerTimezone: tz,
       dealerPhone,

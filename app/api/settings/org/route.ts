@@ -18,7 +18,7 @@ export async function GET() {
 
   const { data: settings } = await supabase
     .from('org_settings')
-    .select('business_name, business_phone, business_address, timezone, dealer_cell_number, voice_business_hours_start, voice_business_hours_end, twilio_phone_number, retell_agent_id, gbp_location_id, locations, resend_from_domain')
+    .select('business_name, business_phone, business_address, timezone, dealer_cell_number, voice_business_hours_start, voice_business_hours_end, twilio_phone_number, retell_agent_id, gbp_location_id, locations, resend_from_domain, dealer_website_url, dealer_website_inventory_path')
     .eq('org_id', profile.org_id)
     .maybeSingle()
 
@@ -45,6 +45,8 @@ export async function GET() {
     gbp_location_id: settings?.gbp_location_id ?? null,
     locations: settings?.locations ?? [],
     resend_from_domain: settings?.resend_from_domain ?? null,
+    dealer_website_url: settings?.dealer_website_url ?? null,
+    dealer_website_inventory_path: settings?.dealer_website_inventory_path ?? '/cars-for-sale',
     calendar_connected: !!(calendarToken?.calendar_refresh_token),
   })
 }
@@ -113,7 +115,7 @@ export async function PATCH(req: NextRequest) {
 
   const { data: settings } = await supabase
     .from('org_settings')
-    .select('business_name, business_phone, business_address, timezone, dealer_cell_number, voice_business_hours_start, voice_business_hours_end, twilio_phone_number, retell_agent_id, gbp_location_id, locations, resend_from_domain')
+    .select('business_name, business_phone, business_address, timezone, dealer_cell_number, voice_business_hours_start, voice_business_hours_end, twilio_phone_number, retell_agent_id, gbp_location_id, locations, resend_from_domain, dealer_website_url, dealer_website_inventory_path')
     .eq('org_id', profile.org_id)
     .maybeSingle()
 
@@ -139,6 +141,8 @@ export async function PATCH(req: NextRequest) {
     gbp_location_id: settings?.gbp_location_id ?? null,
     locations: settings?.locations ?? [],
     resend_from_domain: settings?.resend_from_domain ?? null,
+    dealer_website_url: settings?.dealer_website_url ?? null,
+    dealer_website_inventory_path: settings?.dealer_website_inventory_path ?? '/cars-for-sale',
     calendar_connected: !!calendarToken,
   })
 }

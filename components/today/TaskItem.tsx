@@ -3,11 +3,11 @@
 import { useState } from 'react'
 import { Activity } from '@/types'
 import { createClient } from '@/lib/supabase/client'
-import { in2hours, tomorrow9am, formatRelativeTime } from '@/lib/utils'
+import { in2hours, tomorrow9am } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { CheckSquare, Clock, Phone, MessageSquare, Calendar, FileText } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { CheckSquare, Phone, MessageSquare, Calendar, FileText } from 'lucide-react'
+import { useOpenCustomer } from '@/components/today/useOpenCustomer'
 
 const ICONS: Record<string, React.ReactNode> = {
   call: <Phone className="h-4 w-4" />,
@@ -26,7 +26,7 @@ interface TaskItemProps {
 export default function TaskItem({ activity, onUpdate }: TaskItemProps) {
   const [loading, setLoading] = useState<string | null>(null)
   const supabase = createClient()
-  const router = useRouter()
+  const openCustomer = useOpenCustomer()
 
   const isOverdue = activity.due_at && new Date(activity.due_at) < new Date()
 
@@ -51,9 +51,20 @@ export default function TaskItem({ activity, onUpdate }: TaskItemProps) {
     setLoading(null)
   }
 
+  const handleCardClick = () => {
+    if (activity.customer?.id) openCustomer(activity.id, activity.customer.id)
+  }
+
   return (
     <div className="rounded-lg border bg-card p-4 space-y-3">
-      <div className="flex items-start gap-3">
+      <div
+        className="flex items-start gap-3 cursor-pointer hover:opacity-90"
+        onClick={handleCardClick}
+        onKeyDown={e => e.key === 'Enter' && handleCardClick()}
+        role="button"
+        tabIndex={0}
+        aria-label={`Open ${activity.customer?.name ?? 'customer'}`}
+      >
         <div className={`mt-0.5 flex-shrink-0 ${isOverdue ? 'text-destructive' : 'text-muted-foreground'}`}>
           {ICONS[activity.type]}
         </div>
@@ -88,7 +99,7 @@ export default function TaskItem({ activity, onUpdate }: TaskItemProps) {
         </div>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex gap-2" onClick={e => e.stopPropagation()}>
         <Button
           size="sm"
           variant="default"

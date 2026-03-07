@@ -1,68 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Customer, Vehicle } from '@/types'
-import { fillTemplate } from '@/lib/utils'
+import { Customer, Vehicle, Template } from '@/types'
+import { fillTemplate, prefixWithAuthorName } from '@/lib/utils'
 import { useOrgSettings } from '@/hooks/useOrgSettings'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Mail } from 'lucide-react'
-
-const EMAIL_TEMPLATES = [
-  {
-    name: 'First Contact',
-    subject: 'Re: {vehicle} — {dealerName}',
-    body: 'Hi {firstName},\n\nThank you for your interest in the {vehicle}! It\'s available and in great condition.\n\nWould you like to schedule a test drive? I have availability this week.\n\nBest,\n{dealerName}\n{dealerPhone}',
-  },
-  {
-    name: 'Appointment Confirmation',
-    subject: 'Your Appointment at {dealerName} — {date}',
-    body: 'Hi {firstName},\n\nThis confirms your appointment on {date} at {time} to see the {vehicle}.\n\nWe look forward to seeing you!\n\n{dealerName}\n{dealerPhone}',
-  },
-  {
-    name: 'Thank You for Visit',
-    subject: 'Great meeting you, {firstName}!',
-    body: 'Hi {firstName},\n\nIt was great meeting you today! I hope you enjoyed seeing the {vehicle}.\n\nLet me know if you have any questions or would like to move forward.\n\nBest,\n{dealerName}\n{dealerPhone}',
-  },
-  {
-    name: 'Financing Documents',
-    subject: 'Documents Needed — {dealerName}',
-    body: 'Hi {firstName},\n\nTo proceed with financing on the {vehicle}, I\'ll need:\n\n• Driver\'s license\n• Proof of insurance\n• Proof of income (2 recent pay stubs)\n• Proof of residence\n\nFeel free to bring these to our next appointment.\n\n{dealerName}\n{dealerPhone}',
-  },
-  {
-    name: 'Lost Lead Reactivation',
-    subject: 'Still looking for a vehicle, {firstName}?',
-    body: 'Hi {firstName},\n\nI wanted to reach out — are you still in the market for a vehicle? I have some new inventory that might interest you.\n\nWould love to help you find the right fit.\n\nBest,\n{dealerName}\n{dealerPhone}',
-  },
-  {
-    name: 'Price Drop Alert',
-    subject: 'Price Update on {vehicle} — {dealerName}',
-    body: 'Hi {firstName},\n\nGood news! I\'ve reduced the price on the {vehicle} to {price}.\n\nThis is a great opportunity — let me know if you\'d like to take another look.\n\n{dealerName}\n{dealerPhone}',
-  },
-  {
-    name: 'Trade-In Follow-Up',
-    subject: 'Your Trade-In Value — {dealerName}',
-    body: 'Hi {firstName},\n\nI wanted to follow up on your trade-in. I can offer you a fair market value and apply it toward any vehicle on our lot.\n\nWould you like to come in for a quick appraisal?\n\n{dealerName}\n{dealerPhone}',
-  },
-  {
-    name: 'Waiting on Decision',
-    subject: 'Checking in — {vehicle}',
-    body: 'Hi {firstName},\n\nJust checking in to see if you\'ve had a chance to think about the {vehicle}.\n\nI\'m happy to answer any questions or work on the numbers with you.\n\n{dealerName}\n{dealerPhone}',
-  },
-  {
-    name: 'Vehicle Sold — Similar Available',
-    subject: 'Update on {vehicle} — {dealerName}',
-    body: 'Hi {firstName},\n\nI wanted to let you know the {vehicle} has sold. However, I have a very similar vehicle available that you might like.\n\nInterested? I can send you details.\n\n{dealerName}\n{dealerPhone}',
-  },
-  {
-    name: 'Test Drive Reminder',
-    subject: 'Test Drive Tomorrow — {dealerName}',
-    body: 'Hi {firstName},\n\nJust a reminder about your test drive tomorrow at {time} for the {vehicle}.\n\nSee you then! If anything comes up, you can reach me at {dealerPhone}.\n\n{dealerName}',
-  },
-]
 
 interface EmailButtonProps {
   customer: Customer
@@ -71,38 +18,80 @@ interface EmailButtonProps {
 
 export default function EmailButton({ customer, vehicle }: EmailButtonProps) {
   const [open, setOpen] = useState(false)
-  const [selected, setSelected] = useState<typeof EMAIL_TEMPLATES[0] | null>(null)
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [loadingTemplates, setLoadingTemplates] = useState(false)
+  const [selected, setSelected] = useState<Template | null>(null)
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
+  const [displayName, setDisplayName] = useState<string | null>(null)
   const supabase = createClient()
   const orgSettings = useOrgSettings()
 
+  useEffect(() => {
+    if (!open) return
+    setDisplayName(null)
+    fetch('/api/auth/me')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setDisplayName(d?.display_name ?? null))
+      .catch(() => setDisplayName(null))
+    setLoadingTemplates(true)
+    let cancelled = false
+    supabase
+      .from('templates')
+      .select('*')
+      .eq('channel', 'email')
+      .order('created_at', { ascending: true })
+      .then(
+        ({ data }) => {
+          if (!cancelled) setTemplates((data ?? []) as Template[])
+          setLoadingTemplates(false)
+        },
+        () => setLoadingTemplates(false)
+      )
+    return () => { cancelled = true }
+  }, [open])
+
   function getVars(): Record<string, string> {
     const firstName = customer.name.split(' ')[0]
+    const baseUrl = (orgSettings.dealerWebsiteUrl ?? '').replace(/\/$/, '')
+    const inventoryPath = orgSettings.dealerWebsiteInventoryPath ?? '/cars-for-sale'
+    let link = ''
+    if (vehicle?.listing_url) {
+      link = vehicle.listing_url.startsWith('http')
+        ? vehicle.listing_url
+        : baseUrl
+          ? `${baseUrl}${vehicle.listing_url.startsWith('/') ? '' : '/'}${vehicle.listing_url}`
+          : vehicle.listing_url
+    }
+    if (!link && baseUrl) link = `${baseUrl}${inventoryPath.startsWith('/') ? '' : '/'}${inventoryPath}`
+    if (!link) link = 'https://www.apolloauto-em.com/cars-for-sale'
     return {
       firstName,
       vehicle:     vehicle ? `${vehicle.year} ${vehicle.make} ${vehicle.model}` : '{vehicle}',
       price:       vehicle?.price ? `$${vehicle.price.toLocaleString()}` : '{price}',
+      link,
       date: '{date}', time: '{time}',
       dealerName:  orgSettings.dealerName,
       dealerPhone: orgSettings.dealerPhone,
     }
   }
 
-  function selectTemplate(t: typeof EMAIL_TEMPLATES[0]) {
+  function selectTemplate(t: Template) {
     const vars = getVars()
     setSelected(t)
-    setSubject(fillTemplate(t.subject, vars))
+    setSubject(fillTemplate(t.subject ?? '', vars))
     setBody(fillTemplate(t.body, vars))
   }
 
   async function handleSend() {
+    const fullBody = `Subject: ${subject}\n\n${body}`
+    const bodyWithAuthor = prefixWithAuthorName(displayName, fullBody)
     await supabase.from('activities').insert({
       type: 'email',
       direction: 'outbound',
       customer_id: customer.id,
       vehicle_id: vehicle?.id ?? null,
-      body: `Subject: ${subject}\n\n${body}`,
+      body: bodyWithAuthor,
       completed_at: new Date().toISOString(),
       priority: 'normal',
     })
@@ -127,16 +116,24 @@ export default function EmailButton({ customer, vehicle }: EmailButtonProps) {
 
           {!selected ? (
             <div className="space-y-2">
-              {EMAIL_TEMPLATES.map(t => (
-                <button
-                  key={t.name}
-                  onClick={() => selectTemplate(t)}
-                  className="w-full text-left p-3 rounded-lg border hover:bg-accent transition-colors"
-                >
-                  <p className="font-medium text-sm">{t.name}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{t.subject}</p>
-                </button>
-              ))}
+              {loadingTemplates ? (
+                <p className="text-sm text-muted-foreground">Loading templates…</p>
+              ) : templates.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No email templates yet. Add them in Settings → Lead Response Templates.
+                </p>
+              ) : (
+                templates.map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => selectTemplate(t)}
+                    className="w-full text-left p-3 rounded-lg border hover:bg-accent transition-colors"
+                  >
+                    <p className="font-medium text-sm">{t.name}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 truncate">{t.subject ?? '(no subject)'}</p>
+                  </button>
+                ))
+              )}
             </div>
           ) : (
             <div className="space-y-3">

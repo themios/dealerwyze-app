@@ -6,6 +6,7 @@ import Link from 'next/link'
 import TopBar from '@/components/layout/TopBar'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Pencil } from 'lucide-react'
+import { isDealerAdmin } from '@/types/index'
 import CustomerDetailClient from './CustomerDetailClient'
 
 interface PageProps {
@@ -45,7 +46,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
           </div>
         }
       />
-      <CustomerDetailClient customer={customer} activities={activities || []} isAdmin={profile.role === 'admin'} tasks={tasks || []} />
+      <CustomerDetailClient customer={customer} activities={activities || []} isAdmin={isDealerAdmin(profile.role)} currentUserId={profile.id} tasks={tasks || []} />
     </div>
   )
 }

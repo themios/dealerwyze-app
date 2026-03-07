@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Template, TemplateChannel } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -28,6 +28,7 @@ function TemplateGroup({
   userId,
   onSave,
   onDelete,
+  onAfterSave,
 }: {
   channel: TemplateChannel
   label: string
@@ -35,11 +36,13 @@ function TemplateGroup({
   userId: string
   onSave: (edit: EditState) => Promise<void>
   onDelete: (id: string) => Promise<void>
+  onAfterSave?: () => void
 }) {
   const newKey = `new-${channel}`
   const [editing, setEditing] = useState<EditState | null>(null)
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
 
   function startNew() {
     setEditing({ id: newKey, name: '', subject: '', body: '', channel })
@@ -59,6 +62,11 @@ function TemplateGroup({
     await onSave(editing)
     setSaving(false)
     setEditing(null)
+    // Scroll newly added template into view on next paint
+    if (editing.id.startsWith('new-')) {
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50)
+      onAfterSave?.()
+    }
   }
 
   async function doDelete(id: string) {
@@ -176,6 +184,7 @@ function TemplateGroup({
           Add {channel === 'sms' ? 'SMS' : 'email'} template
         </button>
       )}
+      <div ref={bottomRef} />
     </div>
   )
 }
@@ -219,6 +228,8 @@ export default function TemplatesClient({ templates: initial, userId }: Props) {
     setTemplates(prev => prev.filter(t => t.id !== id))
   }
 
+  const emailSectionRef = useRef<HTMLDivElement>(null)
+
   return (
     <div className="space-y-6">
       <TemplateGroup
@@ -229,14 +240,17 @@ export default function TemplatesClient({ templates: initial, userId }: Props) {
         onSave={handleSave}
         onDelete={handleDelete}
       />
-      <TemplateGroup
-        channel="email"
-        label="Email Responses"
-        templates={emailTemplates}
-        userId={userId}
-        onSave={handleSave}
-        onDelete={handleDelete}
-      />
+      <div ref={emailSectionRef}>
+        <TemplateGroup
+          channel="email"
+          label="Email Responses"
+          templates={emailTemplates}
+          userId={userId}
+          onSave={handleSave}
+          onDelete={handleDelete}
+          onAfterSave={() => emailSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })}
+        />
+      </div>
     </div>
   )
 }

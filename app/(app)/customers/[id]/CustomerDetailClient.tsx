@@ -39,10 +39,11 @@ interface Props {
   customer: Customer
   activities: Activity[]
   isAdmin: boolean
+  currentUserId?: string
   tasks: TaskItem[]
 }
 
-export default function CustomerDetailClient({ customer, activities: initialActivities, isAdmin, tasks: initialTasks }: Props) {
+export default function CustomerDetailClient({ customer, activities: initialActivities, isAdmin, currentUserId, tasks: initialTasks }: Props) {
   const [activities, setActivities] = useState<Activity[]>(initialActivities)
   const [taskOpen, setTaskOpen] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
@@ -377,7 +378,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
 
       <div className="px-4 py-4">
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4 border-l-2 border-[#F07018] pl-2">Activity</h2>
-        <ActivityTimeline activities={activities} />
+        <ActivityTimeline activities={activities} currentUserId={currentUserId} isAdmin={isAdmin} onNoteUpdated={refreshActivities} />
       </div>
 
       <AddTaskModal open={taskOpen} onClose={() => setTaskOpen(false)} customerId={customer.id} customerName={customer.name} vehicleId={primaryVehicle?.id} orgName={orgSettings.dealerName} orgPhone={orgSettings.dealerPhone} orgAddress={orgSettings.dealerAddress} onSaved={refreshActivities} />

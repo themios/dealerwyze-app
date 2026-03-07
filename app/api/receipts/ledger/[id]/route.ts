@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
+import { isDealerAdmin } from '@/types/index'
+import type { UserRole } from '@/types/index'
 
 // Admin-only: patch vehicle, category, memo on any org transaction
 export async function PATCH(
@@ -10,7 +12,7 @@ export async function PATCH(
   const { id } = await params
   const profile = await requireProfile()
 
-  if (profile.role !== 'admin') {
+  if (!isDealerAdmin(profile.role as UserRole)) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 })
   }
 

@@ -97,12 +97,17 @@ export default function AddAppointmentSheet({ open, onClose, defaultDate, orgNam
 
     const { data: { user } } = await supabase.auth.getUser()
 
-    // Get org_id
+    // Get org_id and display_name for author prefix
     const { data: profile } = await supabase
       .from('profiles')
-      .select('org_id')
+      .select('org_id, display_name')
       .eq('id', user!.id)
       .single()
+
+    const rawBody = [title, notes].filter(Boolean).join('\n')
+    const bodyWithAuthor = profile?.display_name
+      ? `name: ${profile.display_name}\n${rawBody}`
+      : rawBody
 
     await supabase.from('activities').insert({
       user_id: profile?.org_id ?? user!.id,
@@ -111,7 +116,7 @@ export default function AddAppointmentSheet({ open, onClose, defaultDate, orgNam
       direction: null,
       outcome: 'pending',
       priority: 'high',
-      body: [title, notes].filter(Boolean).join('\n'),
+      body: bodyWithAuthor,
       due_at: startDate.toISOString(),
       completed_at: null,
     })

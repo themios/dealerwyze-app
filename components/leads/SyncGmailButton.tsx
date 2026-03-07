@@ -7,24 +7,47 @@ import { RefreshCw, CheckCircle, AlertCircle } from 'lucide-react'
 
 type Status = 'idle' | 'loading' | 'done' | 'error'
 
+type ErrorDetail = { message: string; reason: string; action: string; code: string; accountEmail?: string }
+
 export default function SyncGmailButton({ compact = false }: { compact?: boolean }) {
   const router = useRouter()
   const [status, setStatus] = useState<Status>('idle')
   const [result, setResult] = useState<string | null>(null)
   const [details, setDetails] = useState<string | null>(null)
+  const [errorDetail, setErrorDetail] = useState<ErrorDetail | null>(null)
 
   async function run(dry = false) {
     setStatus('loading')
     setResult(null)
     setDetails(null)
+    setErrorDetail(null)
 
     try {
       const res = await fetch(dry ? '/api/leads/sync?dry=1' : '/api/leads/sync', { method: 'POST' })
       const text = await res.text()
-      let data: any = {}
+      let data: { error?: string; errorDetail?: ErrorDetail; results?: unknown[] } = {}
       try { data = JSON.parse(text) } catch {}
 
-      if (!res.ok) throw new Error(data.error || `Server error ${res.status}`)
+      if (!res.ok) {
+        if (data.errorDetail && data.errorDetail.code) {
+          setErrorDetail(data.errorDetail)
+          setResult(data.errorDetail.message)
+          const parts = [
+            data.errorDetail.accountEmail
+              ? `Account: ${data.errorDetail.accountEmail}`
+              : null,
+            data.errorDetail.reason,
+            data.errorDetail.action,
+            `Reference: ${data.errorDetail.code} — include this code in a support ticket so we can look up the details.`,
+          ].filter(Boolean)
+          setDetails(parts.join('\n\n'))
+        } else {
+          setResult(data.error || `Server error ${res.status}`)
+        }
+        setStatus('error')
+        setTimeout(() => { setStatus('idle'); setResult(null); setDetails(null); setErrorDetail(null) }, 12000)
+        return
+      }
 
       const all = (data.results ?? []) as any[]
       const newLeads = all.filter((r: any) => r.status === 'created')
@@ -65,6 +88,7 @@ export default function SyncGmailButton({ compact = false }: { compact?: boolean
       setStatus('idle')
       setResult(null)
       setDetails(null)
+      setErrorDetail(null)
     }, 8000)
   }
 

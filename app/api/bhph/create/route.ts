@@ -9,10 +9,12 @@ import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { requireProfile } from '@/lib/auth/profile'
 import { CONSENT_DISCLOSURE } from '@/lib/bhph/schedule'
+import { canAccessBhph } from '@/lib/auth/dealerRoles'
+import type { UserRole } from '@/types/index'
 
 export async function POST(req: NextRequest) {
   const profile = await requireProfile()
-  if (profile.role !== 'admin') {
+  if (!canAccessBhph(profile.role as UserRole)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

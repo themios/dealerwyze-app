@@ -7,6 +7,7 @@ import Link from 'next/link'
 import TopBar from '@/components/layout/TopBar'
 import CustomersListClient from '@/components/customer/CustomersListClient'
 import PasteLeadDialog from '@/components/customer/PasteLeadDialog'
+import ImportLeadsDialog from '@/components/leads/ImportLeadsDialog'
 import ScanLeadButton from '@/components/leads/ScanLeadButton'
 import PipelineBoard from '@/app/(app)/pipeline/PipelineBoard'
 import { Button } from '@/components/ui/button'
@@ -110,6 +111,7 @@ export default async function CustomersPage({
                 <>
                   <ScanLeadButton />
                   <PasteLeadDialog />
+                  <ImportLeadsDialog />
                   <Link href="/customers/new">
                     <Button size="sm" variant="ghost">
                       <Plus className="h-5 w-5" />

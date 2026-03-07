@@ -23,12 +23,12 @@ export async function GET(req: NextRequest) {
   const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
 
   // Find orgs cancelled more than 90 days ago
-  // We detect cancellation by subscription_status='canceled' + updated_at > 90 days ago
   const { data: expiredOrgs } = await supabase
     .from('organizations')
     .select('id')
     .eq('subscription_status', 'canceled')
-    .lt('updated_at', ninetyDaysAgo)
+    .not('canceled_at', 'is', null)
+    .lt('canceled_at', ninetyDaysAgo)
 
   let orgsProcessed = 0
   let activitiesDeleted = 0

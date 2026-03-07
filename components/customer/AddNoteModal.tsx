@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { prefixWithAuthorName } from '@/lib/utils'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -17,16 +18,27 @@ interface AddNoteModalProps {
 export default function AddNoteModal({ open, onClose, customerId, vehicleId, onSaved }: AddNoteModalProps) {
   const [body, setBody] = useState('')
   const [saving, setSaving] = useState(false)
+  const [displayName, setDisplayName] = useState<string | null>(null)
   const supabase = createClient()
+
+  useEffect(() => {
+    if (open) {
+      fetch('/api/auth/me')
+        .then(r => r.ok ? r.json() : null)
+        .then(d => setDisplayName(d?.display_name ?? null))
+        .catch(() => setDisplayName(null))
+    }
+  }, [open])
 
   async function handleSave() {
     if (!body.trim()) return
     setSaving(true)
+    const bodyWithAuthor = prefixWithAuthorName(displayName, body.trim())
     await supabase.from('activities').insert({
       type: 'note',
       customer_id: customerId,
       vehicle_id: vehicleId ?? null,
-      body,
+      body: bodyWithAuthor,
       completed_at: new Date().toISOString(),
       priority: 'normal',
     })
