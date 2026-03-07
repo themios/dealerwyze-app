@@ -67,22 +67,23 @@ function parseResponse(text: string): LeadScanResult {
 // ── Pasted text scan (Haiku — any format: CarGurus, AutoTrader, OfferUp, generic) ─
 
 export async function scanLeadText(pastedText: string): Promise<LeadScanResult> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
-  const { default: Anthropic } = await import('@anthropic-ai/sdk')
-  const client = new Anthropic({ apiKey })
+  const apiKey = process.env.GROQ_API_KEY
+  if (!apiKey) throw new Error('GROQ_API_KEY is not set')
+  const { default: Groq } = await import('groq-sdk')
+  const groq = new Groq({ apiKey })
 
-  const response = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 600,
-    system: SYSTEM_PROMPT,
-    messages: [{
-      role: 'user',
-      content: `${TEXT_LEAD_PROMPT}\n\n---\nTEXT:\n${pastedText.slice(0, 8000)}`,
-    }],
+  const resp = await groq.chat.completions.create({
+    model:           'llama-3.3-70b-versatile',
+    max_tokens:      600,
+    temperature:     0.1,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user',   content: `${TEXT_LEAD_PROMPT}\n\n---\nTEXT:\n${pastedText.slice(0, 8000)}` },
+    ],
   })
 
-  const text = response.content[0]?.type === 'text' ? response.content[0].text : ''
+  const text = resp.choices[0]?.message?.content ?? ''
   return parseResponse(text)
 }
 

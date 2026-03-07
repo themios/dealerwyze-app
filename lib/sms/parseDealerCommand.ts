@@ -1,5 +1,3 @@
-import Anthropic from '@anthropic-ai/sdk'
-
 export interface ParsedAppointment {
   customer_name:        string | null
   customer_phone:       string | null  // if included in message
@@ -11,17 +9,18 @@ export interface ParsedAppointment {
 }
 
 /**
- * Use Claude Haiku to extract appointment details from a dealer's freeform text.
+ * Use Groq (llama-3.3-70b) to extract appointment details from a dealer's freeform text.
  * e.g. "Tim wants to see the 2009 Acura MDX on Monday at 2pm at El Monte"
  *
  * @param locationNames - dealer's location names (from org_settings.locations), used
  *   to help the model recognize location references in the text.
  */
 export async function parseDealerAppointment(text: string, locationNames: string[] = []): Promise<ParsedAppointment | null> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
+  const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) return null
 
-  const client = new Anthropic({ apiKey })
+  const { default: Groq } = await import('groq-sdk')
+  const groq = new Groq({ apiKey })
 
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -32,9 +31,11 @@ export async function parseDealerAppointment(text: string, locationNames: string
     ? `\nPossible locations: ${locationNames.map(n => `"${n}"`).join(', ')}. Use one of these exact strings if matched, or null if unclear.`
     : '\n"location": string or null (location name if mentioned, else null),'
 
-  const resp = await client.messages.create({
-    model:      'claude-haiku-4-5-20251001',
-    max_tokens: 250,
+  const resp = await groq.chat.completions.create({
+    model:           'llama-3.3-70b-versatile',
+    max_tokens:      250,
+    temperature:     0.1,
+    response_format: { type: 'json_object' },
     messages: [{
       role:    'user',
       content: `Today is ${today} (Pacific Time). Extract appointment details from this dealer note. Return ONLY a JSON object, no commentary.
@@ -53,7 +54,7 @@ Return exactly:
     }],
   })
 
-  const raw = resp.content[0]?.type === 'text' ? resp.content[0].text : ''
+  const raw = resp.choices[0]?.message?.content ?? ''
   const start = raw.indexOf('{')
   const end   = raw.lastIndexOf('}')
   if (start === -1 || end <= start) return null
