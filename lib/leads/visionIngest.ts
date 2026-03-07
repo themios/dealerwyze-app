@@ -46,12 +46,54 @@ RULES:
 - For screenshots: read all visible text including sender names, timestamps if helpful
 - budget: extract as integer (e.g. 25000 from "$25,000" or "25k")`
 
-const TEXT_LEAD_PROMPT = `The following is pasted lead text (e.g. from a CarGurus, AutoTrader, OfferUp, or generic lead form/email). Extract all car buyer lead information.
+const TEXT_LEAD_PROMPT = `You are a universal lead data extractor for a used-car dealership CRM.
+Extract buyer information from ANY text input — regardless of format or completeness.
 
-Each field must have a "value" and "confidence" ("high" | "medium" | "low"). Use null for value when not found.
-lead_source: set to "CarGurus", "AutoTrader", "OfferUp", "Facebook", "KBB", "Autolist", "Carsforsale", or "other" based on wording (e.g. "Lead Submission from CarGurus" → "CarGurus", "Kelley Blue Book" or "KBB" → "KBB").
-phone: normalize to digits only in value; if you see (951) 427-9675, use "9514279675" and high confidence.
-Return ONLY the same JSON structure as the image prompt (first_name, last_name, phone, email, city, state, zip, vehicle_*, vehicle_vin, budget, lead_source, notes, urgency, trade_in, overall_confidence). No markdown, no code fences.`
+INPUT TYPES you may receive (handle all of them):
+- Lead form pastes: CarGurus, AutoTrader, OfferUp, Facebook, KBB, Craigslist, Autolist
+- Text/iMessage/WhatsApp conversations (identify the BUYER, not the dealer)
+- Verbal referrals typed by staff: "my cousin Maria wants a Camry, 714-555-0000"
+- Reply messages: "Is the 2019 Accord still available? — John 818-555-1234"
+- Handwritten notes transcribed: "Jose Reyes cell 626 555 0000 wants SUV under 20k"
+- Email threads, voicemail transcriptions, social media DMs
+- English, Spanish, or mixed language input
+- Incomplete fragments with only a name and number
+
+EXTRACTION RULES:
+- Extract ONLY what is explicitly present — do not invent or guess missing info
+- first_name / last_name: split the buyer's full name; if only one word given, put it in first_name
+- phone: digits only, 10 digits, strip country code (+1). Example: "(951) 427-9675" → "9514279675"
+- vehicle_*: the vehicle the buyer is INTERESTED IN BUYING (not their trade-in)
+- trade_in: brief description of vehicle they want to trade ("2018 Civic EX ~80k miles"), or null
+- lead_source: infer from context → "CarGurus" | "AutoTrader" | "OfferUp" | "Facebook" | "KBB" | "Autolist" | "Carsforsale" | "text" | "email" | "referral" | "other"
+- urgency: "high" if buyer says "today", "ASAP", "right now", "urgent"; "low" if just browsing
+- notes: capture buyer's comments, questions, budget hints, special requests — anything not in other fields
+- overall_confidence: "high" = extracted name + (phone or email); "medium" = partial contact info; "low" = mostly guessing
+
+CONFIDENCE per field: "high" = explicitly stated; "medium" = inferred with reasonable certainty; "low" = uncertain or guessed
+
+Return ONLY this JSON — no markdown, no code fences, no commentary:
+{
+  "first_name":    { "value": "string or null", "confidence": "high|medium|low" },
+  "last_name":     { "value": "string or null", "confidence": "high|medium|low" },
+  "phone":         { "value": "10-digit string or null", "confidence": "high|medium|low" },
+  "phone2":        { "value": "10-digit string or null", "confidence": "high|medium|low" },
+  "email":         { "value": "string or null", "confidence": "high|medium|low" },
+  "city":          { "value": "string or null", "confidence": "high|medium|low" },
+  "state":         { "value": "string or null", "confidence": "high|medium|low" },
+  "zip":           { "value": "string or null", "confidence": "high|medium|low" },
+  "vehicle_year":  { "value": number or null,   "confidence": "high|medium|low" },
+  "vehicle_make":  { "value": "string or null", "confidence": "high|medium|low" },
+  "vehicle_model": { "value": "string or null", "confidence": "high|medium|low" },
+  "vehicle_trim":  { "value": "string or null", "confidence": "high|medium|low" },
+  "vehicle_vin":   { "value": "string or null", "confidence": "high|medium|low" },
+  "budget":        { "value": number or null,   "confidence": "high|medium|low" },
+  "lead_source":   { "value": "string or null", "confidence": "high|medium|low" },
+  "notes":         { "value": "string or null", "confidence": "high|medium|low" },
+  "urgency":       { "value": "high|normal|low or null", "confidence": "high|medium|low" },
+  "trade_in":      { "value": "short description or null", "confidence": "high|medium|low" },
+  "overall_confidence": "high|medium|low"
+}`
 
 // ── JSON extractor (same pattern as business card scanner) ────────────────────
 
@@ -67,23 +109,22 @@ function parseResponse(text: string): LeadScanResult {
 // ── Pasted text scan (Haiku — any format: CarGurus, AutoTrader, OfferUp, generic) ─
 
 export async function scanLeadText(pastedText: string): Promise<LeadScanResult> {
-  const apiKey = process.env.GROQ_API_KEY
-  if (!apiKey) throw new Error('GROQ_API_KEY is not set')
-  const { default: Groq } = await import('groq-sdk')
-  const groq = new Groq({ apiKey })
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
+  const { default: Anthropic } = await import('@anthropic-ai/sdk')
+  const client = new Anthropic({ apiKey })
 
-  const resp = await groq.chat.completions.create({
-    model:           'llama-3.3-70b-versatile',
-    max_tokens:      600,
-    temperature:     0.1,
-    response_format: { type: 'json_object' },
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user',   content: `${TEXT_LEAD_PROMPT}\n\n---\nTEXT:\n${pastedText.slice(0, 8000)}` },
-    ],
+  const response = await client.messages.create({
+    model:      'claude-haiku-4-5-20251001',
+    max_tokens: 800,
+    system:     SYSTEM_PROMPT,
+    messages: [{
+      role:    'user',
+      content: `${TEXT_LEAD_PROMPT}\n\n---\nINPUT TEXT:\n${pastedText.slice(0, 8000)}`,
+    }],
   })
 
-  const text = resp.choices[0]?.message?.content ?? ''
+  const text = response.content[0]?.type === 'text' ? response.content[0].text : ''
   return parseResponse(text)
 }
 

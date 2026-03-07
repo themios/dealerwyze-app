@@ -176,7 +176,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       const msg = err instanceof Error ? err.message : String(err)
       if (msg.includes('ANTHROPIC_API_KEY')) {
         return NextResponse.json(
-          { error: 'AI parsing is not configured. Supported formats: OfferUp, AutoTrader. CarGurus and other formats require AI (set ANTHROPIC_API_KEY).' },
+          { error: 'AI parsing is not configured. Supported formats: OfferUp, AutoTrader. Other formats require AI (ANTHROPIC_API_KEY).' },
           { status: 503 }
         )
       }
