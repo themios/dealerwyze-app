@@ -673,8 +673,8 @@ const freeFeatures = [
   'Team members + role-based access',
 ]
 
-const coreFeatures = [
-  'Unlimited customers & leads',
+const crmFeatures = [
+  'Unlimited contacts & leads',
   'Two-way SMS + dedicated business number',
   'Vehicle-linked activity tracking',
   'Lead pipeline (Kanban board)',
@@ -691,9 +691,9 @@ const coreFeatures = [
   'Team members + role-based access',
 ]
 
-const voiceAddons = [
-  ...coreFeatures,
+const voiceFeatures = [
   'Dedicated AI voice agent (Retell AI)',
+  'Answers inbound calls 24/7',
   'Post-call transcripts & summaries',
   'Auto lead creation from inbound calls',
   '1,000 voice minutes/month included',
@@ -701,6 +701,14 @@ const voiceAddons = [
 ]
 
 function PricingSection() {
+  // Annual pricing: 10% off monthly rate
+  const crmMonthly   = 149
+  const voiceAddon   = 199.95
+  const crmAnnual    = +(crmMonthly * 0.9).toFixed(2)          // 134.10
+  const fullAnnual   = +((crmMonthly + voiceAddon) * 0.9).toFixed(2) // 314.06
+  const crmSavings   = Math.round(crmMonthly * 12 - crmAnnual * 12)   // ~179
+  const fullSavings  = Math.round((crmMonthly + voiceAddon) * 12 - fullAnnual * 12) // ~419
+
   return (
     <section id="pricing" className="bg-white py-20 lg:py-28">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -723,9 +731,9 @@ function PricingSection() {
           <div>
             <p className="text-sm font-black" style={{ color: '#9A3412' }}>Beta Testing Phase</p>
             <p className="text-sm mt-0.5" style={{ color: '#7C2D12' }}>
-              DealerWyze is currently in active beta. You get full access at no charge while we refine
-              the product. We&apos;ll give at least 30 days notice before any paid transition, and early
-              beta users will receive a discounted rate when paid plans launch.
+              DealerWyze is in active beta. You get full access at no charge while we refine the product.
+              We&apos;ll give at least 30 days notice before any paid transition, and early beta users will
+              receive a discounted rate when paid plans launch.
             </p>
           </div>
         </div>
@@ -733,8 +741,8 @@ function PricingSection() {
         {/* Cards */}
         <div className="grid sm:grid-cols-3 gap-6 max-w-5xl mx-auto">
 
-          {/* Free Beta */}
-          <div className="rounded-2xl p-7 relative flex flex-col sm:col-span-1"
+          {/* Free Beta — featured */}
+          <div className="rounded-2xl p-7 relative flex flex-col"
             style={{ backgroundColor: NAVY, border: `2px solid ${NAVY}`,
               boxShadow: '0 8px 32px rgba(13,43,85,0.35)' }}>
             <div className="mb-5">
@@ -769,7 +777,7 @@ function PricingSection() {
             </p>
           </div>
 
-          {/* Core — Coming Soon */}
+          {/* Complete CRM — Coming Soon */}
           <div className="rounded-2xl p-7 relative flex flex-col opacity-75"
             style={{ backgroundColor: '#fff', border: `2px solid #D1C9BF`,
               boxShadow: '0 2px 16px rgba(13,43,85,0.06)' }}>
@@ -779,16 +787,21 @@ function PricingSection() {
                 Coming Soon
               </span>
             </div>
-            <h3 className="text-xl font-black mb-1" style={{ color: NAVY }}>Core</h3>
+            <h3 className="text-xl font-black mb-1" style={{ color: NAVY }}>Complete CRM</h3>
             <p className="text-sm mb-3" style={{ color: '#6B6355' }}>
-              Full CRM + SMS/Fax + AI tools + BHPH
+              All-inclusive CRM — SMS, fax, AI tools, BHPH, no add-ons
             </p>
-            <div className="flex items-end gap-1 mb-4">
-              <span className="text-4xl font-black" style={{ color: NAVY }}>$99.95</span>
-              <span className="text-sm pb-1.5" style={{ color: '#6B6355' }}>/month</span>
+            <div className="mb-1">
+              <div className="flex items-end gap-1">
+                <span className="text-4xl font-black" style={{ color: NAVY }}>${crmMonthly}</span>
+                <span className="text-sm pb-1.5" style={{ color: '#6B6355' }}>/mo, billed monthly</span>
+              </div>
+              <p className="text-xs mt-1" style={{ color: '#9A3412' }}>
+                or <strong>${crmAnnual}/mo</strong> billed annually — save ${crmSavings}/yr
+              </p>
             </div>
-            <ul className="space-y-2.5 mb-7 flex-1">
-              {coreFeatures.map((feat, i) => (
+            <ul className="space-y-2.5 mb-7 mt-4 flex-1">
+              {crmFeatures.map((feat, i) => (
                 <li key={i} className="flex items-start gap-2.5 text-sm" style={{ color: '#3D3530' }}>
                   <Check className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#C4B8AC' }} />
                   {feat}
@@ -801,7 +814,7 @@ function PricingSection() {
             </div>
           </div>
 
-          {/* Core + Voice — Coming Soon */}
+          {/* Complete CRM + Voice — Coming Soon */}
           <div className="rounded-2xl p-7 relative flex flex-col opacity-75"
             style={{ backgroundColor: '#fff', border: `2px solid #D1C9BF`,
               boxShadow: '0 2px 16px rgba(13,43,85,0.06)' }}>
@@ -811,25 +824,38 @@ function PricingSection() {
                 Coming Soon
               </span>
             </div>
-            <h3 className="text-xl font-black mb-1" style={{ color: NAVY }}>Core + Voice</h3>
+            <h3 className="text-xl font-black mb-1" style={{ color: NAVY }}>CRM + Voice AI</h3>
             <p className="text-sm mb-3" style={{ color: '#6B6355' }}>
-              Everything in Core + AI Voice Agent
+              Complete CRM plus a 24/7 AI voice agent that qualifies leads
             </p>
-            <div className="flex items-end gap-1 mb-4">
-              <span className="text-4xl font-black" style={{ color: NAVY }}>$199</span>
-              <span className="text-sm pb-1.5" style={{ color: '#6B6355' }}>/month</span>
+            <div className="mb-1">
+              <div className="flex items-end gap-1">
+                <span className="text-4xl font-black" style={{ color: NAVY }}>${(crmMonthly + voiceAddon).toFixed(2)}</span>
+                <span className="text-sm pb-1.5" style={{ color: '#6B6355' }}>/mo</span>
+              </div>
+              <p className="text-xs mt-1" style={{ color: '#6B6355' }}>
+                $149 CRM + $199.95 Voice add-on
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: '#9A3412' }}>
+                or <strong>${fullAnnual}/mo</strong> billed annually — save ${fullSavings}/yr
+              </p>
             </div>
-            <ul className="space-y-2.5 mb-7 flex-1">
-              {voiceAddons.map((feat, i) => {
-                const isNew = i >= coreFeatures.length
-                return (
-                  <li key={i} className="flex items-start gap-2.5 text-sm" style={{ color: '#3D3530' }}>
-                    <Check className="w-4 h-4 flex-shrink-0 mt-0.5"
-                      style={{ color: isNew ? ORANGE : '#C4B8AC' }} />
-                    {feat}
-                  </li>
-                )
-              })}
+            <ul className="space-y-2.5 mb-7 mt-4 flex-1">
+              {crmFeatures.map((feat, i) => (
+                <li key={i} className="flex items-start gap-2.5 text-sm" style={{ color: '#3D3530' }}>
+                  <Check className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#C4B8AC' }} />
+                  {feat}
+                </li>
+              ))}
+              <li className="pt-2 border-t" style={{ borderColor: '#E8E2D8', listStyle: 'none' }}>
+                <p className="text-xs font-black uppercase tracking-wide mb-2" style={{ color: ORANGE }}>Voice Add-on</p>
+              </li>
+              {voiceFeatures.map((feat, i) => (
+                <li key={`v${i}`} className="flex items-start gap-2.5 text-sm" style={{ color: '#3D3530' }}>
+                  <Check className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#C4B8AC' }} />
+                  {feat}
+                </li>
+              ))}
             </ul>
             <div className="w-full py-3.5 rounded-xl font-bold text-sm text-center cursor-not-allowed"
               style={{ backgroundColor: '#E8E2D8', color: '#9A8E85' }}>
@@ -859,8 +885,8 @@ const faqs = [
     a: 'No. DealerWyze is month-to-month. Cancel anytime from your billing settings — no phone calls, no cancellation fees.',
   },
   {
-    q: 'Do I need a credit card for the 14-day trial?',
-    a: 'No credit card required to start. You\'ll only be asked for payment details when you decide to subscribe at the end of your trial.',
+    q: 'Do I need a credit card to sign up?',
+    a: 'No. DealerWyze is free during beta — no credit card required at any point. When paid plans launch, you\'ll have at least 30 days notice and the option to choose a plan or cancel.',
   },
   {
     q: 'Can I import my existing customers and leads?',
@@ -871,12 +897,20 @@ const faqs = [
     a: 'BHPH (Buy Here Pay Here) is in-house financing where you act as the lender. If you finance your own customers, the BHPH module tracks loans, payments, and collections. If you don\'t do BHPH, you simply don\'t use it.',
   },
   {
-    q: 'What\'s the difference between Core and Core + Voice?',
-    a: 'Core includes the full CRM, AI tools, BHPH, ledger, Gmail sync, and SMS. Core + Voice adds the Retell AI phone agent that answers inbound calls, qualifies leads, and writes transcripts back to the customer record — even when you\'re on the lot.',
+    q: 'What\'s included in Complete CRM?',
+    a: 'Complete CRM ($149/mo) is all-inclusive: unlimited contacts and leads, two-way SMS with a dedicated business number, fax, Gmail sync, AI Lead Scanner, AI Dealer Brief, AI Receipt OCR, BHPH loan tracking, bookkeeping, analytics, and team management. No add-ons or hidden fees.',
+  },
+  {
+    q: 'What does the Voice AI add-on do?',
+    a: 'The Voice AI add-on ($199.95/mo, requires Complete CRM) adds a Retell AI phone agent that answers inbound calls 24/7, qualifies leads, and writes call transcripts directly to the customer record — even when you\'re on the lot or after hours. Includes 1,000 voice minutes/month.',
+  },
+  {
+    q: 'Is there an annual discount?',
+    a: 'Yes — 10% off when you pay annually. Complete CRM drops from $149/mo to $134.10/mo (saving ~$179/yr). The full CRM + Voice stack drops from $348.95/mo to $314.06/mo (saving ~$419/yr).',
   },
   {
     q: 'Is two-way SMS included?',
-    a: 'Yes. Two-way SMS is included in both plans. You get a dedicated local business number, inbound replies land in the customer thread automatically, and STOP/START opt-out is handled per TCPA requirements.',
+    a: 'Yes. Two-way SMS is included in Complete CRM and the full stack. You get a dedicated local business number, inbound replies land in the customer thread automatically, and STOP/START opt-out is handled per TCPA requirements.',
   },
   {
     q: 'How is my data protected?',
