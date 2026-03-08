@@ -66,6 +66,8 @@ export async function PATCH(req: NextRequest) {
     voice_business_hours_end?: string
     gbp_location_id?: string
     locations?: unknown[]
+    dealer_website_url?: string
+    dealer_website_inventory_path?: string
   } = await req.json()
 
   // Update organizations.name if provided
@@ -94,6 +96,12 @@ export async function PATCH(req: NextRequest) {
   if (body.voice_business_hours_end !== undefined) settingsPayload.voice_business_hours_end = body.voice_business_hours_end
   if (body.gbp_location_id !== undefined) settingsPayload.gbp_location_id = body.gbp_location_id
   if (body.locations !== undefined) (settingsPayload as Record<string, unknown>).locations = body.locations
+  if (body.dealer_website_url !== undefined) {
+    settingsPayload.dealer_website_url = body.dealer_website_url
+    // Single inventory URL: when only URL is sent (e.g. from one-field form), clear path so sync uses URL as full page
+    if (body.dealer_website_inventory_path === undefined) settingsPayload.dealer_website_inventory_path = ''
+  }
+  if (body.dealer_website_inventory_path !== undefined) settingsPayload.dealer_website_inventory_path = body.dealer_website_inventory_path
 
   const hasSettingsUpdate = Object.keys(settingsPayload).length > 2 // more than just org_id + updated_at
   if (hasSettingsUpdate) {

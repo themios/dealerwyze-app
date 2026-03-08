@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
 
   if (!settings?.twilio_phone_number) {
     return NextResponse.json(
-      { error: 'A phone number must be provisioned first (Settings → SMS Phone Number).' },
+      { error: 'Add a business phone number first in Settings → Organization (SMS Phone Number). Then you can turn on the AI voice agent.' },
       { status: 400 },
     )
   }

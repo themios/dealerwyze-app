@@ -50,21 +50,15 @@ export default function LinkVehicleSheet({ customerId, onLinked, hasVehicle }: L
 
   return (
     <>
-      {hasVehicle ? (
-        <Button variant="ghost" size="sm" onClick={() => setOpen(true)} className="text-muted-foreground" title="Change linked vehicle">
-          <Link2 className="h-4 w-4" />
-        </Button>
-      ) : (
-        <Button variant="outline" size="sm" onClick={() => setOpen(true)} className="gap-1.5">
-          <Link2 className="h-4 w-4" />
-          Link Vehicle
-        </Button>
-      )}
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)} className="gap-1.5">
+        <Link2 className="h-4 w-4" />
+        {hasVehicle ? 'Add Vehicle' : 'Link Vehicle'}
+      </Button>
 
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="bottom" className="h-[80vh] overflow-y-auto rounded-t-2xl">
           <SheetHeader className="mb-4">
-            <SheetTitle>{hasVehicle ? 'Change Vehicle' : 'Link a Vehicle'}</SheetTitle>
+            <SheetTitle>Link a Vehicle</SheetTitle>
           </SheetHeader>
 
           {selected ? (

@@ -91,9 +91,9 @@ export default function DealerBrief() {
   if (error) {
     return (
       <div className="mx-4 mb-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4">
-        <p className="text-sm text-destructive font-medium">Brief unavailable</p>
-        <p className="text-xs text-muted-foreground mt-1 break-all line-clamp-3">{error}</p>
-        <Button size="sm" variant="outline" className="mt-2" onClick={load}>Retry</Button>
+        <p className="text-sm text-destructive font-medium">Daily brief unavailable</p>
+        <p className="text-xs text-muted-foreground mt-1">We couldn&apos;t load your brief right now.</p>
+        <Button size="sm" variant="outline" className="mt-2" onClick={load}>Try again</Button>
       </div>
     )
   }

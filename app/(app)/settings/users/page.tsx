@@ -149,11 +149,11 @@ export default function UsersPage() {
         title="Team"
         right={
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" onClick={() => setInviteOpen(true)}>
+            <Button variant="ghost" size="sm" onClick={() => setInviteOpen(true)} title="Add team member">
               <Plus className="h-4 w-4" />
             </Button>
             <Link href="/settings">
-              <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="sm" title="Back to settings"><ArrowLeft className="h-4 w-4" /></Button>
             </Link>
           </div>
         }
@@ -176,7 +176,7 @@ export default function UsersPage() {
             <p className="text-xs text-muted-foreground mb-1">Your Team Code</p>
             <div className="flex items-center gap-3">
               <p className="text-2xl font-mono font-bold tracking-widest flex-1">{inviteCode}</p>
-              <Button variant="outline" size="sm" onClick={copyCode}>
+              <Button variant="outline" size="sm" onClick={copyCode} title="Copy to clipboard">
                 {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
               </Button>
             </div>
@@ -225,6 +225,7 @@ export default function UsersPage() {
                         onClick={() => handleDeactivate(u.id)}
                         disabled={busy === u.id}
                         className="text-destructive hover:text-destructive shrink-0"
+                        title="Deactivate user"
                       >
                         <UserX className="h-4 w-4" />
                       </Button>
@@ -236,6 +237,7 @@ export default function UsersPage() {
                         onClick={() => handleReactivate(u.id)}
                         disabled={busy === u.id}
                         className="shrink-0"
+                        title="Reactivate user"
                       >
                         <RefreshCw className="h-3.5 w-3.5" />
                       </Button>

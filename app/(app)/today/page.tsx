@@ -164,9 +164,9 @@ export default async function TodayPage() {
         left={<SyncGmailButton compact />}
         right={
           <>
-            <Link href="/search" className="p-1.5 text-white/70 hover:text-white" aria-label="Search"><Search className="h-5 w-5" /></Link>
-            <Link href="/calendar" className="p-1.5 text-white/70 hover:text-white" aria-label="Calendar"><CalendarDays className="h-5 w-5" /></Link>
-            <Link href="/receipts" className="p-1.5 text-white/70 hover:text-white" aria-label="Receipts"><Receipt className="h-5 w-5" /></Link>
+            <Link href="/search" className="p-1.5 text-white/70 hover:text-white" aria-label="Search" title="Search"><Search className="h-5 w-5" /></Link>
+            <Link href="/calendar" className="p-1.5 text-white/70 hover:text-white" aria-label="Calendar" title="Calendar"><CalendarDays className="h-5 w-5" /></Link>
+            <Link href="/receipts" className="p-1.5 text-white/70 hover:text-white" aria-label="Receipts" title="Scan receipts"><Receipt className="h-5 w-5" /></Link>
           </>
         }
       />

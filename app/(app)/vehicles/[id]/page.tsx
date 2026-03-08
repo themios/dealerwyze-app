@@ -48,10 +48,10 @@ export default async function VehicleDetailPage({ params }: PageProps) {
                 vehicleLabel={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
               />
             )}
-            <Link href={`/vehicles/${id}/edit`}>
+            <Link href={`/vehicles/${id}/edit`} title="Edit vehicle">
               <Button variant="ghost" size="sm"><Pencil className="h-4 w-4" /></Button>
             </Link>
-            <Link href="/vehicles">
+            <Link href="/vehicles" title="Back to inventory">
               <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4" /></Button>
             </Link>
           </div>

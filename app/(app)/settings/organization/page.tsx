@@ -33,6 +33,7 @@ interface OrgSettings {
   twilio_phone_number: string | null
   gbp_location_id: string
   resend_from_domain: string | null
+  dealer_website_url: string  // full inventory page URL
 }
 
 interface EmailAccount {
@@ -101,6 +102,7 @@ export default function OrganizationPage() {
     business_phone: '',
     business_address: '',
     timezone: 'America/Los_Angeles',
+    dealer_website_url: '',
     dealer_cell_number: '',
     voice_business_hours_start: '09:00',
     voice_business_hours_end: '19:00',
@@ -169,6 +171,12 @@ export default function OrganizationPage() {
         business_phone:             d.business_phone ?? '',
         business_address:           d.business_address ?? '',
         timezone:                   d.timezone ?? 'America/Los_Angeles',
+        dealer_website_url: (() => {
+          const url = (d.dealer_website_url ?? '').replace(/\/$/, '')
+          const path = (d.dealer_website_inventory_path ?? '').trim()
+          if (!path || url.endsWith(path) || url.endsWith(path.replace(/^\//, ''))) return url || ''
+          return url + (path.startsWith('/') ? path : `/${path}`)
+        })(),
         dealer_cell_number:         d.dealer_cell_number ?? '',
         voice_business_hours_start: d.voice_business_hours_start ?? '09:00',
         voice_business_hours_end:   d.voice_business_hours_end ?? '19:00',
@@ -332,7 +340,7 @@ export default function OrganizationPage() {
     const data = await res.json() as { phoneNumber?: string; error?: string }
     setProvisioning(false)
     if (!res.ok) {
-      setProvisionError(data.error ?? 'Failed')
+      setProvisionError(data.error ?? 'Something went wrong. Please try again or contact support.')
     } else {
       setForm(prev => ({ ...prev, twilio_phone_number: data.phoneNumber ?? null }))
       setProvisionOpen(false)
@@ -352,14 +360,14 @@ export default function OrganizationPage() {
     const data = await res.json() as { agentId?: string; error?: string }
     setVoiceProvisioning(false)
     if (!res.ok) {
-      setVoiceError(data.error ?? 'Failed to provision voice agent')
+      setVoiceError(data.error ?? 'We couldn\'t turn on the AI voice agent. Try again or contact support.')
     } else {
       setRetellAgentId(data.agentId ?? null)
     }
   }
 
   async function handleDeprovisionVoice() {
-    if (!confirm('Remove the voice agent? Incoming calls will no longer be answered by AI.')) return
+    if (!confirm('Remove the AI voice agent? Incoming calls will no longer be answered automatically.')) return
     setVoiceDeprovisioning(true)
     setVoiceError(null)
     await fetch('/api/admin/provision-voice', {
@@ -372,7 +380,7 @@ export default function OrganizationPage() {
   }
 
   async function handleRelease() {
-    if (!confirm('Release this phone number? SMS and voice will stop working for this org.')) return
+    if (!confirm('Release this number? Your dealership will no longer be able to send or receive texts or take calls on it.')) return
     setReleasing(true)
     const res = await fetch('/api/admin/provision-phone', {
       method:  'DELETE',
@@ -593,6 +601,26 @@ export default function OrganizationPage() {
               </Select>
             </div>
 
+            <div className="pt-2 border-t space-y-3">
+              <p className="text-sm font-semibold">Inventory page URL</p>
+              <p className="text-xs text-muted-foreground">
+                Full URL of your dealership’s inventory or cars-for-sale page. Used by inventory sync and email template <code className="bg-muted px-1 rounded">{'{link}'}</code>.
+              </p>
+              <div className="space-y-1.5">
+                <Label htmlFor="org-inventory-url" className="text-sm font-medium">URL</Label>
+                <Input
+                  id="org-inventory-url"
+                  type="url"
+                  value={form.dealer_website_url}
+                  onChange={e => handleChange('dealer_website_url', e.target.value)}
+                  placeholder="https://www.yourdealer.com/cars-for-sale"
+                />
+              </div>
+              <Button type="button" size="sm" onClick={handleSave} disabled={saving} className="mt-2">
+                {saving ? 'Saving…' : saved ? 'Saved!' : 'Save'}
+              </Button>
+            </div>
+
             {/* SMS Phone Number */}
             {isAdmin && (
               <div className="pt-2 border-t">
@@ -617,8 +645,8 @@ export default function OrganizationPage() {
                 ) : (
                   <>
                     <p className="text-xs text-muted-foreground mb-3">
-                      Provision a dedicated Twilio number for SMS & voice. Toll-free numbers are instant;
-                      local numbers require 10DLC registration (may take days).
+                      Get a business phone number for texts and calls. Toll-free is ready immediately;
+                      local numbers may take a few days to activate.
                     </p>
 
                     {!provisionOpen ? (
@@ -630,16 +658,16 @@ export default function OrganizationPage() {
                       <div className="space-y-3 p-3 rounded-lg border bg-card">
                         <div className="flex items-center justify-between">
                           <p className="text-sm font-medium">New Phone Number</p>
-                          <button onClick={() => { setProvisionOpen(false); setProvisionError(null) }}>
+                          <button onClick={() => { setProvisionOpen(false); setProvisionError(null) }} title="Close">
                             <X className="h-4 w-4 text-muted-foreground" />
                           </button>
                         </div>
 
                         <div className="grid grid-cols-3 gap-1.5">
                           {([
-                            { value: 'toll_free', label: 'Toll-Free',       sub: 'Instant' },
-                            { value: 'local',     label: 'Local',            sub: '10DLC req.' },
-                            { value: 'existing',  label: 'Already own one', sub: 'BYON' },
+                            { value: 'toll_free', label: 'Toll-Free',        sub: 'Ready now' },
+                            { value: 'local',     label: 'Local number',     sub: 'May take a few days' },
+                            { value: 'existing',  label: 'I have a number',  sub: 'Use my existing number' },
                           ] as const).map(opt => (
                             <button
                               key={opt.value}
@@ -667,7 +695,7 @@ export default function OrganizationPage() {
 
                         {phoneType === 'existing' && (
                           <div className="space-y-1">
-                            <Label className="text-xs">Your Twilio Number</Label>
+                            <Label className="text-xs">Your phone number</Label>
                             <Input
                               placeholder="(818) 555-0100"
                               value={existingNumber}
@@ -675,7 +703,7 @@ export default function OrganizationPage() {
                               className="h-9 font-mono"
                             />
                             <p className="text-[10px] text-muted-foreground">
-                              We&apos;ll update the SMS webhook automatically if the number is on our Twilio account.
+                              If we already manage this number for you, we&apos;ll connect it so texts and calls work right away. No extra setup needed.
                             </p>
                           </div>
                         )}
@@ -762,7 +790,7 @@ export default function OrganizationPage() {
                 <div className="space-y-3 p-3 rounded-lg border bg-card mb-3">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium">{editAccountIsOAuth ? 'Edit account label' : 'Edit Email Account'}</p>
-                    <button onClick={cancelEditAccount} className="text-muted-foreground hover:text-foreground">
+                    <button onClick={cancelEditAccount} className="text-muted-foreground hover:text-foreground" title="Close">
                       <X className="h-4 w-4" />
                     </button>
                   </div>
@@ -775,7 +803,7 @@ export default function OrganizationPage() {
                         onChange={e => setImapLabel(e.target.value)}
                         className="h-9"
                       />
-                      <p className="text-[10px] text-muted-foreground">Gmail OAuth accounts: only the label can be changed. To use different credentials, remove and reconnect.</p>
+                      <p className="text-[10px] text-muted-foreground">For Gmail you can only change the label. To use a different Gmail account, remove this one and connect again.</p>
                     </div>
                   ) : (
                     <>
@@ -810,7 +838,7 @@ export default function OrganizationPage() {
                             onChange={e => setImapPass(e.target.value)}
                             className="h-9 font-mono pr-9"
                           />
-                          <button type="button" onClick={() => setShowImapPass(p => !p)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground rounded" aria-label={showImapPass ? 'Hide password' : 'Show password'}>
+                          <button type="button" onClick={() => setShowImapPass(p => !p)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground rounded" aria-label={showImapPass ? 'Hide password' : 'Show password'} title={showImapPass ? 'Hide password' : 'Show password'}>
                             {showImapPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                           </button>
                         </div>
@@ -861,7 +889,7 @@ export default function OrganizationPage() {
                 <div className="space-y-3 p-3 rounded-lg border bg-card">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium">Add Email Account</p>
-                    <button onClick={() => { setAddImapOpen(false); setImapError(null); setShowImapPass(false) }}>
+                    <button onClick={() => { setAddImapOpen(false); setImapError(null); setShowImapPass(false) }} title="Close">
                       <X className="h-4 w-4 text-muted-foreground" />
                     </button>
                   </div>
@@ -909,6 +937,7 @@ export default function OrganizationPage() {
                         onClick={() => setShowImapPass(p => !p)}
                         className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground rounded"
                         aria-label={showImapPass ? 'Hide password' : 'Show password'}
+                        title={showImapPass ? 'Hide password' : 'Show password'}
                       >
                         {showImapPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
@@ -1057,7 +1086,7 @@ export default function OrganizationPage() {
                       }
                     </div>
                     {!retellAgentId && !form.twilio_phone_number && (
-                      <p className="text-[10px] text-muted-foreground">A phone number must be provisioned first.</p>
+                      <p className="text-[10px] text-muted-foreground">Add a business phone number above first. The AI voice agent uses that number for calls.</p>
                     )}
                     {voiceError && <p className="text-xs text-destructive">{voiceError}</p>}
                     {retellAgentId ? (

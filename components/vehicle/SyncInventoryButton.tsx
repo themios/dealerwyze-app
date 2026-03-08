@@ -15,22 +15,35 @@ export default function SyncInventoryButton() {
   async function handleSync() {
     setStatus('loading')
     setResult(null)
-    try {
-      const res = await fetch('/api/inventory/sync', { method: 'POST' })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Sync failed')
+    const maxTries = 2
+    for (let tryNum = 1; tryNum <= maxTries; tryNum++) {
+      try {
+        const res = await fetch('/api/inventory/sync', { method: 'POST' })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(data.error || 'Sync failed')
 
-      const parts: string[] = []
-      if (data.added > 0) parts.push(`+${data.added}`)
-      if (data.archived > 0) parts.push(`-${data.archived}`)
-      setResult(parts.length > 0 ? parts.join(' ') : 'Up to date')
-      setStatus('done')
-      router.refresh()
-    } catch (err: any) {
-      const message = err?.message || 'Sync failed'
-      setResult(message)
-      setStatus('error')
-      console.error(err)
+        const parts: string[] = []
+        if (data.added > 0) parts.push(`+${data.added} added`)
+        if (data.needs_review > 0) parts.push(`${data.needs_review} need review`)
+        setResult(parts.length > 0 ? parts.join(' · ') : 'Up to date')
+        setStatus('done')
+        router.refresh()
+        setTimeout(() => { setStatus('idle'); setResult(null) }, 4000)
+        return
+      } catch (err: any) {
+        const isNetworkError = err?.message === 'Failed to fetch'
+        if (isNetworkError && tryNum < maxTries) {
+          await new Promise(r => setTimeout(r, 2000))
+          continue
+        }
+        const message = isNetworkError
+          ? 'Connection interrupted. Check your internet and try again.'
+          : (err?.message || 'Sync failed. Check your inventory URL in Settings → Organization.')
+        setResult(message)
+        setStatus('error')
+        if (!isNetworkError) console.error(err)
+        break
+      }
     }
     setTimeout(() => { setStatus('idle'); setResult(null) }, 4000)
   }
@@ -42,6 +55,7 @@ export default function SyncInventoryButton() {
       className="h-9 px-3 text-xs gap-1.5"
       onClick={handleSync}
       disabled={status === 'loading'}
+      title="Pull latest vehicles from your dealership website into this list"
     >
       {status === 'loading' && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
       {status === 'done' && <CheckCircle className="h-3.5 w-3.5 text-green-600" />}

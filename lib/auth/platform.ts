@@ -51,3 +51,33 @@ export async function requirePlatformSuperAdmin(
   }
   return null
 }
+
+/**
+ * Returns the affiliate_code linked to a channel_rep profile,
+ * or null if the user is not a channel rep.
+ * Platform super admins are also allowed (returns null — they use admin routes).
+ */
+export async function getChannelRepCode(userId: string): Promise<string | null> {
+  const service = createServiceClient()
+  const { data } = await service
+    .from('profiles')
+    .select('platform_role, affiliate_code')
+    .eq('id', userId)
+    .maybeSingle()
+  if (data?.platform_role !== 'channel_rep') return null
+  return data?.affiliate_code ?? null
+}
+
+/**
+ * Returns a 403 if the user is not a channel_rep with a linked affiliate code.
+ * On success returns { affiliateCode }.
+ */
+export async function requireChannelRep(
+  userId: string
+): Promise<{ denied: NextResponse; affiliateCode?: never } | { denied?: never; affiliateCode: string }> {
+  const code = await getChannelRepCode(userId)
+  if (!code) {
+    return { denied: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
+  }
+  return { affiliateCode: code }
+}

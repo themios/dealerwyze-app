@@ -147,6 +147,7 @@ export default function FaxPage() {
                   type="button"
                   onClick={e => { e.stopPropagation(); setFile(null) }}
                   className="text-muted-foreground hover:text-foreground"
+                  title="Remove file"
                 >
                   <X className="h-4 w-4" />
                 </button>

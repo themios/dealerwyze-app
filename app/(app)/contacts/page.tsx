@@ -116,6 +116,7 @@ function ContactCard({ c, onFax }: { c: Contact; onFax: (fax: string) => void })
           onClick={e => { e.stopPropagation(); shareContact(c) }}
           className="p-1.5 text-muted-foreground hover:text-foreground"
           aria-label="Share contact"
+          title="Share contact"
         >
           <Share2 className="h-4 w-4" />
         </button>
@@ -320,10 +321,10 @@ export default function ContactsPage() {
 
   const topRight = view === 'list' ? (
     <div className="flex items-center gap-1">
-      <Button size="sm" variant="ghost" onClick={() => { setForm({ ...EMPTY_FORM }); setScannedFile(null); setView('manual') }}>
+      <Button size="sm" variant="ghost" onClick={() => { setForm({ ...EMPTY_FORM }); setScannedFile(null); setView('manual') }} title="Add contact">
         <Plus className="h-5 w-5" />
       </Button>
-      <Button size="sm" variant="ghost" onClick={() => cameraRef.current?.click()}>
+      <Button size="sm" variant="ghost" onClick={() => cameraRef.current?.click()} title="Scan business card">
         <ScanLine className="h-5 w-5" />
       </Button>
     </div>
@@ -403,7 +404,7 @@ export default function ContactsPage() {
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input placeholder="Search contacts…" value={query} onChange={e => setQuery(e.target.value)} className="pl-8" />
                 {query && (
-                  <button onClick={() => setQuery('')} className="absolute right-2.5 top-2.5 text-muted-foreground">
+                  <button onClick={() => setQuery('')} className="absolute right-2.5 top-2.5 text-muted-foreground" title="Clear search">
                     <X className="h-4 w-4" />
                   </button>
                 )}

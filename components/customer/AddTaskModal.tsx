@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
+import DateTimePicker15 from '@/components/ui/DateTimePicker15'
 import { CalendarPlus } from 'lucide-react'
 
 interface AddTaskModalProps {
@@ -145,12 +146,9 @@ export default function AddTaskModal({ open, onClose, customerId, customerName, 
               ))}
             </div>
             {duePreset === 'custom' && (
-              <input
-                type="datetime-local"
-                value={customDate}
-                onChange={e => setCustomDate(e.target.value)}
-                className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              />
+              <div className="mt-2">
+                <DateTimePicker15 value={customDate} onChange={setCustomDate} />
+              </div>
             )}
           </div>
 

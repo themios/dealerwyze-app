@@ -84,7 +84,7 @@ export default function SupportThreadPage() {
     <div className="flex flex-col h-screen">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background border-b px-4 py-3 flex items-center gap-3">
-        <button onClick={() => router.push('/support')} className="text-muted-foreground">
+        <button onClick={() => router.push('/support')} className="text-muted-foreground" title="Go back">
           <ArrowLeft className="h-5 w-5" />
         </button>
         <div className="flex-1 min-w-0">
@@ -125,7 +125,7 @@ export default function SupportThreadPage() {
             className="resize-none flex-1"
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
           />
-          <Button size="icon" onClick={handleSend} disabled={sending || !reply.trim()}>
+          <Button size="icon" onClick={handleSend} disabled={sending || !reply.trim()} title="Send message">
             {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>
         </div>

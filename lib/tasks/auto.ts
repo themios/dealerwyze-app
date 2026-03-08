@@ -25,12 +25,12 @@ export async function createLeadResponseTask(
   if (existing) return
 
   const nameLabel    = customerName ?? 'New Lead'
-  const vehicleLabel = vehicleName  ? ` re: ${vehicleName}` : ''
+  const vehicleLabel = vehicleName  ? ` · ${vehicleName}` : ''
   const dueAt        = new Date(Date.now() + 10 * 60 * 1000).toISOString()
 
   await supabase.from('tasks').insert({
     user_id: userId,
-    title: `Respond to ${nameLabel}${vehicleLabel}`,
+    title: `${nameLabel}${vehicleLabel}`,
     task_type: 'lead_response',
     status: 'open',
     priority: 'must',

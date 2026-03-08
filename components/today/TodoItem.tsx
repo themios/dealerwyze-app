@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
+import DateTimePicker15 from '@/components/ui/DateTimePicker15'
 
 export interface Task {
   id: string
@@ -75,6 +76,12 @@ function formatDue(due: string | null): { label: string; cls: string } {
 function isOverdue(due: string | null): boolean {
   if (!due) return false
   return new Date(due).getTime() < Date.now()
+}
+
+/** Strip redundant "Respond to " prefix so Must Do shows the actual task (e.g. "John Smith · 2022 Honda") */
+function displayTitle(title: string): string {
+  const prefix = 'Respond to '
+  return title.startsWith(prefix) ? title.slice(prefix.length) : title
 }
 
 // ── Entity pill ───────────────────────────────────────────────────────────────
@@ -233,7 +240,7 @@ function DetailSheet({ task, onClose, onComplete, onSnooze, onUpdate, onDelete }
 
         {/* Header */}
         <div className="flex items-start justify-between mb-4">
-          <h2 className="text-base font-semibold leading-snug pr-6">{task.title}</h2>
+          <h2 className="text-base font-semibold leading-snug pr-6">{displayTitle(task.title)}</h2>
           <button
             onClick={onClose}
             className="text-muted-foreground hover:text-foreground shrink-0 mt-0.5"
@@ -253,12 +260,7 @@ function DetailSheet({ task, onClose, onComplete, onSnooze, onUpdate, onDelete }
           <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">
             Due
           </label>
-          <input
-            type="datetime-local"
-            value={dueAt}
-            onChange={e => handleDueChange(e.target.value)}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#F07018]"
-          />
+          <DateTimePicker15 value={dueAt} onChange={handleDueChange} />
         </div>
 
         {/* Priority toggle */}
@@ -494,14 +496,14 @@ export default function TodoItem({ task, onComplete, onSnooze, onUpdate }: Props
           role="button"
           tabIndex={0}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setShowDetail(true) }}
-          aria-label={`Task: ${task.title}`}
+          aria-label={`Task: ${displayTitle(task.title)}`}
         >
           {/* Priority dot */}
           <span className={`shrink-0 w-2.5 h-2.5 rounded-full ${dotColor}`} aria-hidden="true" />
 
           {/* Content */}
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium truncate">{task.title}</div>
+            <div className="text-sm font-medium truncate">{displayTitle(task.title)}</div>
             <div className="flex items-center gap-1.5 flex-wrap">
               <EntityPill task={task} />
               {task.assigned_to_name && (

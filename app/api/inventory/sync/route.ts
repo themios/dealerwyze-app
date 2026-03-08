@@ -143,7 +143,7 @@ function vehicleLinkKey(v: ScrapedVehicle): string {
   return `${v.year}-${make}-${model}`
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(_req: NextRequest) {
   const profile = await requireProfile()
   if (!isDealerAdmin(profile.role as UserRole)) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 })
@@ -158,27 +158,114 @@ export async function POST(req: NextRequest) {
     .eq('org_id', profile.org_id)
     .maybeSingle()
 
-  const baseUrl       = orgSettings?.dealer_website_url?.replace(/\/$/, '') ?? ''
-  const inventoryPath = orgSettings?.dealer_website_inventory_path ?? '/cars-for-sale'
+  const baseUrl = orgSettings?.dealer_website_url?.replace(/\/$/, '') ?? ''
+  const path = (orgSettings?.dealer_website_inventory_path ?? '').trim()
 
   if (!baseUrl) {
     return NextResponse.json(
-      { error: 'Dealer website is missing. Please add it in Settings → Organization.' },
+      { error: 'Add your inventory page URL in Settings → Organization (Inventory page URL) so we can sync your inventory.' },
       { status: 400 },
     )
   }
 
-  // Fetch website HTML
+  // Single URL: when path is empty, use baseUrl as the full inventory page URL
+  const fetchUrl = !path
+    ? baseUrl
+    : baseUrl.endsWith(path) || baseUrl.endsWith(path.replace(/^\//, ''))
+      ? baseUrl
+      : `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`
+
+  // Fetch website HTML with timeout; use full Chrome fingerprinting headers to pass bot detection
+  const FETCH_TIMEOUT_MS = 25_000
+
+  function browserHeaders(url: string): Record<string, string> {
+    const origin = new URL(url).origin
+    return {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Cache-Control': 'max-age=0',
+      'Connection': 'keep-alive',
+      'DNT': '1',
+      'Referer': origin + '/',
+      'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+      'sec-ch-ua-mobile': '?0',
+      'sec-ch-ua-platform': '"Windows"',
+      'Sec-Fetch-Dest': 'document',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Site': 'same-origin',
+      'Sec-Fetch-User': '?1',
+      'Upgrade-Insecure-Requests': '1',
+    }
+  }
+
+  async function fetchHtml(url: string, timeoutMs = FETCH_TIMEOUT_MS): Promise<{ html: string; status: number }> {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+      const res = await fetch(url, {
+        headers: browserHeaders(url),
+        redirect: 'follow',
+        cache: 'no-store',
+        signal: controller.signal,
+      })
+      clearTimeout(timeoutId)
+      const text = res.ok ? await res.text() : ''
+      return { html: text, status: res.status }
+    } catch (err: any) {
+      clearTimeout(timeoutId)
+      throw err
+    }
+  }
+
   let html = ''
+  let fetchStatus: number | null = null
   try {
-    const res = await fetch(`${baseUrl}${inventoryPath}`, {
-      headers: { 'User-Agent': 'DealerWyze/1.0' },
-      cache: 'no-store',
-    })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    html = await res.text()
+    const result = await fetchHtml(fetchUrl)
+    fetchStatus = result.status
+    if (result.status === 403 || result.status === 401 || result.status === 500) {
+      // Try sitemap fallback — short timeout per attempt so we fail fast
+      const sitemapUrl = new URL(fetchUrl).origin + '/sitemap.xml'
+      try {
+        const sitemapResult = await fetchHtml(sitemapUrl, 5_000)
+        if (sitemapResult.status === 200 && sitemapResult.html) {
+          const urlMatches = [...sitemapResult.html.matchAll(/<loc>(https?:\/\/[^<]+)<\/loc>/gi)]
+          const invUrls = urlMatches
+            .map(m => m[1].trim())
+            .filter(u => /cars|inventory|vehicles|for-sale|stock|listings/i.test(u))
+            .slice(0, 3)
+          for (const u of invUrls) {
+            const attempt = await fetchHtml(u, 5_000)
+            if (attempt.status === 200 && attempt.html.length > 500) {
+              html = attempt.html
+              fetchStatus = 200
+              break
+            }
+          }
+        }
+      } catch { /* sitemap fetch failed — fall through to original error */ }
+    } else {
+      html = result.html
+    }
+    if (!html) throw new Error(`HTTP ${fetchStatus ?? result.status}`)
   } catch (err: any) {
-    return NextResponse.json({ error: `Failed to fetch website: ${err.message}` }, { status: 502 })
+    const isTimeout = err?.name === 'AbortError'
+    let message: string
+    if (isTimeout) {
+      message = 'Your site took too long to respond. Try again in a few minutes or contact support if it keeps happening.'
+    } else if (fetchStatus === 500) {
+      message = 'Your website returned an error (500). Your web host or firewall may be blocking DealerWyze server requests. Ask your host to check their error logs for that URL.'
+    } else if (fetchStatus === 403 || fetchStatus === 401) {
+      message = 'Your site is blocking automated access (403 Forbidden). This is usually Cloudflare or your web host\'s bot protection. Ask your host to whitelist DealerWyze, or contact support@dealerwyze.com — we can help set up a direct inventory feed instead.'
+    } else if (fetchStatus === 404) {
+      message = 'Inventory page not found (404). Double-check the URL in Settings → Organization.'
+    } else if (fetchStatus != null) {
+      message = `Your site returned HTTP ${fetchStatus}. Check the URL in Settings → Organization and that the page is public.`
+    } else {
+      message = 'We couldn\'t reach your website (connection failed or timed out). Check the URL in Settings → Organization, that your site is online, and try again.'
+    }
+    return NextResponse.json({ error: message }, { status: 502 })
   }
 
   // Try parsing strategies in order of reliability
@@ -186,8 +273,9 @@ export async function POST(req: NextRequest) {
   if (scraped.length === 0) scraped = tryEmbeddedJson(html)
   if (scraped.length === 0) scraped = tryHtmlRegex(html)
 
-  // Enrich scraped vehicles with listing URLs from page links
-  const vehicleLinks = extractVehicleLinks(html, baseUrl)
+  // Enrich scraped vehicles with listing URLs from page links (use origin so /details/... resolves correctly)
+  const linkBase = new URL(fetchUrl).origin
+  const vehicleLinks = extractVehicleLinks(html, linkBase)
   for (const v of scraped) {
     if (!v.listing_url) {
       v.listing_url = vehicleLinks.get(vehicleLinkKey(v))
@@ -196,7 +284,7 @@ export async function POST(req: NextRequest) {
 
   if (scraped.length === 0) {
     return NextResponse.json({
-      error: 'No vehicles found on website. The page may use JavaScript rendering.',
+      error: 'We couldn\'t find any vehicles on your website. Make sure your inventory page is public and the URL in Settings → Organization is correct. If your site loads inventory with JavaScript, contact support for help.',
       html_length: html.length,
     }, { status: 422 })
   }
@@ -255,21 +343,16 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Archive vehicles no longer on website (only available ones — don't touch sold/pending)
-  const toArchive = (existing || []).filter(v => !scrapedKeys.has(v.stock_no))
-  for (const v of toArchive) {
-    const { data: full } = await supabase.from('vehicles').select('*').eq('id', v.id).single()
-    if (full) {
-      await supabase.from('vehicles_archive').insert({
-        original_id: v.id,
-        user_id: profile.org_id,
-        data: full,
-        archive_reason: 'removed_from_website',
-      })
-      await supabase.from('vehicles').delete().eq('id', v.id)
-      archived++
-    }
+  // Mark vehicles no longer on website as sync_removed — never delete automatically.
+  // Dealer reviews them in Inventory and marks each as sold or restores to available.
+  const toReview = (existing || []).filter(v => !scrapedKeys.has(v.stock_no))
+  if (toReview.length > 0) {
+    const { error: reviewError } = await supabase
+      .from('vehicles')
+      .update({ status: 'sync_removed', sync_removed_at: new Date().toISOString() })
+      .in('id', toReview.map(v => v.id))
+    if (!reviewError) archived = toReview.length
   }
 
-  return NextResponse.json({ scraped: scrapedByKey.size, added, archived })
+  return NextResponse.json({ scraped: scrapedByKey.size, added, needs_review: archived })
 }

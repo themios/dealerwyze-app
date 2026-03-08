@@ -5,9 +5,9 @@ import { requirePlatformSuperAdmin } from '@/lib/auth/platform'
 
 // Base plan pricing (CRM subscription, active orgs only)
 const BASE_PLAN_MRR: Record<string, number> = {
-  tier1: 49,
-  tier2: 99,
-  tier3: 249,
+  tier1: 150,
+  tier2: 200,
+  tier3: 249.95,
 }
 
 // SMS add-on pricing (on top of base plan)

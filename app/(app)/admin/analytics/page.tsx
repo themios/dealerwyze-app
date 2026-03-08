@@ -5,9 +5,9 @@ import TopBar from '@/components/layout/TopBar'
 import { Loader2 } from 'lucide-react'
 
 const PLAN_LABEL: Record<string, string> = {
-  tier1: 'Basic',
-  tier2: 'SMS',
-  tier3: 'Voice',
+  tier1: 'Complete CRM',
+  tier2: 'Voice AI',
+  tier3: 'Legacy',
 }
 
 interface Analytics {

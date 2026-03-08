@@ -40,14 +40,14 @@ export default function FeedbackButton() {
 
   return (
     <>
-      {/* Floating trigger button */}
+      {/* Floating trigger: compact icon by default, expands to pill on hover so it doesn't cover + task FAB */}
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-20 right-4 z-50 lg:bottom-6 lg:right-6 flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg font-semibold text-sm text-white transition-all hover:opacity-90 active:scale-95"
+        className="group fixed bottom-28 right-4 z-40 lg:bottom-6 lg:right-6 flex items-center justify-center gap-2 w-10 h-10 rounded-full shadow-lg font-semibold text-sm text-white transition-all duration-200 hover:opacity-90 active:scale-95 overflow-hidden lg:justify-center lg:hover:w-auto lg:hover:px-4 lg:hover:gap-2"
         style={{ backgroundColor: '#0D2B55', boxShadow: '0 4px 16px rgba(13,43,85,0.35)' }}
         aria-label="Send feedback">
-        <MessageSquarePlus className="w-4 h-4" />
-        <span className="hidden sm:inline">Feedback</span>
+        <MessageSquarePlus className="w-4 h-4 shrink-0" />
+        <span className="max-w-0 overflow-hidden opacity-0 lg:group-hover:max-w-[100px] lg:group-hover:opacity-100 transition-all duration-200 whitespace-nowrap">Feedback</span>
       </button>
 
       {/* Modal overlay */}

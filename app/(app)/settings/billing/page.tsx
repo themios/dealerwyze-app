@@ -118,13 +118,15 @@ export default function BillingPage() {
             ? <CheckCircle className="h-5 w-5 text-green-500" />
             : <AlertCircle className="h-5 w-5 text-destructive" />}
           <span className="font-medium text-sm">
-            {isTrial
-              ? 'Free Trial'
-              : isActive
-                ? `DealerWyze — ${PLAN_LABEL[smsPlan as PlanTier] ?? 'Active'}`
-                : isPastDue
-                  ? 'Payment Failed'
-                  : 'Subscription Inactive'}
+            {status?.subscription_status === 'free'
+              ? 'Beta — Free Access'
+              : isTrial
+                ? 'Free Trial'
+                : isActive
+                  ? `DealerWyze — ${PLAN_LABEL[smsPlan as PlanTier] ?? 'Active'}`
+                  : isPastDue
+                    ? 'Payment Failed'
+                    : 'Subscription Inactive'}
           </span>
         </div>
 
@@ -145,11 +147,11 @@ export default function BillingPage() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-lg font-bold">
-              ${PLAN_PRICE[smsPlan as PlanTier] ?? '49.94'}
+              ${PLAN_PRICE[smsPlan as PlanTier] ?? '0'}
               <span className="text-sm font-normal text-muted-foreground">/month</span>
             </p>
             <p className="text-xs text-muted-foreground">
-              {smsPlan === 'tier2' ? 'CRM · SMS · Calendar · Gmail leads' : 'CRM · Calendar · Gmail leads'}
+              {smsPlan === 'tier2' ? 'Voice AI add-on · AI receptionist · 24/7 call handling' : 'CRM · Calendar · Gmail leads'}
             </p>
           </div>
           {hasStripe ? (
@@ -160,10 +162,10 @@ export default function BillingPage() {
           ) : (
             <div className="flex flex-col gap-2 items-end">
               <Button size="sm" variant="outline" onClick={() => handleSubscribe('tier1')} disabled={redirecting}>
-                Basic CRM — $49.94/mo
+                Complete CRM — $150/mo
               </Button>
               <Button size="sm" onClick={() => handleSubscribe('tier2')} disabled={redirecting}>
-                CRM + SMS — $64.95/mo
+                CRM + Voice AI — $350/mo
               </Button>
             </div>
           )}
@@ -232,7 +234,7 @@ export default function BillingPage() {
             })}
           </div>
           {!hasSms && (
-            <p className="text-xs text-muted-foreground">+ $49.94/mo CRM base plan</p>
+            <p className="text-xs text-muted-foreground">Requires Complete CRM ($150/mo)</p>
           )}
         </div>
       )}

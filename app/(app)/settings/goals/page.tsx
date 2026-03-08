@@ -121,10 +121,10 @@ export default function GoalsPage() {
                       {g.why && <p className="text-xs text-muted-foreground mt-0.5">{g.why}</p>}
                     </div>
                     <div className="flex gap-1">
-                      <button className="p-1 text-muted-foreground hover:text-foreground" onClick={() => startEdit(g)}>
+                      <button className="p-1 text-muted-foreground hover:text-foreground" onClick={() => startEdit(g)} title="Edit goal">
                         <Edit2 className="h-3.5 w-3.5" />
                       </button>
-                      <button className="p-1 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(g.id)}>
+                      <button className="p-1 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(g.id)} title="Delete goal">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>

@@ -430,7 +430,7 @@
 - 🔲 **cron-job.org** — update `reset-billing-cycle` URL to `https://dealerwyze.com/api/cron/reset-billing-cycle`
 - ✅ **CarGurus** — update feed URL to `https://dealerwyze.com/api/inventory/cargurus-feed/apollo-auto`
 - 🔲 **Facebook** — update feed URL to `https://dealerwyze.com/api/inventory/facebook-feed/apollo-auto`
-- ✅ **Support email** — set up `support@dealerwyze.com` (Cloudflare Email Routing → kmaautosinc@gmail.com)
+- ✅ **Support email** — set up `support@dealerwyze.com` (Cloudflare Email Routing → apolloai.us@gmail.com)
 
 ---
 

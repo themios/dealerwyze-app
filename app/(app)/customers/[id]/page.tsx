@@ -37,10 +37,10 @@ export default async function CustomerDetailPage({ params }: PageProps) {
         title={customer.name}
         right={
           <div className="flex items-center gap-1">
-            <Link href={`/customers/${id}/edit`}>
+            <Link href={`/customers/${id}/edit`} title="Edit lead">
               <Button variant="ghost" size="sm"><Pencil className="h-4 w-4" /></Button>
             </Link>
-            <Link href="/customers">
+            <Link href="/customers" title="Back to leads">
               <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4" /></Button>
             </Link>
           </div>

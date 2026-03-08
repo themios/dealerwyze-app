@@ -71,10 +71,15 @@ export default function CustomerDetailClient({ customer, activities: initialActi
       .from('customer_vehicles')
       .select('vehicle:vehicles(*)')
       .eq('customer_id', customer.id)
-      .limit(1)
-      .maybeSingle()
       .then(({ data }) => {
-        if (data?.vehicle) setPrimaryVehicle(data.vehicle as unknown as Vehicle)
+        if (!data || data.length === 0) return
+        // Prefer an active (non-sold) vehicle; fall back to most recent
+        const active = data.find(d => {
+          const v = d.vehicle as unknown as Vehicle
+          return v && v.status !== 'sold' && v.status !== 'sync_removed'
+        })
+        const best = active || data[0]
+        if (best?.vehicle) setPrimaryVehicle(best.vehicle as unknown as Vehicle)
       })
   }, [customer.id, vehicleRefreshKey, supabase])
 
@@ -178,7 +183,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
         {customer.sms_opt_out && (
           <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-red-600 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg px-2.5 py-1.5 w-fit">
             <MessageSquareOff className="h-3.5 w-3.5 flex-shrink-0" />
-            SMS Opted Out — cannot send messages
+            This customer asked to stop texts. You can&apos;t send SMS to this number.
           </div>
         )}
         <div className="flex items-center gap-1.5 mt-2">
@@ -226,7 +231,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
         <div className={primaryVehicle ? 'flex justify-center' : 'flex-1 flex justify-center'}>
           <LinkVehicleSheet customerId={customer.id} onLinked={() => setVehicleRefreshKey(k => k + 1)} hasVehicle={!!primaryVehicle} />
         </div>
-        <Button variant="ghost" size="sm" onClick={() => setArchiveOpen(v => !v)} className="gap-1.5 text-muted-foreground">
+        <Button variant="ghost" size="sm" onClick={() => setArchiveOpen(v => !v)} className="gap-1.5 text-muted-foreground" title="Archive">
           <Archive className="h-4 w-4" />
         </Button>
         <Button
@@ -235,6 +240,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
           onClick={() => setSoldOpen(v => !v)}
           className={`gap-1.5 ${customer.thread_state === 'sold' ? 'text-green-600' : 'text-muted-foreground'}`}
           disabled={customer.thread_state === 'sold'}
+          title="Mark as sold"
         >
           <Trophy className="h-4 w-4" />
         </Button>
@@ -245,7 +251,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
         <div className="mx-4 my-2 p-3 rounded-lg border border-green-200 bg-green-50 dark:bg-green-950/20 space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-green-700 dark:text-green-400">Mark this deal as sold?</p>
-            <button onClick={() => { setSoldOpen(false); setSoldNotes('') }}>
+            <button onClick={() => { setSoldOpen(false); setSoldNotes('') }} title="Close">
               <X className="h-4 w-4 text-muted-foreground" />
             </button>
           </div>
@@ -274,7 +280,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
         <div className="mx-4 my-2 p-3 rounded-lg border border-destructive/30 bg-destructive/5 space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-destructive">Archive this lead?</p>
-            <button onClick={() => { setArchiveOpen(false); setArchiveReason('') }}>
+            <button onClick={() => { setArchiveOpen(false); setArchiveReason('') }} title="Close">
               <X className="h-4 w-4 text-muted-foreground" />
             </button>
           </div>
@@ -305,6 +311,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
           <button
             onClick={() => { setQuickTaskOpen(true); void loadTeamMembers() }}
             className="text-xs text-primary font-medium flex items-center gap-1"
+            title="Add task"
           >
             <Plus className="h-3.5 w-3.5" /> Add
           </button>
@@ -350,7 +357,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
                 disabled={!quickTaskTitle.trim()}
                 className="rounded-md bg-[#F07018] text-white px-3 py-1.5 text-sm font-medium disabled:opacity-50"
               >Add</button>
-              <button onClick={() => { setQuickTaskOpen(false); setQuickTaskAssignee('') }} className="p-1.5 text-muted-foreground">
+              <button onClick={() => { setQuickTaskOpen(false); setQuickTaskAssignee('') }} className="p-1.5 text-muted-foreground" title="Cancel">
                 <X className="h-4 w-4" />
               </button>
             </div>

@@ -5,6 +5,77 @@ Each entry includes the date, category, migration (if any), and what was built.
 
 ---
 
+## 2026-03-07 — Inventory Sync: Safe Removal with Dealer Review Queue
+
+**Category:** Data Safety / Inventory
+**Migration:** `056_sync_removed.sql` — adds `sync_removed_at timestamptz` to `vehicles` + partial index
+
+**Why:** A failed or partial sync (e.g. dealer website blocking the scraper) was silently deleting all vehicles not returned by the scrape. This caused catastrophic data loss — 21 of 23 vehicles disappeared after one bad sync. Inventory data must never be auto-deleted by an automated process without dealer confirmation.
+
+**What was built:**
+- **`app/api/inventory/sync/route.ts`** — Replaced delete-to-archive logic with `status = 'sync_removed'` + `sync_removed_at` timestamp update. Vehicles not found in a sync are flagged, not deleted. Return key renamed `archived` → `needs_review`.
+- **`app/api/vehicles/[id]/status/route.ts`** (new) — `PATCH` endpoint to restore a `sync_removed` vehicle to `available` (dealer confirms it's still in stock). Clears `sync_removed_at`. Scoped to `profile.org_id`.
+- **`components/vehicle/SyncRemovedSection.tsx`** (new) — Amber warning banner at top of Inventory listing. Shows each flagged vehicle with two actions: **Still Here** (restore to available) and **Mark Sold** (opens existing `MarkSoldSheet` for full cash/finance/BHPH entry). Collapsible. Renders nothing when queue is empty.
+- **`app/(app)/vehicles/page.tsx`** — Fetches `sync_removed` vehicles in parallel with main list. Excludes them from All/Available/Pending tab counts and from the main list query. Renders `SyncRemovedSection` above the inventory grid.
+- **`components/vehicle/SyncInventoryButton.tsx`** — Updated result display: "+X added · Y need review" instead of "+X -Y archived".
+
+---
+
+## 2026-03-07 — Single Inventory Page URL (One Field)
+
+**Category:** UX
+**Migration:** none
+
+**Why:** Two fields (Website URL + Inventory path) were confusing; users often pasted the full inventory page URL. One field is simpler and matches how the URL is used (single fetch URL).
+
+**What was built:**
+- **Settings → Organization:** Replaced "Website URL" and "Inventory path" with a single "Inventory page URL" field. Helper text and placeholder use a full URL example (e.g. `https://www.yourdealer.com/cars-for-sale`). Existing data: display value is computed from url + path so legacy base+path still shows as one URL; on save, full URL is stored in `dealer_website_url` and path is cleared.
+- **`app/api/settings/org/route.ts`:** When PATCH receives `dealer_website_url` and does not receive `dealer_website_inventory_path`, set path to empty so sync uses the single URL.
+- **`app/api/inventory/sync/route.ts`:** When `dealer_website_inventory_path` is empty, use `dealer_website_url` as the full fetch URL; otherwise keep backward-compat path append. Error message updated to "Add your inventory page URL in Settings → Organization (Inventory page URL)".
+
+---
+
+## 2026-03-07 — Inventory Sync URL Handling and Timeout (502 Fix)
+
+**Category:** Integrations / Reliability
+**Migration:** none
+
+**Why:** Using the full inventory page URL (e.g. `https://www.apolloauto-to.com/cars-for-sale`) as the "Website URL" caused the sync to request a wrong URL (double path) and could contribute to 502s. The sync also had no fetch timeout, so slow or unresponsive dealer sites could hang and trigger gateway timeouts.
+
+**What was built:**
+- **`app/api/inventory/sync/route.ts`** — Normalized fetch URL so if the dealer website URL already ends with the inventory path, the path is not appended again. Added 20s fetch timeout (AbortController) and a browser-like User-Agent to reduce blocks. On timeout, return an actionable message ("Your site took too long to respond. Try again in a few minutes or contact support if it keeps happening."). Use request origin for building vehicle listing links so `/details/...` resolves correctly whether the user entered base URL or full inventory URL.
+
+---
+
+## 2026-03-07 — User-Friendly Messages and Error Copy (Non-Technical, Actionable)
+
+**Category:** UX
+**Migration:** none
+
+**Why:** Messages, errors, directions, and tooltips needed to be understandable by non-technical users and actionable (tell them what to do). Technical terms like "webhook," "Twilio," "10DLC," "BYON" were confusing; API errors were not helpful.
+
+**What was built:**
+- **Settings → Organization (phone/SMS):** Replaced "SMS webhook automatically if the number is on our Twilio account" with "If we already manage this number for you, we'll connect it so texts and calls work right away. No extra setup needed." Clarified provision options (Toll-Free "Ready now," Local "May take a few days," "I have a number"). Release confirm and voice-agent copy made plain-language and actionable.
+- **API errors:** provision-phone (trial, already has number, invalid number), provision-voice (need phone first), inventory sync (missing website, fetch failed, no vehicles found) now return clear, actionable messages.
+- **Sync/scan UI:** Gmail sync error detail ("If you contact support, give them this code…"); Lead Scanner quota and error messages; Sync Inventory fallback and tooltip ("Pull latest vehicles from your dealership website"); DealerBrief error ("We couldn't load your brief right now" + Try again).
+- **Customer/SMS:** "SMS Opted Out" → "This customer asked to stop texts. You can't send SMS to this number." TemplatePicker "Send Now delivers via Twilio" → "Send Now sends the text right away to the customer's phone." Gmail account helper text simplified.
+- **Misc:** Voice provision failure and phone provision failure fallbacks; Voice agent "A phone number must be provisioned first" → "Add a business phone number first… Then you can turn on the AI voice agent."
+
+---
+
+## 2026-03-07 — Google Auth Transition to apolloai.us@gmail.com
+
+**Category:** Integrations / Docs
+**Migration:** none
+
+**Why:** Standardize on apolloai.us@gmail.com for Google OAuth (Gmail, Calendar), support email forwarding, and one-off scripts instead of the previous account.
+
+**What was built:**
+- **`GOOGLE_AUTH_TRANSITION.md`** — Step-by-step: create/use Google Cloud project as apolloai.us@gmail.com, OAuth consent screen, redirect URIs, env vars (`GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`), optional IMAP/VAPID and support forwarding.
+- **Docs/scripts** — Replaced kmaautosinc@gmail.com with apolloai.us@gmail.com in `scripts/get-refresh-token.mjs`, `SAAS_CHECKLIST.md`, `DEALERWYZE_MASTER_PLAN.md`, `ApolloCRM_PRD.md`.
+
+---
+
 ## 2026-03-07 — Free Beta Tier
 
 **Category:** Growth / Billing

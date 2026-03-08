@@ -167,7 +167,7 @@ export default function TemplatePicker({ customer, vehicle }: TemplatePickerProp
 
   if (customer.sms_opt_out) {
     return (
-      <Button variant="outline" size="lg" disabled className="border-muted text-muted-foreground opacity-60 cursor-not-allowed" title="Customer opted out of SMS (STOP)">
+      <Button variant="outline" size="lg" disabled className="border-muted text-muted-foreground opacity-60 cursor-not-allowed" title="This customer asked to stop texts. You can't send SMS to this number.">
         <MessageSquareOff className="h-4 w-4 mr-2" />
         SMS Off
       </Button>
@@ -266,7 +266,7 @@ export default function TemplatePicker({ customer, vehicle }: TemplatePickerProp
               </div>
               {twilioEnabled && (
                 <p className="text-xs text-center text-muted-foreground flex-shrink-0">
-                  "Send Now" delivers immediately via Twilio
+                  Send Now sends the text right away to the customer&apos;s phone.
                 </p>
               )}
             </div>

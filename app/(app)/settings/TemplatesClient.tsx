@@ -119,6 +119,7 @@ function TemplateGroup({
               <button
                 onClick={() => startEdit(t)}
                 className="text-muted-foreground hover:text-foreground p-1 flex-shrink-0"
+                title="Edit template"
               >
                 <Pencil className="h-3.5 w-3.5" />
               </button>
@@ -127,7 +128,7 @@ function TemplateGroup({
                   <button onClick={() => doDelete(t.id)} className="text-destructive text-xs font-medium px-1">
                     Confirm
                   </button>
-                  <button onClick={() => setConfirmDelete(null)} className="text-muted-foreground p-1">
+                  <button onClick={() => setConfirmDelete(null)} className="text-muted-foreground p-1" title="Cancel delete">
                     <X className="h-3.5 w-3.5" />
                   </button>
                 </div>
@@ -135,6 +136,7 @@ function TemplateGroup({
                 <button
                   onClick={() => setConfirmDelete(t.id)}
                   className="text-muted-foreground hover:text-destructive p-1 flex-shrink-0"
+                  title="Delete template"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>

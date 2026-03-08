@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { CheckCircle, PhoneMissed, Voicemail } from 'lucide-react'
+import DateTimePicker15 from '@/components/ui/DateTimePicker15'
 
 interface AfterCallModalProps {
   open: boolean
@@ -159,12 +160,9 @@ export default function AfterCallModal({ open, pendingCall, onDismiss }: AfterCa
               ))}
             </div>
             {followUp === 'custom' && (
-              <input
-                type="datetime-local"
-                value={customDate}
-                onChange={(e) => setCustomDate(e.target.value)}
-                className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              />
+              <div className="mt-2">
+                <DateTimePicker15 value={customDate} onChange={setCustomDate} />
+              </div>
             )}
           </div>
 

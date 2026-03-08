@@ -38,7 +38,7 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
   const supabase = createClient()
   const [dateLabel, setDateLabel] = useState('')
   useEffect(() => {
-    setDateLabel(new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }))
+    setDateLabel(new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }))
   }, [])
 
   const refresh = useCallback(async () => {

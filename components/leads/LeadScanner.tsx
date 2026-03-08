@@ -120,13 +120,13 @@ export default function LeadScanner({ onClose }: { onClose?: () => void }) {
     const res = await fetch('/api/leads/scan', { method: 'POST', body: form })
     if (res.status === 429) {
       const d = await res.json()
-      setQuotaMsg(`Monthly scan limit reached (${d.monthly_used}/${d.monthly_limit}). Upgrade your plan for more scans.`)
+      setQuotaMsg(`You've used all your scans this month (${d.monthly_used} of ${d.monthly_limit}). Upgrade your plan to get more.`)
       setStage('pick')
       return
     }
     if (!res.ok) {
       const d = await res.json().catch(() => ({}))
-      setError(d.error ?? 'Scan failed. Please try again.')
+      setError(d.error ?? 'Something went wrong. Please try again or use a different image.')
       setStage('pick')
       return
     }
@@ -152,7 +152,7 @@ export default function LeadScanner({ onClose }: { onClose?: () => void }) {
 
     if (!res.ok) {
       const d = await res.json().catch(() => ({}))
-      setError(d.error ?? 'Failed to create lead.')
+      setError(d.error ?? 'We couldn\'t save this lead. Please try again.')
       setStage('confirm')
       return
     }

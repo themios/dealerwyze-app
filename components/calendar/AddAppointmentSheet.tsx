@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { ExternalLink, CalendarCheck } from 'lucide-react'
+import DateTimePicker15 from '@/components/ui/DateTimePicker15'
 
 interface Props {
   open: boolean
@@ -38,15 +39,25 @@ function googleCalendarUrl(title: string, start: Date, durationMins: number, des
   return `https://calendar.google.com/calendar/render?${params}`
 }
 
+/** Round to nearest 15 minutes (full hours and :15, :30, :45) for scheduler */
+function roundTo15Min(d: Date): Date {
+  const copy = new Date(d)
+  const rounded = Math.round(copy.getMinutes() / 15) * 15
+  copy.setMinutes(rounded === 60 ? 0 : rounded, 0, 0)
+  if (rounded === 60) copy.setHours(copy.getHours() + 1)
+  return copy
+}
+
 function toLocalDatetimeValue(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+
 export default function AddAppointmentSheet({ open, onClose, defaultDate, orgName = '', onSaved }: Props) {
-  const defaultDt = defaultDate ?? (() => {
+  const defaultDt = roundTo15Min(defaultDate ?? (() => {
     const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(10, 0, 0, 0); return d
-  })()
+  })())
 
   const [datetime, setDatetime] = useState(toLocalDatetimeValue(defaultDt))
   const [duration, setDuration] = useState('60')
@@ -67,12 +78,12 @@ export default function AddAppointmentSheet({ open, onClose, defaultDate, orgNam
       .then(({ data }) => setCustomers(data || []))
   }, [open, supabase])
 
-  // Reset when opened
+  // Reset when opened (round to 15 min so picker shows only :00, :15, :30, :45)
   useEffect(() => {
     if (open) {
-      const dt = defaultDate ?? (() => {
+      const dt = roundTo15Min(defaultDate ?? (() => {
         const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(10, 0, 0, 0); return d
-      })()
+      })())
       setDatetime(toLocalDatetimeValue(dt))
       setNotes('')
       setSearch('')
@@ -207,12 +218,7 @@ export default function AddAppointmentSheet({ open, onClose, defaultDate, orgNam
             {/* Date & Time */}
             <div>
               <p className="text-xs text-muted-foreground mb-1">Date & Time</p>
-              <input
-                type="datetime-local"
-                value={datetime}
-                onChange={e => setDatetime(e.target.value)}
-                className="w-full text-sm border rounded-md px-3 py-2 bg-background"
-              />
+              <DateTimePicker15 value={datetime} onChange={setDatetime} />
             </div>
 
             {/* Duration */}

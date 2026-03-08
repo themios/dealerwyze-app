@@ -70,6 +70,7 @@ export default function SignupPage() {
               <Label htmlFor="name">Your Name</Label>
               <Input
                 id="name"
+                autoComplete="name"
                 placeholder="John Smith"
                 value={form.display_name}
                 onChange={e => setForm(p => ({ ...p, display_name: e.target.value }))}
@@ -83,6 +84,7 @@ export default function SignupPage() {
               <Input
                 id="email"
                 type="email"
+                autoComplete="email"
                 placeholder="you@yourdealership.com"
                 value={form.email}
                 onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
@@ -95,6 +97,7 @@ export default function SignupPage() {
               <Input
                 id="password"
                 type="password"
+                autoComplete="new-password"
                 placeholder="Min 8 characters"
                 value={form.password}
                 onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
@@ -109,6 +112,7 @@ export default function SignupPage() {
               </Label>
               <Input
                 id="code"
+                autoComplete="off"
                 placeholder="8-character code from your admin"
                 value={form.invite_code}
                 onChange={e => setForm(p => ({ ...p, invite_code: e.target.value.toUpperCase() }))}

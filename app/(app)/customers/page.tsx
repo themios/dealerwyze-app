@@ -112,8 +112,8 @@ export default async function CustomersPage({
                   <ScanLeadButton />
                   <PasteLeadDialog />
                   <ImportLeadsDialog />
-                  <Link href="/customers/new">
-                    <Button size="sm" variant="ghost">
+                  <Link href="/customers/new" title="Add lead">
+                    <Button size="sm" variant="ghost" title="Add lead">
                       <Plus className="h-5 w-5" />
                     </Button>
                   </Link>

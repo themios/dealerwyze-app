@@ -20,23 +20,23 @@ const TIMEZONES = [
 
 const PLANS = [
   {
-    id: 'tier1',
-    name: 'Basic CRM',
-    price: '$49.94/mo',
-    features: ['CRM', 'Gmail lead sync', 'Calendar integration'],
-  },
-  {
-    id: 'tier2',
-    name: 'CRM + SMS',
-    price: '$64.95/mo',
-    features: ['Everything in Basic', 'SMS messaging', '1,000 msgs/mo'],
+    id: 'beta',
+    name: 'Beta Access',
+    price: 'Free — no card needed',
+    features: ['Full CRM access during beta', 'Up to 200 contacts & 100 vehicles', 'AI tools, BHPH, analytics included'],
     popular: true,
   },
   {
-    id: 'tier3',
-    name: 'Voice Assistant',
-    price: '$249.95/mo',
-    features: ['Everything in SMS', 'AI voice agent', 'Call handling 24/7'],
+    id: 'tier1',
+    name: 'Complete CRM',
+    price: '$150/mo (launching after beta)',
+    features: ['Unlimited contacts & leads', 'Two-way SMS + dedicated number', 'Fax, AI tools, BHPH, team access'],
+  },
+  {
+    id: 'tier2',
+    name: 'CRM + Voice AI',
+    price: '$350/mo (launching after beta)',
+    features: ['Everything in Complete CRM', 'AI voice agent answers calls 24/7', '1,000 voice minutes/month included'],
   },
 ]
 
@@ -132,8 +132,8 @@ function Step2({ onNext, onSkip }: { onNext: () => void; onSkip: () => void }) {
   return (
     <div className="flex-1 px-6 py-4 space-y-5">
       <div>
-        <h2 className="text-xl font-bold">Choose your plan</h2>
-        <p className="text-sm text-muted-foreground mt-1">14-day free trial on all plans. Cancel anytime.</p>
+        <h2 className="text-xl font-bold">Your plan</h2>
+        <p className="text-sm text-muted-foreground mt-1">You&apos;re on beta access — full features at no charge while we build together.</p>
       </div>
 
       <div className="space-y-3">

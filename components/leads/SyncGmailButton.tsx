@@ -38,7 +38,7 @@ export default function SyncGmailButton({ compact = false }: { compact?: boolean
               : null,
             data.errorDetail.reason,
             data.errorDetail.action,
-            `Reference: ${data.errorDetail.code} — include this code in a support ticket so we can look up the details.`,
+            `If you contact support, give them this code: ${data.errorDetail.code}. It helps us look up what went wrong.`,
           ].filter(Boolean)
           setDetails(parts.join('\n\n'))
         } else {
@@ -100,7 +100,7 @@ export default function SyncGmailButton({ compact = false }: { compact?: boolean
         className="h-8 px-2 text-xs gap-1.5 text-white/80 hover:text-white hover:bg-white/10"
         onClick={() => run(false)}
         disabled={status === 'loading'}
-        title="Sync Gmail"
+        title="Check for new lead emails and add them to your leads"
       >
         {status === 'loading' && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
         {status === 'done' && <CheckCircle className="h-3.5 w-3.5 text-green-400" />}

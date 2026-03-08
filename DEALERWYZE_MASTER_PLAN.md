@@ -892,7 +892,7 @@ Update feed URLs in CarGurus dealer portal and Facebook Business Manager Catalog
 
 ### 5F. Support Email
 Set up `support@dealerwyze.com`:
-- **Option:** Cloudflare Email Routing (free) → forward to `kmaautosinc@gmail.com`
+- **Option:** Cloudflare Email Routing (free) → forward to `apolloai.us@gmail.com`
 
 ---
 

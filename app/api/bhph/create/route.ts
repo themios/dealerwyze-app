@@ -63,7 +63,16 @@ export async function POST(req: NextRequest) {
 
   if (vErr) return NextResponse.json({ error: vErr.message }, { status: 500 })
 
-  // 2. Create BHPH contract if applicable
+  // 2. Record customer-vehicle relationship (sold vehicle appears in customer history)
+  if (customer_id) {
+    await supabase.from('customer_vehicles').upsert({
+      customer_id,
+      vehicle_id,
+      interest_level: 'hot',
+    }, { onConflict: 'customer_id,vehicle_id' })
+  }
+
+  // 3. Create BHPH contract if applicable
   if (finance_type === 'bhph' && monthly_payment && first_due_date) {
     if (!customer_id) {
       return NextResponse.json({ error: 'Customer required for BHPH contracts' }, { status: 400 })

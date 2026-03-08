@@ -7,6 +7,7 @@ import TopBar from '@/components/layout/TopBar'
 import VehicleCard from '@/components/vehicle/VehicleCard'
 import VehicleFilterChips from './VehicleFilterChips'
 import SyncInventoryButton from '@/components/vehicle/SyncInventoryButton'
+import SyncRemovedSection from '@/components/vehicle/SyncRemovedSection'
 import { Button } from '@/components/ui/button'
 import { Plus } from 'lucide-react'
 
@@ -29,8 +30,8 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
   if (validStatus) {
     vehicleQuery = vehicleQuery.eq('status', validStatus)
   } else {
-    // "All" tab shows only active inventory — sold vehicles appear only under the Sold tab
-    vehicleQuery = vehicleQuery.neq('status', 'sold')
+    // "All" tab shows only active inventory — exclude sold and sync_removed from the main list
+    vehicleQuery = vehicleQuery.neq('status', 'sold').neq('status', 'sync_removed')
   }
 
   if (sort === 'price_asc') vehicleQuery = vehicleQuery.order('price', { ascending: true })
@@ -39,16 +40,24 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
   else if (sort === 'oldest') vehicleQuery = vehicleQuery.order('created_at', { ascending: true })
   else vehicleQuery = vehicleQuery.order('created_at', { ascending: false })
 
-  const [{ data: vehicles }, { data: allVehicles }] = await Promise.all([
+  const [{ data: vehicles }, { data: allVehicles }, { data: syncRemoved }] = await Promise.all([
     vehicleQuery,
     supabase.from('vehicles').select('status').eq('user_id', profile.org_id),
+    supabase
+      .from('vehicles')
+      .select('id, stock_no, year, make, model, trim, price, mileage, sync_removed_at')
+      .eq('user_id', profile.org_id)
+      .eq('status', 'sync_removed')
+      .order('sync_removed_at', { ascending: false }),
   ])
 
   const counts = { all: 0, available: 0, pending: 0, sold: 0 }
   allVehicles?.forEach(v => {
-    const s = v.status as 'available' | 'pending' | 'sold'
-    counts[s] = (counts[s] || 0) + 1
-    if (s !== 'sold') counts.all++  // "All" count = active inventory only
+    const s = v.status as string
+    if (s === 'available' || s === 'pending' || s === 'sold') {
+      counts[s] = (counts[s] || 0) + 1
+    }
+    if (s !== 'sold' && s !== 'sync_removed') counts.all++  // active inventory only
   })
 
   return (
@@ -58,8 +67,8 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
         right={
           <div className="flex items-center gap-1">
             <SyncInventoryButton />
-            <Link href="/vehicles/new">
-              <Button size="sm" variant="ghost">
+            <Link href="/vehicles/new" title="Add vehicle">
+              <Button size="sm" variant="ghost" title="Add vehicle">
                 <Plus className="h-5 w-5" />
               </Button>
             </Link>
@@ -68,6 +77,8 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
       />
 
       <VehicleFilterChips current={validStatus ?? 'all'} counts={counts} currentSort={sort ?? 'newest'} />
+
+      <SyncRemovedSection vehicles={syncRemoved ?? []} />
 
       <div className="divide-y divide-border bg-card border rounded-xl mx-3 my-2 overflow-hidden">
         {!vehicles || vehicles.length === 0 ? (

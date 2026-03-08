@@ -129,7 +129,7 @@ export default function CalendarPage() {
       <TopBar
         title="Calendar"
         right={
-          <Button variant="ghost" size="sm" onClick={() => openAdd()}>
+          <Button variant="ghost" size="sm" onClick={() => openAdd()} title="Add appointment">
             <Plus className="h-5 w-5" />
           </Button>
         }
@@ -151,13 +151,13 @@ export default function CalendarPage() {
           ))}
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => navigate(-1)}>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => navigate(-1)} title={`Previous ${view}`}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <span className="text-xs font-medium min-w-0 text-center px-1 truncate max-w-[140px]" suppressHydrationWarning>
             {formatHeader(view, current)}
           </span>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => navigate(1)}>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => navigate(1)} title={`Next ${view}`}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>

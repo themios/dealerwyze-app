@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
   // Block DealerWyze-provisioned numbers on free trial (dealers use their own number during trial)
   if (targetOrg?.subscription_status === 'trialing' && body.type !== 'existing') {
     return NextResponse.json(
-      { error: 'Phone number provisioning requires an active subscription. Register your own number (BYON) during trial.' },
+      { error: 'To get a new number through DealerWyze you need an active plan. During trial, add a number you already have — choose "I have a number".' },
       { status: 403 }
     )
   }
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
 
   if (existing?.twilio_phone_number) {
     return NextResponse.json(
-      { error: 'Org already has a phone number. Release it first.' },
+      { error: 'This dealership already has a phone number. Release it first in Settings if you want to change it.' },
       { status: 400 }
     )
   }
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
     const raw = (body.phone_number ?? '').replace(/\D/g, '')
     const e164 = raw.length === 10 ? `+1${raw}` : raw.length === 11 ? `+${raw}` : null
     if (!e164) {
-      return NextResponse.json({ error: 'Enter a valid US phone number.' }, { status: 400 })
+      return NextResponse.json({ error: 'Please enter a valid US phone number (10 digits).' }, { status: 400 })
     }
 
     // Look up on master Twilio account — get SID + update webhooks if found

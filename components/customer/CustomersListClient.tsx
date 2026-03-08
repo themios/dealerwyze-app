@@ -328,7 +328,7 @@ export default function CustomersListClient({ customers: initial, isAdmin, agent
                           onClick={e => e.stopPropagation()}
                         />
                         <button onClick={e => { e.stopPropagation(); handleArchive(customer.id) }} className="text-xs text-destructive font-medium px-1.5">Archive</button>
-                        <button onClick={e => { e.stopPropagation(); setArchiveConfirm(null); setArchiveReason('') }} className="text-muted-foreground p-1">
+                        <button onClick={e => { e.stopPropagation(); setArchiveConfirm(null); setArchiveReason('') }} className="text-muted-foreground p-1" title="Cancel">
                           <X className="h-3.5 w-3.5" />
                         </button>
                       </div>
@@ -423,7 +423,7 @@ export default function CustomersListClient({ customers: initial, isAdmin, agent
                                 className="text-xs border rounded px-2 py-1 w-24 bg-background"
                               />
                               <button onClick={() => handleArchive(customer.id)} className="text-xs text-destructive font-medium px-1.5">OK</button>
-                              <button onClick={() => { setArchiveConfirm(null); setArchiveReason('') }} className="text-muted-foreground p-1">
+                              <button onClick={() => { setArchiveConfirm(null); setArchiveReason('') }} className="text-muted-foreground p-1" title="Cancel">
                                 <X className="h-3 w-3" />
                               </button>
                             </div>

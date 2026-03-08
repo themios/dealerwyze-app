@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Calendar, MessageSquare, X } from 'lucide-react'
 import { useOpenCustomer } from '@/components/today/useOpenCustomer'
+import DateTimePicker15 from '@/components/ui/DateTimePicker15'
 
 interface Props {
   activity: Activity & {
@@ -101,12 +102,7 @@ export default function AppointmentRequestCard({ activity, onUpdate }: Props) {
         <p className="text-xs text-muted-foreground">
           {activity.due_at ? 'Suggested time — adjust if needed:' : 'Set appointment date & time:'}
         </p>
-        <input
-          type="datetime-local"
-          value={datetime}
-          onChange={e => setDatetime(e.target.value)}
-          className="w-full text-sm border rounded-md px-3 py-2 bg-background"
-        />
+        <DateTimePicker15 value={datetime} onChange={setDatetime} />
       </div>
 
       <Button
