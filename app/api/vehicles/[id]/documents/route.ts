@@ -8,7 +8,7 @@ import { VehicleDocument } from '@/types'
 export const maxDuration = 60 // allow time for AI summarization
 
 const BUCKET = 'vehicle-docs'
-const MAX_BYTES = 10 * 1024 * 1024 // 10 MB
+const MAX_BYTES = 5 * 1024 * 1024 // 5 MB (images compressed client-side to ~800 KB; PDFs rarely exceed 3 MB)
 const ALLOWED_TYPES = new Set([
   'image/jpeg',
   'image/png',
@@ -85,10 +85,37 @@ export async function POST(
       return NextResponse.json({ error: 'label field is required' }, { status: 400 })
     }
     if (file.size > MAX_BYTES) {
-      return NextResponse.json({ error: 'File exceeds 10 MB limit' }, { status: 400 })
+      return NextResponse.json({ error: 'File exceeds 5 MB limit' }, { status: 400 })
     }
     if (!ALLOWED_TYPES.has(file.type)) {
       return NextResponse.json({ error: `Unsupported file type: ${file.type}` }, { status: 400 })
+    }
+
+    // Block uploads to sold vehicles
+    const { data: vehicle } = await supabase
+      .from('vehicles')
+      .select('status')
+      .eq('id', vehicleId)
+      .eq('user_id', profile.org_id)
+      .maybeSingle()
+
+    if (!vehicle) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (vehicle.status === 'sold') {
+      return NextResponse.json({ error: 'Uploads are disabled for sold vehicles' }, { status: 403 })
+    }
+
+    // Enforce 500 MB per-org storage cap
+    const { data: usage } = await supabase
+      .from('vehicle_documents')
+      .select('file_size')
+      .eq('user_id', profile.org_id)
+    const usedBytes = (usage ?? []).reduce((sum, d) => sum + (d.file_size ?? 0), 0)
+    const CAP_BYTES = 500 * 1024 * 1024
+    if (usedBytes + file.size > CAP_BYTES) {
+      return NextResponse.json(
+        { error: 'Storage limit reached (500 MB). Delete unused documents to free space.' },
+        { status: 413 }
+      )
     }
 
     const sanitized  = sanitizeFilename(file.name)

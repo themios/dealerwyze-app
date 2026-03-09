@@ -8,7 +8,8 @@ import { CustomerDocument } from '@/types'
 export const maxDuration = 30
 
 const BUCKET = 'customer-docs'
-const MAX_BYTES = 10 * 1024 * 1024 // 10 MB
+const MAX_BYTES = 5 * 1024 * 1024 // 5 MB
+const CAP_BYTES = 500 * 1024 * 1024 // 500 MB combined org cap
 const ALLOWED_TYPES = new Set([
   'image/jpeg',
   'image/png',
@@ -88,7 +89,17 @@ export async function POST(
     }
 
     if (file.size > MAX_BYTES) {
-      return NextResponse.json({ error: `File exceeds 10 MB limit` }, { status: 400 })
+      return NextResponse.json({ error: `File exceeds 5 MB limit` }, { status: 400 })
+    }
+
+    // Check combined org storage cap (vehicle_documents + customer_documents)
+    const [{ data: vUsage }, { data: cUsage }] = await Promise.all([
+      supabase.from('vehicle_documents').select('file_size').eq('user_id', profile.org_id),
+      supabase.from('customer_documents').select('file_size').eq('user_id', profile.org_id),
+    ])
+    const usedBytes = [...(vUsage ?? []), ...(cUsage ?? [])].reduce((s, d) => s + (d.file_size ?? 0), 0)
+    if (usedBytes + file.size > CAP_BYTES) {
+      return NextResponse.json({ error: 'Storage limit reached (500 MB). Delete unused documents to free up space.' }, { status: 413 })
     }
 
     if (!ALLOWED_TYPES.has(file.type)) {
@@ -143,6 +154,6 @@ export async function POST(
     )
   } catch (err) {
     console.error('[documents POST] unhandled error:', err)
-    return NextResponse.json({ error: String(err) }, { status: 500 })
+    return NextResponse.json({ error: 'Upload failed. Please try again.' }, { status: 500 })
   }
 }

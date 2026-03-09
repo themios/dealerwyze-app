@@ -85,6 +85,19 @@ export default async function TodayPage() {
     .order('due_at', { ascending: true, nullsFirst: false })
     .limit(50)
 
+  // Customers who replied (inbound SMS or email) in the last 48h — used for green card indicator
+  const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
+  const { data: inboundReplies } = await supabase
+    .from('activities')
+    .select('customer_id')
+    .eq('user_id', orgId)
+    .eq('direction', 'inbound')
+    .in('type', ['sms', 'email'])
+    .gte('created_at', fortyEightHoursAgo)
+    .not('customer_id', 'is', null)
+    .limit(200)
+  const respondedCustomerIds = [...new Set((inboundReplies || []).map(a => a.customer_id as string))]
+
   const seenCustomers = new Set<string>()
   const waiting = (waitingRaw || []).filter(a => {
     if (!a.customer_id || seenCustomers.has(a.customer_id)) return false
@@ -220,6 +233,7 @@ export default async function TodayPage() {
             initialApptRequests={safeApptRequests}
             initialVoiceLeads={voiceLeadsRaw || []}
             businessName={orgSettings?.business_name ?? undefined}
+            respondedCustomerIds={respondedCustomerIds}
           />
         </div>
 

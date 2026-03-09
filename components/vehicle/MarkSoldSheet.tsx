@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { CONSENT_DISCLOSURE } from '@/lib/bhph/schedule'
+import { FileText, ExternalLink, Trash2, X, ArrowRight } from 'lucide-react'
 
 interface Props {
   vehicleId: string
@@ -18,11 +19,48 @@ interface Props {
   onClose: () => void
 }
 
+interface DocEntry {
+  id: string
+  label: string
+  file_name: string
+  file_size: number | null
+  signed_url?: string | null
+}
+
 interface CustomerResult { id: string; name: string; primary_phone: string; email?: string }
 
 export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }: Props) {
   const router = useRouter()
   const supabase = createClient()
+
+  // Document cleanup step
+  const [step, setStep] = useState<'loading' | 'docs' | 'form'>('loading')
+  const [docs, setDocs] = useState<DocEntry[]>([])
+  const [deletingDoc, setDeletingDoc] = useState<string | null>(null)
+  const [confirmDeleteDoc, setConfirmDeleteDoc] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!open) { setStep('loading'); setDocs([]); return }
+    fetch(`/api/vehicles/${vehicleId}/documents`)
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setDocs(data)
+          setStep('docs')
+        } else {
+          setStep('form')
+        }
+      })
+      .catch(() => setStep('form')) // if fetch fails, don't block the sale flow
+  }, [open, vehicleId])
+
+  async function deleteDoc(docId: string) {
+    setDeletingDoc(docId)
+    const res = await fetch(`/api/vehicles/${vehicleId}/documents/${docId}`, { method: 'DELETE' })
+    if (res.ok) setDocs(prev => prev.filter(d => d.id !== docId))
+    setDeletingDoc(null)
+    setConfirmDeleteDoc(null)
+  }
 
   const [form, setForm] = useState({
     sold_price: '',
@@ -118,6 +156,89 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
           <SheetTitle>Mark as Sold — {vehicleLabel}</SheetTitle>
         </SheetHeader>
 
+        {/* Step 1: Document cleanup */}
+        {(step === 'loading' || step === 'docs') && (
+          <div className="pb-8 space-y-4">
+            {step === 'loading' ? (
+              <p className="text-sm text-muted-foreground text-center py-6">Checking for attached documents…</p>
+            ) : (
+              <>
+                <div className="rounded-lg border bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 p-4 space-y-2">
+                  <p className="text-sm font-semibold">
+                    {docs.length} document{docs.length !== 1 ? 's' : ''} attached to this vehicle
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Once marked as sold, new uploads are disabled. Open or download any documents
+                    you need to keep, then delete them to free up storage space.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  {docs.map(doc => (
+                    <div key={doc.id} className="flex items-center gap-2 p-3 rounded-lg border bg-background">
+                      <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">{doc.label}</p>
+                        <p className="text-xs text-muted-foreground truncate">{doc.file_name}</p>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {doc.signed_url && (
+                          <a
+                            href={doc.signed_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-xs text-primary border border-primary/30 rounded px-2 py-1 hover:bg-primary/5 transition-colors"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            Open
+                          </a>
+                        )}
+                        {confirmDeleteDoc === doc.id ? (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => deleteDoc(doc.id)}
+                              disabled={deletingDoc === doc.id}
+                              className="text-destructive text-[10px] font-medium px-1.5 py-0.5 rounded border border-destructive/40 disabled:opacity-50"
+                            >
+                              {deletingDoc === doc.id ? '…' : 'Delete'}
+                            </button>
+                            <button onClick={() => setConfirmDeleteDoc(null)} className="text-muted-foreground p-0.5">
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmDeleteDoc(doc.id)}
+                            className="p-1.5 text-muted-foreground hover:text-destructive transition-colors"
+                            title="Delete document"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <Button
+                  className="w-full h-12 gap-2"
+                  onClick={() => setStep('form')}
+                >
+                  Continue to Sale Details
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+                {docs.length > 0 && (
+                  <p className="text-[10px] text-muted-foreground text-center">
+                    You can still access and delete these documents from Settings → Vehicle Documents after the sale.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Step 2: Sale form */}
+        {step === 'form' && (
         <form onSubmit={handleSubmit} className="space-y-4 pb-8">
           {/* Sale price */}
           <div className="space-y-1.5">
@@ -277,6 +398,7 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
             {saving ? 'Saving…' : 'Mark as Sold'}
           </Button>
         </form>
+        )}
       </SheetContent>
     </Sheet>
   )

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { ArrowLeft, Pencil } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import VehicleSoldButton from '@/components/vehicle/VehicleSoldButton'
+import VehicleDocuments from '@/components/vehicle/VehicleDocuments'
 
 export const dynamic = 'force-dynamic'
 
@@ -149,6 +150,9 @@ export default async function VehicleDetailPage({ params }: PageProps) {
             </div>
           </div>
         )}
+
+        {/* Documents */}
+        <VehicleDocuments vehicleId={id} vehicleStatus={vehicle.status} />
 
         {/* Activity timeline */}
         {activities && activities.length > 0 && (

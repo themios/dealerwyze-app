@@ -410,32 +410,37 @@ export default function OrganizationPage() {
     }
     setImapSaving(true)
     setImapError(null)
-    const res  = await fetch('/api/integrations/email', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        label:     imapLabel?.trim() || email,
-        email,
-        provider:  imapProvider,
-        imap_host: imapHost.trim(),
-        imap_port: parseInt(imapPort) || 993,
-        imap_user: user,
-        imap_pass: pass,
-      }),
-    })
-    const data = await res.json() as EmailAccount & { error?: string }
-    setImapSaving(false)
-    if (!res.ok) {
-      setImapError(data.error ?? 'Failed to connect')
-    } else {
-      setEmailAccounts(prev => [...prev, data])
-      setAddImapOpen(false)
-      setShowImapPass(false)
-      setImapUser('')
-      setImapPass('')
-      setImapEmail('')
-      setImapLabel('')
-      setImapError(null)
+    try {
+      const res  = await fetch('/api/integrations/email', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          label:     imapLabel?.trim() || email,
+          email,
+          provider:  imapProvider,
+          imap_host: imapHost.trim(),
+          imap_port: parseInt(imapPort) || 993,
+          imap_user: user,
+          imap_pass: pass,
+        }),
+      })
+      const data = await res.json() as EmailAccount & { error?: string }
+      if (!res.ok) {
+        setImapError(data.error ?? 'Failed to connect')
+      } else {
+        setEmailAccounts(prev => [...prev, data])
+        setAddImapOpen(false)
+        setShowImapPass(false)
+        setImapUser('')
+        setImapPass('')
+        setImapEmail('')
+        setImapLabel('')
+        setImapError(null)
+      }
+    } catch {
+      setImapError('Connection timed out. Check your credentials and try again.')
+    } finally {
+      setImapSaving(false)
     }
   }
 
@@ -515,30 +520,35 @@ export default function OrganizationPage() {
     }
     setImapSaving(true)
     setImapError(null)
-    const body: Record<string, unknown> = {
-      label:     imapLabel.trim() || email,
-      email,
-      provider:  imapProvider,
-      imap_host: imapHost.trim(),
-      imap_port: parseInt(imapPort) || 993,
-      imap_user: user,
-    }
-    if (pass) body.imap_pass = pass
-    const res = await fetch(`/api/integrations/email/${editingAccountId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    const data = await res.json() as EmailAccount & { error?: string }
-    setImapSaving(false)
-    if (!res.ok) {
-      setImapError(data.error ?? 'Update failed')
-    } else {
-      setEmailAccounts(prev => prev.map(a => a.id === editingAccountId ? data : a))
-      setEditingAccountId(null)
-      setEditAccountIsOAuth(false)
-      setImapPass('')
-      setShowImapPass(false)
+    try {
+      const body: Record<string, unknown> = {
+        label:     imapLabel.trim() || email,
+        email,
+        provider:  imapProvider,
+        imap_host: imapHost.trim(),
+        imap_port: parseInt(imapPort) || 993,
+        imap_user: user,
+      }
+      if (pass) body.imap_pass = pass
+      const res = await fetch(`/api/integrations/email/${editingAccountId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json() as EmailAccount & { error?: string }
+      if (!res.ok) {
+        setImapError(data.error ?? 'Update failed')
+      } else {
+        setEmailAccounts(prev => prev.map(a => a.id === editingAccountId ? data : a))
+        setEditingAccountId(null)
+        setEditAccountIsOAuth(false)
+        setImapPass('')
+        setShowImapPass(false)
+      }
+    } catch {
+      setImapError('Connection timed out. Check your credentials and try again.')
+    } finally {
+      setImapSaving(false)
     }
   }
 

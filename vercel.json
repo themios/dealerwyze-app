@@ -20,6 +20,12 @@
   "functions": {
     "app/api/customers/[id]/documents/route.ts": {
       "maxDuration": 30
+    },
+    "app/api/integrations/email/route.ts": {
+      "maxDuration": 30
+    },
+    "app/api/integrations/email/[id]/route.ts": {
+      "maxDuration": 30
     }
   }
 }

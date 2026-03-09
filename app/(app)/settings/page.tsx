@@ -2,34 +2,22 @@ import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from '@/lib/auth/profile'
 import TopBar from '@/components/layout/TopBar'
 import Link from 'next/link'
-import TemplatesClient from './TemplatesClient'
-import { Button } from '@/components/ui/button'
 import { BarChart2, Users, ChevronRight, ExternalLink, CreditCard, Building2, Target, BookOpen, Zap, MessageSquare } from 'lucide-react'
 import FontSizeSetting from '@/components/settings/FontSizeSetting'
 import SignOutButton from '@/components/settings/SignOutButton'
 import ProfileEditForm from '@/components/settings/ProfileEditForm'
 import ExportDataButton from '@/components/settings/ExportDataButton'
+import StorageWidget from '@/components/settings/StorageWidget'
 
 export default async function SettingsPage() {
   const profile = await requireProfile()
   const supabase = await createClient()
 
-  const [
-    { data: templates },
-    { data: feedStats },
-  ] = await Promise.all([
-    supabase
-      .from('templates')
-      .select('*')
-      .eq('user_id', profile.org_id)
-      .order('channel', { ascending: true })
-      .order('created_at', { ascending: true }),
-    supabase
-      .from('org_settings')
-      .select('feed_cg_last_synced_at, feed_cg_last_count, feed_cg_last_error, feed_fb_last_synced_at, feed_fb_last_count, feed_fb_last_error')
-      .eq('org_id', profile.org_id)
-      .maybeSingle(),
-  ])
+  const { data: feedStats } = await supabase
+    .from('org_settings')
+    .select('feed_cg_last_synced_at, feed_cg_last_count, feed_cg_last_error, feed_fb_last_synced_at, feed_fb_last_count, feed_fb_last_error')
+    .eq('org_id', profile.org_id)
+    .maybeSingle()
 
   return (
     <div>
@@ -111,7 +99,7 @@ export default async function SettingsPage() {
                     <Zap className="h-5 w-5 text-primary" />
                     <div>
                       <p className="font-medium text-sm">Automation & Timings</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">SMS mode, response SLA, follow-up schedule</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">SMS mode, response SLA, follow-up schedule, SMS & email templates</p>
                     </div>
                   </div>
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -136,6 +124,11 @@ export default async function SettingsPage() {
             </section>
 
             <section>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Vehicle Documents</p>
+              <StorageWidget />
+            </section>
+
+            <section>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Reports</p>
               <div className="space-y-2">
                 <Link href="/analytics">
@@ -155,19 +148,6 @@ export default async function SettingsPage() {
             </section>
           </>
         )}
-
-        {/* Lead Response Templates */}
-        <section>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Lead Response Templates</p>
-          <p className="text-xs text-muted-foreground mb-3">
-            Variables:{' '}
-            <code className="bg-muted px-1 rounded">{'{firstName}'}</code>{' '}
-            <code className="bg-muted px-1 rounded">{'{vehicle}'}</code>{' '}
-            <code className="bg-muted px-1 rounded">{'{price}'}</code>{' '}
-            <code className="bg-muted px-1 rounded">{'{link}'}</code>
-          </p>
-          <TemplatesClient templates={templates || []} userId={profile.org_id} />
-        </section>
 
         {/* Display */}
         <section>

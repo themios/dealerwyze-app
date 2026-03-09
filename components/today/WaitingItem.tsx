@@ -11,9 +11,10 @@ import { useOpenCustomer } from '@/components/today/useOpenCustomer'
 interface WaitingItemProps {
   activity: Activity
   onUpdate: () => void
+  hasResponded?: boolean
 }
 
-export default function WaitingItem({ activity, onUpdate }: WaitingItemProps) {
+export default function WaitingItem({ activity, onUpdate, hasResponded = false }: WaitingItemProps) {
   const [loading, setLoading] = useState<string | null>(null)
   const supabase = createClient()
   const openCustomer = useOpenCustomer()
@@ -33,7 +34,15 @@ export default function WaitingItem({ activity, onUpdate }: WaitingItemProps) {
   }
 
   return (
-    <div className="rounded-lg border bg-card p-4 space-y-3">
+    <div className={`rounded-lg border p-4 space-y-3 transition-colors ${
+      hasResponded ? 'border-green-500 bg-green-50/60 dark:bg-green-950/20' : 'bg-card'
+    }`}>
+      {hasResponded && (
+        <div className="flex items-center gap-1.5 text-green-600 dark:text-green-400">
+          <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+          <span className="text-xs font-semibold">Replied</span>
+        </div>
+      )}
       <div
         className="flex items-start justify-between gap-2 cursor-pointer hover:opacity-90"
         onClick={handleCardClick}

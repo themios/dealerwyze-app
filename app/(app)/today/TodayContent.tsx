@@ -24,9 +24,10 @@ interface TodayContentProps {
   initialApptRequests: Activity[]
   initialVoiceLeads: VoiceCall[]
   businessName?: string
+  respondedCustomerIds?: string[]
 }
 
-export default function TodayContent({ initialNewLeads, initialTasks, initialWaiting, leadTemplates, initialApptRequests, initialVoiceLeads, businessName = 'DealerWyze' }: TodayContentProps) {
+export default function TodayContent({ initialNewLeads, initialTasks, initialWaiting, leadTemplates, initialApptRequests, initialVoiceLeads, businessName = 'DealerWyze', respondedCustomerIds = [] }: TodayContentProps) {
   const [newLeads, setNewLeads] = useState<Activity[]>(initialNewLeads)
   const [tasks, setTasks] = useState<Activity[]>(initialTasks)
   const [waiting, setWaiting] = useState<Activity[]>(initialWaiting)
@@ -284,7 +285,14 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
           <section>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Waiting on Customer</p>
             <div className="space-y-2">
-              {waiting.map(a => <WaitingItem key={a.id} activity={a} onUpdate={refresh} />)}
+              {waiting.map(a => (
+              <WaitingItem
+                key={a.id}
+                activity={a}
+                onUpdate={refresh}
+                hasResponded={respondedCustomerIds.includes(a.customer_id ?? '')}
+              />
+            ))}
             </div>
           </section>
         )}

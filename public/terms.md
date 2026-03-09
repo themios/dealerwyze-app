@@ -165,6 +165,8 @@ Fees are billed in advance on the same day of each monthly billing cycle.
 
 **9.4 No Financial or Legal Advice.** The Voice AI Assistant must not be used to provide financing terms, legal advice, pricing commitments, or any representations that create binding obligations on your dealership. Voice AI responses are informational only.
 
+**9.5 Document Storage — Not a System of Record.** The document storage feature (vehicle documents, uploaded files, and attachments) is provided solely as a convenience for quick reference during active dealership operations. **DealerWyze is not a certified system of record, document management system, or legal archive.** You must not rely on the Service as your sole or primary repository for any document that may have legal, regulatory, compliance, or financial significance, including but not limited to vehicle titles, purchase contracts, financing agreements, DMV submissions, warranty documents, or customer consent records. You are solely responsible for maintaining independent, compliant copies of all such documents through appropriate systems. KMA Auto Inc expressly disclaims any liability arising from the loss, corruption, inaccessibility, or deletion of uploaded documents, including documents deleted automatically upon account cancellation or storage cap enforcement. Storage availability is subject to plan limits and may be modified with thirty (30) days notice.
+
 ---
 
 ## 10. BHPH Tracking — Not a Financial Service

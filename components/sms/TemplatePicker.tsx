@@ -2,49 +2,31 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Customer, Vehicle } from '@/types'
+import { Template, Customer, Vehicle } from '@/types'
 import { fillTemplate, formatPhoneForTel, prefixWithAuthorName } from '@/lib/utils'
 import { useOrgSettings } from '@/hooks/useOrgSettings'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
-import { MessageSquare, Send, Zap, MessageSquareOff } from 'lucide-react'
+import { MessageSquare, Zap, MessageSquareOff, Star, ArrowLeft, Search } from 'lucide-react'
 
-const SMS_TEMPLATES = [
-  // First contact
-  { category: 'First Contact', name: 'Thanks for stopping by', body: 'Hi {firstName}! Thanks for stopping by {dealerName} today. The {vehicle} is still available. Any questions? — Tim' },
-  { category: 'First Contact', name: 'New lead response', body: 'Hi {firstName}, this is Tim at {dealerName}. I saw your inquiry about the {vehicle} — it\'s available! When works for a test drive?' },
-  { category: 'First Contact', name: 'Share listing link', body: 'Hi {firstName}! Here\'s the direct link to the {vehicle}: {link} — Any questions? — Tim' },
-  { category: 'First Contact', name: 'Online inquiry response', body: 'Hi {firstName}! The {vehicle} at {price} is available. Clean title, great condition. Want to come take a look?' },
-  { category: 'First Contact', name: 'Virtual + delivery + financing', body: 'Hi {firstName}! The {vehicle} at {price} is available. We do virtual walkthroughs, driveway delivery & virtual financing. What time works for a quick virtual look? — {dealerName}' },
-
-  // Follow-up
-  { category: 'Follow-Up', name: 'Checking in', body: 'Hi {firstName}, just checking in — still interested in the {vehicle}? Happy to answer any questions.' },
-  { category: 'Follow-Up', name: 'Follow-up #2', body: 'Hey {firstName}! Wanted to follow up on the {vehicle}. It\'s been getting attention — let me know if you\'d like to move forward.' },
-  { category: 'Follow-Up', name: 'Still looking?', body: 'Hi {firstName}, are you still in the market? I have some great options at {dealerName} that might work for you.' },
-  { category: 'Follow-Up', name: 'Last follow-up', body: 'Hi {firstName}, I\'ll stop reaching out after this — just wanted to make sure you hadn\'t missed out on the {vehicle}. Still available at {price}!' },
-
-  // Pricing
-  { category: 'Pricing', name: 'Price drop alert', body: 'Good news {firstName}! I dropped the price on the {vehicle} to {price}. Want to take another look?' },
-  { category: 'Pricing', name: 'Best offer', body: 'Hi {firstName}, I want to earn your business. What would it take to make the {vehicle} work for you today?' },
-  { category: 'Pricing', name: 'Financing available', body: 'Hi {firstName}! We have financing options on the {vehicle}. Low down payments available. Want to run some numbers?' },
-
-  // Appointments
-  { category: 'Appointments', name: 'Appointment confirmed', body: 'Hi {firstName}, your appointment is confirmed for {date} at {time} to see the {vehicle}. See you then! — {dealerName}' },
-  { category: 'Appointments', name: 'Test drive reminder', body: 'Hi {firstName}, reminder: test drive tomorrow at {time} for the {vehicle}. See you then! Call if anything changes: {dealerPhone}' },
-  { category: 'Appointments', name: 'Schedule test drive', body: 'Hi {firstName}, when works best for a test drive on the {vehicle}? I\'m available weekdays and Saturdays.' },
-
-  // Trade-in
-  { category: 'Trade-In', name: 'Trade-in follow-up', body: 'Hi {firstName}, following up on your trade-in. I can give you a quick appraisal — bring it by anytime this week!' },
-  { category: 'Trade-In', name: 'Trade offer', body: 'Hi {firstName}, I looked up your trade and I can work with it. Want to come in and run the numbers on the {vehicle}?' },
-
-  // Post-sale / other
-  { category: 'Other', name: 'Similar vehicle available', body: 'Hi {firstName}, the {vehicle} sold but I have something very similar. Interested in details?' },
-  { category: 'Other', name: 'New inventory alert', body: 'Hi {firstName}! Just got a {vehicle} in at {price} — thought of you. Want more info?' },
-  { category: 'Other', name: 'Waiting on docs', body: 'Hi {firstName}, just a reminder — I still need your {document} to move forward. Let me know when you can send it over!' },
-  { category: 'Other', name: 'Thank you', body: 'Hi {firstName}, great meeting you today! Enjoy the new car. Reach out anytime — Tim at {dealerName} {dealerPhone}' },
-  { category: 'Other', name: 'Request review', body: 'Hi {firstName}, hope you\'re loving the car! If you have a moment, a Google review would mean a lot: [link]. Thanks! — {dealerName}' },
+// ─── Hardcoded fallback templates (used when org has no DB templates yet) ─────
+const FALLBACK_TEMPLATES: Template[] = [
+  { id: 'f1',  user_id: '', name: 'Thanks for stopping by',   channel: 'sms', category: 'Daily Response', body: 'Hi {firstName}! Thanks for stopping by {dealerName} today. The {vehicle} is still available. Any questions?', created_at: '' },
+  { id: 'f2',  user_id: '', name: 'New lead response',         channel: 'sms', category: 'Daily Response', body: "Hi {firstName}, this is Tim at {dealerName}. I saw your inquiry about the {vehicle} — it's available! When works for a test drive?", created_at: '' },
+  { id: 'f3',  user_id: '', name: 'Checking in',               channel: 'sms', category: 'Follow-Up',     body: 'Hi {firstName}, just checking in — still interested in the {vehicle}? Happy to answer any questions.', created_at: '' },
+  { id: 'f4',  user_id: '', name: 'Follow-up #2',              channel: 'sms', category: 'Follow-Up',     body: "Hey {firstName}! Wanted to follow up on the {vehicle}. It's been getting attention — let me know if you'd like to move forward.", created_at: '' },
+  { id: 'f5',  user_id: '', name: 'Last follow-up',            channel: 'sms', category: 'Follow-Up',     body: "Hi {firstName}, I'll stop reaching out after this — just wanted to make sure you hadn't missed out on the {vehicle}. Still available at {price}!", created_at: '' },
+  { id: 'f6',  user_id: '', name: 'Schedule test drive',       channel: 'sms', category: 'Test Drive',    body: "Hi {firstName}, when works best for a test drive on the {vehicle}? I'm available weekdays and Saturdays.", created_at: '' },
+  { id: 'f7',  user_id: '', name: 'Test drive reminder',       channel: 'sms', category: 'Test Drive',    body: 'Hi {firstName}, reminder: test drive tomorrow at {time} for the {vehicle}. See you then! Call if anything changes: {dealerPhone}', created_at: '' },
+  { id: 'f8',  user_id: '', name: 'Appointment confirmed',     channel: 'sms', category: 'Appointment',   body: 'Hi {firstName}, your appointment is confirmed for {date} at {time} to see the {vehicle}. See you then! — {dealerName}', created_at: '' },
+  { id: 'f9',  user_id: '', name: 'Financing available',       channel: 'sms', category: 'Financing',     body: 'Hi {firstName}! We have financing options on the {vehicle}. Low down payments available. Want to run some numbers?', created_at: '' },
+  { id: 'f10', user_id: '', name: 'Best offer',                channel: 'sms', category: 'Negotiation',   body: 'Hi {firstName}, I want to earn your business. What would it take to make the {vehicle} work for you today?', created_at: '' },
+  { id: 'f11', user_id: '', name: 'Price drop alert',          channel: 'sms', category: 'Pricing',       body: 'Good news {firstName}! I dropped the price on the {vehicle} to {price}. Want to take another look?', created_at: '' },
+  { id: 'f12', user_id: '', name: 'Trade-in follow-up',        channel: 'sms', category: 'Trade-In',      body: 'Hi {firstName}, following up on your trade-in. I can give you a quick appraisal — bring it by anytime this week!', created_at: '' },
+  { id: 'f13', user_id: '', name: 'Thank you',                 channel: 'sms', category: 'Post-Sale',     body: 'Hi {firstName}, great meeting you today! Enjoy the new car. Reach out anytime — Tim at {dealerName} {dealerPhone}', created_at: '' },
+  { id: 'f14', user_id: '', name: 'Request review',            channel: 'sms', category: 'Post-Sale',     body: "Hi {firstName}, hope you're loving the car! If you have a moment, a Google review would mean a lot: [link]. Thanks! — {dealerName}", created_at: '' },
 ]
 
 interface TemplatePickerProps {
@@ -54,39 +36,44 @@ interface TemplatePickerProps {
 
 interface SmsMessage { id: string; body: string; direction: string | null; created_at: string }
 
+type View = 'categories' | 'templates' | 'compose'
+
 export default function TemplatePicker({ customer, vehicle }: TemplatePickerProps) {
-  const [open, setOpen] = useState(false)
-  const [selected, setSelected] = useState<string | null>(null)
-  const [body, setBody] = useState('')
-  const [search, setSearch] = useState('')
-  const [sending, setSending] = useState(false)
-  const [sendError, setSendError] = useState<string | null>(null)
-  const [history, setHistory] = useState<SmsMessage[]>([])
-  const [displayName, setDisplayName] = useState<string | null>(null)
+  const [open, setOpen]                       = useState(false)
+  const [view, setView]                       = useState<View>('categories')
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
+  const [body, setBody]                       = useState('')
+  const [search, setSearch]                   = useState('')
+  const [sending, setSending]                 = useState(false)
+  const [sendError, setSendError]             = useState<string | null>(null)
+  const [history, setHistory]                 = useState<SmsMessage[]>([])
+  const [displayName, setDisplayName]         = useState<string | null>(null)
+  const [dbTemplates, setDbTemplates]         = useState<Template[]>([])
+
   const supabase = createClient()
-
-  useEffect(() => {
-    if (open) {
-      fetch('/api/auth/me')
-        .then(r => r.ok ? r.json() : null)
-        .then(d => setDisplayName(d?.display_name ?? null))
-        .catch(() => setDisplayName(null))
-    }
-  }, [open])
-
   const twilioEnabled = process.env.NEXT_PUBLIC_TWILIO_ENABLED === 'true'
   const orgSettings = useOrgSettings()
 
-  async function loadHistory() {
-    const { data } = await supabase
-      .from('activities')
-      .select('id, body, direction, created_at')
-      .eq('customer_id', customer.id)
-      .eq('type', 'sms')
-      .order('created_at', { ascending: false })
-      .limit(6)
-    setHistory((data ?? []).reverse() as SmsMessage[])
-  }
+  useEffect(() => {
+    if (!open) return
+    fetch('/api/auth/me')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setDisplayName(d?.display_name ?? null))
+      .catch(() => setDisplayName(null))
+
+    supabase
+      .from('templates')
+      .select('*')
+      .eq('channel', 'sms')
+      .order('is_favorite', { ascending: false })
+      .order('category')
+      .order('created_at')
+      .limit(200)
+      .then(({ data }) => setDbTemplates(data ?? []))
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const templates = dbTemplates.length > 0 ? dbTemplates : FALLBACK_TEMPLATES
 
   function getVars(): Record<string, string> {
     const firstName = customer.name.split(' ')[0]
@@ -101,18 +88,44 @@ export default function TemplatePicker({ customer, vehicle }: TemplatePickerProp
     }
   }
 
-  function selectTemplate(name: string, tmplBody: string) {
-    setSelected(name)
-    setBody(fillTemplate(tmplBody, getVars()))
-    setSearch('')
+  // Build category list
+  const favorites = templates.filter(t => t.is_favorite)
+  const categorySet = new Set<string>()
+  for (const t of templates) {
+    if (!t.is_favorite) categorySet.add(t.category?.trim() || 'General')
+  }
+  const categories: string[] = [
+    ...(favorites.length > 0 ? ['⭐ Favorites'] : []),
+    ...[...categorySet].sort(),
+  ]
+
+  function getTemplatesForCategory(cat: string) {
+    if (cat === '⭐ Favorites') return favorites
+    return templates.filter(t => !t.is_favorite && (t.category?.trim() || 'General') === cat)
+  }
+
+  function selectTemplate(t: Template) {
+    setSelectedTemplate(t.name)
+    setBody(fillTemplate(t.body, getVars()))
     setSendError(null)
+    setView('compose')
+  }
+
+  async function loadHistory() {
+    const { data } = await supabase
+      .from('activities')
+      .select('id, body, direction, created_at')
+      .eq('customer_id', customer.id)
+      .eq('type', 'sms')
+      .order('created_at', { ascending: false })
+      .limit(6)
+    setHistory((data ?? []).reverse() as SmsMessage[])
   }
 
   async function logActivity() {
     const bodyWithAuthor = prefixWithAuthorName(displayName, body)
     await supabase.from('activities').insert({
-      type: 'sms',
-      direction: 'outbound',
+      type: 'sms', direction: 'outbound',
       customer_id: customer.id,
       vehicle_id: vehicle?.id ?? null,
       body: bodyWithAuthor,
@@ -124,11 +137,8 @@ export default function TemplatePicker({ customer, vehicle }: TemplatePickerProp
   async function handleOpenMessages() {
     if (customer.sms_opt_out) return
     await logActivity()
-    const tel = formatPhoneForTel(customer.primary_phone)
-    window.location.href = `sms:${tel}?body=${encodeURIComponent(body)}`
-    setOpen(false)
-    setSelected(null)
-    setBody('')
+    window.location.href = `sms:${formatPhoneForTel(customer.primary_phone)}?body=${encodeURIComponent(body)}`
+    resetAndClose()
   }
 
   async function handleSendTwilio() {
@@ -138,19 +148,11 @@ export default function TemplatePicker({ customer, vehicle }: TemplatePickerProp
       const res = await fetch('/api/sms/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: customer.primary_phone,
-          body,
-          customer_id: customer.id,
-          vehicle_id: vehicle?.id ?? null,
-        }),
+        body: JSON.stringify({ to: customer.primary_phone, body, customer_id: customer.id, vehicle_id: vehicle?.id ?? null }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to send')
-
-      setOpen(false)
-      setSelected(null)
-      setBody('')
+      resetAndClose()
       loadHistory()
     } catch (err: any) {
       setSendError(err.message)
@@ -159,11 +161,24 @@ export default function TemplatePicker({ customer, vehicle }: TemplatePickerProp
     }
   }
 
-  const categories = [...new Set(SMS_TEMPLATES.map(t => t.category))]
-  const filtered = search ? SMS_TEMPLATES.filter(t =>
-    t.name.toLowerCase().includes(search.toLowerCase()) ||
-    t.body.toLowerCase().includes(search.toLowerCase())
-  ) : SMS_TEMPLATES
+  function resetAndClose() {
+    setOpen(false)
+    setView('categories')
+    setSelectedCategory(null)
+    setSelectedTemplate(null)
+    setBody('')
+    setSearch('')
+    setSendError(null)
+  }
+
+  function openSheet() { setOpen(true); setView('categories'); loadHistory() }
+
+  const searchResults = search
+    ? templates.filter(t =>
+        t.name.toLowerCase().includes(search.toLowerCase()) ||
+        t.body.toLowerCase().includes(search.toLowerCase())
+      )
+    : []
 
   if (customer.sms_opt_out) {
     return (
@@ -176,19 +191,44 @@ export default function TemplatePicker({ customer, vehicle }: TemplatePickerProp
 
   return (
     <>
-      <Button variant="outline" size="lg" className="border-[#F07018] text-[#F07018] hover:bg-[#F07018]/10" onClick={() => { setOpen(true); loadHistory() }}>
+      <Button variant="outline" size="lg" className="border-[#F07018] text-[#F07018] hover:bg-[#F07018]/10" onClick={openSheet}>
         <MessageSquare className="h-4 w-4 mr-2" />
         Text
       </Button>
 
-      <Sheet open={open} onOpenChange={setOpen}>
+      <Sheet open={open} onOpenChange={o => { if (!o) resetAndClose() }}>
         <SheetContent side="bottom" className="h-[85vh] flex flex-col rounded-t-2xl">
           <SheetHeader className="mb-3 flex-shrink-0">
-            <SheetTitle>Text {customer.name}</SheetTitle>
+            <SheetTitle>
+              {view === 'categories' && `Text ${customer.name}`}
+              {view === 'templates' && (
+                <button
+                  className="flex items-center gap-1.5 text-base font-semibold"
+                  onClick={() => { setView('categories'); setSelectedCategory(null); setSearch('') }}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  {selectedCategory === '⭐ Favorites' ? 'Favorites' : selectedCategory}
+                </button>
+              )}
+              {view === 'compose' && (
+                <button
+                  className="flex items-center gap-1.5 text-base font-semibold"
+                  onClick={() => {
+                    setBody('')
+                    setSelectedTemplate(null)
+                    setView(selectedCategory ? 'templates' : 'categories')
+                  }}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  {selectedTemplate ?? 'Back'}
+                </button>
+              )}
+            </SheetTitle>
           </SheetHeader>
 
+          {/* SMS history */}
           {history.length > 0 && (
-            <div className="flex-shrink-0 mb-3 space-y-1 max-h-40 overflow-y-auto border rounded-lg p-2 bg-muted/30">
+            <div className="flex-shrink-0 mb-3 space-y-1 max-h-36 overflow-y-auto border rounded-lg p-2 bg-muted/30">
               {history.map(msg => (
                 <div key={msg.id} className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`text-xs px-2.5 py-1.5 rounded-2xl max-w-[80%] ${msg.direction === 'outbound' ? 'bg-primary text-primary-foreground' : 'bg-background border'}`}>
@@ -199,66 +239,97 @@ export default function TemplatePicker({ customer, vehicle }: TemplatePickerProp
             </div>
           )}
 
-          {!selected ? (
+          {/* ── Categories ── */}
+          {view === 'categories' && (
             <div className="flex flex-col flex-1 min-h-0">
-              <Input
-                placeholder="Search templates…"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="mb-3 flex-shrink-0"
-              />
-              <div className="overflow-y-auto flex-1 space-y-4">
-                {search ? (
-                  <div className="space-y-2">
-                    {filtered.map(t => (
-                      <button key={t.name} onClick={() => selectTemplate(t.name, t.body)}
-                        className="w-full text-left p-3 rounded-lg border hover:bg-accent transition-colors">
-                        <p className="font-medium text-sm">{t.name}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{t.body}</p>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  categories.map(cat => (
-                    <div key={cat}>
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">{cat}</p>
-                      <div className="space-y-2">
-                        {SMS_TEMPLATES.filter(t => t.category === cat).map(t => (
-                          <button key={t.name} onClick={() => selectTemplate(t.name, t.body)}
-                            className="w-full text-left p-3 rounded-lg border hover:bg-accent transition-colors">
-                            <p className="font-medium text-sm">{t.name}</p>
-                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{t.body}</p>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))
-                )}
+              <div className="relative flex-shrink-0 mb-3">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Search templates…"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="pl-8"
+                />
               </div>
+
+              {search ? (
+                <div className="overflow-y-auto flex-1 space-y-2">
+                  {searchResults.length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-4">No matches</p>
+                  )}
+                  {searchResults.map(t => (
+                    <button key={t.id} onClick={() => selectTemplate(t)}
+                      className="w-full text-left p-3 rounded-lg border hover:bg-accent transition-colors">
+                      <div className="flex items-center gap-1 mb-0.5">
+                        {t.is_favorite && <Star className="h-3 w-3 text-yellow-500 flex-shrink-0" fill="currentColor" />}
+                        <p className="font-medium text-sm">{t.name}</p>
+                        <span className="text-[10px] text-muted-foreground ml-auto">{t.category}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground line-clamp-2">{t.body}</p>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="overflow-y-auto flex-1">
+                  <div className="grid grid-cols-2 gap-2">
+                    {categories.map(cat => {
+                      const count = getTemplatesForCategory(cat).length
+                      const isFav = cat === '⭐ Favorites'
+                      return (
+                        <button
+                          key={cat}
+                          onClick={() => { setSelectedCategory(cat); setView('templates') }}
+                          className={`p-3 rounded-xl border text-left transition-colors hover:bg-accent ${isFav ? 'border-yellow-400/60 bg-yellow-50/50 dark:bg-yellow-950/20' : 'bg-card'}`}
+                        >
+                          {isFav && <Star className="h-4 w-4 text-yellow-500 mb-1" fill="currentColor" />}
+                          <p className="font-medium text-sm leading-snug">{isFav ? 'Favorites' : cat}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">{count} template{count !== 1 ? 's' : ''}</p>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {categories.length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-8">
+                      No templates yet. Add them in Settings → Automation.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
-          ) : (
+          )}
+
+          {/* ── Templates in category ── */}
+          {view === 'templates' && selectedCategory && (
+            <div className="overflow-y-auto flex-1 space-y-2">
+              {getTemplatesForCategory(selectedCategory).map(t => (
+                <button key={t.id} onClick={() => selectTemplate(t)}
+                  className="w-full text-left p-3 rounded-lg border hover:bg-accent transition-colors">
+                  <div className="flex items-center gap-1 mb-0.5">
+                    {t.is_favorite && <Star className="h-3 w-3 text-yellow-500 flex-shrink-0" fill="currentColor" />}
+                    <p className="font-medium text-sm">{t.name}</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground line-clamp-3 whitespace-pre-wrap">{t.body}</p>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* ── Compose ── */}
+          {view === 'compose' && (
             <div className="flex flex-col flex-1 min-h-0 space-y-3">
-              <button className="text-sm text-primary text-left flex-shrink-0" onClick={() => { setSelected(null); setBody('') }}>← Back to templates</button>
               <Textarea
                 value={body}
                 onChange={e => setBody(e.target.value)}
                 className="resize-none flex-1"
               />
-              {sendError && (
-                <p className="text-xs text-destructive flex-shrink-0">{sendError}</p>
-              )}
+              {sendError && <p className="text-xs text-destructive flex-shrink-0">{sendError}</p>}
               <div className="flex gap-2 flex-shrink-0">
                 <Button className="flex-1 h-11 gap-2" onClick={handleOpenMessages}>
                   <MessageSquare className="h-4 w-4" />
                   Open Messages
                 </Button>
                 {twilioEnabled && (
-                  <Button
-                    variant="outline"
-                    className="flex-1 h-11 gap-2"
-                    onClick={handleSendTwilio}
-                    disabled={sending}
-                  >
+                  <Button variant="outline" className="flex-1 h-11 gap-2" onClick={handleSendTwilio} disabled={sending}>
                     <Zap className="h-4 w-4" />
                     {sending ? 'Sending…' : 'Send Now'}
                   </Button>
@@ -266,7 +337,7 @@ export default function TemplatePicker({ customer, vehicle }: TemplatePickerProp
               </div>
               {twilioEnabled && (
                 <p className="text-xs text-center text-muted-foreground flex-shrink-0">
-                  Send Now sends the text right away to the customer&apos;s phone.
+                  Send Now sends the text immediately to the customer&apos;s phone.
                 </p>
               )}
             </div>

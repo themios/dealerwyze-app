@@ -2,7 +2,7 @@ export type ActivityType = 'call' | 'sms' | 'email' | 'note' | 'task' | 'appoint
 export type ActivityDirection = 'inbound' | 'outbound' | null
 export type ActivityOutcome = 'answered' | 'no_answer' | 'left_vm' | 'pending' | null
 export type ActivityPriority = 'high' | 'normal' | 'low'
-export type VehicleStatus = 'available' | 'pending' | 'sold'
+export type VehicleStatus = 'available' | 'pending' | 'sold' | 'sync_removed'
 export type InterestLevel = 'hot' | 'warm' | 'cold'
 export type TemplateChannel = 'sms' | 'email'
 export type UserRole =
@@ -143,6 +143,7 @@ export interface Template {
   subject?: string | null
   body: string
   variables?: string[]
+  is_favorite?: boolean
   created_at: string
 }
 
