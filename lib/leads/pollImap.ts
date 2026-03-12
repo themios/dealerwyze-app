@@ -121,7 +121,9 @@ function formatImapError(err: unknown, host?: string): string {
     const cause = (err as { cause?: Error }).cause?.message
     let out = extra ? `${msg}: ${extra}` : cause ? `${msg} (${cause})` : msg
     const isGmail = host && (host.includes('gmail.com') || host.includes('google'))
+    const isYahoo = host && host.includes('yahoo')
     const isInvalidCreds = msg.includes('Invalid credentials') || msg.includes('Authentication failed')
+    const outHasInvalidCreds = out.includes('Invalid credentials') || out.includes('Authentication failed') || out.includes('AUTHENTICATE')
     const isVague = msg === 'Command failed' || msg.includes('Authentication') || msg.includes('Invalid credentials')
     if (isGmail && isVague) {
       if (isInvalidCreds) {
@@ -129,6 +131,9 @@ function formatImapError(err: unknown, host?: string): string {
       } else if (!out.includes('App Password')) {
         out += ' For Gmail, use an App Password (myaccount.google.com → Security → 2-Step Verification → App passwords).'
       }
+    }
+    if (isYahoo && (isInvalidCreds || isVague || outHasInvalidCreds) && !out.includes('App Password')) {
+      out += ' Yahoo requires an App Password, not your regular account password. Go to account.yahoo.com → Account Security → Generate app password, then enter that here.'
     }
     return out
   }

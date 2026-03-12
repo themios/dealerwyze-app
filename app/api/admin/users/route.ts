@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { canManageUsers, ROLE_LABELS } from '@/lib/auth/dealerRoles'
 import type { UserRole } from '@/types/index'
+import { APP_URL } from '@/lib/stripe'
 
 const ALLOWED_DEALER_ROLES: UserRole[] = [
   'dealer_admin',
@@ -11,6 +12,17 @@ const ALLOWED_DEALER_ROLES: UserRole[] = [
   'dealer_rep',
   'dealer_staff',
 ]
+
+function displayNameFromEmail(email: string): string {
+  const local = email.split('@')[0] || ''
+  const cleaned = local.replace(/[._]+/g, ' ').trim()
+  if (!cleaned) return email
+  return cleaned
+    .split(' ')
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
 
 async function requireUserManager() {
   const supabase = await createClient()
@@ -75,38 +87,87 @@ export async function POST(req: NextRequest) {
   const auth = await requireUserManager()
   if (!auth) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { email, display_name, password, role } = await req.json()
-  if (!email || !display_name || !password) {
-    return NextResponse.json({ error: 'email, display_name, and password are required' }, { status: 400 })
+  const body = await req.json().catch(() => ({}))
+  const {
+    email,
+    display_name,
+    password,
+    role,
+  } = body as {
+    email?: string
+    display_name?: string
+    password?: string
+    role?: UserRole
+  }
+
+  if (!email) {
+    return NextResponse.json({ error: 'email is required' }, { status: 400 })
   }
 
   const assignedRole: UserRole = ALLOWED_DEALER_ROLES.includes(role) ? role : 'dealer_staff'
 
   const service = createServiceClient()
 
-  const { data: created, error: createErr } = await service.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-  })
+  // Branch 1: full create with explicit password (used by internal admin tools)
+  if (password && display_name) {
+    const { data: created, error: createErr } = await service.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+    })
 
-  if (createErr || !created.user) {
-    return NextResponse.json({ error: createErr?.message || 'Failed to create user' }, { status: 500 })
+    if (createErr || !created.user) {
+      return NextResponse.json({ error: createErr?.message || 'Failed to create user' }, { status: 500 })
+    }
+
+    const { error: profileErr } = await service.from('profiles').insert({
+      id: created.user.id,
+      display_name,
+      role: assignedRole,
+      org_id: auth.profile.org_id,
+    })
+
+    if (profileErr) {
+      await service.auth.admin.deleteUser(created.user.id)
+      return NextResponse.json({ error: profileErr.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ id: created.user.id, email, display_name, role: assignedRole })
   }
 
-  const { error: profileErr } = await service.from('profiles').insert({
-    id: created.user.id,
-    display_name,
-    role: assignedRole,
-    org_id: auth.profile.org_id,
+  // Branch 2: invite flow (used by onboarding "Invite Your Team")
+  const finalDisplayName = (display_name && display_name.trim()) || displayNameFromEmail(email)
+
+  const { data: invited, error: inviteErr } = await service.auth.admin.inviteUserByEmail(email, {
+    data: {
+      display_name: finalDisplayName,
+      role: assignedRole,
+      org_id: auth.profile.org_id,
+    },
+    redirectTo: `${APP_URL}/login`,
   })
 
+  if (inviteErr || !invited?.user) {
+    const msg = inviteErr?.message?.toLowerCase() || ''
+    if (msg.includes('already registered') || msg.includes('already exists')) {
+      return NextResponse.json({ error: 'An account with that email already exists.' }, { status: 409 })
+    }
+    return NextResponse.json({ error: inviteErr?.message || 'Failed to send invite' }, { status: 500 })
+  }
+
+  const { error: profileErr } = await service.from('profiles').upsert({
+    id: invited.user.id,
+    display_name: finalDisplayName,
+    role: assignedRole,
+    org_id: auth.profile.org_id,
+  }, { onConflict: 'id' })
+
   if (profileErr) {
-    await service.auth.admin.deleteUser(created.user.id)
+    await service.auth.admin.deleteUser(invited.user.id)
     return NextResponse.json({ error: profileErr.message }, { status: 500 })
   }
 
-  return NextResponse.json({ id: created.user.id, email, display_name, role: assignedRole })
+  return NextResponse.json({ id: invited.user.id, email, display_name: finalDisplayName, role: assignedRole })
 }
 
 /** PATCH /api/admin/users — regenerate invite code for the calling admin */

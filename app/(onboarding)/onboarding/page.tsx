@@ -4,363 +4,679 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Loader2, Check, ChevronRight, Mail, Users, Zap } from 'lucide-react'
+import {
+  Loader2, CheckCircle2, Building2, Car, Mail, Users,
+  LayoutDashboard, TrendingUp, MessageSquare, PhoneCall,
+  Plus, Trash2, ChevronRight, AlertCircle,
+} from 'lucide-react'
 
-const TOTAL_STEPS = 5
-
-const TIMEZONES = [
-  'America/Los_Angeles',
-  'America/Denver',
-  'America/Chicago',
-  'America/New_York',
-  'America/Phoenix',
-  'Pacific/Honolulu',
-]
-
-const PLANS = [
-  {
-    id: 'beta',
-    name: 'Beta Access',
-    price: 'Free — no card needed',
-    features: ['Full CRM access during beta', 'Up to 200 contacts & 100 vehicles', 'AI tools, BHPH, analytics included'],
-    popular: true,
-  },
-  {
-    id: 'tier1',
-    name: 'Complete CRM',
-    price: '$150/mo (launching after beta)',
-    features: ['Unlimited contacts & leads', 'Two-way SMS + dedicated number', 'Fax, AI tools, BHPH, team access'],
-  },
-  {
-    id: 'tier2',
-    name: 'CRM + Voice AI',
-    price: '$350/mo (launching after beta)',
-    features: ['Everything in Complete CRM', 'AI voice agent answers calls 24/7', '1,000 voice minutes/month included'],
-  },
-]
-
+// ── Types ─────────────────────────────────────────────────────────────────────
 interface OrgSettings {
   onboarding_step: number
   onboarding_completed_at: string | null
   business_name: string | null
   business_phone: string | null
   business_address: string | null
+  zip_code: string | null
   timezone: string | null
+  voice_business_hours_start: string | null
+  voice_business_hours_end: string | null
 }
 
+interface VinData { year: number; make: string; model: string; trim: string }
 
+const TOTAL_STEPS = 5
+const STEP_LABELS = ['Your Dealership', 'First Vehicle', 'Lead Inbox', 'Your Team', 'Ready!']
+const TIMEZONES = [
+  'America/Los_Angeles','America/Denver','America/Chicago',
+  'America/New_York','America/Phoenix','Pacific/Honolulu',
+]
+const ROLE_OPTIONS = [
+  { value: 'dealer_admin',   label: 'Admin (full access)' },
+  { value: 'dealer_manager', label: 'Manager' },
+  { value: 'dealer_finance', label: 'Finance' },
+  { value: 'dealer_staff',   label: 'Staff' },
+  { value: 'dealer_rep',     label: 'Sales Rep (limited)' },
+]
+
+// ── Progress bar ──────────────────────────────────────────────────────────────
 function ProgressBar({ step }: { step: number }) {
+  const pct = Math.round((step / (TOTAL_STEPS - 1)) * 100)
   return (
-    <div className="flex items-center gap-1 px-6 py-4">
-      {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
-        <div
-          key={i}
-          className={`h-1.5 flex-1 rounded-full transition-colors ${
-            i < step ? 'bg-primary' : i === step - 1 ? 'bg-primary/60' : 'bg-muted'
-          }`}
-        />
-      ))}
+    <div className="px-6 py-4 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          Step {step + 1} of {TOTAL_STEPS}
+        </span>
+        <span className="text-xs text-muted-foreground">{STEP_LABELS[step]}</span>
+      </div>
+      <div className="h-2 bg-muted rounded-full overflow-hidden">
+        <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+      </div>
+      <div className="flex justify-between">
+        {STEP_LABELS.map((label, i) => (
+          <div key={i} className="flex flex-col items-center gap-0.5">
+            <div className={`w-4 h-4 rounded-full flex items-center justify-center border-2 transition-colors ${
+              i < step ? 'bg-primary border-primary' :
+              i === step ? 'border-primary bg-background' : 'border-muted bg-muted'
+            }`}>
+              {i < step && <CheckCircle2 className="h-3 w-3 text-primary-foreground" />}
+              {i === step && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
+            </div>
+            <span className="text-[9px] text-muted-foreground hidden sm:block">{label}</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
 
-// ── Step 1: Business Info ────────────────────────────────────────────────────
-function Step1({
-  settings, onNext,
-}: {
-  settings: OrgSettings | null
-  onNext: (data: { settings: Record<string, string> }) => Promise<void>
+// ── Step 1: Dealership Profile ────────────────────────────────────────────────
+function StepProfile({ settings, orgName, onNext }: {
+  settings: OrgSettings | null; orgName: string; onNext: (data: object) => Promise<void>
 }) {
-  const [name,    setName]    = useState(settings?.business_name    ?? '')
-  const [phone,   setPhone]   = useState(settings?.business_phone   ?? '')
-  const [address, setAddress] = useState(settings?.business_address ?? '')
-  const [tz,      setTz]      = useState(settings?.timezone         ?? 'America/Los_Angeles')
-  const [saving,  setSaving]  = useState(false)
+  const [name,   setName]   = useState(orgName || '')
+  const [dba,    setDba]    = useState(settings?.business_name    || '')
+  const [phone,  setPhone]  = useState(settings?.business_phone   || '')
+  const [addr,   setAddr]   = useState(settings?.business_address || '')
+  const [zip,    setZip]    = useState(settings?.zip_code         || '')
+  const [tz,     setTz]     = useState(settings?.timezone         || 'America/Los_Angeles')
+  const [start,  setStart]  = useState(settings?.voice_business_hours_start || '09:00')
+  const [end,    setEnd]    = useState(settings?.voice_business_hours_end   || '18:00')
+  const [saving, setSaving] = useState(false)
+  const [err,    setErr]    = useState<string | null>(null)
 
   async function handleNext() {
-    setSaving(true)
-    await onNext({ settings: { business_name: name, business_phone: phone, business_address: address, timezone: tz } })
+    if (!name.trim()) { setErr('Dealership name is required'); return }
+    setSaving(true); setErr(null)
+    await onNext({
+      orgName: name.trim(),
+      settings: {
+        business_name: dba.trim() || name.trim(),
+        business_phone: phone.trim(),
+        business_address: addr.trim(),
+        zip_code: zip.trim(),
+        timezone: tz,
+        voice_business_hours_start: start,
+        voice_business_hours_end: end,
+      },
+    })
     setSaving(false)
   }
 
   return (
     <div className="flex-1 px-6 py-4 space-y-5">
-      <div>
-        <h2 className="text-xl font-bold">Tell us about your dealership</h2>
-        <p className="text-sm text-muted-foreground mt-1">This info appears in your SMS templates and reports.</p>
+      <div className="flex items-center gap-3">
+        <div className="p-2 rounded-xl bg-primary/10"><Building2 className="h-6 w-6 text-primary" /></div>
+        <div>
+          <h2 className="text-xl font-bold">Your Dealership</h2>
+          <p className="text-sm text-muted-foreground">Used in messages, reports, and your AI voice agent.</p>
+        </div>
       </div>
 
-      <div className="space-y-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="bname">Dealership name</Label>
-          <Input id="bname" value={name} onChange={e => setName(e.target.value)} placeholder="My Auto Group" />
+      {err && <div className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">{err}</div>}
+
+      <div className="space-y-3">
+        <div>
+          <label className="text-sm font-medium block mb-1">Dealership Name <span className="text-destructive">*</span></label>
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="Apollo Auto"
+            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="bphone">Business phone</Label>
-          <Input id="bphone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="(818) 555-0100" />
+        <div>
+          <label className="text-sm font-medium block mb-1">DBA / Trade Name <span className="text-xs text-muted-foreground">(if different)</span></label>
+          <input value={dba} onChange={e => setDba(e.target.value)} placeholder="Same as above"
+            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="baddress">Address</Label>
-          <Input id="baddress" value={address} onChange={e => setAddress(e.target.value)} placeholder="123 Main St, City, CA 90001" />
+        <div>
+          <label className="text-sm font-medium block mb-1">Business Phone</label>
+          <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="(626) 555-0100"
+            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="tz">Timezone</Label>
-          <select
-            id="tz"
-            value={tz}
-            onChange={e => setTz(e.target.value)}
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            {TIMEZONES.map(t => (
-              <option key={t} value={t}>{t.replace('America/', '').replace('_', ' ')}</option>
-            ))}
+        <div>
+          <label className="text-sm font-medium block mb-1">Street Address</label>
+          <input value={addr} onChange={e => setAddr(e.target.value)} placeholder="1234 Main St, El Monte, CA"
+            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+        </div>
+        <div>
+          <label className="text-sm font-medium block mb-1">Zip Code</label>
+          <input value={zip} onChange={e => setZip(e.target.value)} placeholder="91731" maxLength={10}
+            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          <p className="text-xs text-muted-foreground mt-1">Used for local market pricing data</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium block mb-1">Timezone</label>
+          <select value={tz} onChange={e => setTz(e.target.value)}
+            className="w-full border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
+            {TIMEZONES.map(t => <option key={t} value={t}>{t.replace('America/', '').replace(/_/g, ' ')}</option>)}
           </select>
+        </div>
+        <div>
+          <label className="text-sm font-medium block mb-1">Business Hours</label>
+          <div className="flex items-center gap-2">
+            <input type="time" value={start} onChange={e => setStart(e.target.value)}
+              className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            <span className="text-sm text-muted-foreground">to</span>
+            <input type="time" value={end} onChange={e => setEnd(e.target.value)}
+              className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">Your AI voice agent uses these hours</p>
         </div>
       </div>
 
       <Button className="w-full" onClick={handleNext} disabled={saving || !name.trim()}>
         {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-        Continue <ChevronRight className="h-4 w-4 ml-1" />
+        Save and Continue <ChevronRight className="h-4 w-4 ml-1" />
       </Button>
     </div>
   )
 }
 
-// ── Step 2: Choose Plan ──────────────────────────────────────────────────────
-function Step2({ onNext, onSkip }: { onNext: () => void; onSkip: () => void }) {
+// ── Step 2: First Vehicle ─────────────────────────────────────────────────────
+function StepVehicle({ onNext, onSkip }: { onNext: () => void; onSkip: () => void }) {
+  const [vin,      setVin]      = useState('')
+  const [vinData,  setVinData]  = useState<VinData | null>(null)
+  const [price,    setPrice]    = useState('')
+  const [mileage,  setMileage]  = useState('')
+  const [decoding, setDecoding] = useState(false)
+  const [saving,   setSaving]   = useState(false)
+  const [added,    setAdded]    = useState(false)
+  const [err,      setErr]      = useState<string | null>(null)
+
+  async function decodeVin() {
+    if (vin.length < 11) { setErr('Enter at least 11 characters of the VIN'); return }
+    setDecoding(true); setErr(null)
+    try {
+      const res  = await fetch('/api/vehicles/intake/vin-decode', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vin }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Decode failed')
+      setVinData({ year: json.year, make: json.make, model: json.model, trim: json.trim })
+    } catch {
+      setErr('Could not decode that VIN. Check the number and try again, or skip this step.')
+    } finally { setDecoding(false) }
+  }
+
+  async function addVehicle() {
+    if (!vinData) return
+    setSaving(true); setErr(null)
+    try {
+      const res = await fetch('/api/vehicles', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vin,
+          year: vinData.year, make: vinData.make, model: vinData.model, trim: vinData.trim,
+          price:   price   ? parseInt(price.replace(/\D/g, ''),   10) : null,
+          mileage: mileage ? parseInt(mileage.replace(/\D/g, ''), 10) : null,
+          status: 'available',
+        }),
+      })
+      if (!res.ok) throw new Error('Failed to add')
+      setAdded(true)
+      setTimeout(() => onNext(), 1500)
+    } catch {
+      setErr('Could not add vehicle. Try again or skip this step.')
+    } finally { setSaving(false) }
+  }
+
+  if (added) return (
+    <div className="flex-1 flex flex-col items-center justify-center py-16 text-center gap-4 px-6">
+      <CheckCircle2 className="h-12 w-12 text-green-500" />
+      <p className="font-semibold text-lg">Vehicle added!</p>
+      <p className="text-sm text-muted-foreground">Moving to the next step...</p>
+    </div>
+  )
+
   return (
     <div className="flex-1 px-6 py-4 space-y-5">
+      <div className="flex items-center gap-3">
+        <div className="p-2 rounded-xl bg-primary/10"><Car className="h-6 w-6 text-primary" /></div>
+        <div>
+          <h2 className="text-xl font-bold">Add Your First Vehicle</h2>
+          <p className="text-sm text-muted-foreground">Enter a VIN and we'll fill in the details. Add the rest later.</p>
+        </div>
+      </div>
+
+      {err && <div className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">{err}</div>}
+
       <div>
-        <h2 className="text-xl font-bold">Your plan</h2>
-        <p className="text-sm text-muted-foreground mt-1">You&apos;re on beta access — full features at no charge while we build together.</p>
+        <label className="text-sm font-medium block mb-1">VIN</label>
+        <div className="flex gap-2">
+          <input value={vin} onChange={e => { setVin(e.target.value.toUpperCase()); setVinData(null) }}
+            placeholder="1HGCM82633A123456" maxLength={17}
+            className="flex-1 border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          <Button variant="outline" onClick={decodeVin} disabled={decoding || vin.length < 11}>
+            {decoding ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Decode'}
+          </Button>
+        </div>
+      </div>
+
+      {vinData && (
+        <div className="bg-muted/40 rounded-lg p-4 space-y-3">
+          <p className="text-sm font-semibold">{vinData.year} {vinData.make} {vinData.model} {vinData.trim}</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium block mb-1">Asking Price</label>
+              <input value={price} onChange={e => setPrice(e.target.value)} placeholder="$12,995"
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+            <div>
+              <label className="text-xs font-medium block mb-1">Mileage</label>
+              <input value={mileage} onChange={e => setMileage(e.target.value)} placeholder="42,000"
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+          </div>
+          <Button onClick={addVehicle} disabled={saving} className="w-full">
+            {saving ? 'Adding...' : 'Add Vehicle'}
+          </Button>
+        </div>
+      )}
+
+      <Button variant="ghost" className="w-full text-muted-foreground" onClick={onSkip}>
+        Skip - I'll add inventory later
+      </Button>
+    </div>
+  )
+}
+
+// ── Step 3: Connect Gmail ─────────────────────────────────────────────────────
+function StepGmail({ onNext, onSkip }: { onNext: () => void; onSkip: () => void }) {
+  const [connected, setConnected] = useState(false)
+  const [showImap, setShowImap] = useState(false)
+  const [imapProvider, setImapProvider] = useState<'outlook' | 'yahoo' | 'apple' | 'gmail_app' | 'imap'>('outlook')
+  const [imapHost, setImapHost] = useState('imap-mail.outlook.com')
+  const [imapPort, setImapPort] = useState('993')
+  const [imapEmail, setImapEmail] = useState('')
+  const [imapUser, setImapUser] = useState('')
+  const [imapPass, setImapPass] = useState('')
+  const [imapSaving, setImapSaving] = useState(false)
+  const [imapError, setImapError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('gmail_connected') === '1') {
+      window.history.replaceState({}, '', '/onboarding')
+      setConnected(true)
+      setTimeout(() => onNext(), 1500)
+    }
+  }, [onNext])
+
+  function handleProviderChange(p: typeof imapProvider) {
+    setImapProvider(p)
+    setImapError(null)
+    if (p === 'outlook') {
+      setImapHost('imap-mail.outlook.com')
+      setImapPort('993')
+    } else if (p === 'yahoo') {
+      setImapHost('imap.mail.yahoo.com')
+      setImapPort('993')
+    } else if (p === 'apple') {
+      setImapHost('imap.mail.me.com')
+      setImapPort('993')
+    } else if (p === 'gmail_app') {
+      setImapHost('imap.gmail.com')
+      setImapPort('993')
+    } else {
+      setImapHost('')
+      setImapPort('993')
+    }
+  }
+
+  async function connectImap(e: React.FormEvent) {
+    e.preventDefault()
+    setImapError(null)
+    if (!imapEmail || !imapHost || !imapUser || !imapPass) {
+      setImapError('Email, server, username, and password are required.')
+      return
+    }
+    setImapSaving(true)
+    try {
+      const res = await fetch('/api/integrations/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          label: imapEmail,
+          email: imapEmail,
+          provider: imapProvider,
+          imap_host: imapHost,
+          imap_port: parseInt(imapPort, 10) || 993,
+          imap_user: imapUser,
+          imap_pass: imapPass,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setImapError(data.error || 'Connection failed. Check your settings and try again.')
+        setImapSaving(false)
+        return
+      }
+      setConnected(true)
+      setImapSaving(false)
+      setTimeout(() => onNext(), 1500)
+    } catch {
+      setImapError('Connection failed. Check your settings and try again.')
+      setImapSaving(false)
+    }
+  }
+
+  if (connected) return (
+    <div className="flex-1 flex flex-col items-center justify-center py-16 text-center gap-4 px-6">
+      <CheckCircle2 className="h-12 w-12 text-green-500" />
+      <p className="font-semibold text-lg">Inbox connected!</p>
+      <p className="text-sm text-muted-foreground">Leads from your email will start flowing in within 15 minutes.</p>
+    </div>
+  )
+
+  return (
+    <div className="flex-1 px-6 py-4 space-y-5">
+      <div className="flex items-center gap-3">
+        <div className="p-2 rounded-xl bg-primary/10"><Mail className="h-6 w-6 text-primary" /></div>
+        <div>
+          <h2 className="text-xl font-bold">Connect Your Lead Inbox</h2>
+          <p className="text-sm text-muted-foreground">
+            We&apos;ll pull leads from the inbox where your CarGurus, AutoTrader, and website leads land today.
+          </p>
+        </div>
+      </div>
+
+      <div className="bg-muted/40 rounded-lg p-4 space-y-2">
+        <p className="text-sm font-semibold">What DealerWyze reads:</p>
+        <ul className="text-sm text-muted-foreground space-y-1">
+          <li className="flex gap-1.5"><span className="text-green-500 font-bold">+</span> Lead emails from CarGurus, AutoTrader, Cars.com, Facebook</li>
+          <li className="flex gap-1.5"><span className="text-green-500 font-bold">+</span> Direct customer inquiries</li>
+          <li className="flex gap-1.5"><span className="text-green-500 font-bold">+</span> Full reply threads so you see the whole conversation</li>
+        </ul>
+        <p className="text-xs text-muted-foreground pt-1">
+          We never send emails without your action. Read-only access unless you reply from within the app.
+        </p>
       </div>
 
       <div className="space-y-3">
-        {PLANS.map(plan => (
-          <div
-            key={plan.id}
-            className={`rounded-xl border p-4 space-y-2 relative ${plan.popular ? 'border-primary' : ''}`}
+        <a
+          href="/api/integrations/gmail/connect?from=onboarding"
+          className="flex items-center justify-center gap-2 w-full bg-white border-2 border-border rounded-lg px-4 py-3 text-sm font-semibold hover:bg-accent transition-colors"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+          </svg>
+          Connect Gmail / Google Workspace
+        </a>
+
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            Not using Gmail? Connect another provider like Outlook, Yahoo, iCloud, or your own domain.
+          </p>
+          <Button
+            variant="outline"
+            className="w-full text-sm"
+            type="button"
+            onClick={() => setShowImap(s => !s)}
           >
-            {plan.popular && (
-              <span className="absolute -top-2.5 left-4 text-[10px] font-semibold bg-primary text-primary-foreground px-2 py-0.5 rounded-full">
-                Most popular
-              </span>
-            )}
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="font-semibold text-sm">{plan.name}</p>
-                <p className="text-xs text-muted-foreground">{plan.price}</p>
-              </div>
-              <a
-                href={`/settings/billing`}
-                className="text-xs text-primary font-medium hover:underline"
-              >
-                Subscribe →
-              </a>
+            {showImap ? 'Hide other providers' : 'Connect another email provider'}
+          </Button>
+        </div>
+      </div>
+
+      {showImap && (
+        <form onSubmit={connectImap} className="space-y-3 border border-border rounded-lg p-4 bg-background">
+          {imapError && (
+            <div className="flex items-start gap-2 text-xs text-destructive bg-destructive/10 rounded-md px-3 py-2">
+              <AlertCircle className="h-3.5 w-3.5 mt-0.5" />
+              <p>{imapError}</p>
             </div>
-            <ul className="space-y-0.5">
-              {plan.features.map(f => (
-                <li key={f} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Check className="h-3 w-3 text-green-500 shrink-0" />{f}
-                </li>
-              ))}
-            </ul>
+          )}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Provider
+            </label>
+            <select
+              value={imapProvider}
+              onChange={e => handleProviderChange(e.target.value as typeof imapProvider)}
+              className="w-full border rounded-md px-2 py-2 text-sm bg-background"
+            >
+              <option value="outlook">Outlook / Office 365</option>
+              <option value="yahoo">Yahoo Mail</option>
+              <option value="apple">iCloud / Apple Mail</option>
+              <option value="gmail_app">Gmail (App Password)</option>
+              <option value="imap">Other (IMAP)</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Email Address
+            </label>
+            <Input
+              type="email"
+              value={imapEmail}
+              onChange={e => setImapEmail(e.target.value)}
+              placeholder="you@yourdealer.com"
+              className="h-9 text-sm"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              IMAP Server
+            </label>
+            <div className="flex gap-2">
+              <Input
+                value={imapHost}
+                onChange={e => setImapHost(e.target.value)}
+                placeholder="imap.mail.yourprovider.com"
+                className="h-9 text-sm flex-1"
+              />
+              <Input
+                value={imapPort}
+                onChange={e => setImapPort(e.target.value)}
+                placeholder="993"
+                className="h-9 text-sm w-20"
+              />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Username
+            </label>
+            <Input
+              value={imapUser}
+              onChange={e => setImapUser(e.target.value)}
+              placeholder="Usually your full email address"
+              className="h-9 text-sm"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              App Password
+            </label>
+            <Input
+              type="password"
+              value={imapPass}
+              onChange={e => setImapPass(e.target.value)}
+              placeholder="App-specific password if required"
+              className="h-9 text-sm"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Many providers require an app-specific password for IMAP (Outlook, Yahoo, iCloud, Gmail with 2FA).
+            </p>
+            {imapProvider === 'yahoo' && (
+              <p className="text-[11px] text-amber-600 dark:text-amber-500 mt-1">
+                Yahoo does not accept your regular password. Create an App Password at account.yahoo.com → Account Security → Generate app password, then enter it above.
+              </p>
+            )}
+          </div>
+          <Button
+            type="submit"
+            className="w-full h-9 text-sm font-semibold"
+            disabled={imapSaving}
+          >
+            {imapSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Connecting…
+              </>
+            ) : (
+              'Connect inbox'
+            )}
+          </Button>
+        </form>
+      )}
+
+      <Button variant="ghost" className="w-full text-muted-foreground" onClick={onSkip}>
+        Skip - I'll connect email later in Settings
+      </Button>
+    </div>
+  )
+}
+
+// ── Step 4: Invite Team ───────────────────────────────────────────────────────
+function StepTeam({ onNext, onSkip }: { onNext: () => void; onSkip: () => void }) {
+  const [members, setMembers] = useState([{ email: '', role: 'dealer_staff' }])
+  const [saving,  setSaving]  = useState(false)
+  const [invited, setInvited] = useState(0)
+  const [err,     setErr]     = useState<string | null>(null)
+
+  async function sendInvites() {
+    const valid = members.filter(m => m.email.trim().includes('@'))
+    if (!valid.length) { setErr('Add at least one email address to invite'); return }
+    setSaving(true); setErr(null)
+    let count = 0
+    for (const m of valid) {
+      try {
+        const res = await fetch('/api/admin/users', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: m.email.trim(), role: m.role }),
+        })
+        if (res.ok) count++
+      } catch { /* continue */ }
+    }
+    setInvited(count)
+    setSaving(false)
+    if (count > 0) setTimeout(() => onNext(), 1500)
+    else setErr('Could not send invites. You can add team members later in Settings.')
+  }
+
+  if (invited > 0) return (
+    <div className="flex-1 flex flex-col items-center justify-center py-16 text-center gap-4 px-6">
+      <Users className="h-12 w-12 text-primary" />
+      <p className="font-semibold text-lg">{invited} invite{invited !== 1 ? 's' : ''} sent!</p>
+      <p className="text-sm text-muted-foreground">They'll get an email to set up their account.</p>
+    </div>
+  )
+
+  return (
+    <div className="flex-1 px-6 py-4 space-y-5">
+      <div className="flex items-center gap-3">
+        <div className="p-2 rounded-xl bg-primary/10"><Users className="h-6 w-6 text-primary" /></div>
+        <div>
+          <h2 className="text-xl font-bold">Invite Your Team</h2>
+          <p className="text-sm text-muted-foreground">Each person gets their own login. Add more in Settings anytime.</p>
+        </div>
+      </div>
+
+      {err && <div className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">{err}</div>}
+
+      <div className="space-y-2">
+        {members.map((m, i) => (
+          <div key={i} className="flex gap-2">
+            <input type="email" value={m.email} onChange={e => setMembers(ms => ms.map((x, j) => j === i ? { ...x, email: e.target.value } : x))}
+              placeholder="jane@mydealer.com"
+              className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            <select value={m.role} onChange={e => setMembers(ms => ms.map((x, j) => j === i ? { ...x, role: e.target.value } : x))}
+              className="border rounded-lg px-2 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
+              {ROLE_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+            </select>
+            {members.length > 1 && (
+              <button type="button" onClick={() => setMembers(ms => ms.filter((_, j) => j !== i))}
+                className="p-2 text-muted-foreground hover:text-destructive transition-colors">
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
           </div>
         ))}
       </div>
 
-      <div className="space-y-2">
-        <Button className="w-full" onClick={onNext}>
-          I&apos;ve subscribed — Continue <ChevronRight className="h-4 w-4 ml-1" />
-        </Button>
-        <Button variant="ghost" className="w-full text-muted-foreground" onClick={onSkip}>
-          Skip for now (trial mode)
-        </Button>
-      </div>
+      <button type="button" onClick={() => setMembers(ms => [...ms, { email: '', role: 'dealer_staff' }])}
+        className="flex items-center gap-1.5 text-sm text-primary hover:opacity-80 transition-opacity">
+        <Plus className="h-4 w-4" /> Add another person
+      </button>
+
+      <Button className="w-full" onClick={sendInvites} disabled={saving}>
+        {saving ? 'Sending...' : 'Send Invites and Continue'} <ChevronRight className="h-4 w-4 ml-1" />
+      </Button>
+
+      <Button variant="ghost" className="w-full text-muted-foreground" onClick={onSkip}>
+        Skip - I'll add team members later
+      </Button>
     </div>
   )
 }
 
-// ── Step 3: Connect Email ────────────────────────────────────────────────────
-function Step3({ onNext, onSkip }: { onNext: () => void; onSkip: () => void }) {
-  return (
-    <div className="flex-1 px-6 py-4 space-y-5">
-      <div className="flex items-center gap-3">
-        <div className="p-2 rounded-xl bg-primary/10">
-          <Mail className="h-6 w-6 text-primary" />
-        </div>
-        <div>
-          <h2 className="text-xl font-bold">Connect email leads</h2>
-          <p className="text-sm text-muted-foreground">Auto-import CarGurus &amp; AutoTrader leads.</p>
-        </div>
-      </div>
+// ── Step 5: Complete ──────────────────────────────────────────────────────────
+const FEATURES = [
+  { icon: <LayoutDashboard className="h-5 w-5 text-primary" />,         title: 'Today Page',           desc: 'See who is waiting for a reply and what needs your attention first thing each morning.', href: '/today' },
+  { icon: <TrendingUp className="h-5 w-5 text-orange-500" />,           title: 'Market Intelligence',  desc: 'Live pricing data for every vehicle. Know if you are priced to sell or leaving money on the table.', href: '/vehicles' },
+  { icon: <MessageSquare className="h-5 w-5 text-green-500" />,         title: 'Lead Management',      desc: 'Every lead from every source in one inbox. Text or email customers without switching apps.', href: '/customers' },
+  { icon: <PhoneCall className="h-5 w-5 text-purple-500" />,            title: 'AI Voice Agent',       desc: 'Set up an AI agent that answers calls after hours and collects lead information for you.', href: '/settings/organization' },
+]
 
-      <div className="rounded-xl border bg-card p-4 space-y-3">
-        <p className="text-sm font-medium">Gmail (recommended)</p>
-        <p className="text-xs text-muted-foreground">
-          Connect the Gmail account where CarGurus, AutoTrader, and other lead sources
-          send notifications. We&apos;ll auto-import new leads every 15 minutes.
-        </p>
-        <a href="/api/integrations/gmail/connect" className="block">
-          <Button variant="outline" className="w-full text-sm">
-            <Mail className="h-4 w-4 mr-2" /> Connect Gmail account
-          </Button>
-        </a>
-      </div>
-
-      <div className="rounded-xl border bg-card p-4 space-y-2">
-        <p className="text-sm font-medium">Other providers</p>
-        <p className="text-xs text-muted-foreground">
-          Yahoo, iCloud, Outlook, or custom IMAP — configure in{' '}
-          <a href="/settings/organization" className="text-primary hover:underline">Settings → Organization</a>.
-        </p>
-      </div>
-
-      <div className="space-y-2 pt-2">
-        <Button className="w-full" onClick={onNext}>
-          I&apos;ve connected email — Continue <ChevronRight className="h-4 w-4 ml-1" />
-        </Button>
-        <Button variant="ghost" className="w-full text-muted-foreground" onClick={onSkip}>
-          Skip — I&apos;ll set this up later
-        </Button>
-      </div>
-    </div>
-  )
-}
-
-// ── Step 4: Team Setup ───────────────────────────────────────────────────────
-function Step4({
-  onNext, onSkip,
-}: {
-  onNext: () => void
-  onSkip: () => void
-}) {
-  const [inviteCode, setInviteCode] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
-
-  useEffect(() => {
-    fetch('/api/admin/users')
-      .then(r => r.json())
-      .then((d: { users?: Array<{ role: string; invite_code?: string }> }) => {
-        const admin = d.users?.find(u => u.role === 'admin')
-        if (admin?.invite_code) setInviteCode(admin.invite_code)
-      })
-      .catch(() => null)
-  }, [])
-
-  function copyCode() {
-    if (!inviteCode) return
-    navigator.clipboard.writeText(inviteCode).catch(() => null)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
-
-  return (
-    <div className="flex-1 px-6 py-4 space-y-5">
-      <div className="flex items-center gap-3">
-        <div className="p-2 rounded-xl bg-primary/10">
-          <Users className="h-6 w-6 text-primary" />
-        </div>
-        <div>
-          <h2 className="text-xl font-bold">Invite your team</h2>
-          <p className="text-sm text-muted-foreground">Sales agents share your CRM workspace.</p>
-        </div>
-      </div>
-
-      <div className="rounded-xl border bg-card p-4 space-y-3">
-        <p className="text-sm font-medium">Your invite code</p>
-        <p className="text-xs text-muted-foreground">
-          Share this code with salespeople. They sign up at your app URL and enter this code to join your dealership.
-        </p>
-        {inviteCode ? (
-          <div className="flex items-center gap-2">
-            <code className="flex-1 bg-muted px-3 py-2 rounded-lg text-sm font-mono tracking-widest">
-              {inviteCode}
-            </code>
-            <Button variant="outline" size="sm" onClick={copyCode}>
-              {copied ? <Check className="h-4 w-4 text-green-500" /> : 'Copy'}
-            </Button>
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground italic">Loading invite code…</p>
-        )}
-        <p className="text-xs text-muted-foreground">
-          Manage team members anytime in{' '}
-          <a href="/settings/users" className="text-primary hover:underline">Settings → Team</a>.
-        </p>
-      </div>
-
-      <div className="space-y-2 pt-2">
-        <Button className="w-full" onClick={onNext}>
-          Continue <ChevronRight className="h-4 w-4 ml-1" />
-        </Button>
-        <Button variant="ghost" className="w-full text-muted-foreground" onClick={onSkip}>
-          Skip — just me for now
-        </Button>
-      </div>
-    </div>
-  )
-}
-
-// ── Step 5: Done ─────────────────────────────────────────────────────────────
-function Step5({ businessName, onFinish, finishing }: {
+function StepComplete({ businessName, onFinish, finishing }: {
   businessName: string; onFinish: () => void; finishing: boolean
 }) {
   return (
-    <div className="flex-1 px-6 py-8 flex flex-col items-center justify-center text-center space-y-6">
-      <div className="h-20 w-20 rounded-full bg-green-100 flex items-center justify-center">
-        <Zap className="h-10 w-10 text-green-600" />
+    <div className="flex-1 px-6 py-6 flex flex-col gap-5">
+      <div className="text-center py-4">
+        <CheckCircle2 className="h-14 w-14 text-green-500 mx-auto mb-3" />
+        <h2 className="text-xl font-bold">You're all set{businessName ? `, ${businessName}` : ''}!</h2>
+        <p className="text-sm text-muted-foreground mt-2">Your dealership is ready. Here's what to explore first.</p>
       </div>
 
-      <div>
-        <h2 className="text-2xl font-bold">You&apos;re all set{businessName ? `, ${businessName}` : ''}!</h2>
-        <p className="text-sm text-muted-foreground mt-2">
-          Your CRM is ready. Start adding customers, responding to leads, and closing deals.
-        </p>
-      </div>
-
-      <div className="w-full space-y-2 text-left rounded-xl border bg-card p-4">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">What&apos;s next</p>
-        {[
-          'Add your first customer or import from leads',
-          'Set up SMS templates in Settings',
-          'Configure billing to unlock full features',
-          'Ask your account manager about Voice AI',
-        ].map(tip => (
-          <div key={tip} className="flex items-start gap-2">
-            <Check className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-            <p className="text-sm text-muted-foreground">{tip}</p>
-          </div>
+      <div className="space-y-2">
+        {FEATURES.map((f, i) => (
+          <a key={i} href={f.href}
+            className="flex items-start gap-3 p-3 rounded-xl border hover:bg-accent/50 transition-colors group">
+            <div className="mt-0.5 shrink-0">{f.icon}</div>
+            <div>
+              <p className="text-sm font-semibold group-hover:text-primary transition-colors">{f.title}</p>
+              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{f.desc}</p>
+            </div>
+          </a>
         ))}
+      </div>
+
+      <div className="bg-muted/40 rounded-xl p-4 text-center text-sm text-muted-foreground">
+        Questions? Text Tim at{' '}
+        <a href="sms:+18054043873" className="font-semibold text-foreground hover:text-primary">(805) 404-3873</a>
+        {' '}or email{' '}
+        <a href="mailto:support@dealerwyze.com" className="font-semibold text-foreground hover:text-primary">support@dealerwyze.com</a>
       </div>
 
       <Button className="w-full" size="lg" onClick={onFinish} disabled={finishing}>
         {finishing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-        Go to Dashboard
+        Go to My Dashboard
       </Button>
     </div>
   )
 }
 
-// ── Main Wizard ──────────────────────────────────────────────────────────────
+// ── Main wizard ───────────────────────────────────────────────────────────────
 export default function OnboardingPage() {
   const router = useRouter()
-  const [step,     setStep]     = useState(1)
-  const [settings, setSettings] = useState<OrgSettings | null>(null)
-  const [loading,  setLoading]  = useState(true)
+  const [step,      setStep]      = useState(0)
+  const [settings,  setSettings]  = useState<OrgSettings | null>(null)
+  const [orgName,   setOrgName]   = useState('')
+  const [loading,   setLoading]   = useState(true)
   const [finishing, setFinishing] = useState(false)
 
   useEffect(() => {
     fetch('/api/onboarding')
       .then(r => r.json())
-      .then((d: { settings: OrgSettings | null }) => {
+      .then((d: { org: { name: string } | null; settings: OrgSettings | null }) => {
         setSettings(d.settings)
-        if (d.settings?.onboarding_completed_at) {
-          router.replace('/today')
-          return
-        }
-        setStep(d.settings?.onboarding_step ?? 1)
+        setOrgName(d.org?.name ?? '')
+        if (d.settings?.onboarding_completed_at) { router.replace('/today'); return }
+        setStep(d.settings?.onboarding_step ?? 0)
         setLoading(false)
       })
       .catch(() => setLoading(false))
@@ -371,11 +687,9 @@ export default function OnboardingPage() {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ step: nextStep, ...body }),
-    })
+    }).catch(() => null)
+    if (body.orgName) setOrgName(body.orgName as string)
     setStep(nextStep)
-    if (body.settings) {
-      setSettings(prev => prev ? { ...prev, ...body.settings as Partial<OrgSettings> } : prev)
-    }
   }
 
   async function finish() {
@@ -384,60 +698,39 @@ export default function OnboardingPage() {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ complete: true }),
-    })
+    }).catch(() => null)
     router.replace('/today')
   }
 
-  if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
+  if (loading) return (
+    <div className="flex-1 flex items-center justify-center py-20">
+      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+    </div>
+  )
 
   return (
     <div className="flex flex-col flex-1">
-      {/* Header */}
-      <div className="px-6 pt-6">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          Setup — Step {step} of {TOTAL_STEPS}
-        </p>
+      <div className="px-6 pt-5">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">DealerWyze Setup</p>
       </div>
 
       <ProgressBar step={step} />
 
-      {/* Step content */}
-      {step === 1 && (
-        <Step1
-          settings={settings}
-          onNext={async (body) => { await advance(2, body) }}
-        />
+      {step === 0 && (
+        <StepProfile settings={settings} orgName={orgName}
+          onNext={async (body) => advance(1, body as Record<string, unknown>)} />
       )}
-      {step === 2 && (
-        <Step2
-          onNext={() => advance(3)}
-          onSkip={() => advance(3)}
-        />
-      )}
-      {step === 3 && (
-        <Step3
-          onNext={() => advance(4)}
-          onSkip={() => advance(4)}
-        />
-      )}
-      {step === 4 && (
-        <Step4
-          onNext={() => advance(5)}
-          onSkip={() => advance(5)}
-        />
-      )}
-      {step === 5 && (
-        <Step5
-          businessName={settings?.business_name ?? ''}
-          onFinish={finish}
-          finishing={finishing}
-        />
+      {step === 1 && <StepVehicle onNext={() => advance(2)} onSkip={() => advance(2)} />}
+      {step === 2 && <StepGmail  onNext={() => advance(3)} onSkip={() => advance(3)} />}
+      {step === 3 && <StepTeam   onNext={() => advance(4)} onSkip={() => advance(4)} />}
+      {step === 4 && <StepComplete businessName={orgName} onFinish={finish} finishing={finishing} />}
+
+      {step > 0 && step < 4 && (
+        <div className="px-6 pb-4">
+          <button onClick={() => setStep(s => s - 1)} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            Back
+          </button>
+        </div>
       )}
     </div>
   )

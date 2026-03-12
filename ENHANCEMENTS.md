@@ -5,6 +5,119 @@ Each entry includes the date, category, migration (if any), and what was built.
 
 ---
 
+## 2026-03-06 — Onboarding team invites use email-based signup
+
+**Category:** UX / Onboarding
+**Migration:** none
+
+**Why:** On Step 4 (“Invite Your Team”), the frontend POSTed only `email` and `role` to `/api/admin/users`, but the API required `email, display_name, and password`. This always returned 400, so dealers saw “Could not send invites. You can add team members later in Settings,” and could not invite teammates during onboarding. We want invites to work with just an email, letting teammates set their own password on first login.
+
+**What was built:**
+- **`app/api/admin/users/route.ts`** — Changed POST handler to support two paths:
+  - If `email, display_name, password` are provided (admin tools), create the user immediately as before.
+  - If only `email` (and optional `role`) are provided (onboarding), generate a friendly `display_name` from the email, send a Supabase `inviteUserByEmail` with `redirectTo = APP_URL + '/login'`, and upsert a `profiles` row with the org’s `org_id` and assigned dealer role. The endpoint now only requires `email` and returns 409 with a clear message when the email already has an account.
+- **`app/(onboarding)/onboarding/page.tsx`** — The Step 4 “Invite Your Team” flow continues to send `{ email, role }` per member, but now the backend treats this as an invite flow, so invites succeed and teammates set their password on first login from the emailed link.
+
+---
+
+## 2026-03-06 — Yahoo IMAP: App Password guidance and clearer 422 error
+
+**Category:** UX / Integrations
+**Migration:** none
+
+**Why:** Users connecting Yahoo Mail in onboarding saw "Connection failed: Command failed: AUTHENTICATE Invalid credentials" (422) when using their normal Yahoo password. Yahoo requires an App Password for IMAP; the UI did not make this clear or surface a helpful message on failure.
+
+**What was built:**
+- **`lib/leads/pollImap.ts`** — Extended `formatImapError` to detect Yahoo (`host` includes `yahoo`) and, on invalid-credentials-style errors, append: "Yahoo requires an App Password, not your regular account password. Go to account.yahoo.com → Account Security → Generate app password, then enter that here."
+- **`app/(onboarding)/onboarding/page.tsx`** — When provider is Yahoo, show an inline hint under the App Password field: "Yahoo does not accept your regular password. Create an App Password at account.yahoo.com → Account Security → Generate app password, then enter it above."
+
+---
+
+## 2026-03-10 — POST /api/vehicles for onboarding first vehicle
+
+**Category:** UX / Onboarding
+**Migration:** none
+
+**Why:** The onboarding step "Add Your First Vehicle" sent POST to `/api/vehicles`, but no route existed, so the request returned 404 and the user saw "Could not add vehicle. Try again or skip this step."
+
+**What was built:**
+- **`app/api/vehicles/route.ts`** — New POST handler: accepts `vin`, `year`, `make`, `model`, `trim`, `price`, `mileage`, `status`; validates required year/make/model; generates `stock_no` from VIN suffix or timestamp; inserts vehicle with `user_id = profile.org_id` via server Supabase client (RLS + free-tier vehicle cap trigger apply). Returns `{ id }` on success; returns 403 with a clear message when free-tier 100-vehicle limit is hit.
+
+---
+
+## 2026-03-10 — Million-Dollar Message framework (Marketing)
+
+**Category:** Marketing
+**Migration:** none
+
+**Why:** To uncover and sharpen DealerWyze's core message using a structured, AI-assisted process: intellectual inventory, demand alignment, emotional copy, clarity distillation, and visualization.
+
+**What was built:**
+- **`Marketing/MILLION_DOLLAR_MESSAGE.md`** — Step-by-step guide with six sections: application context (paste into prompts), intellectual inventory, relevance/demand match, emotional sales copy, clarity optimization (5→30 words), and guided visualization. Includes copy-paste prompts for ChatGPT/Claude tied to DealerWyze and the dealer audience.
+
+## 2026-03-10 — Email “customer not found / no email” for pasted leads
+
+**Category:** UX / Integrations
+**Migration:** none
+
+**Why:** When a lead was pasted (e.g. CarGurus digest) and matched an existing customer by phone, the customer record was never updated with the pasted email. Sending email then failed with “Customer not found or has no email address” even though the pasted text showed an email.
+
+**What was built:**
+- **`app/api/leads/paste/route.ts`** — When matching an existing customer (by phone or email), backfill `customers.email` if the customer currently has no email and the pasted lead has one (CarGurus digest loop and single-lead path). Aligns with `lib/leads/ingest.ts` behavior.
+- **`app/api/email/send/route.ts`** — Split 404 handling: if customer exists and belongs to org but has no email, return a clear message: “This contact has no email on file. Add it under Edit lead, or paste the lead again so we can backfill it.”
+
+---
+
+## 2026-03-10 — Intervo Website Agent Widget on Landing Page
+
+**Category:** UX / Support
+**Migration:** none
+
+**Why:** Needed a quick way to test a temporary website voice/chat agent on the public landing page without touching the authenticated app experience.
+
+**What was built:**
+- **`components/landing/LandingPage.tsx`** — Loads the Intervo widget script and applies a best-effort CSS override to float the widget on the right side (right-center) of the page.
+
+---
+
+## 2026-03-09 — Paperclip / Quick Document Attach on Customer & Lead Cards
+
+**Category:** UX / Document Management
+**Migration:** none
+
+**Why:** The `CustomerCard` component had a paperclip button but was only used in search results. The main customers list (`CustomersListClient`) and the Today page lead cards (`NewLeadCard`) rendered their own UI without it, leaving the attach feature invisible to users in their primary workflows.
+
+**What was built:**
+- **`components/customer/CustomersListClient.tsx`** — Added `Paperclip` icon button on every mobile row (between the Link and archive button). Added a dedicated paperclip `<th>` + `<td>` column in the desktop table. Both share a single `uploadCustomerId` state — one `CustomerQuickUploadSheet` instance mounted outside the map loop handles all rows.
+- **`components/leads/NewLeadCard.tsx`** — Added paperclip `<Button>` to the action row (alongside Call / SMS / Email). Opens `CustomerQuickUploadSheet` for that customer. Works on all viewport sizes.
+
+---
+
+## 2026-03-09 — Stripe Product & Billing Configuration
+
+**Category:** Billing / Infrastructure
+**Migration:** none (Stripe dashboard + Vercel env vars only)
+
+**Why:** Storage pack Stripe products, webhook events, and customer portal plan-switching needed to be properly configured before go-live.
+
+**What was configured:**
+- **Products:** Tier 1 — Base OS ($150/mo), Tier 2 — Base OS + Voice Assistant ($350/mo), 10GB Storage Add-on ($4.99/mo), 25GB Storage Add-on ($9.99/mo)
+- **Pricing:** All tax-exclusive (correct for B2B SaaS)
+- **Webhook:** Added `invoice.payment_succeeded` → now 5 events total matching all code `case` handlers
+- **Customer portal:** Plan switching enabled (Tier 1 ↔ Tier 2), proration set to "Prorate charges and credits", retention coupon added (20% off 3 months shown on cancel)
+- **ACH Direct Debit:** Enabled (lower fees for B2B monthly billing)
+- **Vercel env vars:** `STRIPE_PRICE_ID_STORAGE_10GB` + `STRIPE_PRICE_ID_STORAGE_25GB` added; all tier price IDs confirmed
+- **Account cleanup:** Consolidated to single DealerWyze account structure
+
+**Pending (go-live):**
+- Copy all products to Stripe live mode
+- Update Vercel prod env vars with live keys
+- Complete Stripe "Action required" business verification
+- Update support email to support@dealerwyze.com in Stripe Public details
+- Add Stripe Radar rules: block if CVC fails, block if ZIP fails
+
+---
+
 ## 2026-03-07 — Inventory Sync: Safe Removal with Dealer Review Queue
 
 **Category:** Data Safety / Inventory
@@ -1721,3 +1834,130 @@ loans, inventory, history) without any manual DB work. No mechanism existed for 
 **Design decisions:**
 - [key choices made]
 ```
+
+---
+
+### Customer / Lead Document Attachments
+**Category:** UX / Document Management
+**Migration:** none (uses existing `customer_documents` table)
+
+**Why:** Dealers needed a way to attach PII documents (Driver's License, Insurance Card, Purchase Agreement, etc.) to customer records — mirroring the vehicle document system — without DealerWyze becoming a system of record.
+
+**What was built:**
+- `components/customer/DocumentsSection.tsx` — collapsible accordion on customer detail page; PII labels flagged with amber ShieldAlert icon; client-side image compression (Canvas, 2048px max); 5 MB cap; sold vehicles show read-only notice
+- `components/customer/CustomerQuickUploadSheet.tsx` — paperclip quick-upload sheet from customer list cards
+- `components/customer/CustomerCard.tsx` — converted to `'use client'`; paperclip button on right edge opens quick-upload sheet
+- `app/api/customers/[id]/documents/route.ts` — POST upload + GET list with signed URLs; DELETE per-doc
+- Archive panel on customer detail enhanced to show doc cleanup step before confirm
+
+**Labels:** Driver's License, Insurance Card, Purchase Agreement, Credit Application, Borrowed Vehicle, Test Drive, Other
+
+**Design decisions:**
+- PII warning shown inline for Driver's License + Insurance Card (not a blocker, just amber indicator)
+- "Not a system of record" disclaimer shown in upload footer and T&C (sections 9.5–9.7)
+- Docs are cleaned up when customer is archived (manual step shown in archive panel)
+
+---
+
+### Document Storage Upsell — Storage Packs
+**Category:** Billing / Revenue
+**Migration:** `057_storage_packs.sql`
+
+**Why:** 500 MB base quota is sufficient for most orgs but power users storing contracts, purchase agreements, and title copies need more. Storage packs provide a self-serve upsell path inside the app.
+
+**What was built:**
+- `supabase/migrations/057_storage_packs.sql` — adds `storage_quota_bytes`, `storage_pack`, `storage_pack_stripe_sub_id`, `storage_pack_expires_at` to `org_settings`
+- `lib/stripe.ts` — `StoragePack` type, `STORAGE_PACK_QUOTA`, `STORAGE_PACK_LABEL`, `STORAGE_BASE_QUOTA`, `storagePackFromPriceId()`, `priceIdForStoragePack()`
+- `lib/storage/quota.ts` — `getOrgStorageQuota()` shared helper; reads from `org_settings`; falls back to base on grace period expiry
+- `app/api/stripe/storage-pack/route.ts` — POST adds pack to existing Stripe subscription; DELETE removes with 90-day grace period
+- `app/api/stripe/webhook/route.ts` — `customer.subscription.updated` now detects storage pack items; syncs `org_settings.storage_quota_bytes`; sets 90-day grace on cancellation
+- `app/api/settings/storage/route.ts` — returns `quota_bytes`, `limit_mb` (dynamic), `storage_pack`, `months_to_full`, `mb_per_month`
+- `components/settings/StorageWidget.tsx` — upsell banner at >60% usage (no pack active); shows MB/month rate + months-to-full estimate; "10 GB — $4.99/mo" + "25 GB — $9.99/mo" upgrade buttons; active pack chip
+- `app/api/cron/data-retention/route.ts` — storage pack expiry job: deletes largest files beyond 500 MB base after grace period ends; resets quota columns
+- `public/terms.md` + `public/terms.html` — sections 9.6 (Storage Quotas) and 9.7 (Grace Period) added
+
+**Pricing:** 10 GB — $4.99/mo | 25 GB — $9.99/mo (added to existing Stripe subscription as line items)
+
+**Flow:**
+1. Org uploads docs; StorageWidget shows usage bar
+2. At >60%: upsell banner appears with time-to-full estimate
+3. Dealer clicks upgrade → `POST /api/stripe/storage-pack` adds price to subscription → `org_settings.storage_quota_bytes` updated immediately
+4. On cancel/non-payment: `storage_pack_expires_at` set 90 days out; uploads above base blocked; existing files retained
+5. After 90 days: `data-retention` cron deletes largest files until back within 500 MB base
+
+**Design decisions:**
+- No landing page upsell — contextual only (>60% threshold)
+- Grace period is 90 days (matches general data retention policy)
+- Largest-first deletion after grace period expires — preserves the most docs possible
+- Dynamic quota shared via `getOrgStorageQuota()` so both upload routes stay in sync automatically
+
+---
+
+## 2026-03-09 — Prepaid Messaging Credit (Overage Buffer)
+
+**Category:** Billing / Revenue
+**Migration:** `059_overage_buffer.sql`
+
+**Why:** Dealers asked for a way to keep texting customers after hitting their monthly limit without signing up for a higher plan. A one-time prepaid credit is simpler and lower-risk than auto-billing: the dealer controls it, it never expires, and it never charges without explicit action.
+
+**What was built:**
+- `supabase/migrations/059_overage_buffer.sql` — adds `overage_buffer_cents` to `organizations`; `add_overage_buffer(org_id, cents)` RPC (atomic increment); `deduct_overage_buffer(org_id, cost_cents)` RPC (row-locked atomic decrement, returns -1 if insufficient)
+- `app/api/stripe/overage-topup/route.ts` — POST: creates a one-time Stripe Checkout session for $10/$25/$50/$100; sets `metadata.topup_type='overage_buffer'` and `topup_cents` on session
+- `app/api/stripe/webhook/route.ts` — new branch in `checkout.session.completed`: detects `mode='payment'` + `topup_type='overage_buffer'` → calls `add_overage_buffer` RPC; logs `admin_alerts` row for platform visibility
+- `lib/sms/quota.ts` — overage path now checks buffer first; deducts 8¢/SMS and 15¢/MMS atomically; blocks with clear human message if buffer exhausted; fires low-balance email at ≤$5 remaining (deduplicated via `admin_alerts`, once per 7 days); quota-warning emails rewritten in plain English
+- `app/api/stripe/billing-status/route.ts` — now returns `overage_buffer_cents`
+- `app/(app)/settings/billing/page.tsx` — "Extra Messaging Credit" card shows current balance, amber warning when low, `Add $10/$25/$50/$100` buttons, post-checkout success/cancel banners
+
+**Flow:**
+1. Dealer visits Settings → Billing → sees "Extra Messaging Credit" card
+2. Clicks "Add $25" → Stripe one-time checkout → pays → returns to billing page with success banner
+3. Balance appears immediately (webhook credits it via `add_overage_buffer`)
+4. When monthly quota is hit: quota.ts deducts 8¢ per text from balance; message goes through
+5. When balance reaches ≤$5: email sent — "Your credit is almost gone. Add more now to avoid losing service mid-month."
+6. When balance hits $0: texts blocked with message — "Your prepaid credit has run out. Go to Settings → Billing to add more."
+7. Balance never resets — carries forward month to month until exhausted
+
+**Design decisions:**
+- Buffer opt-in = existence: having any balance > 0 enables overage. No separate toggle needed.
+- $10 minimum top-up prevents trivial abuse (only buys ~125 extra texts)
+- Row-level locking in `deduct_overage_buffer` prevents double-spend on concurrent SMS sends
+- Low-balance threshold is $5 (500 cents) — gives dealer time to react before running out
+- MMS costs 15¢ vs 8¢ for SMS — reflects higher Twilio delivery cost
+- All user-facing messages follow plain-English standard: state what happened, state impact, give exact next step
+
+---
+
+## 2026-03-09 — Document Attachments on Customers List & Lead Cards
+
+**Category:** UX
+**Migration:** none
+
+**Why:** Dealers needed to attach documents (ID scans, trade-in photos, credit apps) from the customers list and from new lead cards on the Today page, not just from inside a customer's detail view.
+
+**What was built:**
+- `components/customer/CustomersListClient.tsx` — added paperclip button to mobile rows and desktop table; single shared `uploadCustomerId` state instance (not per-row); opens `CustomerQuickUploadSheet`
+- `components/leads/NewLeadCard.tsx` — added paperclip button to the action row on lead cards; opens `CustomerQuickUploadSheet`
+
+**Flow:**
+1. Dealer taps paperclip on any customer row or lead card
+2. `CustomerQuickUploadSheet` opens; dealer selects file
+3. File uploads org-scoped to that customer's record
+
+---
+
+## 2026-03-09 — Plain-English Message Standard
+
+**Category:** Platform Ops / UX
+**Migration:** none
+
+**Why:** Early error and notification messages used technical language ("overage buffer", "MMS cap", "quota exceeded") that dealers couldn't act on. Added a formal standard to CLAUDE.md and rewrote all affected messages.
+
+**What was changed:**
+- `CLAUDE.md` — added "User-Facing Messages — Plain English, Always Actionable" section with bad/good examples and rules
+- `lib/sms/quota.ts` — all `reason` strings rewritten; quota warning emails rewritten (dropped "auto-refill" language, replaced with messaging credit)
+- `app/(app)/settings/billing/page.tsx` — buffer card copy rewritten; card renamed from "Overage Buffer" to "Extra Messaging Credit"
+
+**Standard (summary):**
+- No jargon — "texting" not "SMS", "picture messages" not "MMS", "credit" not "buffer"
+- Every blocked message: state what happened + state impact + give exact next step
+- Email subjects lead with the consequence: "Your texting has paused — monthly limit reached"
