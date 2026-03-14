@@ -41,7 +41,7 @@ export default function LinkedVehicles({ customerId, refreshKey }: LinkedVehicle
       .from('customer_vehicles')
       .select('*, vehicle:vehicles(id, year, make, model, trim, price, status, stock_no)')
       .eq('customer_id', customerId)
-      .then(({ data }) => setLinks((data as LinkedVehicle[]) || []))
+      .then(({ data }) => setLinks(((data as LinkedVehicle[]) || []).filter(l => l.vehicle != null)))
   }, [customerId, refreshKey, supabase])
 
   if (links.length === 0) return null

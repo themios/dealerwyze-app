@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
 import { CheckCircle, MessageSquare, Mail } from 'lucide-react'
 
 type AutoMode = 'manual' | 'semi_auto' | 'full_auto'
@@ -16,6 +17,7 @@ interface AutoSettings {
   email_automation_mode: AutoMode
   email_followup_delay_hours: number
   email_followup_next_day_hour: number
+  email_signature: string
 }
 
 const MODES: { value: AutoMode; label: string; desc: string }[] = [
@@ -98,16 +100,23 @@ export default function AutomationClient({ initial }: Props) {
   const [settings, setSettings] = useState<AutoSettings>(initial)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [tab, setTab] = useState<'sms' | 'email'>('sms')
 
   async function save() {
     setSaving(true)
-    await fetch('/api/settings/automation', {
+    setSaveError(null)
+    const res = await fetch('/api/settings/automation', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(settings),
     })
     setSaving(false)
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      setSaveError(d.error ?? 'Failed to save. Please try again.')
+      return
+    }
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
@@ -206,9 +215,40 @@ export default function AutomationClient({ initial }: Props) {
               </div>
             </div>
           </section>
+
+          <section>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Email Signature</p>
+            <div className="space-y-3 rounded-xl border bg-card p-4">
+              <div>
+                <label className="text-sm font-medium">Signature HTML</label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Appended to every outbound email. You can paste plain text or HTML (e.g. bold name, phone, website link).
+                </p>
+                <Textarea
+                  value={settings.email_signature}
+                  onChange={e => setSettings(s => ({ ...s, email_signature: e.target.value }))}
+                  rows={5}
+                  className="font-mono text-xs resize-y"
+                  placeholder={'<b>Tim — Apollo Auto</b><br>(805) 404-3873<br><a href="https://www.apolloauto-em.com">www.apolloauto-em.com</a>'}
+                />
+              </div>
+              {settings.email_signature.trim() && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Preview</p>
+                  <div
+                    className="rounded-lg border bg-background p-3 text-sm"
+                    dangerouslySetInnerHTML={{ __html: settings.email_signature }}
+                  />
+                </div>
+              )}
+            </div>
+          </section>
         </>
       )}
 
+      {saveError && (
+        <p className="text-sm text-destructive">{saveError}</p>
+      )}
       <Button onClick={save} disabled={saving} className="w-full">
         {saved ? '✓ Saved' : saving ? 'Saving…' : 'Save Settings'}
       </Button>

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
-import { requirePlatformSuperAdmin } from '@/lib/auth/platform'
+import { requirePlatformArea } from '@/lib/auth/platform'
 
 function computeHealthScore(org: {
   subscription_status: string | null
@@ -26,33 +26,25 @@ function computeHealthScore(org: {
 
 export async function GET() {
   const profile = await requireProfile()
-  const denied = await requirePlatformSuperAdmin(profile.id)
+  const denied = await requirePlatformArea(profile.id, 'dealers')
   if (denied) return denied
 
   const service = createServiceClient()
 
-  const [{ data: orgs }, { data: emailAccounts }, { data: authUsers }] = await Promise.all([
+  const [
+    { data: orgs, error: orgsError },
+    { data: orgSettingsRows },
+    { data: emailAccounts },
+    { data: authUsers },
+  ] = await Promise.all([
     service
       .from('organizations')
-      .select(`
-        id,
-        name,
-        plan,
-        subscription_status,
-        trial_ends_at,
-        current_period_end,
-        approved_at,
-        created_at,
-        stripe_customer_id,
-        suspended_at,
-        org_settings (
-          business_phone,
-          monthly_message_count,
-          sms_quota,
-          onboarding_completed_at
-        )
-      `)
+      .select('id, name, plan, subscription_status, trial_ends_at, current_period_end, approved_at, created_at, stripe_customer_id, suspended_at')
       .order('created_at', { ascending: false }),
+
+    service
+      .from('org_settings')
+      .select('org_id, business_phone, monthly_message_count, sms_quota, onboarding_completed_at'),
 
     service
       .from('email_accounts')
@@ -63,6 +55,17 @@ export async function GET() {
       .from('profiles')
       .select('org_id, id'),
   ])
+
+  if (orgsError) {
+    console.error('[admin/orgs] orgs query error:', orgsError)
+    return NextResponse.json({ error: 'Failed to load dealerships', detail: orgsError.message }, { status: 500 })
+  }
+
+  // Build org_settings lookup map
+  const settingsMap = new Map<string, { business_phone: string | null; monthly_message_count: number | null; sms_quota: number | null; onboarding_completed_at: string | null }>()
+  for (const s of orgSettingsRows ?? []) {
+    settingsMap.set(s.org_id, s)
+  }
 
   // Build per-org email active map
   const emailMap = new Map<string, boolean>()
@@ -85,11 +88,12 @@ export async function GET() {
   let lastSignInMap = new Map<string, string>()
 
   if (allProfileIds.length > 0) {
-    // Use service role admin to list users — paginate in batches of 1000
-    const { data: { users } } = await service.auth.admin.listUsers({ perPage: 1000 })
-    for (const u of users ?? []) {
-      if (u.last_sign_in_at) lastSignInMap.set(u.id, u.last_sign_in_at)
-    }
+    try {
+      const { data } = await service.auth.admin.listUsers({ perPage: 1000 })
+      for (const u of data?.users ?? []) {
+        if (u.last_sign_in_at) lastSignInMap.set(u.id, u.last_sign_in_at)
+      }
+    } catch { /* non-fatal */ }
   }
 
   // Compute per-org last_active_at (latest sign-in across all org members)
@@ -103,10 +107,22 @@ export async function GET() {
     if (latest) orgLastActiveMap.set(orgId, latest)
   }
 
+
+  // Staff assignments (graceful if migration 060 not yet applied)
+  const staffNameMap = new Map<string, string>()
+  const orgStaffMap  = new Map<string, string>()  // org_id → staff_id
+  try {
+    const [{ data: staffProfiles }, { data: orgAssignments }] = await Promise.all([
+      service.from('profiles').select('id, display_name').eq('platform_role', 'platform_staff'),
+      service.from('organizations').select('id, assigned_staff_id').not('assigned_staff_id', 'is', null),
+    ])
+    for (const s of staffProfiles ?? []) staffNameMap.set(s.id, s.display_name)
+    for (const o of orgAssignments ?? []) {
+      if (o.assigned_staff_id) orgStaffMap.set(o.id, o.assigned_staff_id)
+    }
+  } catch { /* migration 060 pending — staff assignment column not yet available */ }
   const result = (orgs ?? []).map(org => {
-    const settings = Array.isArray(org.org_settings)
-      ? org.org_settings[0]
-      : org.org_settings
+    const settings = settingsMap.get(org.id) ?? null
 
     const monthly  = settings?.monthly_message_count ?? 0
     const quota    = settings?.sms_quota ?? 1
@@ -141,6 +157,8 @@ export async function GET() {
       has_active_email,
       onboarding_done,
       health_score,
+      assigned_staff_id:   orgStaffMap.get(org.id) ?? null,
+      assigned_staff_name: orgStaffMap.has(org.id) ? (staffNameMap.get(orgStaffMap.get(org.id)!) ?? null) : null,
     }
   })
 

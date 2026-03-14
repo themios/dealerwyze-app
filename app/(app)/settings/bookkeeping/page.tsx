@@ -1,13 +1,13 @@
 export const dynamic = 'force-dynamic'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClientForRequest } from '@/lib/supabase/forRequest'
 import { requireProfile } from '@/lib/auth/profile'
 import TopBar from '@/components/layout/TopBar'
 import BookkeepingClient from '@/components/receipts/BookkeepingClient'
 
 export default async function BookkeepingPage() {
   const profile = await requireProfile()
-  const supabase = await createClient()
+  const supabase = await createClientForRequest()
 
   const { data: categories } = await supabase
     .from('receipt_categories')

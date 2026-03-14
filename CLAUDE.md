@@ -42,6 +42,22 @@ This is a **multi-tenant SaaS** handling real PII (customer names, phones, email
 - 404 vs 403: prefer 404 when the resource doesn't belong to the caller's org (don't confirm existence)
 - Timing attacks: use `timingSafeEqual` for any fixed-length secret comparison
 
+### User-Facing Messages — Plain English, Always Actionable
+Every message shown to a dealer (error, warning, email, in-app notification) must meet these standards:
+
+- **No jargon or technical terms** — say "texting" not "SMS", "picture messages" not "MMS", "credit" not "buffer", "your account" not "org"
+- **State what happened** — "You've used all 1,000 messages included in your plan this month."
+- **State the impact** — "Outbound texting has paused."
+- **Give a clear next step** — "Go to Settings → Billing to add credit and keep texting." or a direct button link
+- **Email subjects must be scannable** — lead with the consequence: "Action needed: …" or "Your texting has paused — …"
+- **Never leave the user stuck** — every blocked-action message must tell them exactly what to do to unblock
+
+Bad: `"Overage buffer exhausted. Top up in billing settings to continue sending."`
+Good: `"Your prepaid credit has run out. Go to Settings → Billing to add more — messages will send immediately after."`
+
+Bad: `"MMS cap reached (200/mo). Add an overage buffer in billing settings."`
+Good: `"You've reached your monthly picture message limit (200 included). Go to Settings → Billing to add prepaid credit and keep sending."`
+
 ### Input Validation — System Boundaries
 - Validate and sanitize ALL user-supplied input before DB queries, external API calls, or file operations
 - Date ranges: cap at 365 days max for analytics queries

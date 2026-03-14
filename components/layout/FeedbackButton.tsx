@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { MessageSquarePlus, X, Send, Loader2 } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { MessageSquarePlus, X, Send, Loader2, ImagePlus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
@@ -9,29 +9,62 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 type FeedbackType = 'bug' | 'suggestion' | 'question' | 'compliment'
 
+const MAX_IMAGES = 5
+const MAX_FILE_MB = 5
+
 export default function FeedbackButton() {
   const [open, setOpen]       = useState(false)
   const [type, setType]       = useState<FeedbackType>('suggestion')
   const [message, setMessage] = useState('')
+  const [files, setFiles]     = useState<{ file: File; url: string }[]>([])
   const [sending, setSending] = useState(false)
   const [sent, setSent]       = useState(false)
+  const fileInputRef          = useRef<HTMLInputElement>(null)
+
+  function addFiles(newFiles: FileList | null) {
+    if (!newFiles?.length) return
+    const allowed = Array.from(newFiles).filter(
+      (f) => f.type.startsWith('image/') && f.size <= MAX_FILE_MB * 1024 * 1024
+    )
+    setFiles((prev) => {
+      const next = [...prev, ...allowed.map((f) => ({ file: f, url: URL.createObjectURL(f) }))].slice(0, MAX_IMAGES)
+      return next
+    })
+  }
+
+  function removeFile(index: number) {
+    setFiles((prev) => {
+      const entry = prev[index]
+      if (entry) URL.revokeObjectURL(entry.url)
+      return prev.filter((_, i) => i !== index)
+    })
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!message.trim()) return
     setSending(true)
     try {
-      await fetch('/api/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, message }),
-      })
+      const formData = new FormData()
+      formData.set('type', type)
+      formData.set('message', message)
+      files.forEach(({ file }) => formData.append('attachments', file))
+      const res = await fetch('/api/feedback', { method: 'POST', body: formData })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        alert(data.error ?? 'Failed to send feedback.')
+        return
+      }
       setSent(true)
       setTimeout(() => {
         setOpen(false)
         setSent(false)
         setMessage('')
         setType('suggestion')
+        setFiles((prev) => {
+          prev.forEach(({ url }) => URL.revokeObjectURL(url))
+          return []
+        })
       }, 2000)
     } finally {
       setSending(false)
@@ -107,6 +140,59 @@ export default function FeedbackButton() {
                     className="resize-none"
                     required
                   />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold">Attach images (optional)</Label>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/gif,image/webp"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => { addFiles(e.target.files); e.target.value = '' }}
+                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={files.length >= MAX_IMAGES}
+                    >
+                      <ImagePlus className="w-4 h-4 mr-1.5" />
+                      Add image{files.length >= MAX_IMAGES ? '' : ` (${files.length}/${MAX_IMAGES})`}
+                    </Button>
+                    {files.length > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        Max {MAX_FILE_MB}MB each • JPEG, PNG, GIF, WebP
+                      </span>
+                    )}
+                  </div>
+                  {files.length > 0 && (
+                    <ul className="flex flex-wrap gap-2 mt-2">
+                      {files.map(({ file, url }, i) => (
+                        <li
+                          key={i}
+                          className="relative w-14 h-14 rounded-lg border border-gray-200 overflow-hidden bg-gray-50 flex-shrink-0"
+                        >
+                          <img
+                            src={url}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeFile(i)}
+                            className="absolute top-0.5 right-0.5 p-1 rounded bg-black/50 text-white hover:bg-black/70"
+                            aria-label="Remove image"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
 
                 <div className="flex gap-3 pt-1">

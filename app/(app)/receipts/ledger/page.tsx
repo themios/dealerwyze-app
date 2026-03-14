@@ -1,13 +1,17 @@
 export const dynamic = 'force-dynamic'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClientForRequest } from '@/lib/supabase/forRequest'
 import { requireProfile } from '@/lib/auth/profile'
 import TopBar from '@/components/layout/TopBar'
+import BackButton from '@/components/layout/BackButton'
 import LedgerClient from '@/components/receipts/LedgerClient'
+import Link from 'next/link'
+import { Camera } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
 export default async function LedgerPage() {
   const profile = await requireProfile()
-  const supabase = await createClient()
+  const supabase = await createClientForRequest()
 
   const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
 
@@ -29,7 +33,7 @@ export default async function LedgerPage() {
         .from('vehicles')
         .select('id, stock_no, year, make, model, status')
         .eq('user_id', profile.org_id)
-        .in('status', ['available', 'pending'])
+        .in('status', ['staging', 'available', 'pending'])
         .order('created_at', { ascending: false })
         .limit(80),
       supabase
@@ -46,7 +50,22 @@ export default async function LedgerPage() {
 
   return (
     <div className="pb-4">
-      <TopBar title="Ledger" />
+      <TopBar
+        left={
+          <div className="flex items-center gap-2">
+            <BackButton href="/receipts" />
+            <h1 className="text-lg font-semibold">Ledger</h1>
+          </div>
+        }
+        right={
+          <Link href="/receipts">
+            <Button size="sm" variant="ghost" className="text-xs gap-1">
+              <Camera className="h-4 w-4" />
+              Scan
+            </Button>
+          </Link>
+        }
+      />
       <LedgerClient
         transactions={transactions ?? []}
         categories={categories ?? []}

@@ -16,6 +16,7 @@ import LinkedVehicles from '@/components/customer/LinkedVehicles'
 import VoiceRecorder from '@/components/call/VoiceRecorder'
 import AssignDropdown from '@/components/customer/AssignDropdown'
 import DocumentsSection from '@/components/customer/DocumentsSection'
+import WantListSheet from '@/components/customer/WantListSheet'
 import { usePendingCall } from '@/components/call/usePendingCall'
 import { useOrgSettings } from '@/hooks/useOrgSettings'
 import { formatPhone } from '@/lib/utils'
@@ -23,7 +24,7 @@ import LeadStateSelector from '@/components/customer/LeadStateSelector'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Mail, Plus, FileText, Archive, X, MessageSquareOff, Trophy } from 'lucide-react'
+import { Mail, Plus, FileText, Archive, X, MessageSquareOff, Trophy, Bot } from 'lucide-react'
 
 interface TaskItem {
   id: string
@@ -41,14 +42,15 @@ interface Props {
   isAdmin: boolean
   currentUserId?: string
   tasks: TaskItem[]
+  initialVehicle?: Record<string, unknown> | null
 }
 
-export default function CustomerDetailClient({ customer, activities: initialActivities, isAdmin, currentUserId, tasks: initialTasks }: Props) {
+export default function CustomerDetailClient({ customer, activities: initialActivities, isAdmin, currentUserId, tasks: initialTasks, initialVehicle }: Props) {
   const [activities, setActivities] = useState<Activity[]>(initialActivities)
   const [taskOpen, setTaskOpen] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
   const [vehicleRefreshKey, setVehicleRefreshKey] = useState(0)
-  const [primaryVehicle, setPrimaryVehicle] = useState<Vehicle | undefined>(undefined)
+  const [primaryVehicle, setPrimaryVehicle] = useState<Vehicle | undefined>(initialVehicle as Vehicle | undefined)
   const [localTasks, setLocalTasks] = useState<TaskItem[]>(initialTasks)
   const [quickTaskOpen, setQuickTaskOpen] = useState(false)
   const [quickTaskTitle, setQuickTaskTitle] = useState('')
@@ -57,10 +59,21 @@ export default function CustomerDetailClient({ customer, activities: initialActi
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [archiveReason, setArchiveReason] = useState('')
   const [archiving, setArchiving] = useState(false)
+  const [archiveDocs, setArchiveDocs] = useState<{ id: string; label: string; file_name: string; signed_url?: string | null }[]>([])
+  const [archiveDocsLoading, setArchiveDocsLoading] = useState(false)
+  const [archiveDocDeleting, setArchiveDocDeleting] = useState<string | null>(null)
   const [soldOpen, setSoldOpen] = useState(false)
   const [soldNotes, setSoldNotes] = useState('')
   const [selling, setSelling]    = useState(false)
   const [sellError, setSellError] = useState<string | null>(null)
+  const [autoOverride, setAutoOverride] = useState<string | null>(
+    (customer as unknown as Record<string, unknown>).automation_override as string | null ?? null
+  )
+  const [savingAuto, setSavingAuto] = useState(false)
+  const custExt = customer as unknown as Record<string, unknown>
+  const [unsubEmail, setUnsubEmail] = useState<boolean>(!!(custExt.unsubscribe_email))
+  const [unsubSms, setUnsubSms] = useState<boolean>(!!(custExt.unsubscribe_sms))
+  const [savingUnsub, setSavingUnsub] = useState(false)
   const { pendingCall, modalOpen, dismissModal } = usePendingCall()
   const orgSettings = useOrgSettings()
   const supabase = createClient()
@@ -156,6 +169,54 @@ export default function CustomerDetailClient({ customer, activities: initialActi
     }
   }
 
+  async function openArchivePanel() {
+    setArchiveOpen(v => {
+      if (!v) {
+        // Load docs when opening
+        setArchiveDocsLoading(true)
+        fetch(`/api/customers/${customer.id}/documents`)
+          .then(r => r.json())
+          .then(data => { if (Array.isArray(data)) setArchiveDocs(data) })
+          .catch(() => {})
+          .finally(() => setArchiveDocsLoading(false))
+      } else {
+        setArchiveDocs([])
+        setArchiveReason('')
+      }
+      return !v
+    })
+  }
+
+  async function deleteArchiveDoc(docId: string) {
+    setArchiveDocDeleting(docId)
+    const res = await fetch(`/api/customers/${customer.id}/documents/${docId}`, { method: 'DELETE' })
+    if (res.ok) setArchiveDocs(prev => prev.filter(d => d.id !== docId))
+    setArchiveDocDeleting(null)
+  }
+
+  async function setAutomationOverride(value: string | null) {
+    setSavingAuto(true)
+    await fetch(`/api/customers/${customer.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ automation_override: value }),
+    })
+    setAutoOverride(value)
+    setSavingAuto(false)
+  }
+
+  async function toggleUnsubscribe(field: 'unsubscribe_email' | 'unsubscribe_sms', value: boolean) {
+    setSavingUnsub(true)
+    await fetch(`/api/customers/${customer.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [field]: value }),
+    })
+    if (field === 'unsubscribe_email') setUnsubEmail(value)
+    else setUnsubSms(value)
+    setSavingUnsub(false)
+  }
+
   async function handleArchive() {
     setArchiving(true)
     await supabase
@@ -167,7 +228,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
   }
 
   return (
-    <div className="pb-6">
+    <div className="pb-36 lg:pb-6">
       {/* Contact info */}
       <div className="px-4 py-3 border-b">
         <p className="text-lg font-semibold">{formatPhone(customer.primary_phone)}</p>
@@ -186,12 +247,67 @@ export default function CustomerDetailClient({ customer, activities: initialActi
             This customer asked to stop texts. You can&apos;t send SMS to this number.
           </div>
         )}
+        {/* Communication preferences - follow-up opt-outs */}
+        <div className="mt-3 space-y-1.5">
+          <p className="text-xs font-medium text-muted-foreground">Follow-up preferences</p>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-medium">Email follow-ups</p>
+              {unsubEmail && <p className="text-xs text-red-600">Opted out</p>}
+            </div>
+            <button
+              disabled={savingUnsub}
+              onClick={() => toggleUnsubscribe('unsubscribe_email', !unsubEmail)}
+              className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors ${unsubEmail ? 'bg-red-500' : 'bg-green-500'}`}
+            >
+              <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${unsubEmail ? 'translate-x-4' : 'translate-x-0'}`} />
+            </button>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-medium">SMS follow-ups</p>
+              {unsubSms && <p className="text-xs text-red-600">Opted out</p>}
+            </div>
+            <button
+              disabled={savingUnsub}
+              onClick={() => toggleUnsubscribe('unsubscribe_sms', !unsubSms)}
+              className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors ${unsubSms ? 'bg-red-500' : 'bg-green-500'}`}
+            >
+              <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${unsubSms ? 'translate-x-4' : 'translate-x-0'}`} />
+            </button>
+          </div>
+          {(unsubEmail || unsubSms) && (
+            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+              Only re-enable if the customer has given explicit consent to receive messages again.
+            </p>
+          )}
+        </div>
         <div className="flex items-center gap-1.5 mt-2">
           <span className="text-xs text-muted-foreground">Lead state:</span>
           <LeadStateSelector
             customerId={customer.id}
             currentState={customer.thread_state ?? 'new_lead'}
           />
+        </div>
+        <div className="flex items-center gap-1.5 mt-2">
+          <Bot className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+          <span className="text-xs text-muted-foreground">Auto-respond:</span>
+          <div className="flex gap-1">
+            {([null, 'manual', 'semi_auto', 'full_auto'] as const).map(mode => (
+              <button
+                key={String(mode)}
+                disabled={savingAuto}
+                onClick={() => setAutomationOverride(mode)}
+                className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                  autoOverride === mode
+                    ? 'bg-[#0D2B55] text-white border-[#0D2B55]'
+                    : 'border-border text-muted-foreground hover:bg-accent'
+                }`}
+              >
+                {mode === null ? 'Global' : mode === 'manual' ? 'Off' : mode === 'semi_auto' ? 'Semi' : 'Full'}
+              </button>
+            ))}
+          </div>
         </div>
         {customer.tags && customer.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">
@@ -217,7 +333,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
       <div className="px-4 py-3 flex gap-2 border-b">
         <CallButton customerId={customer.id} customerName={customer.name} phone={customer.primary_phone} className="flex-1" />
         <TemplatePicker customer={customer} vehicle={primaryVehicle} />
-        <EmailButton customer={customer} vehicle={primaryVehicle} />
+        <EmailButton customer={customer} vehicle={primaryVehicle} onSent={refreshActivities} />
       </div>
 
       {/* Secondary actions */}
@@ -231,9 +347,20 @@ export default function CustomerDetailClient({ customer, activities: initialActi
         <div className={primaryVehicle ? 'flex justify-center' : 'flex-1 flex justify-center'}>
           <LinkVehicleSheet customerId={customer.id} onLinked={() => setVehicleRefreshKey(k => k + 1)} hasVehicle={!!primaryVehicle} />
         </div>
-        <Button variant="ghost" size="sm" onClick={() => setArchiveOpen(v => !v)} className="gap-1.5 text-muted-foreground" title="Archive">
+        <Button variant="ghost" size="sm" onClick={openArchivePanel} className="gap-1.5 text-muted-foreground" title="Archive">
           <Archive className="h-4 w-4" />
         </Button>
+        <WantListSheet
+          customerId={customer.id}
+          customerName={customer.name}
+          prefillVehicle={primaryVehicle ? {
+            year: primaryVehicle.year,
+            make: primaryVehicle.make,
+            model: primaryVehicle.model,
+            body_style: (primaryVehicle as unknown as Record<string, unknown>).body_style as string ?? null,
+            price: primaryVehicle.price,
+          } : null}
+        />
         <Button
           variant="ghost"
           size="sm"
@@ -280,10 +407,40 @@ export default function CustomerDetailClient({ customer, activities: initialActi
         <div className="mx-4 my-2 p-3 rounded-lg border border-destructive/30 bg-destructive/5 space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-destructive">Archive this lead?</p>
-            <button onClick={() => { setArchiveOpen(false); setArchiveReason('') }} title="Close">
+            <button onClick={() => { setArchiveOpen(false); setArchiveDocs([]); setArchiveReason('') }} title="Close">
               <X className="h-4 w-4 text-muted-foreground" />
             </button>
           </div>
+
+          {/* Doc cleanup prompt */}
+          {archiveDocsLoading && (
+            <p className="text-xs text-muted-foreground">Checking for attached documents…</p>
+          )}
+          {!archiveDocsLoading && archiveDocs.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                {archiveDocs.length} document{archiveDocs.length !== 1 ? 's' : ''} attached — download or delete before archiving.
+              </p>
+              {archiveDocs.map(doc => (
+                <div key={doc.id} className="flex items-center gap-2 p-2 rounded-md border bg-background text-xs">
+                  <FileText className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                  <span className="flex-1 truncate font-medium">{doc.label}</span>
+                  {doc.signed_url && (
+                    <a href={doc.signed_url} target="_blank" rel="noopener noreferrer" className="text-primary underline-offset-2 hover:underline flex-shrink-0">Open</a>
+                  )}
+                  <button
+                    onClick={() => deleteArchiveDoc(doc.id)}
+                    disabled={archiveDocDeleting === doc.id}
+                    className="text-destructive flex-shrink-0 disabled:opacity-50 px-1"
+                  >
+                    {archiveDocDeleting === doc.id ? '…' : 'Del'}
+                  </button>
+                </div>
+              ))}
+              <p className="text-[10px] text-muted-foreground">You can also manage these in Settings → Document Storage.</p>
+            </div>
+          )}
+
           <Input
             placeholder="Reason (optional)"
             value={archiveReason}
@@ -386,6 +543,13 @@ export default function CustomerDetailClient({ customer, activities: initialActi
       <div className="px-4 py-4">
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4 border-l-2 border-[#F07018] pl-2">Activity</h2>
         <ActivityTimeline activities={activities} currentUserId={currentUserId} isAdmin={isAdmin} onNoteUpdated={refreshActivities} />
+      </div>
+
+      {/* Pinned reply bar — mobile only, sits above BottomNav */}
+      <div className="lg:hidden fixed bottom-16 inset-x-0 z-30 bg-background border-t flex gap-2 px-4 py-2 safe-area-inset-bottom">
+        <CallButton customerId={customer.id} customerName={customer.name} phone={customer.primary_phone} className="flex-1" />
+        <TemplatePicker customer={customer} vehicle={primaryVehicle} />
+        <EmailButton customer={customer} vehicle={primaryVehicle} onSent={refreshActivities} />
       </div>
 
       <AddTaskModal open={taskOpen} onClose={() => setTaskOpen(false)} customerId={customer.id} customerName={customer.name} vehicleId={primaryVehicle?.id} orgName={orgSettings.dealerName} orgPhone={orgSettings.dealerPhone} orgAddress={orgSettings.dealerAddress} onSaved={refreshActivities} />

@@ -1,13 +1,12 @@
 import { NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
-import { canAccessAdminArea, isPlatformSuperAdmin } from '@/lib/auth/platform'
+import { isPlatformSuperAdmin, requirePlatformArea } from '@/lib/auth/platform'
 
 export async function GET() {
   const profile = await requireProfile()
-  if (!await canAccessAdminArea(profile.id)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  const denied = await requirePlatformArea(profile.id, 'tickets')
+  if (denied) return denied
 
   const supabase = createServiceClient()
   const isSuperAdmin = await isPlatformSuperAdmin(profile.id)

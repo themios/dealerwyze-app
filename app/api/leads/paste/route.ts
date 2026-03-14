@@ -1,11 +1,56 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 import { requireProfile } from '@/lib/auth/profile'
 import { isOfferUpLead, parseOfferUpLead } from '@/lib/sms/parseOfferUpLead'
 import { isAutoTraderLead, parseAutoTraderLead } from '@/lib/sms/parseAutoTraderLead'
 import { isLabeledLeadPaste, parseLabeledLeadPaste } from '@/lib/leads/parseLabeledPaste'
 import { parseCarGurusDigest } from '@/lib/leads/parser'
 import { scanLeadText, scanResultToParsedLead } from '@/lib/leads/visionIngest'
+
+/** Normalize to 10-digit for comparison (strip non-digits; drop leading 1 if 11 digits). */
+function normalizePhone(p: string): string {
+  const d = (p ?? '').replace(/\D/g, '')
+  return d.length === 11 && d.startsWith('1') ? d.slice(1) : d
+}
+
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>
+
+/** Look up a vehicle in this org's inventory. VIN match first; year/make/model fallback. */
+async function findVehicleInInventory(
+  supabase: SupabaseClient,
+  vin: string | null | undefined,
+  vehicleStr: string | null | undefined,
+): Promise<{ id: string; year: number; make: string; model: string } | null> {
+  if (vin?.trim()) {
+    const { data } = await supabase
+      .from('vehicles')
+      .select('id, year, make, model')
+      .eq('vin', vin.trim().toUpperCase())
+      .neq('status', 'sold')
+      .maybeSingle()
+    if (data) return data
+  }
+  if (vehicleStr?.trim()) {
+    const parts = vehicleStr.trim().split(/\s+/)
+    const year = parseInt(parts[0], 10)
+    const make = parts[1] ?? ''
+    const model = parts[2] ?? ''
+    if (!isNaN(year) && make && model) {
+      const { data } = await supabase
+        .from('vehicles')
+        .select('id, year, make, model')
+        .eq('year', year)
+        .ilike('make', make)
+        .ilike('model', `${model}%`)
+        .neq('status', 'sold')
+        .limit(1)
+        .maybeSingle()
+      if (data) return data
+    }
+  }
+  return null
+}
 
 interface ParsedLead {
   name:     string
@@ -21,6 +66,10 @@ interface ParsedLead {
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const profile = await requireProfile()
   const supabase = await createClient()
+  const service  = createServiceClient()
+  // customers table uses user_id for org scoping (no org_id column)
+  // Covers: user_id=org_id (paste/ingest path) and user_id=auth-uid (pre-008 legacy)
+  const orgFilter = `user_id.eq.${profile.org_id},user_id.eq.${profile.id}`
 
   const { text } = await req.json()
   if (!text || typeof text !== 'string' || text.trim().length < 10) {
@@ -30,7 +79,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // CarGurus daily digest — multiple leads in one email/paste
   const digestLeads = parseCarGurusDigest('', text)
   if (digestLeads.length > 0) {
-    const results: Array<{ isNew: boolean; customerId: string; name: string; phone: string | null; email: string | null; note: string | null; vehicle: string | null; source: string }> = []
+    const results: Array<{ isNew: boolean; customerId: string; name: string; phone: string | null; email: string | null; note: string | null; vehicle: string | null; vehicleId: string | null; vehicleName: string | null; source: string }> = []
     for (const lead of digestLeads) {
       if (!lead.phone && !lead.email) continue
       const digits = (lead.phone ?? '').replace(/\D/g, '')
@@ -42,18 +91,57 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         lead.listed_price ? `Listed price: $${lead.listed_price.toLocaleString()}` : null,
       ].filter(Boolean).join('\n') || 'cargurus_digest lead'
 
-      const existing = phoneDisplay
-        ? await supabase.from('customers').select('id, name').eq('user_id', profile.org_id).eq('primary_phone', phoneDisplay).maybeSingle().then(r => r.data)
-        : null
-      const existingByEmail = !existing && lead.email
-        ? await supabase.from('customers').select('id, name').eq('user_id', profile.org_id).eq('email', lead.email).maybeSingle().then(r => r.data)
-        : null
-      const match = existing ?? existingByEmail
+      // Match existing customer by email first, then by normalized phone — always target the OLDEST record (most history)
+      let match: { id: string } | null = null
+      if (lead.email) {
+        const { data: byEmail } = await service
+          .from('customers')
+          .select('id')
+          .or(orgFilter)
+          .eq('email', lead.email)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+        match = byEmail ?? null
+      }
+      if (!match && phoneDisplay) {
+        const norm = normalizePhone(lead.phone ?? phoneDisplay)
+        if (norm.length >= 10) {
+          const { data: phoneRows } = await service
+            .from('customers')
+            .select('id, primary_phone, secondary_phone, created_at')
+            .or(orgFilter)
+            .order('created_at', { ascending: true })
+            .limit(500)
+          const byPhone = phoneRows?.find(
+            (c) =>
+              normalizePhone(c.primary_phone ?? '') === norm ||
+              normalizePhone(c.secondary_phone ?? '') === norm
+          ) ?? null
+          match = byPhone ? { id: byPhone.id } : null
+        }
+      }
 
       let customerId: string
       let isNew = false
       if (match) {
         customerId = match.id
+        // Merge: backfill only empty fields so we never overwrite existing data or lose history
+        const { data: existing } = await supabase
+          .from('customers')
+          .select('email, zip_code, name, notes, interested_in, lead_source')
+          .eq('id', customerId)
+          .single()
+        const updates: Record<string, string | null> = {}
+        if (lead.email && !existing?.email?.trim()) updates.email = lead.email
+        if (lead.zip && !existing?.zip_code?.trim()) updates.zip_code = lead.zip
+        if (lead.name?.trim() && !existing?.name?.trim()) updates.name = lead.name
+        if (notes && !existing?.notes?.trim()) updates.notes = notes
+        if (lead.vehicle && !existing?.interested_in?.trim()) updates.interested_in = lead.vehicle
+        if (!existing?.lead_source?.trim()) updates.lead_source = 'cargurus_digest'
+        if (Object.keys(updates).length > 0) {
+          await supabase.from('customers').update(updates).eq('id', customerId)
+        }
       } else {
         const { data: newCust, error } = await supabase
           .from('customers')
@@ -72,6 +160,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         if (error || !newCust) continue
         customerId = newCust.id
         isNew = true
+      }
+
+      // Auto-link vehicle from inventory (VIN first, then year/make/model)
+      let vehicleId: string | null = null
+      let vehicleName: string | null = null
+      const foundVehicle = await findVehicleInInventory(supabase, lead.vin, lead.vehicle)
+      if (foundVehicle) {
+        vehicleId = foundVehicle.id
+        vehicleName = `${foundVehicle.year} ${foundVehicle.make} ${foundVehicle.model}`
+        await supabase.from('customer_vehicles').upsert(
+          { customer_id: customerId, vehicle_id: vehicleId, interest_level: 'warm' },
+          { onConflict: 'customer_id,vehicle_id' },
+        )
       }
 
       const activityBody = [
@@ -99,6 +200,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         email: lead.email || null,
         note: lead.comments || null,
         vehicle: lead.vehicle || null,
+        vehicleId,
+        vehicleName,
         source: 'cargurus_digest',
       })
     }
@@ -214,35 +317,58 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   ].filter(Boolean)
   const notes = notesParts.length > 0 ? notesParts.join('\n') : `${source} lead`
 
-  // Check for existing customer by phone (skip if no phone)
+  // Match existing customer by email first, then by normalized phone — always target the OLDEST record (most history)
+  let match: { id: string } | null = null
+  if (parsed.email) {
+    const { data: byEmail } = await service
+      .from('customers')
+      .select('id')
+      .or(orgFilter)
+      .eq('email', parsed.email)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    match = byEmail ?? null
+  }
+  if (!match && phoneDisplay) {
+    const norm = normalizePhone(parsed.phone ?? phoneDisplay)
+    if (norm.length >= 10) {
+      const { data: phoneRows } = await service
+        .from('customers')
+        .select('id, primary_phone, secondary_phone, created_at')
+        .or(orgFilter)
+        .order('created_at', { ascending: true })
+        .limit(500)
+      const byPhone = phoneRows?.find(
+        (c) =>
+          normalizePhone(c.primary_phone ?? '') === norm ||
+          normalizePhone(c.secondary_phone ?? '') === norm
+      ) ?? null
+      match = byPhone ? { id: byPhone.id } : null
+    }
+  }
+
   let customerId: string
   let isNew = false
 
-  const existing = phoneDisplay
-    ? await supabase
-        .from('customers')
-        .select('id, name')
-        .eq('user_id', profile.org_id)
-        .eq('primary_phone', phoneDisplay)
-        .maybeSingle()
-        .then(r => r.data)
-    : null
-
-  // Also try match by email if no phone match
-  const existingByEmail = !existing && parsed.email
-    ? await supabase
-        .from('customers')
-        .select('id, name')
-        .eq('user_id', profile.org_id)
-        .eq('email', parsed.email)
-        .maybeSingle()
-        .then(r => r.data)
-    : null
-
-  const match = existing ?? existingByEmail
-
   if (match) {
     customerId = match.id
+    // Merge: backfill only empty fields so we never overwrite existing data or lose history
+    const { data: existing } = await supabase
+      .from('customers')
+      .select('email, zip_code, name, notes, interested_in, lead_source')
+      .eq('id', customerId)
+      .single()
+    const updates: Record<string, string | null> = {}
+    if (parsed.email && !existing?.email?.trim()) updates.email = parsed.email
+    if (parsed.zip && !existing?.zip_code?.trim()) updates.zip_code = parsed.zip
+    if (parsed.name?.trim() && !existing?.name?.trim()) updates.name = parsed.name
+    if (notes && !existing?.notes?.trim()) updates.notes = notes
+    if (parsed.vehicle && !existing?.interested_in?.trim()) updates.interested_in = parsed.vehicle
+    if (!existing?.lead_source?.trim()) updates.lead_source = source
+    if (Object.keys(updates).length > 0) {
+      await supabase.from('customers').update(updates).eq('id', customerId)
+    }
   } else {
     const { data: newCust, error } = await supabase
       .from('customers')
@@ -264,6 +390,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
     customerId = newCust.id
     isNew = true
+  }
+
+  // Auto-link vehicle from inventory (VIN first, then year/make/model)
+  let vehicleId: string | null = null
+  let vehicleName: string | null = null
+  const foundVehicle = await findVehicleInInventory(supabase, parsed.vin, parsed.vehicle)
+  if (foundVehicle) {
+    vehicleId = foundVehicle.id
+    vehicleName = `${foundVehicle.year} ${foundVehicle.make} ${foundVehicle.model}`
+    await supabase.from('customer_vehicles').upsert(
+      { customer_id: customerId, vehicle_id: vehicleId, interest_level: 'warm' },
+      { onConflict: 'customer_id,vehicle_id' },
+    )
   }
 
   // Activity note (prefixed with author name)
@@ -290,11 +429,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   return NextResponse.json({
     isNew,
     customerId,
-    name:    parsed.name,
-    phone:   phoneDisplay || null,
-    email:   parsed.email,
-    note:    parsed.note,
-    vehicle: parsed.vehicle,
+    name:        parsed.name,
+    phone:       phoneDisplay || null,
+    email:       parsed.email,
+    note:        parsed.note,
+    vehicle:     parsed.vehicle,
+    vehicleId,
+    vehicleName,
     source,
   })
 }

@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClientForRequest } from '@/lib/supabase/forRequest'
 import { requireProfile } from '@/lib/auth/profile'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -16,7 +16,7 @@ interface PageProps {
 export default async function EditCustomerPage({ params }: PageProps) {
   const { id } = await params
   const profile = await requireProfile()
-  const supabase = await createClient()
+  const supabase = await createClientForRequest()
 
   const { data: customer } = await supabase
     .from('customers')

@@ -31,11 +31,17 @@ export async function isPlatformStaff(userId: string): Promise<boolean> {
 
 /**
  * Returns true if userId can access /admin in any capacity
- * (super admin OR platform staff). Short-circuits on super admin.
+ * (super admin OR any platform role). Short-circuits on super admin.
  */
 export async function canAccessAdminArea(userId: string): Promise<boolean> {
   if (await isPlatformSuperAdmin(userId)) return true
-  return isPlatformStaff(userId)
+  const service = createServiceClient()
+  const { data } = await service
+    .from('profiles')
+    .select('platform_role')
+    .eq('id', userId)
+    .maybeSingle()
+  return !!data?.platform_role
 }
 
 /**
@@ -80,4 +86,108 @@ export async function requireChannelRep(
     return { denied: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
   }
   return { affiliateCode: code }
+}
+
+// ─── Expanded platform role system ───────────────────────────────────────────
+
+export const PLATFORM_AREAS = [
+  'dealers', 'retention', 'sales', 'analytics',
+  'staff', 'tickets', 'alerts', 'audit', 'affiliates', 'commissions', 'billing',
+] as const
+export type PlatformArea = typeof PLATFORM_AREAS[number]
+
+export type PlatformRole =
+  | 'platform_superadmin'
+  | 'platform_admin'
+  | 'platform_staff_manager'
+  | 'platform_sales_manager'
+  | 'platform_staff'
+
+export const ROLE_LABELS: Record<string, string> = {
+  platform_superadmin:    'Super Admin',
+  platform_admin:         'Admin',
+  platform_staff_manager: 'Staff Manager',
+  platform_sales_manager: 'Sales Manager',
+  platform_staff:         'Support Staff',
+}
+
+// Default areas per role (for UI display and API access)
+export const ROLE_DEFAULT_AREAS: Record<string, string[]> = {
+  platform_staff_manager: ['dealers', 'retention', 'staff', 'tickets', 'alerts'],
+  platform_sales_manager: ['dealers', 'retention', 'sales', 'analytics', 'affiliates', 'commissions'],
+  platform_staff:         ['tickets', 'dealers'],
+}
+
+/**
+ * Returns the user's platform profile (role + permissions).
+ * Returns null if the user has no platform access.
+ */
+export async function getPlatformProfile(userId: string): Promise<{
+  is_superadmin: boolean
+  platform_role: string | null
+  platform_permissions: string[]
+} | null> {
+  const is_superadmin = await isPlatformSuperAdmin(userId)
+  const service = createServiceClient()
+  const { data } = await service
+    .from('profiles')
+    .select('platform_role, platform_permissions')
+    .eq('id', userId)
+    .maybeSingle()
+
+  if (!is_superadmin && !data?.platform_role) return null
+
+  return {
+    is_superadmin,
+    platform_role:        data?.platform_role ?? null,
+    platform_permissions: (data?.platform_permissions as string[]) ?? [],
+  }
+}
+
+/**
+ * Guards a route to any platform member (any platform_role or superadmin).
+ */
+export async function requirePlatformMember(userId: string): Promise<NextResponse | null> {
+  if (await isPlatformSuperAdmin(userId)) return null
+  const service = createServiceClient()
+  const { data } = await service
+    .from('profiles').select('platform_role').eq('id', userId).maybeSingle()
+  if (!data?.platform_role) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  return null
+}
+
+/**
+ * Guards a route to a specific platform area.
+ * Superadmin always passes. platform_admin uses their platform_permissions[].
+ * Other roles have fixed area sets.
+ */
+export async function requirePlatformArea(
+  userId: string,
+  area: PlatformArea
+): Promise<NextResponse | null> {
+  if (await isPlatformSuperAdmin(userId)) return null
+
+  const service = createServiceClient()
+  const { data } = await service
+    .from('profiles')
+    .select('platform_role, platform_permissions')
+    .eq('id', userId)
+    .maybeSingle()
+
+  if (!data?.platform_role) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const role        = data.platform_role
+  const customPerms = (data.platform_permissions as string[]) ?? []
+
+  const ROLE_AREAS: Record<string, string[]> = {
+    platform_admin:          customPerms,
+    platform_staff_manager:  ['dealers', 'retention', 'staff', 'tickets', 'alerts'],
+    platform_sales_manager:  ['dealers', 'retention', 'sales', 'analytics', 'affiliates', 'commissions'],
+    platform_staff:          ['tickets', 'dealers'],
+  }
+
+  if (!ROLE_AREAS[role]?.includes(area)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+  return null
 }

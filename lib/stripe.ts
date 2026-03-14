@@ -51,3 +51,31 @@ export function priceIdForSmsTier(tier: SmsTier): string {
   if (tier === 'smsTier3') return PRICE_ID_SMS_UNL
   return PRICE_ID_SMS_1K
 }
+
+// Storage pack add-ons
+export const PRICE_ID_STORAGE_10GB = process.env.STRIPE_PRICE_ID_STORAGE_10GB ?? ''
+export const PRICE_ID_STORAGE_25GB = process.env.STRIPE_PRICE_ID_STORAGE_25GB ?? ''
+
+export type StoragePack = '10gb' | '25gb'
+
+export const STORAGE_PACK_QUOTA: Record<StoragePack, number> = {
+  '10gb': 10 * 1024 * 1024 * 1024,
+  '25gb': 25 * 1024 * 1024 * 1024,
+}
+export const STORAGE_PACK_LABEL: Record<StoragePack, string> = {
+  '10gb': '10 GB Document Vault — $4.99/mo',
+  '25gb': '25 GB Document Vault — $9.99/mo',
+}
+export const STORAGE_BASE_QUOTA = 500 * 1024 * 1024 // 500 MB default
+
+/** Map a Stripe price ID to a storage pack, returns null if not a storage pack */
+export function storagePackFromPriceId(priceId: string): StoragePack | null {
+  if (priceId === PRICE_ID_STORAGE_10GB) return '10gb'
+  if (priceId === PRICE_ID_STORAGE_25GB) return '25gb'
+  return null
+}
+
+/** Price ID for a given storage pack */
+export function priceIdForStoragePack(pack: StoragePack): string {
+  return pack === '25gb' ? PRICE_ID_STORAGE_25GB : PRICE_ID_STORAGE_10GB
+}

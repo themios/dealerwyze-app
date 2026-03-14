@@ -175,3 +175,14 @@ a, button, [role="button"] {
 [data-font-size="md"] { font-size: 16px; }
 [data-font-size="lg"] { font-size: 18px; }
 [data-font-size="xl"] { font-size: 20px; }
+
+/* VIN barcode scanner scan-line animation */
+@keyframes scan-line {
+  0%   { top: 0%; }
+  50%  { top: 90%; }
+  100% { top: 0%; }
+}
+.animate-scan-line {
+  animation: scan-line 2s ease-in-out infinite;
+  position: absolute;
+}

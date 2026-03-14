@@ -4,6 +4,8 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { canManageUsers, ROLE_LABELS } from '@/lib/auth/dealerRoles'
 import type { UserRole } from '@/types/index'
 import { APP_URL } from '@/lib/stripe'
+import { sendNotificationEmail } from '@/lib/email/notify'
+import { buildTeamInviteEmailHtml } from '@/lib/email/teamInvite'
 
 const ALLOWED_DEALER_ROLES: UserRole[] = [
   'dealer_admin',
@@ -104,7 +106,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'email is required' }, { status: 400 })
   }
 
-  const assignedRole: UserRole = ALLOWED_DEALER_ROLES.includes(role) ? role : 'dealer_staff'
+  const assignedRole: UserRole =
+    role && ALLOWED_DEALER_ROLES.includes(role) ? role : 'dealer_staff'
 
   const service = createServiceClient()
 
@@ -166,6 +169,13 @@ export async function POST(req: NextRequest) {
     await service.auth.admin.deleteUser(invited.user.id)
     return NextResponse.json({ error: profileErr.message }, { status: 500 })
   }
+
+  // Fire-and-forget: send a rich team invite email that explains the value prop
+  void sendNotificationEmail({
+    to: email,
+    subject: 'Your DealerWyze login is ready',
+    html: buildTeamInviteEmailHtml(finalDisplayName, APP_URL),
+  })
 
   return NextResponse.json({ id: invited.user.id, email, display_name: finalDisplayName, role: assignedRole })
 }

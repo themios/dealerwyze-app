@@ -1,8 +1,8 @@
-export type ActivityType = 'call' | 'sms' | 'email' | 'note' | 'task' | 'appointment'
+export type ActivityType = 'call' | 'sms' | 'email' | 'note' | 'task' | 'appointment' | 'web_lead' | 'email_followup' | 'sms_followup'
 export type ActivityDirection = 'inbound' | 'outbound' | null
 export type ActivityOutcome = 'answered' | 'no_answer' | 'left_vm' | 'pending' | null
 export type ActivityPriority = 'high' | 'normal' | 'low'
-export type VehicleStatus = 'available' | 'pending' | 'sold' | 'sync_removed'
+export type VehicleStatus = 'available' | 'pending' | 'sold' | 'sync_removed' | 'staging'
 export type InterestLevel = 'hot' | 'warm' | 'cold'
 export type TemplateChannel = 'sms' | 'email'
 export type UserRole =
@@ -82,7 +82,45 @@ export interface Vehicle {
   finance_type?: FinanceType | null
   finance_company?: string | null
   voice_summary?: string | null
+  published?: boolean
+  public_slug?: string | null
+  price_history?: { price: number; at: string }[]
+  views_count?: number
+  condition_report_json?: Record<string, unknown> | null
+  wholesale_eligible?: boolean
+  market_data_json?: Record<string, unknown> | null
+  market_checked_at?: string | null
+  ai_description?: string | null
+  nhtsa_recall_count?: number | null
+  reliability_tier?: 'low' | 'moderate' | 'high' | null
+  purchase_price?: number | null
+  purchased_at?: string | null
+  purchased_from?: string | null
   created_at: string
+}
+
+export interface ReconChecklistItem {
+  id: string
+  vehicle_id: string
+  org_id: string
+  label: string
+  is_required: boolean
+  sort_order: number
+  checked: boolean
+  notes: string | null
+  cost: number | null
+  completed_at: string | null
+  completed_by: string | null
+  created_at: string
+}
+
+export interface ReconCostSummary {
+  purchase_price: number | null
+  recon_checklist_total: number
+  ledger_expenses_total: number
+  total_investment: number
+  list_price: number | null
+  estimated_profit: number | null
 }
 
 export interface BhphPayment {
@@ -127,6 +165,7 @@ export interface Activity {
   duration_seconds?: number
   priority: ActivityPriority
   sequence_day?: number | null
+  customer_sequence_id?: string | null
   external_id?: string | null
   created_by?: string | null
   created_at: string
@@ -218,4 +257,38 @@ export interface VoiceCall {
     name:          string
     primary_phone: string
   } | null
+}
+
+export type SequenceChannel = 'sms' | 'email'
+export type SequenceAutoMode = 'manual' | 'semi_auto' | 'full_auto'
+export type CustomerSequenceStatus = 'active' | 'paused' | 'completed' | 'cancelled'
+
+export interface Sequence {
+  id: string
+  org_id: string
+  name: string
+  channel: SequenceChannel
+  auto_mode: SequenceAutoMode
+  created_at: string
+}
+
+export interface SequenceStep {
+  id: string
+  sequence_id: string
+  sort_order: number
+  day_offset: number
+  send_hour: number
+  template_id: string | null
+  created_at: string
+}
+
+export interface CustomerSequence {
+  id: string
+  customer_id: string
+  sequence_id: string
+  org_id: string
+  status: CustomerSequenceStatus
+  enrolled_at: string
+  completed_at: string | null
+  created_at: string
 }

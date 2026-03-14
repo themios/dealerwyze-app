@@ -4,6 +4,7 @@ import { parseAnyLead, parseCarGurusDigest } from '@/lib/leads/parser'
 import { ingestLead } from '@/lib/leads/ingest'
 import { createServiceClient } from '@/lib/supabase/service'
 import { pollImapAccount } from '@/lib/leads/pollImap'
+import { pollCustomerRepliesForOrg, pollCustomerRepliesViaImap } from '@/lib/leads/pollReplies'
 
 export interface PollResult {
   external_id: string
@@ -153,17 +154,28 @@ export async function runLeadPollForOrg(orgId: string): Promise<LeadPollResult> 
         process.env.GMAIL_CLIENT_SECRET,
       )
       auth.setCredentials({ refresh_token: account.oauth_refresh_token })
-      result = await pollWithClient(google.gmail({ version: 'v1', auth }), orgId, {})
+      const gmailClient = google.gmail({ version: 'v1', auth })
+      // Run lead poll and customer reply poll in parallel
+      const [leadResult] = await Promise.all([
+        pollWithClient(gmailClient, orgId, {}),
+        pollCustomerRepliesForOrg(orgId, gmailClient).catch(() => null),
+      ])
+      result = leadResult
     } else if (account.imap_host && account.imap_user && account.imap_pass) {
       // IMAP path (Yahoo, Apple, Outlook, generic, or Gmail app password)
-      result = await pollImapAccount({
+      const imapAccount = {
         id:        account.id,
         org_id:    orgId,
         imap_host: account.imap_host,
         imap_port: account.imap_port ?? 993,
         imap_user: account.imap_user,
         imap_pass: account.imap_pass,
-      })
+      }
+      const [leadResult] = await Promise.all([
+        pollImapAccount(imapAccount),
+        pollCustomerRepliesViaImap(orgId, imapAccount).catch(() => null),
+      ])
+      result = leadResult
     } else {
       continue
     }

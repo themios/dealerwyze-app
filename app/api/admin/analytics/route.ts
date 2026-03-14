@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
-import { requirePlatformSuperAdmin } from '@/lib/auth/platform'
+import { requirePlatformArea } from '@/lib/auth/platform'
 
 // Base plan pricing (CRM subscription, active orgs only)
 const BASE_PLAN_MRR: Record<string, number> = {
@@ -19,7 +19,7 @@ const SMS_ADDON_MRR: Record<string, number> = {
 
 export async function GET() {
   const profile = await requireProfile()
-  const denied = await requirePlatformSuperAdmin(profile.id)
+  const denied = await requirePlatformArea(profile.id, 'analytics')
   if (denied) return denied
 
   const supabase = createServiceClient()

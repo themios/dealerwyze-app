@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Camera, Upload, Loader2 } from 'lucide-react'
+import { Camera, Upload, Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 async function resizeImage(
@@ -40,12 +40,22 @@ export default function CaptureClient() {
   const router = useRouter()
   const cameraRef = useRef<HTMLInputElement>(null)
   const uploadRef = useRef<HTMLInputElement>(null)
+  const abortRef = useRef<AbortController | null>(null)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  function handleCancel() {
+    abortRef.current?.abort()
+    abortRef.current = null
+    setUploading(false)
+    setError(null)
+  }
 
   async function handleFile(file: File) {
     setUploading(true)
     setError(null)
+    const ctrl = new AbortController()
+    abortRef.current = ctrl
     try {
       const { base64, mimeType } = await resizeImage(file)
       const res = await fetch('/api/receipts/upload', {
@@ -56,11 +66,13 @@ export default function CaptureClient() {
           mime_type: mimeType,
           filename: file.name,
         }),
+        signal: ctrl.signal,
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Upload failed')
       router.push(`/receipts/${data.receipt.id}/review`)
     } catch (e) {
+      if ((e as Error).name === 'AbortError') return
       setError(String(e))
       setUploading(false)
     }
@@ -94,12 +106,21 @@ export default function CaptureClient() {
       />
 
       {uploading ? (
-        <div className="flex items-center justify-center gap-3 rounded-xl bg-primary/10 border border-primary/20 p-5">
-          <Loader2 className="h-5 w-5 animate-spin text-primary" />
-          <div>
+        <div className="flex items-center gap-3 rounded-xl bg-primary/10 border border-primary/20 p-4">
+          <Loader2 className="h-5 w-5 animate-spin text-primary flex-shrink-0" />
+          <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-primary">Reading receipt…</p>
             <p className="text-xs text-muted-foreground">AI is extracting and classifying</p>
           </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="flex-shrink-0 text-muted-foreground hover:text-foreground h-8 px-2"
+            onClick={handleCancel}
+          >
+            <X className="h-4 w-4 mr-1" />
+            Cancel
+          </Button>
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3">

@@ -6,6 +6,7 @@ import { Vehicle } from '@/types'
 import { formatCurrency } from '@/lib/utils'
 import { Paperclip } from 'lucide-react'
 import VehicleQuickUploadSheet from './VehicleQuickUploadSheet'
+import { assessPricing, RATING_COLOR } from '@/lib/pricing/pricingAssessment'
 
 interface VehicleCardProps {
   vehicle: Vehicle
@@ -15,12 +16,20 @@ const statusColors: Record<string, string> = {
   available: 'bg-[#2A6B1A]/10 text-[#2A6B1A]',
   pending: 'bg-[#F5A623]/15 text-[#92560A]',
   sold: 'bg-gray-100 text-gray-500',
+  staging: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
 }
 
 export default function VehicleCard({ vehicle }: VehicleCardProps) {
   const [uploadOpen, setUploadOpen] = useState(false)
   const isSold = vehicle.status === 'sold'
+  const isStaging = vehicle.status === 'staging'
   const vehicleLabel = `${vehicle.year} ${vehicle.make} ${vehicle.model}`
+
+  const pricing = (!isSold && !isStaging && vehicle.price && vehicle.market_data_json)
+    ? assessPricing(vehicle.price, vehicle.market_data_json as Parameters<typeof assessPricing>[1])
+    : null
+
+  const showPricingBadge = pricing && pricing.rating !== 'no_data'
 
   return (
     <>
@@ -37,13 +46,28 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
               {vehicle.color && <span>· {vehicle.color}</span>}
             </div>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {vehicle.price && (
-              <p className="font-bold text-sm text-[#0D2B55]">{formatCurrency(vehicle.price)}</p>
+          <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+            <div className="flex items-center gap-2">
+              {vehicle.price && (
+                <p className="font-bold text-sm text-[#0D2B55]">{formatCurrency(vehicle.price)}</p>
+              )}
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${statusColors[vehicle.status]}`}>
+                {vehicle.status}
+              </span>
+            </div>
+            {showPricingBadge && pricing && (
+              <span
+                className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${RATING_COLOR[pricing.rating].bg} ${RATING_COLOR[pricing.rating].text}`}
+                title={
+                  pricing.rating === 'overpriced'  ? 'Action needed: more than 10% above fair market — likely to sit' :
+                  pricing.rating === 'high'        ? 'Watch it: 5–10% above fair market — may slow down' :
+                  pricing.rating === 'good'        ? 'Well priced: within 5% of fair market' :
+                  pricing.rating === 'underpriced' ? 'You could charge more: more than 5% below fair market' : ''
+                }
+              >
+                {pricing.pctDelta > 0 ? '+' : ''}{Math.abs(pricing.pctDelta).toFixed(1)}% {pricing.pctDelta > 0 ? 'above' : 'below'} market
+              </span>
             )}
-            <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${statusColors[vehicle.status]}`}>
-              {vehicle.status}
-            </span>
           </div>
         </Link>
 

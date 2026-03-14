@@ -3,8 +3,6 @@
 import { useState } from 'react'
 import { Activity } from '@/types'
 import { createClient } from '@/lib/supabase/client'
-import { tomorrow9am, fillTemplate, prefixWithAuthorName } from '@/lib/utils'
-import { useOrgSettings } from '@/hooks/useOrgSettings'
 import { useOpenCustomer } from '@/components/today/useOpenCustomer'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
@@ -13,30 +11,18 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Mail } from 'lucide-react'
 
-const FOLLOWUP_TEMPLATES: Record<number, { subject: string; body: string }> = {
-  3: {
-    subject: '{vehicle} — Still Available',
-    body: 'Hi {firstName},\n\nThe {vehicle} is still available. We also offer competitive financing with low down payments.\n\nWould love to help you find the right terms.\n\nTim\n{dealerName} | {dealerPhone}',
-  },
-  4: {
-    subject: '{vehicle} — Getting Attention',
-    body: 'Hi {firstName},\n\nJust a heads up — the {vehicle} has been getting attention from other buyers. I\'d hate for you to miss out.\n\nWant to lock in a test drive this week?\n\nTim\n{dealerName} | {dealerPhone}',
-  },
-  5: {
-    subject: 'Last Note — {vehicle}',
-    body: 'Hi {firstName},\n\nThis will be my last follow-up. The {vehicle} is still available if you\'re interested.\n\nIf now\'s not the right time, no worries — feel free to reach out whenever you\'re ready.\n\nTim\n{dealerName} | {dealerPhone}',
-  },
-}
 
 interface Props {
   activity: Activity & {
     customer: { id: string; name: string; primary_phone: string; email?: string }
   }
   onUpdate: () => void
+  hasResponded?: boolean
 }
 
 function parseFollowUpBody(raw: string): {
-  to: string; subject: string; body: string; sequence_day: number; vehicle: string; customer_name: string
+  to: string; subject: string; body: string; sequence_day: number; vehicle: string; customer_name: string;
+  sequence_name?: string; step_total?: number; include_unsubscribe_footer?: boolean
 } | null {
   try {
     return JSON.parse(raw)
@@ -45,19 +31,24 @@ function parseFollowUpBody(raw: string): {
   }
 }
 
-export default function EmailFollowUpItem({ activity, onUpdate }: Props) {
+export default function EmailFollowUpItem({ activity, onUpdate, hasResponded }: Props) {
   const [open, setOpen] = useState(false)
   const [subject, setSubject] = useState('')
   const [emailBody, setEmailBody] = useState('')
   const [loading, setLoading] = useState<string | null>(null)
   const supabase = createClient()
-  const orgSettings = useOrgSettings()
   const openCustomer = useOpenCustomer()
 
   const data = parseFollowUpBody(activity.body || '')
   const day = data?.sequence_day ?? 2
+  const stepTotal = data?.step_total
+  const sequenceName = data?.sequence_name
   const firstName = data?.customer_name?.split(' ')[0] ?? ''
   const isOverdue = activity.due_at && new Date(activity.due_at) < new Date()
+  const isSmsFollowup = activity.type === 'sms_followup'
+  const followUpTitle = sequenceName && stepTotal
+    ? `Follow-up ${day} of ${stepTotal} - ${sequenceName}`
+    : `Follow-up #${day}`
 
   if (!data) return null
 
@@ -71,58 +62,30 @@ export default function EmailFollowUpItem({ activity, onUpdate }: Props) {
     if (!data?.to) return
     setLoading('send')
 
-    const { display_name } = (await fetch('/api/auth/me').then(r => r.ok ? r.json() : {}).catch(() => ({}))) as { display_name?: string }
+    // Send via API (logs outbound activity automatically)
+    const sendRes = await fetch('/api/email/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_id: activity.customer_id,
+        subject,
+        emailBody,
+        include_unsubscribe_footer: data?.include_unsubscribe_footer ?? false,
+        customer_id_for_unsub: activity.customer_id,
+      }),
+    })
+    if (!sendRes.ok) {
+      const errData = await sendRes.json().catch(() => ({}))
+      alert(errData.error ?? 'Could not send email.')
+      setLoading(null)
+      return
+    }
 
+    // Mark this queued activity as completed
     await supabase
       .from('activities')
       .update({ completed_at: new Date().toISOString() })
       .eq('id', activity.id)
-
-    const currentBody = `Subject: ${subject}\n\n${emailBody}`
-    const bodyWithAuthor = prefixWithAuthorName(display_name, currentBody)
-    await supabase.from('activities').insert({
-      user_id: activity.user_id,
-      customer_id: activity.customer_id,
-      type: 'email',
-      direction: 'outbound',
-      outcome: 'pending',
-      priority: 'normal',
-      body: bodyWithAuthor,
-      completed_at: new Date().toISOString(),
-      sequence_day: day,
-    })
-
-    const nextDay = day + 1
-    if (nextDay <= 5 && FOLLOWUP_TEMPLATES[nextDay]) {
-      const vars = { firstName, vehicle: data.vehicle, dealerName: orgSettings.dealerName, dealerPhone: orgSettings.dealerPhone }
-      const nextTpl = FOLLOWUP_TEMPLATES[nextDay]
-      const nextBodyRaw = JSON.stringify({
-        to: data.to,
-        subject: fillTemplate(nextTpl.subject, vars),
-        body: fillTemplate(nextTpl.body, vars),
-        sequence_day: nextDay,
-        customer_name: data.customer_name,
-        vehicle: data.vehicle,
-      })
-      const nextBodyWithAuthor = prefixWithAuthorName(display_name, nextBodyRaw)
-
-      await supabase.from('activities').insert({
-        user_id: activity.user_id,
-        customer_id: activity.customer_id,
-        type: 'email',
-        direction: 'outbound',
-        outcome: 'pending',
-        priority: 'normal',
-        body: nextBodyWithAuthor,
-        due_at: tomorrow9am().toISOString(),
-        sequence_day: nextDay,
-      })
-    }
-
-    window.open(
-      `mailto:${data.to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`,
-      '_blank'
-    )
 
     setLoading(null)
     setOpen(false)
@@ -147,7 +110,13 @@ export default function EmailFollowUpItem({ activity, onUpdate }: Props) {
 
   return (
     <>
-      <div className={`rounded-lg border bg-card p-4 space-y-3 ${isOverdue ? 'border-destructive/40' : ''}`}>
+      <div className={`rounded-lg border bg-card p-4 space-y-3 ${hasResponded ? 'border-green-500 bg-green-50/50' : isOverdue ? 'border-destructive/40' : ''}`}>
+        {hasResponded && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-green-500 text-white rounded-lg text-xs font-semibold">
+            <span>●</span>
+            <span>Customer replied - cancel sequence or respond</span>
+          </div>
+        )}
         <div
           className="flex items-start gap-3 cursor-pointer hover:opacity-90"
           onClick={handleCardClick}
@@ -159,7 +128,7 @@ export default function EmailFollowUpItem({ activity, onUpdate }: Props) {
           <Mail className={`h-4 w-4 mt-0.5 flex-shrink-0 ${isOverdue ? 'text-destructive' : 'text-muted-foreground'}`} />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-0.5">
-              <p className="font-medium text-sm">Follow-up #{day}</p>
+              <p className="font-medium text-sm">{followUpTitle}</p>
               <Badge variant="outline" className="text-xs">{data.vehicle}</Badge>
             </div>
             <p className="text-xs text-muted-foreground">{data.customer_name}</p>
@@ -175,10 +144,17 @@ export default function EmailFollowUpItem({ activity, onUpdate }: Props) {
         </div>
 
         <div className="flex gap-2" onClick={e => e.stopPropagation()}>
-          <Button size="sm" className="flex-1 h-9" onClick={openSheet} disabled={loading !== null}>
-            <Mail className="h-3.5 w-3.5 mr-1.5" />
-            Send Follow-up
-          </Button>
+          {!isSmsFollowup && (
+            <Button size="sm" className="flex-1 h-9" onClick={openSheet} disabled={loading !== null}>
+              <Mail className="h-3.5 w-3.5 mr-1.5" />
+              Send Follow-up
+            </Button>
+          )}
+          {isSmsFollowup && (
+            <Button size="sm" variant="outline" className="flex-1 h-9" disabled>
+              SMS (manual send from customer page)
+            </Button>
+          )}
           <Button
             size="sm"
             variant="outline"
@@ -188,13 +164,32 @@ export default function EmailFollowUpItem({ activity, onUpdate }: Props) {
           >
             {loading === 'replied' ? '…' : 'Replied ✓'}
           </Button>
+          {hasResponded && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1 h-9 text-xs border-green-500 text-green-700"
+              onClick={async () => {
+                setLoading('cancel')
+                await supabase
+                  .from('activities')
+                  .update({ completed_at: new Date().toISOString(), outcome: 'cancelled' })
+                  .eq('id', activity.id)
+                setLoading(null)
+                onUpdate()
+              }}
+              disabled={loading !== null}
+            >
+              {loading === 'cancel' ? '…' : 'Cancel Sequence'}
+            </Button>
+          )}
         </div>
       </div>
 
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="bottom" className="h-[80vh] flex flex-col rounded-t-2xl">
           <SheetHeader className="mb-3 flex-shrink-0">
-            <SheetTitle>Follow-up #{day} — {firstName}</SheetTitle>
+            <SheetTitle>{followUpTitle} - {firstName}</SheetTitle>
           </SheetHeader>
           <div className="flex flex-col flex-1 min-h-0 space-y-3">
             <Input
@@ -209,10 +204,10 @@ export default function EmailFollowUpItem({ activity, onUpdate }: Props) {
               className="resize-none flex-1 text-sm"
             />
             <Button className="w-full h-11 flex-shrink-0" onClick={handleSend} disabled={loading !== null}>
-              {loading === 'send' ? '…' : day < 5 ? `Send & Queue Day ${day + 1}` : 'Send (Final)'}
+              {loading === 'send' ? '…' : 'Send Follow-up'}
             </Button>
             <p className="text-xs text-center text-muted-foreground flex-shrink-0">
-              Opens Gmail · {day < 5 ? `Day ${day + 1} queued for tomorrow` : 'This is the final follow-up'}
+              Sends now via connected email account
             </p>
           </div>
         </SheetContent>

@@ -100,12 +100,23 @@ function isImpersonationBlocked(request: NextRequest): boolean {
 const PUBLIC_PATHS    = ['/', '/login', '/signup', '/privacy', '/terms', '/privacy.html', '/terms.html', '/forgot-password', '/reset-password']
 const PUBLIC_PREFIXES = ['/auth/', '/api/auth/', '/api/stripe/webhook', '/_next/']
 const PUBLIC_FILES    = ['/favicon.ico', '/logo.jpg', '/manifest.json']
-const BILLING_EXEMPT  = ['/settings/billing', '/settings/users', '/pending', '/suspended']
+const BILLING_EXEMPT  = ['/settings/billing', '/settings/users', '/pending', '/suspended', '/onboarding']
+
+// Public dealer inventory pages: /{slug}/inventory[/*] and /{slug}/sitemap.xml
+// Segments[1] must be 'inventory' to avoid colliding with any existing app routes.
+// All known CRM first-segments (today, vehicles, customers, settings, etc.) never
+// use 'inventory' as their second segment, so this pattern is safe.
+function isDealerPublicPath(pathname: string): boolean {
+  const segments = pathname.split('/').filter(Boolean)
+  if (segments.length < 2) return false
+  return segments[1] === 'inventory' || /^\/[^/]+\/sitemap\.xml$/.test(pathname)
+}
 
 function isPublic(pathname: string): boolean {
   if (PUBLIC_PATHS.includes(pathname)) return true
   if (PUBLIC_FILES.includes(pathname)) return true
   if (PUBLIC_PREFIXES.some(p => pathname.startsWith(p))) return true
+  if (isDealerPublicPath(pathname)) return true
   return false
 }
 

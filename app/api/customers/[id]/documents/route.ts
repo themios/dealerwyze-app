@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { requireProfile } from '@/lib/auth/profile'
+import { getOrgStorageQuota } from '@/lib/storage/quota'
 import { CustomerDocument } from '@/types'
 
 // Raise Vercel function timeout for file uploads
@@ -9,7 +10,6 @@ export const maxDuration = 30
 
 const BUCKET = 'customer-docs'
 const MAX_BYTES = 5 * 1024 * 1024 // 5 MB
-const CAP_BYTES = 500 * 1024 * 1024 // 500 MB combined org cap
 const ALLOWED_TYPES = new Set([
   'image/jpeg',
   'image/png',
@@ -98,8 +98,9 @@ export async function POST(
       supabase.from('customer_documents').select('file_size').eq('user_id', profile.org_id),
     ])
     const usedBytes = [...(vUsage ?? []), ...(cUsage ?? [])].reduce((s, d) => s + (d.file_size ?? 0), 0)
-    if (usedBytes + file.size > CAP_BYTES) {
-      return NextResponse.json({ error: 'Storage limit reached (500 MB). Delete unused documents to free up space.' }, { status: 413 })
+    const quotaBytes = await getOrgStorageQuota(supabase, profile.org_id)
+    if (usedBytes + file.size > quotaBytes) {
+      return NextResponse.json({ error: 'Storage limit reached. Delete unused documents or upgrade your storage plan in Settings.' }, { status: 413 })
     }
 
     if (!ALLOWED_TYPES.has(file.type)) {

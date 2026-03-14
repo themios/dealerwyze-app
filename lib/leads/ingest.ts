@@ -2,6 +2,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import type { ParsedLead } from '@/lib/leads/parser'
 import { sendLeadNotification } from '@/lib/push/send'
 import { createLeadResponseTask } from '@/lib/tasks/auto'
+import { sendTelegramMessage } from '@/lib/notifications/telegram'
 
 function parseVehicleName(name: string) {
   const parts = name.trim().split(/\s+/)
@@ -117,13 +118,21 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId?: 
     const { year, make, model, trim } = parseVehicleName(lead.vehicle)
 
     let existingVehicle = null
+    const normVin = (v: string) => v.trim().toUpperCase().replace(/\s/g, '')
+
     if (lead.vin) {
-      const { data } = await supabase.from('vehicles').select('id').eq('vin', lead.vin).maybeSingle()
-      existingVehicle = data
+      const cleanVin = normVin(lead.vin)
+      // Match by VIN only — avoids assigning wrong vehicle when multiple of same model exist
+      const { data: vinCandidates } = await supabase
+        .from('vehicles').select('id, vin').not('vin', 'is', null)
+      existingVehicle = vinCandidates?.find(v => normVin(v.vin ?? '') === cleanVin) ?? null
     }
-    if (!existingVehicle && year && make && model) {
-      const { data } = await supabase.from('vehicles').select('id').eq('year', year).eq('make', make).eq('model', model).maybeSingle()
-      existingVehicle = data
+
+    // Backfill VIN onto inventory vehicle if we matched by model but lead has a VIN
+    if (existingVehicle && lead.vin && !(existingVehicle as { vin?: string }).vin) {
+      await supabase.from('vehicles')
+        .update({ vin: normVin(lead.vin) })
+        .eq('id', existingVehicle.id)
     }
 
     if (existingVehicle) {
@@ -189,6 +198,14 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId?: 
     body: lead.vehicle || lead.source,
     url: `/customers/${customerId}`,
   }).catch(() => {})
+
+  sendTelegramMessage(
+    `<b>New Lead</b> (${lead.source})\n` +
+    `<b>${lead.name}</b>${lead.vehicle ? ` - ${lead.vehicle}` : ''}\n` +
+    (lead.phone ? `Phone: ${lead.phone}\n` : '') +
+    (lead.email ? `Email: ${lead.email}\n` : '') +
+    `Reply via DealerWyze`
+  ).catch(() => {})
 
   // Auto-create a lead_response task due in 10 minutes
   createLeadResponseTask(

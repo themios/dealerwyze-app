@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
 import { logAdminAction } from '@/lib/admin/audit'
-import { canAccessAdminArea, requirePlatformSuperAdmin } from '@/lib/auth/platform'
+import { requirePlatformSuperAdmin, requirePlatformArea } from '@/lib/auth/platform'
 import { sendNotificationEmail } from '@/lib/email/notify'
 
 export async function GET(
@@ -10,9 +10,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const profile = await requireProfile()
-  if (!await canAccessAdminArea(profile.id)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  const denied = await requirePlatformArea(profile.id, 'tickets')
+  if (denied) return denied
 
   const { id } = await params
   const supabase = createServiceClient()
@@ -37,9 +36,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const profile = await requireProfile()
-  if (!await canAccessAdminArea(profile.id)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  const denied = await requirePlatformArea(profile.id, 'tickets')
+  if (denied) return denied
 
   const { id } = await params
   const supabase = createServiceClient()

@@ -27,7 +27,8 @@ export async function checkQuota(orgId: string, isMms = false): Promise<QuotaSta
       monthly_message_count, monthly_mms_count, sms_quota,
       sms_overage_enabled, sms_overage_enabled_v2,
       autofill_enabled, quota_soft_notified_at, billing_cycle_start,
-      sms_overage_count, mms_overage_count, created_at
+      sms_overage_count, mms_overage_count, created_at,
+      overage_buffer_cents
     `)
     .eq('id', orgId)
     .single()
@@ -52,7 +53,7 @@ export async function checkQuota(orgId: string, isMms = false): Promise<QuotaSta
     return {
       allowed: false, is_mms_blocked: false, warning_level: 'over', is_overage: false,
       current_count: count, mms_count: mmsCount, quota,
-      reason: 'SMS is not included in your current plan.',
+      reason: 'Texting is not included in your current plan. Upgrade to Complete CRM to send messages to customers.',
     }
   }
 
@@ -61,31 +62,56 @@ export async function checkQuota(orgId: string, isMms = false): Promise<QuotaSta
     (org as Record<string, unknown>).sms_overage_enabled_v2 as boolean ||
     (org as Record<string, unknown>).sms_overage_enabled as boolean  // legacy flag
   )
-  const autofillEnabled = (org as Record<string, unknown>).autofill_enabled as boolean
+  const autofillEnabled   = (org as Record<string, unknown>).autofill_enabled as boolean
+  const bufferCents       = (org as Record<string, unknown>).overage_buffer_cents as number ?? 0
+  const hasBuffer         = bufferCents > 0
+  // SMS = 8¢/msg, MMS = 15¢/msg (MMS costs more to deliver)
+  const SMS_OVERAGE_CENTS = 8
+  const MMS_OVERAGE_CENTS = 15
 
   if (isMms && mmsCount >= MMS_CAP) {
-    if (!overageEnabled && !autofillEnabled) {
+    if (!hasBuffer && !overageEnabled && !autofillEnabled) {
       return {
         allowed: false, is_mms_blocked: true, warning_level: 'ok', is_overage: false,
         current_count: count, mms_count: mmsCount, quota: effectiveQuota,
-        reason: `MMS cap reached (${MMS_CAP}/mo). Enable overage billing or send as SMS-only.`,
+        reason: `You've reached your monthly picture message limit (${MMS_CAP} included). Go to Settings → Billing to add prepaid credit and keep sending.`,
       }
     }
-    // Overage opted-in — allow MMS, track overage
+    if (hasBuffer) {
+      const newBalance = await deductBuffer(orgId, MMS_OVERAGE_CENTS)
+      if (newBalance < 0) {
+        return {
+          allowed: false, is_mms_blocked: true, warning_level: 'over', is_overage: false,
+          current_count: count, mms_count: mmsCount, quota: effectiveQuota,
+          reason: 'Your prepaid credit has run out. Go to Settings → Billing to add more — messages will send immediately after.',
+        }
+      }
+      if (newBalance <= 500) void triggerLowBufferNotification(orgId, newBalance)
+    }
     void incrementMmsOverage(orgId)
     return { allowed: true, is_mms_blocked: false, warning_level: 'over', is_overage: true, current_count: count, mms_count: mmsCount, quota: effectiveQuota }
   }
 
   // SMS quota exceeded
   if (count >= effectiveQuota) {
-    if (!overageEnabled && !autofillEnabled) {
+    if (!hasBuffer && !overageEnabled && !autofillEnabled) {
       return {
         allowed: false, is_mms_blocked: false, warning_level: 'over', is_overage: false,
         current_count: count, mms_count: mmsCount, quota: effectiveQuota,
-        reason: `Monthly quota of ${effectiveQuota} messages reached. Enable overage billing in settings to continue sending.`,
+        reason: `You've used all ${effectiveQuota} messages included in your plan this month. Go to Settings → Billing to add prepaid credit and keep texting.`,
       }
     }
-    // Overage opted-in — allow, track count
+    if (hasBuffer) {
+      const newBalance = await deductBuffer(orgId, SMS_OVERAGE_CENTS)
+      if (newBalance < 0) {
+        return {
+          allowed: false, is_mms_blocked: false, warning_level: 'over', is_overage: false,
+          current_count: count, mms_count: mmsCount, quota: effectiveQuota,
+          reason: 'Your prepaid credit has run out. Go to Settings → Billing to add more — messages will send immediately after.',
+        }
+      }
+      if (newBalance <= 500) void triggerLowBufferNotification(orgId, newBalance)
+    }
     void incrementSmsOverage(orgId)
     return { allowed: true, is_mms_blocked: false, warning_level: 'over', is_overage: true, current_count: count, mms_count: mmsCount, quota: effectiveQuota }
   }
@@ -117,6 +143,73 @@ async function incrementSmsOverage(orgId: string): Promise<void> {
 async function incrementMmsOverage(orgId: string): Promise<void> {
   const supabase = createServiceClient()
   await supabase.rpc('increment_mms_overage', { p_org_id: orgId })
+}
+
+/** Atomically deduct cost from overage buffer. Returns new balance, or -1 if insufficient. */
+async function deductBuffer(orgId: string, costCents: number): Promise<number> {
+  const supabase = createServiceClient()
+  const { data } = await supabase.rpc('deduct_overage_buffer', { p_org_id: orgId, p_cost_cents: costCents })
+  return typeof data === 'number' ? data : -1
+}
+
+/** Send a low-buffer reminder email (deduplicated via admin_alerts — once per week). */
+async function triggerLowBufferNotification(orgId: string, balanceCents: number): Promise<void> {
+  const supabase = createServiceClient()
+
+  // Dedup: skip if we already sent a low-buffer alert in the last 7 days
+  const cutoff = new Date(Date.now() - 7 * 86_400_000).toISOString()
+  const { data: existing } = await supabase
+    .from('admin_alerts')
+    .select('id')
+    .eq('org_id', orgId)
+    .eq('alert_type', 'overage_buffer_low')
+    .gte('created_at', cutoff)
+    .limit(1)
+    .maybeSingle()
+
+  if (existing) return
+
+  await supabase.from('admin_alerts').insert({
+    org_id:     orgId,
+    alert_type: 'overage_buffer_low',
+    severity:   'warning',
+    details:    { balance_cents: balanceCents },
+  }).maybeSingle()
+
+  const { data: adminProfile } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('org_id', orgId)
+    .eq('role', 'dealer_admin')
+    .eq('is_active', true)
+    .limit(1)
+    .maybeSingle()
+
+  if (!adminProfile?.id) return
+
+  const { data: authUser } = await supabase.auth.admin.getUserById(adminProfile.id)
+  const dealerEmail = authUser?.user?.email
+  if (!dealerEmail) return
+
+  const balanceDollars = (balanceCents / 100).toFixed(2)
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://dealerwyze.com'
+
+  await sendNotificationEmail({
+    to: dealerEmail,
+    subject: `Action needed: Your DealerWyze messaging credit is almost gone ($${balanceDollars} left)`,
+    html: `
+<p>Hi,</p>
+<p>Your DealerWyze messaging credit is running low — only <strong>$${balanceDollars} remaining</strong>.</p>
+<p>Once it runs out, outbound texts and picture messages will pause until you add more credit. Your team won't be able to text customers until you top up.</p>
+<p>
+  <a href="${appUrl}/settings/billing" style="background:#2563eb;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;">
+    Add Credit Now
+  </a>
+</p>
+<p>You can add $10, $25, $50, or $100 — it stays on your account until used and never expires.</p>
+<p style="color:#888;font-size:12px">DealerWyze — Dealer Management Platform</p>
+`,
+  })
 }
 
 /** Fire notification email + stamp quota_soft_notified_at. Non-fatal. */
@@ -152,25 +245,26 @@ async function triggerQuotaNotification(
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://dealerwyze.com'
   const isOver = pct >= 100
-  const urgency = isOver ? 'LIMIT REACHED' : pct >= 95 ? '95% Used' : '80% Used'
 
   await sendNotificationEmail({
     to: dealerEmail,
-    subject: `DealerWyze SMS: ${urgency} — ${used}/${quota} messages used`,
+    subject: isOver
+      ? `Your DealerWyze texting has paused — monthly limit reached`
+      : `Heads up: You've used ${pct}% of your monthly texts on DealerWyze`,
     html: `
 <p>Hi,</p>
-<p>Your DealerWyze account has used <strong>${used} of ${quota} messages</strong> (${pct}%) this billing cycle.</p>
+<p>Your DealerWyze account has used <strong>${used} of ${quota} messages</strong> this billing cycle.</p>
 ${isOver
-  ? `<p style="color:#dc2626;font-weight:bold">Outbound SMS is paused until your quota resets or you enable auto-refill.</p>`
-  : `<p>You are approaching your monthly limit. Enable <strong>Auto-Refill</strong> in billing settings to avoid interruption.</p>`
+  ? `<p style="color:#dc2626;font-weight:bold">Outbound texting has paused for the rest of this billing cycle. Add messaging credit in your billing settings to keep going right now.</p>`
+  : `<p>You're getting close to your monthly limit. If you run out, texting stops until the cycle resets — unless you have messaging credit on file.</p>`
 }
 <p>
   <a href="${appUrl}/settings/billing" style="background:#2563eb;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;">
-    Manage SMS &amp; Billing
+    ${isOver ? 'Add Messaging Credit' : 'View Billing & Add Credit'}
   </a>
 </p>
-<p>Auto-refill adds $20 of additional messages when you hit your limit, keeping your team running without interruption. You control it — it never charges without your approval.</p>
-<p style="color:#888;font-size:12px">DealerWyze — Intelligent Operating System for Independent Dealers</p>
+<p>Messaging credit is a one-time charge ($10, $25, $50, or $100) that keeps your team texting customers when you go over your plan. It stays on your account until used.</p>
+<p style="color:#888;font-size:12px">DealerWyze — Dealer Management Platform</p>
 `,
   })
 

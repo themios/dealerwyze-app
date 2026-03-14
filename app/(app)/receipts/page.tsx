@@ -1,28 +1,18 @@
 export const dynamic = 'force-dynamic'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClientForRequest } from '@/lib/supabase/forRequest'
 import { requireProfile } from '@/lib/auth/profile'
 import TopBar from '@/components/layout/TopBar'
 import CaptureClient from '@/components/receipts/CaptureClient'
+import PostedReceiptRow from '@/components/receipts/PostedReceiptRow'
+import DraftReceiptRow from '@/components/receipts/DraftReceiptRow'
 import Link from 'next/link'
-import { Receipt, ChevronRight, Clock, CheckCircle, AlertCircle, BookOpen } from 'lucide-react'
+import { Receipt, BookOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-
-function statusIcon(status: string) {
-  if (status === 'posted') return <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
-  if (status === 'failed') return <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
-  return <Clock className="h-4 w-4 text-amber-500 flex-shrink-0" />
-}
-
-function statusLabel(status: string) {
-  if (status === 'posted') return 'Posted'
-  if (status === 'failed') return 'Classification failed — tap to retry'
-  return 'Needs review'
-}
 
 export default async function ReceiptsPage() {
   const profile = await requireProfile()
-  const supabase = await createClient()
+  const supabase = await createClientForRequest()
 
   const { data: receipts } = await supabase
     .from('receipts')
@@ -59,30 +49,7 @@ export default async function ReceiptsPage() {
           </p>
           <div className="divide-y rounded-xl border bg-card overflow-hidden">
             {drafts.map(r => (
-              <Link
-                key={r.id}
-                href={`/receipts/${r.id}/review`}
-                className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors"
-              >
-                {statusIcon(r.status)}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">
-                    {r.vendor_norm ?? r.vendor_raw ?? 'Unknown vendor'}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{statusLabel(r.status)}</p>
-                </div>
-                <div className="text-right flex-shrink-0 mr-1">
-                  {r.total != null && (
-                    <p className="text-sm font-semibold">${Number(r.total).toFixed(2)}</p>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    {r.receipt_date
-                      ? new Date(r.receipt_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                      : new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                  </p>
-                </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-              </Link>
+              <DraftReceiptRow key={r.id} r={r} />
             ))}
           </div>
         </div>
@@ -96,20 +63,7 @@ export default async function ReceiptsPage() {
           </p>
           <div className="divide-y rounded-xl border bg-card overflow-hidden">
             {recent.map(r => (
-              <div key={r.id} className="flex items-center gap-3 px-4 py-3">
-                <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm truncate">{r.vendor_norm ?? r.vendor_raw ?? 'Unknown vendor'}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {r.receipt_date
-                      ? new Date(r.receipt_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                      : new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                  </p>
-                </div>
-                {r.total != null && (
-                  <p className="text-sm font-semibold flex-shrink-0">${Number(r.total).toFixed(2)}</p>
-                )}
-              </div>
+              <PostedReceiptRow key={r.id} r={r} />
             ))}
           </div>
           <Link href="/receipts/ledger">

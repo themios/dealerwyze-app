@@ -1,23 +1,26 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClientForRequest } from '@/lib/supabase/forRequest'
 import { requireProfile } from '@/lib/auth/profile'
 import TopBar from '@/components/layout/TopBar'
 import Link from 'next/link'
-import { BarChart2, Users, ChevronRight, ExternalLink, CreditCard, Building2, Target, BookOpen, Zap, MessageSquare } from 'lucide-react'
+import { BarChart2, Users, ChevronRight, ExternalLink, CreditCard, Building2, Target, BookOpen, Zap, MessageSquare, ClipboardList, ListOrdered } from 'lucide-react'
 import FontSizeSetting from '@/components/settings/FontSizeSetting'
 import SignOutButton from '@/components/settings/SignOutButton'
 import ProfileEditForm from '@/components/settings/ProfileEditForm'
 import ExportDataButton from '@/components/settings/ExportDataButton'
 import StorageWidget from '@/components/settings/StorageWidget'
+import TelegramConnect from '@/components/settings/TelegramConnect'
 
 export default async function SettingsPage() {
   const profile = await requireProfile()
-  const supabase = await createClient()
+  const supabase = await createClientForRequest()
 
-  const { data: feedStats } = await supabase
+  const { data: orgSettings } = await supabase
     .from('org_settings')
-    .select('feed_cg_last_synced_at, feed_cg_last_count, feed_cg_last_error, feed_fb_last_synced_at, feed_fb_last_count, feed_fb_last_error')
+    .select('feed_cg_last_synced_at, feed_cg_last_count, feed_cg_last_error, feed_fb_last_synced_at, feed_fb_last_count, feed_fb_last_error, telegram_chat_id')
     .eq('org_id', profile.org_id)
     .maybeSingle()
+
+  const feedStats = orgSettings
 
   return (
     <div>
@@ -26,6 +29,11 @@ export default async function SettingsPage() {
 
         {/* Admin-only sections */}
         {profile.role === 'admin' && (
+          <details open className="group">
+            <summary className="flex items-center justify-between cursor-pointer list-none py-1 mb-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Dealership Settings</p>
+              <span className="text-xs text-muted-foreground group-open:rotate-180 transition-transform inline-block">&#9660;</span>
+            </summary>
           <>
             <section>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Billing</p>
@@ -93,18 +101,41 @@ export default async function SettingsPage() {
 
             <section>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Communication</p>
-              <Link href="/settings/automation">
-                <div className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent transition-colors">
-                  <div className="flex items-center gap-3">
-                    <Zap className="h-5 w-5 text-primary" />
-                    <div>
-                      <p className="font-medium text-sm">Automation & Timings</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">SMS mode, response SLA, follow-up schedule, SMS & email templates</p>
+              <div className="space-y-2">
+                <Link href="/settings/automation">
+                  <div className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent transition-colors">
+                    <div className="flex items-center gap-3">
+                      <Zap className="h-5 w-5 text-primary" />
+                      <div>
+                        <p className="font-medium text-sm">Automation & Timings</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">SMS mode, response SLA, follow-up schedule, SMS & email templates</p>
+                      </div>
                     </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                </div>
-              </Link>
+                </Link>
+                <Link href="/settings/sequences">
+                  <div className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent transition-colors">
+                    <div className="flex items-center gap-3">
+                      <ListOrdered className="h-5 w-5 text-primary" />
+                      <div>
+                        <p className="font-medium text-sm">Sequences</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Build automated follow-up cadences for email and SMS leads</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </Link>
+              </div>
+            </section>
+
+            <section>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Notifications</p>
+              {/* Telegram — instant lead alerts + AI chat via bot */}
+              <TelegramConnect
+                initialConnected={!!orgSettings?.telegram_chat_id}
+                botUsername={process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? 'ApolloTim_bot'}
+              />
             </section>
 
             <section>
@@ -129,6 +160,22 @@ export default async function SettingsPage() {
             </section>
 
             <section>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Inventory</p>
+              <Link href="/settings/recon-template">
+                <div className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent transition-colors">
+                  <div className="flex items-center gap-3">
+                    <ClipboardList className="h-5 w-5 text-primary" />
+                    <div>
+                      <p className="font-medium text-sm">Recon Checklist Template</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Customize the default reconditioning checklist for new vehicles</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </div>
+              </Link>
+            </section>
+
+            <section>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Reports</p>
               <div className="space-y-2">
                 <Link href="/analytics">
@@ -147,6 +194,7 @@ export default async function SettingsPage() {
               </div>
             </section>
           </>
+          </details>
         )}
 
         {/* Display */}

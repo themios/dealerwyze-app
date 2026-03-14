@@ -83,6 +83,16 @@ export interface IntelligencePayload {
     mms_count: number
     overage_forecast_day: number | null  // projected day quota will be exceeded
   }
+  pricing_intelligence: {
+    vehicles_with_market_data: number
+    unchecked_vehicles: number
+    vehicles_above_market: number   // list > FMV * 1.06
+    vehicles_at_market: number      // list within -3% to +6% of FMV
+    vehicles_below_market: number   // list < FMV * 0.97
+    avg_premium_pct: number | null  // positive = priced above market on average
+    overpriced: Array<{ vehicle: string; list_price: number; fair_market: number; premium_pct: number }>
+    best_deals: Array<{ vehicle: string; list_price: number; fair_market: number; discount_pct: number }>
+  }
 }
 
 function vehicleLabel(v: { year: number; make: string; model: string; trim?: string | null }): string {
@@ -143,6 +153,7 @@ export async function computePayload(
     { data: pendingVehicles },
     { data: smsActivitiesMTD },
     { data: orgQuota },
+    { data: vehiclesWithMarketData },
   ] = await Promise.all([
     supabase.from('activities').select('id,body,customer_id').eq('user_id', orgId).eq('type', 'email').eq('direction', 'inbound').gte('created_at', yesterdayStart.toISOString()).lte('created_at', yesterdayEnd.toISOString()),
     supabase.from('activities').select('id').eq('user_id', orgId).eq('type', 'email').eq('direction', 'inbound').gte('created_at', day7ago.toISOString()),
@@ -162,6 +173,7 @@ export async function computePayload(
     supabase.from('vehicles').select('id').eq('user_id', orgId).eq('status', 'pending'),
     supabase.from('activities').select('id,direction,customer_id,created_at').eq('user_id', orgId).eq('type', 'sms').gte('created_at', monthStart.toISOString()),
     supabase.from('organizations').select('monthly_message_count, monthly_mms_count, sms_quota, billing_cycle_start').eq('id', orgId).single(),
+    supabase.from('vehicles').select('id,year,make,model,trim,price,market_data_json').eq('user_id', orgId).eq('status', 'available').not('market_data_json', 'is', null),
   ])
 
   // --- Lead metrics ---
@@ -362,6 +374,48 @@ export async function computePayload(
     }
   }
 
+  // --- Pricing intelligence ---
+  interface VehicleMarketRow {
+    id: string; year: number; make: string; model: string; trim?: string | null
+    price?: number | null
+    market_data_json?: { fairMarketPrice?: number | null } | null
+  }
+  const checkedVehicles = (vehiclesWithMarketData ?? []) as VehicleMarketRow[]
+  const uncheckedVehicles = inventoryCount - checkedVehicles.length
+
+  interface PricingFlag { vehicle: string; list_price: number; fair_market: number; pct: number }
+  const aboveMarket: PricingFlag[] = []
+  const belowMarket: PricingFlag[] = []
+  let atMarket = 0
+  const premiums: number[] = []
+
+  for (const v of checkedVehicles) {
+    const fmv = v.market_data_json?.fairMarketPrice
+    const list = v.price ? Number(v.price) : null
+    if (!fmv || !list || fmv <= 0) continue
+    const pct = Math.round(((list / fmv) - 1) * 100)
+    premiums.push(pct)
+    const label = vehicleLabel(v)
+    if (pct > 6)        aboveMarket.push({ vehicle: label, list_price: list, fair_market: fmv, pct })
+    else if (pct < -3)  belowMarket.push({ vehicle: label, list_price: list, fair_market: fmv, pct })
+    else                atMarket++
+  }
+
+  aboveMarket.sort((a, b) => b.pct - a.pct)
+  belowMarket.sort((a, b) => a.pct - b.pct)
+  const avgPremiumPct = premiums.length > 0 ? Math.round(premiums.reduce((a, b) => a + b, 0) / premiums.length) : null
+
+  const pricingIntelligence = {
+    vehicles_with_market_data: checkedVehicles.length,
+    unchecked_vehicles: uncheckedVehicles,
+    vehicles_above_market: aboveMarket.length,
+    vehicles_at_market: atMarket,
+    vehicles_below_market: belowMarket.length,
+    avg_premium_pct: avgPremiumPct,
+    overpriced: aboveMarket.slice(0, 3).map(v => ({ vehicle: v.vehicle, list_price: v.list_price, fair_market: v.fair_market, premium_pct: v.pct })),
+    best_deals: belowMarket.slice(0, 2).map(v => ({ vehicle: v.vehicle, list_price: v.list_price, fair_market: v.fair_market, discount_pct: Math.abs(v.pct) })),
+  }
+
   return {
     dealer: { dealer_name: dealerName, timezone: 'America/Los_Angeles', report_type: 'daily', for_date_local: forDate },
     lead_metrics: { leads_yesterday: leadsYestCount, leads_7d_avg: leads7dAvg, leads_30d_avg: leads30dAvg, response_time_minutes_target: 5, appointments_set_yesterday: apptsYesterday?.length ?? 0, shows_scheduled_next_24h: upcomingAppts?.length ?? 0, close_rate_30d: closeRate30d, lead_sources: leadSources },
@@ -374,5 +428,6 @@ export async function computePayload(
     market_signals: { enabled: signals.length > 0, signals },
     salesperson_performance: { leads_yesterday: leadsYestCount, leads_responded_yesterday: leadsRespondedYesterday, response_rate_yesterday: responseRate, lead_to_appt_rate_yesterday: leadToApptRate, outbound_touches_yesterday: outboundTouches, avg_touches_per_responded_lead: avgTouchesPerLead },
     twilio_metrics: { messages_mtd: messagesMTD, quota, quota_pct: quotaPct, avg_response_time_minutes: avgResponseTimeMinutes, ghost_rate_pct: ghostRatePct, messages_per_sold_lead: messagesPerSoldLead, mms_count: mmsCount, overage_forecast_day: overageForecastDay },
+    pricing_intelligence: pricingIntelligence,
   }
 }

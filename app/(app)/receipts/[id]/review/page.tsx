@@ -1,10 +1,11 @@
 export const dynamic = 'force-dynamic'
 
 import { requireProfile } from '@/lib/auth/profile'
-import { createClient } from '@/lib/supabase/server'
+import { createClientForRequest } from '@/lib/supabase/forRequest'
 import { createServiceClient } from '@/lib/supabase/service'
 import { redirect } from 'next/navigation'
 import TopBar from '@/components/layout/TopBar'
+import BackButton from '@/components/layout/BackButton'
 import ReviewForm from '@/components/receipts/ReviewForm'
 
 export default async function ReviewPage({
@@ -14,7 +15,7 @@ export default async function ReviewPage({
 }) {
   const { id } = await params
   const profile = await requireProfile()
-  const supabase = await createClient()
+  const supabase = await createClientForRequest()
   const service = createServiceClient()
 
   const { data: receipt } = await supabase
@@ -25,7 +26,6 @@ export default async function ReviewPage({
     .single()
 
   if (!receipt) redirect('/receipts')
-  if (receipt.status === 'posted') redirect('/receipts')
 
   // Generate signed URL for the image
   let signedUrl: string | null = null
@@ -48,7 +48,7 @@ export default async function ReviewPage({
       .from('vehicles')
       .select('id, stock_no, year, make, model, status')
       .eq('user_id', profile.org_id)
-      .in('status', ['available', 'pending'])
+      .in('status', ['staging', 'available', 'pending'])
       .order('created_at', { ascending: false })
       .limit(80),
     supabase
@@ -63,7 +63,16 @@ export default async function ReviewPage({
 
   return (
     <div className="pb-4">
-      <TopBar title="Review Receipt" />
+      <TopBar
+        left={
+          <div className="flex items-center gap-2">
+            <BackButton href="/receipts" />
+            <h1 className="text-lg font-semibold">
+              {receipt.status === 'posted' ? 'Posted Receipt' : 'Review Receipt'}
+            </h1>
+          </div>
+        }
+      />
       <ReviewForm
         receipt={{ ...receipt, signed_url: signedUrl }}
         categories={categories ?? []}

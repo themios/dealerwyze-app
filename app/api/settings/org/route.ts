@@ -18,7 +18,7 @@ export async function GET() {
 
   const { data: settings } = await supabase
     .from('org_settings')
-    .select('business_name, business_phone, business_address, timezone, dealer_cell_number, voice_business_hours_start, voice_business_hours_end, twilio_phone_number, retell_agent_id, gbp_location_id, locations, resend_from_domain, dealer_website_url, dealer_website_inventory_path')
+    .select('business_name, business_phone, business_address, zip_code, timezone, dealer_cell_number, voice_business_hours_start, voice_business_hours_end, twilio_phone_number, retell_agent_id, gbp_location_id, locations, resend_from_domain, dealer_website_url, dealer_website_inventory_path')
     .eq('org_id', profile.org_id)
     .maybeSingle()
 
@@ -36,6 +36,7 @@ export async function GET() {
     business_name: settings?.business_name ?? null,
     business_phone: settings?.business_phone ?? null,
     business_address: settings?.business_address ?? null,
+    zip_code: settings?.zip_code ?? null,
     timezone: settings?.timezone ?? 'America/Los_Angeles',
     dealer_cell_number: settings?.dealer_cell_number ?? null,
     voice_business_hours_start: settings?.voice_business_hours_start ?? '09:00',
@@ -60,6 +61,7 @@ export async function PATCH(req: NextRequest) {
     business_name?: string
     business_phone?: string
     business_address?: string
+    zip_code?: string
     timezone?: string
     dealer_cell_number?: string
     voice_business_hours_start?: string
@@ -90,6 +92,7 @@ export async function PATCH(req: NextRequest) {
   if (body.business_name !== undefined) settingsPayload.business_name = body.business_name
   if (body.business_phone !== undefined) settingsPayload.business_phone = body.business_phone
   if (body.business_address !== undefined) settingsPayload.business_address = body.business_address
+  if (body.zip_code !== undefined) settingsPayload.zip_code = body.zip_code
   if (body.timezone !== undefined) settingsPayload.timezone = body.timezone
   if (body.dealer_cell_number !== undefined) settingsPayload.dealer_cell_number = body.dealer_cell_number
   if (body.voice_business_hours_start !== undefined) settingsPayload.voice_business_hours_start = body.voice_business_hours_start
@@ -123,7 +126,7 @@ export async function PATCH(req: NextRequest) {
 
   const { data: settings } = await supabase
     .from('org_settings')
-    .select('business_name, business_phone, business_address, timezone, dealer_cell_number, voice_business_hours_start, voice_business_hours_end, twilio_phone_number, retell_agent_id, gbp_location_id, locations, resend_from_domain, dealer_website_url, dealer_website_inventory_path')
+    .select('business_name, business_phone, business_address, zip_code, timezone, dealer_cell_number, voice_business_hours_start, voice_business_hours_end, twilio_phone_number, retell_agent_id, gbp_location_id, locations, resend_from_domain, dealer_website_url, dealer_website_inventory_path')
     .eq('org_id', profile.org_id)
     .maybeSingle()
 
@@ -140,6 +143,7 @@ export async function PATCH(req: NextRequest) {
     business_name: settings?.business_name ?? null,
     business_phone: settings?.business_phone ?? null,
     business_address: settings?.business_address ?? null,
+    zip_code: settings?.zip_code ?? null,
     timezone: settings?.timezone ?? 'America/Los_Angeles',
     dealer_cell_number: settings?.dealer_cell_number ?? null,
     voice_business_hours_start: settings?.voice_business_hours_start ?? '09:00',

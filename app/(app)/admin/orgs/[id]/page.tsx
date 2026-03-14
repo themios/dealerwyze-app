@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ArrowLeft, Phone, Mic, Users, Loader2, RefreshCw, Eye, ExternalLink, AlertOctagon, Pencil } from 'lucide-react'
+import { ArrowLeft, Phone, Mic, Users, Loader2, RefreshCw, Eye, ExternalLink, AlertOctagon, Pencil, MessageSquarePlus, Clock } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -137,6 +137,13 @@ export default function AdminOrgDetailPage() {
   const [creditAmt, setCreditAmt]   = useState('')
   const [creditDesc, setCreditDesc] = useState('')
   const [suspendReason, setSuspendReason] = useState('')
+
+  // Retention notes
+  interface RetentionNote { id: string; admin_name: string; created_at: string; note: string; contact_method: string | null }
+  const [notes, setNotes]               = useState<RetentionNote[]>([])
+  const [noteText, setNoteText]         = useState('')
+  const [noteMethod, setNoteMethod]     = useState('email')
+  const [savingNote, setSavingNote]     = useState(false)
   const [showSuspendForm, setShowSuspendForm] = useState(false)
 
   useEffect(() => {
@@ -158,6 +165,10 @@ export default function AdminOrgDetailPage() {
     fetch(`/api/admin/orgs/${orgId}/shadow-billing`)
       .then(r => r.ok ? r.json() : null)
       .then(d => d && setShadow(d))
+
+    fetch(`/api/admin/orgs/${orgId}/notes`)
+      .then(r => r.ok ? r.json() : null)
+      .then((d: RetentionNote[] | null) => d && setNotes(d))
   }, [orgId])
 
   async function startImpersonation(writeMode = false) {
@@ -192,6 +203,24 @@ export default function AdminOrgDetailPage() {
       setSuccess(label)
       fetch(`/api/admin/orgs/${orgId}`).then(r => r.json()).then((d: OrgDetail) => setData(d))
     }
+  }
+
+  async function saveNote() {
+    if (!noteText.trim()) return
+    setSavingNote(true)
+    const res = await fetch(`/api/admin/orgs/${orgId}/notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note: noteText.trim(), contact_method: noteMethod }),
+    })
+    if (res.ok) {
+      setNoteText('')
+      // Refresh notes
+      fetch(`/api/admin/orgs/${orgId}/notes`)
+        .then(r => r.ok ? r.json() : null)
+        .then((d: RetentionNote[] | null) => d && setNotes(d))
+    }
+    setSavingNote(false)
   }
 
   if (loading) {
@@ -372,13 +401,13 @@ export default function AdminOrgDetailPage() {
                 {impersonating
                   ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   : <Eye className="h-3.5 w-3.5" />}
-                View as Org
+                Read Only
               </Button>
               <Button
                 size="sm"
                 className="h-9 text-xs gap-1.5 bg-orange-500 hover:bg-orange-600 text-white"
                 onClick={() => {
-                  if (!confirm(`Start Remote Admin session for ${org.name}?\n\nYou will be able to make changes on their behalf. All actions are logged to the audit trail.`)) return
+                  if (!confirm(`Start Write Access session for ${org.name}?\n\nYou will be able to make changes on their behalf. All actions are logged to the audit trail.`)) return
                   startImpersonation(true)
                 }}
                 disabled={impersonating}
@@ -386,7 +415,7 @@ export default function AdminOrgDetailPage() {
                 {impersonating
                   ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   : <Pencil className="h-3.5 w-3.5" />}
-                Remote Admin
+                Write Access
               </Button>
             </div>
           </div>
@@ -700,6 +729,72 @@ export default function AdminOrgDetailPage() {
                 </div>
               ))}
             </div>
+          )}
+        </section>
+
+        {/* Retention outreach notes */}
+        <section id="notes" className="space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+            <MessageSquarePlus className="h-3.5 w-3.5" /> Outreach Notes
+          </p>
+
+          {/* Add note form */}
+          <div className="rounded-xl border bg-card p-4 space-y-3">
+            <textarea
+              value={noteText}
+              onChange={e => setNoteText(e.target.value)}
+              placeholder="Log a retention call, email, or check-in…"
+              rows={3}
+              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm resize-none"
+            />
+            <div className="flex items-center gap-3">
+              <select
+                value={noteMethod}
+                onChange={e => setNoteMethod(e.target.value)}
+                className="px-3 py-1.5 rounded-lg border border-border bg-background text-sm"
+              >
+                <option value="email">Email</option>
+                <option value="phone">Phone</option>
+                <option value="sms">SMS</option>
+                <option value="in_person">In person</option>
+                <option value="other">Other</option>
+              </select>
+              <Button
+                size="sm"
+                disabled={savingNote || !noteText.trim()}
+                onClick={saveNote}
+                className="ml-auto"
+              >
+                {savingNote ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Save Note'}
+              </Button>
+            </div>
+          </div>
+
+          {/* Note history */}
+          {notes.length > 0 && (
+            <div className="rounded-xl border bg-card divide-y">
+              {notes.map(n => (
+                <div key={n.id} className="px-4 py-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-medium">{n.admin_name}</span>
+                    {n.contact_method && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground capitalize">
+                        {n.contact_method.replace('_', ' ')}
+                      </span>
+                    )}
+                    <span className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <Clock className="h-3 w-3" />
+                      {fmtDate(n.created_at)}
+                    </span>
+                  </div>
+                  <p className="text-sm text-foreground whitespace-pre-wrap">{n.note}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {notes.length === 0 && (
+            <p className="text-xs text-muted-foreground">No outreach notes yet. Log your first contact above.</p>
           )}
         </section>
 

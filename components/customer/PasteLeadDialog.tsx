@@ -7,7 +7,8 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { ClipboardPaste, ExternalLink } from 'lucide-react'
+import { ClipboardPaste, ExternalLink, Car } from 'lucide-react'
+import LinkVehicleSheet from '@/components/customer/LinkVehicleSheet'
 
 interface SingleResult {
   isNew: boolean
@@ -17,6 +18,8 @@ interface SingleResult {
   email: string | null
   note: string | null
   vehicle: string | null
+  vehicleId: string | null
+  vehicleName: string | null
   source: string
 }
 
@@ -62,6 +65,30 @@ export default function PasteLeadDialog() {
       setError(null)
       setResult(null)
     }
+  }
+
+  function VehicleRow({ r }: { r: SingleResult }) {
+    if (r.vehicleName) {
+      return (
+        <p className="flex items-center gap-1 text-xs text-green-700 dark:text-green-400 font-medium">
+          <Car className="h-3 w-3" />
+          Linked: {r.vehicleName}
+        </p>
+      )
+    }
+    if (r.vehicle) {
+      return (
+        <div className="flex items-center gap-2 mt-1">
+          <p className="text-xs text-muted-foreground">{r.vehicle} — not in inventory</p>
+          <LinkVehicleSheet customerId={r.customerId} hasVehicle={false} onLinked={() => router.refresh()} />
+        </div>
+      )
+    }
+    return (
+      <div className="mt-1">
+        <LinkVehicleSheet customerId={r.customerId} hasVehicle={false} onLinked={() => router.refresh()} />
+      </div>
+    )
   }
 
   return (
@@ -112,9 +139,9 @@ export default function PasteLeadDialog() {
                   className={`rounded-lg p-3 text-sm border ${r.isNew ? 'bg-green-50 dark:bg-green-950 border-green-200' : 'bg-card'}`}
                 >
                   <p className="font-medium">{r.name}</p>
-                  {r.vehicle && <p className="text-xs text-muted-foreground">{r.vehicle}</p>}
                   {r.phone && <p className="text-xs text-muted-foreground">{r.phone}</p>}
                   {r.email && <p className="text-xs text-muted-foreground">{r.email}</p>}
+                  <VehicleRow r={r} />
                   <Button
                     variant="ghost"
                     size="sm"
@@ -143,9 +170,11 @@ export default function PasteLeadDialog() {
               <p><span className="text-muted-foreground">Name:</span> {(result as SingleResult).name}</p>
               {(result as SingleResult).phone   && <p><span className="text-muted-foreground">Phone:</span> {(result as SingleResult).phone}</p>}
               {(result as SingleResult).email   && <p><span className="text-muted-foreground">Email:</span> {(result as SingleResult).email}</p>}
-              {(result as SingleResult).vehicle && <p><span className="text-muted-foreground">Vehicle:</span> {(result as SingleResult).vehicle}</p>}
-              {(result as SingleResult).note    && <p><span className="text-muted-foreground">Message:</span> "{(result as SingleResult).note}"</p>}
+              {(result as SingleResult).note    && <p><span className="text-muted-foreground">Message:</span> &ldquo;{(result as SingleResult).note}&rdquo;</p>}
               <p><span className="text-muted-foreground">Source:</span> {(result as SingleResult).source}</p>
+              <div className="mt-2">
+                <VehicleRow r={result as SingleResult} />
+              </div>
             </div>
 
             <div className="flex gap-2">

@@ -97,6 +97,18 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  // Mark the customer's pending inbound lead as addressed so it leaves the Today screen
+  if (customer_id) {
+    await supabase
+      .from('activities')
+      .update({ addressed_at: new Date().toISOString() })
+      .eq('user_id', orgId)
+      .eq('customer_id', customer_id)
+      .eq('direction', 'inbound')
+      .eq('outcome', 'pending')
+      .is('completed_at', null)
+  }
+
   // Log activity (prefixed with sender name)
   const bodyWithAuthor = prefixWithAuthorName(profile.display_name, body)
   await supabase.from('activities').insert({

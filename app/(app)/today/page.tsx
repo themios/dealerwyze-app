@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClientForRequest } from '@/lib/supabase/forRequest'
 import { requireProfile } from '@/lib/auth/profile'
 import { shouldShowAddressedActivity } from '@/lib/utils'
 import Link from 'next/link'
@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function TodayPage() {
   const profile = await requireProfile()
-  const supabase = await createClient()
+  const supabase = await createClientForRequest()
   const orgId = profile.org_id
 
   const now = new Date().toISOString()
@@ -28,12 +28,13 @@ export default async function TodayPage() {
 
   const { data: newLeads } = await supabase
     .from('activities')
-    .select('*, customer:customers(id, name, primary_phone, email, sms_opt_out)')
+    .select('*, customer:customers(id, name, primary_phone, email, sms_opt_out, unsubscribe_email, unsubscribe_sms)')
     .eq('user_id', orgId)
     .eq('type', 'email')
     .eq('direction', 'inbound')
     .eq('outcome', 'pending')
     .is('completed_at', null)
+    .or(`snoozed_until.is.null,snoozed_until.lt.${now}`)
     .order('created_at', { ascending: false })
 
   // Filter out activities whose customer join returned null (orphaned activities)
@@ -47,7 +48,7 @@ export default async function TodayPage() {
     .from('activities')
     .select('*, customer:customers(id, name, primary_phone, email)')
     .eq('user_id', orgId)
-    .in('type', ['task', 'appointment', 'call', 'sms', 'email'])
+    .in('type', ['task', 'appointment', 'call', 'sms', 'email', 'email_followup', 'sms_followup'])
     .is('completed_at', null)
     .not('direction', 'eq', 'inbound')
     .or(`snoozed_until.is.null,snoozed_until.lt.${now}`)
@@ -113,6 +114,51 @@ export default async function TodayPage() {
     .eq('category', 'lead_response')
     .order('created_at', { ascending: true })
 
+  // Active/paused customer sequence enrollments for this org
+  const { data: seqEnrollments } = await supabase
+    .from('customer_sequences')
+    .select('id, customer_id, status, sequence_id, sequences!inner(name, channel)')
+    .eq('org_id', orgId)
+    .in('status', ['active', 'paused'])
+
+  // Build sequenceStatusMap: customer_id -> sequence status info
+  type SeqStatusEntry = {
+    id: string
+    status: 'active' | 'paused' | 'completed' | 'cancelled'
+    sequence_name: string
+    next_step_due?: string | null
+    step_number?: number | null
+    step_total?: number | null
+  }
+  const sequenceStatusMap: Record<string, SeqStatusEntry> = {}
+  for (const enr of seqEnrollments ?? []) {
+    const seq = Array.isArray(enr.sequences) ? enr.sequences[0] : enr.sequences
+    sequenceStatusMap[enr.customer_id] = {
+      id: enr.id,
+      status: enr.status as 'active' | 'paused',
+      sequence_name: (seq as any)?.name ?? '',
+    }
+  }
+
+  // For each enrolled customer, find the next pending step due_at
+  if (Object.keys(sequenceStatusMap).length > 0) {
+    const customerIds = Object.keys(sequenceStatusMap)
+    const { data: pendingSteps } = await supabase
+      .from('activities')
+      .select('customer_id, due_at, customer_sequence_id')
+      .in('customer_id', customerIds)
+      .is('completed_at', null)
+      .in('type', ['email_followup', 'sms_followup'])
+      .order('due_at', { ascending: true })
+
+    for (const step of pendingSteps ?? []) {
+      const entry = sequenceStatusMap[step.customer_id]
+      if (entry && !entry.next_step_due) {
+        entry.next_step_due = step.due_at
+      }
+    }
+  }
+
   // GBP reviews: last 30 days, most recent first
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString()
   const { data: gbpReviews, error: gbpReviewsError } = await supabase
@@ -148,6 +194,21 @@ export default async function TodayPage() {
     supabase.from('email_accounts').select('id').eq('org_id', orgId).limit(1),
   ])
 
+  // Vehicle want-list matches — inbound, pending, not yet addressed
+  const { data: vehicleMatchesRaw } = await supabase
+    .from('activities')
+    .select('*, customer:customers(id, name, primary_phone), vehicle:vehicles(id, year, make, model)')
+    .eq('user_id', orgId)
+    .eq('type', 'vehicle_match')
+    .eq('direction', 'inbound')
+    .eq('outcome', 'pending')
+    .is('completed_at', null)
+    .or(`snoozed_until.is.null,snoozed_until.lt.${now}`)
+    .order('created_at', { ascending: false })
+  const vehicleMatches = (vehicleMatchesRaw || []).filter(
+    a => a.customer != null && shouldShowAddressedActivity(a, todayRef)
+  )
+
   // Appointment requests: inbound appointment activities not yet confirmed (direction=inbound)
   const { data: apptRequests } = await supabase
     .from('activities')
@@ -157,6 +218,7 @@ export default async function TodayPage() {
     .eq('direction', 'inbound')
     .eq('outcome', 'pending')
     .is('completed_at', null)
+    .or(`snoozed_until.is.null,snoozed_until.lt.${now}`)
     .order('created_at', { ascending: false })
 
   // Filter out activities whose customer join returned null (orphaned activities)
@@ -232,8 +294,10 @@ export default async function TodayPage() {
             leadTemplates={leadTemplates || []}
             initialApptRequests={safeApptRequests}
             initialVoiceLeads={voiceLeadsRaw || []}
+            initialVehicleMatches={vehicleMatches}
             businessName={orgSettings?.business_name ?? undefined}
             respondedCustomerIds={respondedCustomerIds}
+            sequenceStatusMap={sequenceStatusMap}
           />
         </div>
 

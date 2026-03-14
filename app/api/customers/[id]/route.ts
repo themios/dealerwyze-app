@@ -34,8 +34,24 @@ export async function PATCH(
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // Only allow safe fields through this route
+  const VALID_AUTO_MODES = ['manual', 'semi_auto', 'full_auto']
   const allowed: Record<string, unknown> = {}
   if ('assigned_to' in body) allowed.assigned_to = body.assigned_to ?? null
+  if ('automation_override' in body) {
+    const v = body.automation_override
+    if (v !== null && !VALID_AUTO_MODES.includes(v as string)) {
+      return NextResponse.json({ error: 'Invalid automation_override' }, { status: 400 })
+    }
+    allowed.automation_override = v ?? null
+  }
+  if ('unsubscribe_sms' in body && typeof body.unsubscribe_sms === 'boolean') {
+    allowed.unsubscribe_sms = body.unsubscribe_sms
+    if (body.unsubscribe_sms) allowed.unsubscribed_at = new Date().toISOString()
+  }
+  if ('unsubscribe_email' in body && typeof body.unsubscribe_email === 'boolean') {
+    allowed.unsubscribe_email = body.unsubscribe_email
+    if (body.unsubscribe_email) allowed.unsubscribed_at = new Date().toISOString()
+  }
 
   if (Object.keys(allowed).length === 0) {
     return NextResponse.json({ error: 'No updatable fields' }, { status: 400 })

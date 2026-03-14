@@ -5,6 +5,63 @@ Each entry includes the date, category, migration (if any), and what was built.
 
 ---
 
+## 2026-03-06 — Feedback and bug reports: attach images
+
+**Category:** UX
+**Migration:** none
+
+**Why:** Users need to attach screenshots when reporting bugs or sending feedback so support can see the issue without extra back-and-forth.
+
+**What was built:**
+- **`lib/email/notify.ts`** — `sendNotificationEmail()` now accepts optional `attachments` (array of `{ filename, content }` with base64 content) and forwards them to Resend.
+- **`app/api/feedback/route.ts`** — POST accepts either JSON (unchanged) or `multipart/form-data` with `type`, `message`, and optional `attachments` (image files). Up to 5 images, 5MB each; JPEG, PNG, GIF, WebP. Attachments are sent as email attachments to support@dealerwyze.com.
+- **`components/layout/FeedbackButton.tsx`** — Optional “Attach images” section: file input (image/*), add/remove with thumbnails, max 5 images and 5MB each; submit sends FormData so images are included.
+
+---
+
+## 2026-03-12 — Homepage OG image and logo choice
+
+**Category:** Marketing / SEO
+**Migration:** none
+
+**Why:** Social shares (Facebook, Twitter, LinkedIn) were missing a branded image. We also needed a clear choice between the DW monogram and the full “DealerWyze” logo for the homepage.
+
+**What was built:**
+- **`public/og.png`** — Full DealerWyze logo (DW + wordmark) added as the default Open Graph / Twitter card image.
+- **`app/page.tsx`** — Set `openGraph.images` and `twitter.images` to `https://dealerwyze.com/og.png` with alt text so shares show the branded logo.
+- **`docs/SEO_AUDIT.md`** — Marked OG image and auth canonical as done; added recommendation: use full logo with name for homepage/OG, DW monogram for favicon/small placements.
+
+---
+
+## 2026-03-12 — SEO audit and sitemap/auth metadata
+
+**Category:** Marketing / SEO
+**Migration:** none
+
+**Why:** After submitting the sitemap to Google Search Console, we audited the site against Google’s SEO Starter Guide and fixed gaps so key pages are discoverable and display correct titles/descriptions in search and social.
+
+**What was built:**
+- **`docs/SEO_AUDIT.md`** — Audit checklist: what already meets criteria (homepage metadata, JSON-LD, headings, robots.txt, dealer VDP metadata), and improvements (sitemap coverage, auth metadata, canonical, OG image, dealer sitemap discovery).
+- **`app/sitemap.ts`** — Added `https://dealerwyze.com/signup` to the sitemap (priority 0.9).
+- **`app/(auth)/layout.tsx`** — New layout for auth routes with shared description and robots.
+- **`app/(auth)/login/layout.tsx`** — Title “Sign In | DealerWyze”, description, canonical URL for `/login`.
+- **`app/(auth)/signup/layout.tsx`** — Title “Create Account | DealerWyze”, description, canonical URL for `/signup`.
+- **`app/layout.tsx`** — Improved default meta description for fallback on routes that don’t set their own.
+
+---
+
+## 2026-03-06 — Onboarding gate only applies to dealer admins
+
+**Category:** UX / Onboarding
+**Migration:** none
+
+**Why:** Invited sales staff were being forced through the dealer onboarding wizard at `/onboarding`. Because only the dealer principal knows the business details (hours, address, inventory, etc.), staff would get stuck on the wizard and feel like “nothing works” instead of landing in their Today page and lead inbox.
+
+**What was built:**
+- **`app/(app)/layout.tsx`** — Updated the routing gate so only users with a dealer admin role are redirected into `/onboarding` when `org_settings.onboarding_completed_at` is null. Staff and sales reps in the same org now bypass the wizard and go straight into the app (e.g. `/today`) after accepting an invite and logging in.
+
+---
+
 ## 2026-03-06 — Onboarding team invites use email-based signup
 
 **Category:** UX / Onboarding

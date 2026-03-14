@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Eye, Pencil, X } from 'lucide-react'
 
 interface Props {
@@ -11,10 +11,25 @@ interface Props {
 export default function ImpersonationBanner({ orgName, writeMode }: Props) {
   const [ending, setEnding] = useState(false)
 
+  // Poll every 30s — auto-end if dealer revoked the session
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/support/active-session')
+        if (!res.ok) return
+        const data = await res.json()
+        if (!data.active) {
+          await fetch('/api/admin/impersonate', { method: 'DELETE' })
+          window.location.href = '/admin'
+        }
+      } catch { /* ignore */ }
+    }, 5_000)
+    return () => clearInterval(interval)
+  }, [])
+
   async function endSession() {
     setEnding(true)
     await fetch('/api/admin/impersonate', { method: 'DELETE' })
-    // Full page reload ensures server reads the cleared cookie fresh
     window.location.href = '/admin'
   }
 

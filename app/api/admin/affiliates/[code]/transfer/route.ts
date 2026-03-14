@@ -13,7 +13,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { requirePlatformSuperAdmin } from '@/lib/auth/platform'
+import { requirePlatformArea } from '@/lib/auth/platform'
 import { createServiceClient } from '@/lib/supabase/service'
 
 export async function POST(
@@ -21,7 +21,7 @@ export async function POST(
   { params }: { params: Promise<{ code: string }> }
 ) {
   const profile = await requireProfile()
-  const denied  = await requirePlatformSuperAdmin(profile.id)
+  const denied  = await requirePlatformArea(profile.id, 'affiliates')
   if (denied) return denied
 
   const { code: fromCode } = await params

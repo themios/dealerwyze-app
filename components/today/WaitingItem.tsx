@@ -77,34 +77,39 @@ export default function WaitingItem({ activity, onUpdate, hasResponded = false }
             <Button
               size="sm"
               variant="outline"
-              className="flex-1 h-9"
+              className="flex-1 h-9 lg:flex-none lg:px-3"
+              title="Call"
               onClick={() => {
                 window.location.href = `tel:${formatPhoneForTel(customer.primary_phone)}`
               }}
             >
-              <Phone className="h-3.5 w-3.5 mr-1" /> Call
+              <Phone className="h-3.5 w-3.5 mr-1 lg:mr-0" />
+              <span className="lg:hidden">Call</span>
             </Button>
             <Button
               size="sm"
               variant="outline"
-              className="flex-1 h-9"
+              className="flex-1 h-9 lg:flex-none lg:px-3"
+              title="Text"
               onClick={() => {
                 window.location.href = `sms:${formatPhoneForTel(customer.primary_phone)}`
               }}
             >
-              <MessageSquare className="h-3.5 w-3.5 mr-1" /> Text
+              <MessageSquare className="h-3.5 w-3.5 mr-1 lg:mr-0" />
+              <span className="lg:hidden">Text</span>
             </Button>
           </>
         )}
         <Button
           size="sm"
           variant="default"
-          className="flex-1 h-9"
+          className="flex-1 h-9 lg:flex-none lg:px-3"
+          title="Mark done"
           onClick={markDone}
           disabled={loading !== null}
         >
-          <CheckSquare className="h-3.5 w-3.5 mr-1" />
-          {loading === 'done' ? '…' : 'Done'}
+          <CheckSquare className="h-3.5 w-3.5 mr-1 lg:mr-0" />
+          <span className="lg:hidden">{loading === 'done' ? '…' : 'Done'}</span>
         </Button>
       </div>
     </div>

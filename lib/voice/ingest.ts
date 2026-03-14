@@ -112,6 +112,24 @@ export async function processVoiceCall(params: VoiceCallParams): Promise<void> {
     .select('id')
     .single()
 
+  // 2b. Stamp response time — AI agent answering the call = immediate response
+  // The DB trigger only fires on outbound activities; stamp directly for inbound voice.
+  {
+    const { data: cust } = await supabase
+      .from('customers')
+      .select('created_at, first_response_at')
+      .eq('id', customerId)
+      .maybeSingle()
+    if (cust && !cust.first_response_at) {
+      const now      = new Date()
+      const secs     = Math.round((now.getTime() - new Date(cust.created_at as string).getTime()) / 1000)
+      await supabase
+        .from('customers')
+        .update({ first_response_at: now.toISOString(), response_time_seconds: secs })
+        .eq('id', customerId)
+    }
+  }
+
   // 3. Create lead_response task (deduplicates internally)
   await createLeadResponseTask(customerId, name || null, vehicle || null, null, userId)
 

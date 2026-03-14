@@ -1,8 +1,8 @@
 'use client'
 
-
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import TopBar from '@/components/layout/TopBar'
 import { Button } from '@/components/ui/button'
@@ -13,22 +13,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 
-export default function NewVehiclePage() {
+function NewVehicleForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     stock_no: '',
-    year: new Date().getFullYear().toString(),
-    make: '',
-    model: '',
-    trim: '',
+    year: searchParams.get('year') || new Date().getFullYear().toString(),
+    make: searchParams.get('make') || '',
+    model: searchParams.get('model') || '',
+    trim: searchParams.get('trim') || '',
     color: '',
-    mileage: '',
+    mileage: searchParams.get('mileage') || '',
     price: '',
-    vin: '',
-    status: 'available',
+    vin: searchParams.get('vin') || '',
+    status: searchParams.get('status') || 'available',
     notes: '',
+    purchase_price: '',
+    purchased_from: '',
+    purchased_at: '',
   })
 
   function update(field: string, value: string) {
@@ -62,11 +66,22 @@ export default function NewVehiclePage() {
         vin: form.vin || null,
         status: form.status,
         notes: form.notes || null,
+        purchase_price: form.status === 'staging' && form.purchase_price ? parseFloat(form.purchase_price) : null,
+        purchased_from: form.status === 'staging' && form.purchased_from ? form.purchased_from : null,
+        purchased_at: form.status === 'staging' && form.purchased_at ? form.purchased_at : null,
       })
       .select('id')
       .single()
 
     if (data) {
+      // Seed recon checklist for staging vehicles
+      if (form.status === 'staging') {
+        try {
+          await fetch(`/api/vehicles/${data.id}/recon/seed`, { method: 'POST' })
+        } catch {
+          // best-effort — don't block navigation
+        }
+      }
       router.push(`/vehicles/${data.id}`)
     } else {
       setSaving(false)
@@ -173,6 +188,7 @@ export default function NewVehiclePage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="staging">Staging (Recon)</SelectItem>
                 <SelectItem value="available">Available</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="sold">Sold</SelectItem>
@@ -191,10 +207,46 @@ export default function NewVehiclePage() {
           />
         </div>
 
+        {form.status === 'staging' && (
+          <div className="space-y-3 border rounded-lg p-3 bg-purple-50/50 dark:bg-purple-950/10">
+            <p className="text-xs font-semibold text-purple-700 dark:text-purple-400">Acquisition Details</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Purchase Price</Label>
+                <Input
+                  type="number"
+                  placeholder="12000"
+                  value={form.purchase_price}
+                  onChange={(e) => update('purchase_price', e.target.value)}
+                  className="h-12 text-base"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Purchase Date</Label>
+                <Input
+                  type="date"
+                  value={form.purchased_at}
+                  onChange={(e) => update('purchased_at', e.target.value)}
+                  className="h-12 text-base"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Purchased From</Label>
+              <Input
+                placeholder="Auction, private party, trade-in..."
+                value={form.purchased_from}
+                onChange={(e) => update('purchased_from', e.target.value)}
+                className="h-12 text-base"
+              />
+            </div>
+          </div>
+        )}
+
         <div className="space-y-1.5">
           <Label>Notes</Label>
           <Textarea
-            placeholder="Clean title, 1 owner, recent service…"
+            placeholder="Clean title, 1 owner, recent service..."
             value={form.notes}
             onChange={(e) => update('notes', e.target.value)}
             rows={3}
@@ -207,9 +259,17 @@ export default function NewVehiclePage() {
           className="w-full h-12 text-base"
           disabled={saving || !form.stock_no || !form.make || !form.model}
         >
-          {saving ? 'Saving…' : 'Add Vehicle'}
+          {saving ? 'Saving...' : 'Add Vehicle'}
         </Button>
       </form>
     </div>
+  )
+}
+
+export default function NewVehiclePage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-muted-foreground text-sm">Loading...</div>}>
+      <NewVehicleForm />
+    </Suspense>
   )
 }

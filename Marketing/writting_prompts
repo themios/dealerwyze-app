@@ -1,0 +1,277 @@
+Here are 10 fully designed Claude prompts that handle 90% of professional writing tasks, from first drafts to final polish.
+r/ThinkingDeeplyAI - Here are 10 fully designed Claude prompts that handle 90% of professional writing tasks, from first drafts to final polish.
+TLDR: Here are 10 fully engineered prompts that handle 90% of professional writing tasks, from first drafts to final polish. Each one is copy-paste ready with specific instructions that force Claude to produce structured, high-quality output instead of generic filler. Save this post. You will use these constantly.
+
+Claude is a reasoning engine. When you give it structure, constraints, and a clear framework, it produces work that can genuinely compete with professional writers. When you give it nothing, it gives you nothing worth publishing.
+
+I am not exaggerating when I say these replaced most of the writing workflows I used to do manually or outsource. Each prompt below is fully built out and ready to use. Copy them. Modify them. Make them yours.
+
+Here is the complete system.
+
+The 5-Minute First Draft
+
+This is the prompt I use most often. The concept is simple: you brain dump everything you know about a topic, and Claude turns it into a structured article between 800 and 3000 words.
+
+The Prompt:
+
+I am going to give you a rough brain dump of ideas, notes, and thoughts on a topic. Your job is to transform this into a well-structured article between 800 and 3000 words.
+
+Rules:
+- Create a compelling opening that hooks the reader in the first two sentences
+
+- Organize my scattered ideas into logical sections with clear headers
+
+- Maintain my original ideas and arguments but improve the flow and clarity
+
+- Add smooth transitions between sections
+
+- End with a strong conclusion that ties back to the opening
+
+- Keep the tone conversational and direct, as if explaining to a smart friend
+
+- Do not add information I did not provide. Only restructure and polish what I give you
+
+- Flag any gaps in my thinking with [NEEDS MORE DETAIL] so I can fill them in
+
+Here is my brain dump: [PASTE YOUR NOTES HERE]
+
+Why it works: The constraint about not adding information is critical. Without it, Claude will hallucinate facts and pad your article with generic filler. The [NEEDS MORE DETAIL] flag turns Claude into a structural editor rather than a content generator, which is exactly what you want in a first draft.
+
+2. The Headline Machine
+
+Headlines determine whether anyone reads your work at all. This prompt generates volume and then ranks by quality.
+
+The Prompt:
+
+You are an expert headline writer who has studied the principles of viral content, direct response copywriting, and editorial journalism.
+
+Topic: [YOUR TOPIC] Target audience: [YOUR AUDIENCE] Platform: [WHERE THIS WILL BE PUBLISHED]
+
+Generate 20 headline options using a mix of these proven frameworks:
+
+- Specific number + unexpected benefit
+- How to + desired outcome + without common pain point
+- Question that challenges a common assumption
+- Bold contrarian statement
+- Before/after transformation
+
+After generating all 20, rank your top 3 and explain specifically why each one would drive clicks. Consider emotional pull, curiosity gap, specificity, and clarity.
+
+Why it works: Most people ask for 5 headlines and pick the least bad one. Twenty gives you enough volume to find something genuinely strong. The ranking step forces Claude to apply analytical thinking rather than just generating options.
+
+3. The Clarity Surgeon
+
+This is the editing prompt I run on almost everything before publishing. It is designed to cut the fat.
+
+The Prompt:
+
+You are a ruthless editor whose only goal is clarity and conciseness. Edit the following text with these specific instructions:
+
+- Cut the word count by at least 30%
+- Replace every instance of passive voice with active voice
+- Remove all jargon and replace it with plain language
+
+- Eliminate all filler phrases (things like "it is important to note that," "in order to," "the fact that," "basically," "actually," "very," "really")
+- Break any sentence longer than 25 words into two sentences
+- Remove all adverbs that do not change the meaning of the sentence
+
+Provide the edited version first. Then provide a brief summary of the major changes you made and the before/after word count.
+
+Text to edit: [PASTE YOUR TEXT HERE]
+
+Why it works: The 30% target gives Claude a concrete goal. Without a specific number, it will make timid edits. The instruction to replace passive voice rather than just flag it means you get a finished product, not a list of suggestions.
+
+4. The Argument Builder
+
+For persuasive writing, opinion pieces, essays, and anything where you need to make a case for something.
+
+The Prompt:
+
+Help me build a persuasive essay on the following position:
+
+Position: [YOUR ARGUMENT] Audience: [WHO NEEDS TO BE CONVINCED] Their likely objections: [WHAT THEY CURRENTLY BELIEVE OR WILL PUSH BACK ON]
+
+Structure the essay as follows:
+
+- Opening hook that illustrates the problem through a specific, concrete scenario
+- Clear thesis statement in one sentence
+- Three supporting arguments, each backed by evidence, logic, or concrete examples
+
+Directly address the two strongest counterarguments and explain why they fall short
+
+Closing that reframes the issue and makes the cost of inaction feel tangible
+
+Write in a confident but not arrogant tone. Use short paragraphs. Avoid hedging language like "it could be argued" or "some might say." Make definitive statements and back them up.
+
+Why it works: The counterargument section is what separates amateur persuasive writing from professional work. Addressing objections head-on builds credibility. Telling Claude to avoid hedging language prevents the default AI tendency to be wishy-washy about everything.
+
+5. The Content Remix
+
+One piece of content should never stay as one piece of content. This prompt multiplies a single article into platform-specific formats.
+
+The Prompt:
+
+I am going to give you a source article. Transform it into all of the following formats, each optimized for its platform:
+
+- Twitter/X thread (8-12 tweets, hook in first tweet, each tweet stands alone)
+- LinkedIn post (personal narrative angle, 150-200 words, line breaks for readability)
+- Email newsletter section (conversational, one key takeaway, clear CTA)
+- Instagram carousel script (10 slides, each with a short headline and 1-2 sentences)
+- Reddit post (educational tone, detailed, uses formatting well, no self-promotion)
+- YouTube video script intro (60-90 second hook with pattern interrupt opening)
+- Podcast talking points (5 bullet points with sub-points for a 10-minute segment)
+- Facebook post (emotional angle, question at the end to drive comments)
+- Blog summary paragraph (for syndication, 75-100 words with link context)
+- Quora answer (authoritative, cites experience, answers a specific question derived from the article)
+
+Source article: [PASTE YOUR ARTICLE HERE]
+
+Why it works: Each platform has a different culture, attention span, and format expectation. This prompt forces Claude to genuinely adapt the content rather than just shortening or lengthening the same text.
+
+6. The Research Pipeline
+
+For when you need to synthesize sources into original analysis rather than just summarize them.
+
+The Prompt:
+
+I am going to provide you with multiple sources on a topic. Your job is not to summarize them. Your job is to extract the strongest arguments from each, identify where they agree and disagree, add your own analytical layer, and produce an original piece that cites these sources naturally.
+
+Requirements:
+
+- Identify the 3-5 strongest claims across all sources
+- Note any contradictions or tensions between sources
+- Add analytical commentary that goes beyond what any single source says
+- Weave citations in naturally (Author/Source, Year or publication context) rather than using footnotes
+- Produce a cohesive argument, not a source-by-source summary
+- End with an original insight or conclusion that none of the sources explicitly state but that emerges from reading them together
+
+Topic: [YOUR TOPIC]
+
+Sources: [PASTE SOURCE 1] [PASTE SOURCE 2] [PASTE SOURCE 3]
+
+Why it works: The explicit instruction to not summarize is essential. Without it, Claude defaults to writing a book report. The requirement to find contradictions and produce an original conclusion pushes the output from aggregation into actual analysis.
+
+7. The Empathy Rewriter
+
+For translating complex or technical content into language that anyone can understand.
+
+The Prompt:
+
+Rewrite the following technical content for a general audience with no background in this field.
+
+Rules:
+
+Replace every technical term with a plain-language explanation or analogy
+
+Add a concrete real-world example for every abstract concept
+
+Use the structure: simple statement first, then optional deeper explanation
+
+Assume the reader is intelligent but unfamiliar with this domain
+
+Keep the accuracy of the original. Do not dumb it down to the point of being wrong
+
+If a technical term must remain because there is no good substitute, define it in parentheses the first time it appears
+
+Reading level target: a motivated high school junior should understand every sentence
+
+Technical content: [PASTE YOUR TEXT HERE]
+
+Why it works: The instruction to treat the reader as intelligent but unfamiliar prevents Claude from being condescending. The reading level target gives it a concrete benchmark. The accuracy constraint stops it from oversimplifying to the point of being misleading.
+
+8. The Story Overlay
+
+For taking dry, factual, or boring content and making it engaging through narrative structure.
+
+The Prompt:
+
+The following content is factually solid but reads like a textbook. Rewrite it using narrative structure to make it engaging and memorable.
+
+Apply this framework:
+
+- Open with a specific scene, character, or moment that illustrates the core problem
+- Build tension by showing what is at stake if the problem is not solved
+- Introduce the insight or solution as a turning point
+- Show the transformation or result through a concrete example
+- Close with a broader lesson or call to reflection
+
+Additional rules:
+
+- Preserve all factual claims from the original
+- Use vivid, specific details rather than vague generalities
+- Vary sentence length to create rhythm (short punchy sentences after longer ones)
+- Include at least one moment of surprise or counterintuitive insight
+
+Content to rewrite: [PASTE YOUR CONTENT HERE]
+
+Why it works: Humans are wired for stories. This prompt takes information that would otherwise be skimmed or ignored and wraps it in a structure that keeps readers engaged. The instruction to vary sentence length is subtle but makes a massive difference in readability.
+
+9. The Polish Pass
+
+The final editing pass before anything goes live. This is for grammar, flow, and strengthening the bookends.
+
+The Prompt:
+
+Perform a final professional edit on the following piece. This is the last pass before publication.
+
+Check and fix:
+
+- All grammar, spelling, and punctuation errors
+- Inconsistent tone or voice shifts
+- Weak or generic opening. If the first two sentences would not make someone keep reading, rewrite them
+- Weak closing. If the ending just trails off or repeats the introduction, rewrite it to land with impact
+- Any sentences that are unnecessarily complex or could be clearer
+- Repetitive words or phrases (especially within the same paragraph)
+- Awkward transitions between paragraphs
+
+Provide the fully edited version first. Then list the specific changes you made and your reasoning for each significant edit.
+
+Text to polish: [PASTE YOUR TEXT HERE]
+
+Why it works: Most people never audit their opening and closing with fresh eyes. This prompt specifically targets the two highest-leverage parts of any piece. The changelog at the end lets you learn from the edits over time.
+
+10. The Voice Cloner
+
+For when you need Claude to write in your specific voice rather than its default style.
+
+The Prompt:
+
+I am going to give you three samples of my writing. Analyze them deeply before writing anything.
+
+Analyze for:
+
+Average sentence length and variation patterns
+Vocabulary level and any signature phrases or words I tend to use
+How I structure paragraphs (short and punchy vs. long and flowing)
+My tone (formal, casual, sarcastic, earnest, etc.)
+How I use punctuation, especially dashes, semicolons, and parentheses
+How I open and close pieces
+Any distinctive habits or quirks in my writing
+
+After your analysis, provide a brief style profile summarizing my voice. Then write [DESCRIBE WHAT YOU NEED WRITTEN] in my exact style.
+
+Writing Sample 1: [PASTE SAMPLE}
+Writing Sample 2: [PASTE SAMPLE]
+Writing Sample 3: [PASTE SAMPLE]
+
+Why it works: Three samples give Claude enough data to identify patterns without overwhelming it. The explicit analysis step before writing forces it to internalize your style rather than just loosely imitating the surface level. The style profile lets you verify it actually understood your voice before it produces the final output.
+
+How to Stack These Prompts
+
+These prompts are powerful individually, but the real leverage comes from chaining them together. Here is the workflow I use most often:
+
+Start with the 5-Minute First Draft to get your ideas into a structured form. Run the Clarity Surgeon to cut the fat. Then run the Polish Pass for final quality. If you need to distribute the piece, hit it with the Content Remix.
+
+For persuasive work, start with the Argument Builder, then run the Story Overlay to make it more engaging, then the Clarity Surgeon, then the Polish Pass.
+
+For technical writing, start with your raw draft, run the Empathy Rewriter, then the Polish Pass.
+
+The key insight is that no single prompt produces publication-ready work. But the right sequence of 2-3 prompts consistently produces content that is better than what most professionals write from scratch.
+
+Claude at the $20/month Pro tier gives you effectively unlimited use of these prompts. Even on the API at roughly $0.02 per 1000 words, running a full article through three of these prompts costs less than a dollar. Compare that to what you would pay a freelance writer, editor, or content strategist.
+
+This is not about replacing human creativity. It is about removing the friction between having ideas and getting them into publishable form. The thinking is still yours. The structure, polish, and distribution are handled by the system.
+
+Want more great prompting inspiration? Check out all my best prompts for free at Prompt Magic and create your own prompt library to keep track of all your prompts.
+
+

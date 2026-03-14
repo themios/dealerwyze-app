@@ -62,7 +62,11 @@ const PRESETS = [
 
 function buildRange(days: number): { from: string; to: string } {
   const to = new Date()
-  if (days === -1) return { from: '2020-01-01T00:00:00.000Z', to: to.toISOString() }
+  // "All" = last 12 months (server caps analytics range to 365 days)
+  if (days === -1) {
+    const from = new Date(Date.now() - 365 * 86400000)
+    return { from: from.toISOString(), to: to.toISOString() }
+  }
   if (days === 0) {
     const from = new Date()
     from.setHours(0, 0, 0, 0)

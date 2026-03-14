@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import TopBar from '@/components/layout/TopBar'
-import { Plus, DollarSign, Users, CheckCircle2, Clock, Loader2, X, Pencil, Check, ToggleLeft, ToggleRight, UserPlus, ArrowRightLeft } from 'lucide-react'
+import Link from 'next/link'
+import { Plus, DollarSign, Users, CheckCircle2, Clock, Loader2, X, Pencil, Check, ToggleLeft, ToggleRight, UserPlus, ArrowRightLeft, ChevronRight } from 'lucide-react'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -323,6 +324,13 @@ function CodesTab() {
                     >
                       <Pencil className="w-4 h-4" />
                     </button>
+                    <Link
+                      href={`/admin/affiliates/${c.code}`}
+                      className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
+                      title="View affiliate details — dealers, portal account, commissions"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </Link>
                   </div>
                 </div>
                 <div className="mt-3 pt-3 border-t">

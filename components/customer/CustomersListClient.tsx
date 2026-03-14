@@ -7,10 +7,11 @@ import { Customer } from '@/types'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Phone, CheckSquare, Square, X, UserCheck, Archive, ArrowUpDown } from 'lucide-react'
+import { Phone, CheckSquare, Square, X, UserCheck, Archive, ArrowUpDown, Paperclip } from 'lucide-react'
 import { formatPhone, leadAgeBadge, lastContactBadge } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { LEAD_STATE_CONFIG } from '@/lib/leads/states'
+import CustomerQuickUploadSheet from './CustomerQuickUploadSheet'
 
 const SOURCE_LABELS: Record<string, string> = {
   cargurus: 'CarGurus', cargurus_digest: 'CG Digest',
@@ -106,6 +107,7 @@ export default function CustomersListClient({ customers: initial, isAdmin, agent
   const [isPending, startTransition] = useTransition()
   const [archiveConfirm, setArchiveConfirm] = useState<string | null>(null)
   const [archiveReason, setArchiveReason] = useState('')
+  const [uploadCustomerId, setUploadCustomerId] = useState<string | null>(null)
   const router = useRouter()
 
   const agentMap = useMemo(
@@ -316,6 +318,13 @@ export default function CustomersListClient({ customers: initial, isAdmin, agent
                       <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${contactBadge.cls}`}>{contactBadge.label}</span>
                     </div>
                   </Link>
+                  <button
+                    onClick={e => { e.stopPropagation(); setUploadCustomerId(customer.id) }}
+                    className="text-muted-foreground hover:text-primary p-2 flex-shrink-0"
+                    title="Attach document"
+                  >
+                    <Paperclip className="h-3.5 w-3.5" />
+                  </button>
                   {!showArchived && (
                     archiveConfirm === customer.id ? (
                       <div className="flex items-center gap-1 pr-2 flex-shrink-0">
@@ -343,6 +352,13 @@ export default function CustomersListClient({ customers: initial, isAdmin, agent
             })}
           </div>
 
+          <CustomerQuickUploadSheet
+            customerId={uploadCustomerId ?? ''}
+            customerName={customers.find(c => c.id === uploadCustomerId)?.name ?? ''}
+            open={uploadCustomerId !== null}
+            onClose={() => setUploadCustomerId(null)}
+          />
+
           {/* ── Desktop table view ───────────────────────────────────── */}
           <div className="hidden lg:block px-6 pb-6">
             <table className="w-full text-sm border-collapse">
@@ -364,6 +380,7 @@ export default function CustomersListClient({ customers: initial, isAdmin, agent
                     </button>
                   </th>
                   <th className="py-2 text-left">Resp. Time</th>
+                  <th className="w-8 py-2" />
                   {!showArchived && <th className="w-8 py-2" />}
                 </tr>
               </thead>
@@ -411,6 +428,15 @@ export default function CustomersListClient({ customers: initial, isAdmin, agent
                         {timeAgo(lastActivityMap[customer.id])}
                       </td>
                       <td className={`py-2.5 pr-4 tabular-nums font-medium ${resp.cls}`}>{resp.text}</td>
+                      <td className="py-2.5" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={() => setUploadCustomerId(customer.id)}
+                          className="text-muted-foreground hover:text-primary p-1"
+                          title="Attach document"
+                        >
+                          <Paperclip className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
                       {!showArchived && (
                         <td className="py-2.5" onClick={e => e.stopPropagation()}>
                           {archiveConfirm === customer.id ? (

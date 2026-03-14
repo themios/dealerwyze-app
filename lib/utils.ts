@@ -44,6 +44,13 @@ export function formatRelativeTime(date: string | Date): string {
   return formatDate(date)
 }
 
+export function tomorrow8am(): Date {
+  const d = new Date()
+  d.setDate(d.getDate() + 1)
+  d.setHours(8, 0, 0, 0)
+  return d
+}
+
 export function tomorrow9am(): Date {
   const d = new Date()
   d.setDate(d.getDate() + 1)
@@ -68,6 +75,11 @@ export function prefixWithAuthorName(displayName: string | null | undefined, bod
 
 function daysSince(iso: string): number {
   return Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)
+}
+
+/** Returns true if a lead has been sitting unworked for 15+ days */
+export function leadIsStale(createdAt: string): boolean {
+  return daysSince(createdAt) >= 15
 }
 
 /** Color-coded badge for lead age (how long since created_at) */

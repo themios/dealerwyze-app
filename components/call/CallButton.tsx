@@ -11,9 +11,10 @@ interface CallButtonProps {
   customerName: string
   phone: string
   className?: string
+  labelClassName?: string
 }
 
-export default function CallButton({ customerId, customerName, phone, className }: CallButtonProps) {
+export default function CallButton({ customerId, customerName, phone, className, labelClassName }: CallButtonProps) {
   const supabase = createClient()
 
   async function handleCall() {
@@ -55,10 +56,11 @@ export default function CallButton({ customerId, customerName, phone, className 
     <Button
       onClick={handleCall}
       size="lg"
+      title="Call"
       className={className}
     >
-      <Phone className="h-4 w-4 mr-2" />
-      Call
+      <Phone className={`h-4 w-4 ${labelClassName === 'lg:hidden' ? 'mr-2 lg:mr-0' : 'mr-2'}`} />
+      <span className={labelClassName}>Call</span>
     </Button>
   )
 }

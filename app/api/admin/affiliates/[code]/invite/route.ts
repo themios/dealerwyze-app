@@ -9,15 +9,80 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { requirePlatformSuperAdmin } from '@/lib/auth/platform'
+import { requirePlatformArea } from '@/lib/auth/platform'
 import { createServiceClient } from '@/lib/supabase/service'
+import { sendNotificationEmail } from '@/lib/email/notify'
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://dealerwyze.com'
+
+function buildWelcomeEmail(params: {
+  display_name: string
+  email: string
+  code: string
+  commission_first_pct: number
+  commission_recurring_pct: number
+  type: string
+  passwordProvided: boolean
+}): { subject: string; html: string } {
+  const { display_name, email, code, commission_first_pct, commission_recurring_pct, type, passwordProvided } = params
+  const portalUrl   = `${APP_URL}/sales`
+  const signupUrl   = `${APP_URL}/signup?ref=${code}`
+  const recurringRow = type === 'advisor' && commission_recurring_pct > 0
+    ? `<li><strong>${commission_recurring_pct}%</strong> of their monthly subscription every month they stay active</li>`
+    : ''
+  const loginHint = passwordProvided
+    ? `<p>Log in at <a href="${portalUrl}">${portalUrl}</a> using <strong>${email}</strong> and the password you were given.</p>`
+    : `<p>Check your inbox for a separate setup email to create your password, then log in at <a href="${portalUrl}">${portalUrl}</a>.</p>`
+
+  const html = `
+<div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#1a1a2e">
+  <div style="background:#0D2B55;padding:24px 32px;border-radius:12px 12px 0 0">
+    <h1 style="color:#fff;margin:0;font-size:22px">Welcome to DealerWyze, ${display_name}!</h1>
+  </div>
+  <div style="border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;padding:28px 32px;background:#fff">
+    <p>Your sales rep account is ready. Here's everything you need to get started.</p>
+
+    <h2 style="font-size:16px;margin-top:24px">Your Sales Portal</h2>
+    ${loginHint}
+    <p>From the portal you can:</p>
+    <ul>
+      <li>See all the dealerships you've signed up</li>
+      <li>Track your commissions and payout status</li>
+      <li>Archive leads you're no longer working with</li>
+    </ul>
+
+    <h2 style="font-size:16px;margin-top:24px">Your Commission Schedule</h2>
+    <ul>
+      <li><strong>${commission_first_pct}%</strong> of the first month's subscription when a dealer you referred subscribes</li>
+      ${recurringRow}
+    </ul>
+    <p style="font-size:13px;color:#6b7280">Minimum payout is $25. We'll reach out when your balance is ready.</p>
+
+    <h2 style="font-size:16px;margin-top:24px">Your Referral Link</h2>
+    <p>Share this link with car dealers — you'll automatically get credit when they sign up:</p>
+    <div style="background:#f3f4f6;border-radius:8px;padding:12px 16px;font-family:monospace;font-size:14px;word-break:break-all">
+      ${signupUrl}
+    </div>
+    <p style="font-size:13px;color:#6b7280;margin-top:8px">
+      DealerWyze plans start at $150/month (CRM) and $350/month (CRM + Voice AI).
+    </p>
+
+    <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0"/>
+    <p style="font-size:13px;color:#6b7280">
+      Questions? Email us at <a href="mailto:support@dealerwyze.com" style="color:#0D2B55">support@dealerwyze.com</a>
+    </p>
+  </div>
+</div>`
+
+  return { subject: `Welcome to DealerWyze — your sales portal is ready`, html }
+}
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ code: string }> }
 ) {
   const profile = await requireProfile()
-  const denied  = await requirePlatformSuperAdmin(profile.id)
+  const denied  = await requirePlatformArea(profile.id, 'affiliates')
   if (denied) return denied
 
   const { code } = await params
@@ -30,10 +95,10 @@ export async function POST(
 
   const service = createServiceClient()
 
-  // Verify affiliate code exists
+  // Verify affiliate code exists (fetch commission rates too for welcome email)
   const { data: aff } = await service
     .from('affiliate_codes')
-    .select('code, owner_name')
+    .select('code, owner_name, commission_first_pct, commission_recurring_pct, type')
     .eq('code', code)
     .single()
 
@@ -93,7 +158,7 @@ export async function POST(
     // Send invite email
     const { data: invited, error: inviteErr } = await service.auth.admin.inviteUserByEmail(email, {
       data: { display_name, platform_role: 'channel_rep', affiliate_code: code },
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://dealerwyze.com'}/sales`,
+      redirectTo: `${APP_URL}/sales`,
     })
     if (inviteErr || !invited.user) {
       return NextResponse.json({ error: inviteErr?.message ?? 'Failed to send invite' }, { status: 500 })
@@ -109,6 +174,20 @@ export async function POST(
       platform_role:  'channel_rep',
       affiliate_code: code,
     }, { onConflict: 'id' })
+  }
+
+  // Send welcome email (non-fatal) — skip for invite flow since Supabase sends its own email
+  if (password || existingUser) {
+    const { subject, html } = buildWelcomeEmail({
+      display_name,
+      email,
+      code,
+      commission_first_pct:     aff.commission_first_pct,
+      commission_recurring_pct: aff.commission_recurring_pct,
+      type:                     aff.type,
+      passwordProvided:         !!password,
+    })
+    await sendNotificationEmail({ to: email, subject, html })
   }
 
   return NextResponse.json({

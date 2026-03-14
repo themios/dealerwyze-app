@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Activity } from '@/types'
-import { formatRelativeTime } from '@/lib/utils'
+import { formatRelativeWithTime } from '@/lib/utils/relativeTime'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
@@ -122,8 +122,8 @@ export default function ActivityTimeline({ activities, currentUserId, isAdmin, o
                         <Pencil className="h-3 w-3" />
                       </Button>
                     )}
-                    <span className="text-xs text-muted-foreground ml-auto" suppressHydrationWarning>
-                      {formatRelativeTime(activity.created_at)}
+                    <span className="text-xs text-muted-foreground ml-auto" suppressHydrationWarning title={new Date(activity.created_at).toLocaleString()}>
+                      {formatRelativeWithTime(activity.created_at)}
                     </span>
                   </div>
                   {activity.body && (

@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { ChevronRight, ExternalLink } from 'lucide-react'
 import DateTimePicker15 from '@/components/ui/DateTimePicker15'
 
 export interface Task {
@@ -123,6 +124,7 @@ interface DetailSheetProps {
 }
 
 function DetailSheet({ task, onClose, onComplete, onSnooze, onUpdate, onDelete }: DetailSheetProps) {
+  const router = useRouter()
   const [notes, setNotes] = useState(task.notes ?? '')
   const [dueAt, setDueAt] = useState(
     task.due_at ? new Date(task.due_at).toISOString().slice(0, 16) : ''
@@ -206,11 +208,27 @@ function DetailSheet({ task, onClose, onComplete, onSnooze, onUpdate, onDelete }
     const vendor = task.receipts.vendor_norm ?? task.receipts.vendor_raw
     entityCard = (
       <div className="rounded-lg border bg-muted/40 px-3 py-2 text-sm">
-        <div className="text-xs text-muted-foreground mb-0.5">Receipt</div>
-        <div className="font-medium">{vendor ?? 'Unknown vendor'}</div>
-        {task.receipts.total != null && (
-          <div className="text-xs text-muted-foreground">${task.receipts.total.toFixed(2)}</div>
-        )}
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <div className="text-xs text-muted-foreground mb-0.5">Receipt</div>
+            <div className="font-medium">{vendor ?? 'Unknown vendor'}</div>
+            {task.receipts.total != null && (
+              <div className="text-xs text-muted-foreground">${task.receipts.total.toFixed(2)}</div>
+            )}
+          </div>
+          {task.linked_receipt_id && (
+            <button
+              onClick={() => {
+                onClose()
+                router.push(`/receipts/${task.linked_receipt_id}/review`)
+              }}
+              className="flex items-center gap-1 text-xs text-primary font-medium hover:underline shrink-0"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Open
+            </button>
+          )}
+        </div>
       </div>
     )
   } else if (task.customers) {
@@ -482,7 +500,7 @@ export default function TodoItem({ task, onComplete, onSnooze, onUpdate }: Props
 
         {/* Row */}
         <div
-          className={`relative flex items-center gap-3 px-4 py-3 cursor-pointer select-none transition-colors ${flashClass || 'bg-card'}`}
+          className={`relative flex items-center gap-3 px-4 py-2.5 cursor-pointer select-none transition-colors ${flashClass || 'bg-card'}`}
           style={{
             transform: `translateX(${translateX}px)`,
             transition: isSwiping ? 'none' : 'transform 0.25s ease, background-color 0.35s ease',
@@ -503,11 +521,27 @@ export default function TodoItem({ task, onComplete, onSnooze, onUpdate }: Props
 
           {/* Content */}
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium truncate">{displayTitle(task.title)}</div>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <EntityPill task={task} />
+            {/* Line 1: customer name, or fallback to task title */}
+            <div className="text-xs font-medium truncate leading-tight">
+              {task.customers?.name ?? (
+                task.vehicles
+                  ? `${task.vehicles.year} ${task.vehicles.make} ${task.vehicles.model}`
+                  : displayTitle(task.title)
+              )}
+            </div>
+            {/* Line 2: vehicle, receipt, or remaining title info */}
+            <div className="text-[10px] text-muted-foreground truncate mt-0.5 leading-tight flex items-center gap-1">
+              {task.vehicles && (
+                <span>{task.vehicles.year} {task.vehicles.make} {task.vehicles.model}</span>
+              )}
+              {!task.vehicles && task.receipts && (
+                <span>{task.receipts.vendor_norm ?? task.receipts.vendor_raw ?? 'Receipt'}</span>
+              )}
+              {!task.vehicles && !task.receipts && task.customers && (
+                <span>{displayTitle(task.title).split(' · ').slice(1).join(' · ') || task.task_type.replace('_', ' ')}</span>
+              )}
               {task.assigned_to_name && (
-                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary/15 text-primary text-[9px] font-bold shrink-0" title={task.assigned_to_name}>
+                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary/15 text-primary text-[8px] font-bold shrink-0 ml-auto" title={task.assigned_to_name}>
                   {task.assigned_to_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                 </span>
               )}

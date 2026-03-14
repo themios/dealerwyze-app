@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClientForRequest } from '@/lib/supabase/forRequest'
 import { requireProfile } from '@/lib/auth/profile'
 import Link from 'next/link'
 import TopBar from '@/components/layout/TopBar'
@@ -8,8 +8,11 @@ import VehicleCard from '@/components/vehicle/VehicleCard'
 import VehicleFilterChips from './VehicleFilterChips'
 import SyncInventoryButton from '@/components/vehicle/SyncInventoryButton'
 import SyncRemovedSection from '@/components/vehicle/SyncRemovedSection'
+import VehicleIntakeButton from '@/components/vehicle/VehicleIntakeButton'
+import RunMarketIntelligenceButton from '@/components/vehicle/RunMarketIntelligenceButton'
 import { Button } from '@/components/ui/button'
-import { Plus } from 'lucide-react'
+import { Car } from 'lucide-react'
+import EmptyState from '@/components/ui/EmptyState'
 
 interface PageProps {
   searchParams: Promise<{ status?: string; sort?: string }>
@@ -18,9 +21,9 @@ interface PageProps {
 export default async function VehiclesPage({ searchParams }: PageProps) {
   const { status, sort } = await searchParams
   const profile = await requireProfile()
-  const supabase = await createClient()
+  const supabase = await createClientForRequest()
 
-  const validStatus = ['available', 'pending', 'sold'].includes(status ?? '') ? status : undefined
+  const validStatus = ['available', 'pending', 'sold', 'staging'].includes(status ?? '') ? status : undefined
 
   let vehicleQuery = supabase
     .from('vehicles')
@@ -30,8 +33,8 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
   if (validStatus) {
     vehicleQuery = vehicleQuery.eq('status', validStatus)
   } else {
-    // "All" tab shows only active inventory — exclude sold and sync_removed from the main list
-    vehicleQuery = vehicleQuery.neq('status', 'sold').neq('status', 'sync_removed')
+    // "All" tab shows active inventory — exclude sold, sync_removed, and staging (staging has its own tab)
+    vehicleQuery = vehicleQuery.neq('status', 'sold').neq('status', 'sync_removed').neq('status', 'staging')
   }
 
   if (sort === 'price_asc') vehicleQuery = vehicleQuery.order('price', { ascending: true })
@@ -51,13 +54,14 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
       .order('sync_removed_at', { ascending: false }),
   ])
 
-  const counts = { all: 0, available: 0, pending: 0, sold: 0 }
+  const counts = { all: 0, available: 0, pending: 0, sold: 0, staging: 0 }
   allVehicles?.forEach(v => {
     const s = v.status as string
-    if (s === 'available' || s === 'pending' || s === 'sold') {
-      counts[s] = (counts[s] || 0) + 1
+    if (s === 'available' || s === 'pending' || s === 'sold' || s === 'staging') {
+      counts[s as keyof typeof counts] = (counts[s as keyof typeof counts] || 0) + 1
     }
-    if (s !== 'sold' && s !== 'sync_removed') counts.all++  // active inventory only
+    // "All" count: active inventory only — exclude sold, sync_removed, and staging
+    if (s !== 'sold' && s !== 'sync_removed' && s !== 'staging') counts.all++
   })
 
   return (
@@ -66,12 +70,9 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
         title="Inventory"
         right={
           <div className="flex items-center gap-1">
+            {profile.role === 'admin' && <RunMarketIntelligenceButton />}
             <SyncInventoryButton />
-            <Link href="/vehicles/new" title="Add vehicle">
-              <Button size="sm" variant="ghost" title="Add vehicle">
-                <Plus className="h-5 w-5" />
-              </Button>
-            </Link>
+            <VehicleIntakeButton />
           </div>
         }
       />
@@ -82,17 +83,12 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
 
       <div className="divide-y divide-border bg-card border rounded-xl mx-3 my-2 overflow-hidden">
         {!vehicles || vehicles.length === 0 ? (
-          <div className="text-center py-16 text-muted-foreground">
-            <p className="text-4xl mb-3">🚗</p>
-            <p className="font-medium">
-              {validStatus ? `No ${validStatus} vehicles` : 'No vehicles yet'}
-            </p>
-            {!validStatus && (
-              <Link href="/vehicles/new">
-                <Button className="mt-4">Add First Vehicle</Button>
-              </Link>
-            )}
-          </div>
+          <EmptyState
+            icon={Car}
+            title={validStatus ? `No ${validStatus} vehicles` : 'No vehicles yet'}
+            description={!validStatus ? 'Add your first vehicle to get started' : undefined}
+            action={!validStatus ? { label: 'Add First Vehicle', href: '/vehicles/new' } : undefined}
+          />
         ) : (
           vehicles.map(vehicle => (
             <VehicleCard key={vehicle.id} vehicle={vehicle} />

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { requireProfile } from '@/lib/auth/profile'
+import { getOrgStorageQuota } from '@/lib/storage/quota'
 import { summarizeVehicleDoc } from '@/lib/voice/summarizeVehicleDoc'
 import { VehicleDocument } from '@/types'
 
@@ -110,10 +111,10 @@ export async function POST(
       .select('file_size')
       .eq('user_id', profile.org_id)
     const usedBytes = (usage ?? []).reduce((sum, d) => sum + (d.file_size ?? 0), 0)
-    const CAP_BYTES = 500 * 1024 * 1024
-    if (usedBytes + file.size > CAP_BYTES) {
+    const quotaBytes = await getOrgStorageQuota(supabase, profile.org_id)
+    if (usedBytes + file.size > quotaBytes) {
       return NextResponse.json(
-        { error: 'Storage limit reached (500 MB). Delete unused documents to free space.' },
+        { error: 'Storage limit reached. Delete unused documents or upgrade your storage plan in Settings.' },
         { status: 413 }
       )
     }

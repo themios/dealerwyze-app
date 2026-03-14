@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Customer, Vehicle, Template } from '@/types'
-import { fillTemplate, prefixWithAuthorName } from '@/lib/utils'
+import { fillTemplate } from '@/lib/utils'
 import { useOrgSettings } from '@/hooks/useOrgSettings'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
@@ -14,9 +14,10 @@ import { Mail } from 'lucide-react'
 interface EmailButtonProps {
   customer: Customer
   vehicle?: Vehicle
+  onSent?: () => void
 }
 
-export default function EmailButton({ customer, vehicle }: EmailButtonProps) {
+export default function EmailButton({ customer, vehicle, onSent }: EmailButtonProps) {
   const [open, setOpen] = useState(false)
   const [templates, setTemplates] = useState<Template[]>([])
   const [loadingTemplates, setLoadingTemplates] = useState(false)
@@ -24,7 +25,9 @@ export default function EmailButton({ customer, vehicle }: EmailButtonProps) {
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [displayName, setDisplayName] = useState<string | null>(null)
-  const supabase = createClient()
+  const [sending, setSending]         = useState(false)
+  const [sendError, setSendError]     = useState<string | null>(null)
+  const supabase    = createClient()
   const orgSettings = useOrgSettings()
 
   useEffect(() => {
@@ -84,21 +87,27 @@ export default function EmailButton({ customer, vehicle }: EmailButtonProps) {
   }
 
   async function handleSend() {
-    const fullBody = `Subject: ${subject}\n\n${body}`
-    const bodyWithAuthor = prefixWithAuthorName(displayName, fullBody)
-    await supabase.from('activities').insert({
-      type: 'email',
-      direction: 'outbound',
-      customer_id: customer.id,
-      vehicle_id: vehicle?.id ?? null,
-      body: bodyWithAuthor,
-      completed_at: new Date().toISOString(),
-      priority: 'normal',
+    setSending(true)
+    setSendError(null)
+    const res = await fetch('/api/email/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_id: customer.id,
+        subject,
+        emailBody: body,
+        vehicle_id: vehicle?.id ?? null,
+      }),
     })
-    const mailto = `mailto:${customer.email || ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
-    window.location.href = mailto
+    setSending(false)
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      setSendError(data.error ?? 'Something went wrong. Please try again.')
+      return
+    }
     setOpen(false)
     setSelected(null)
+    onSent?.()
   }
 
   return (
@@ -150,8 +159,11 @@ export default function EmailButton({ customer, vehicle }: EmailButtonProps) {
                 rows={10}
                 className="resize-none text-sm"
               />
-              <Button className="w-full h-11" onClick={handleSend}>
-                Open in Gmail
+              {sendError && (
+                <p className="text-sm text-destructive">{sendError}</p>
+              )}
+              <Button className="w-full h-11" onClick={handleSend} disabled={sending}>
+                {sending ? 'Sending…' : 'Send Email'}
               </Button>
             </div>
           )}

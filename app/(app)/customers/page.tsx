@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClientForRequest } from '@/lib/supabase/forRequest'
 import { createServiceClient } from '@/lib/supabase/service'
 import { requireProfile } from '@/lib/auth/profile'
 import Link from 'next/link'
@@ -11,7 +11,8 @@ import ImportLeadsDialog from '@/components/leads/ImportLeadsDialog'
 import ScanLeadButton from '@/components/leads/ScanLeadButton'
 import PipelineBoard from '@/app/(app)/pipeline/PipelineBoard'
 import { Button } from '@/components/ui/button'
-import { Plus, List, GitBranch } from 'lucide-react'
+import { Plus, List, GitBranch, UserX, Archive } from 'lucide-react'
+import EmptyState from '@/components/ui/EmptyState'
 import { isDealerAdmin, hasFullOrgAccess } from '@/types/index'
 import { isRepRestricted, canManageUsers } from '@/lib/auth/dealerRoles'
 
@@ -21,7 +22,7 @@ export default async function CustomersPage({
   searchParams: Promise<{ archived?: string; view?: string }>
 }) {
   const profile = await requireProfile()
-  const supabase = await createClient()
+  const supabase = await createClientForRequest()
   const isAdmin = isDealerAdmin(profile.role)
   const isRep = isRepRestricted(profile.role)
 
@@ -128,21 +129,18 @@ export default async function CustomersPage({
         <PipelineBoard customers={customers ?? []} />
       ) : !customers || customers.length === 0 ? (
         showArchived ? (
-          <div className="text-center py-16 text-muted-foreground">
-            <p className="text-4xl mb-3">🗄️</p>
-            <p className="font-medium">No archived customers</p>
-            <Link href="/customers">
-              <Button className="mt-4" variant="outline">Back to Active</Button>
-            </Link>
-          </div>
+          <EmptyState
+            icon={Archive}
+            title="No archived customers"
+            action={{ label: 'Back to Active', href: '/customers' }}
+          />
         ) : (
-          <div className="text-center py-16 text-muted-foreground">
-            <p className="text-4xl mb-3">👤</p>
-            <p className="font-medium">No leads yet</p>
-            <Link href="/customers/new">
-              <Button className="mt-4">Add First Lead</Button>
-            </Link>
-          </div>
+          <EmptyState
+            icon={UserX}
+            title="No leads yet"
+            description="Add your first lead to get started"
+            action={{ label: 'Add First Lead', href: '/customers/new' }}
+          />
         )
       ) : (
         <CustomersListClient

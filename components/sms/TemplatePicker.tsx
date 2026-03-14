@@ -182,18 +182,18 @@ export default function TemplatePicker({ customer, vehicle }: TemplatePickerProp
 
   if (customer.sms_opt_out) {
     return (
-      <Button variant="outline" size="lg" disabled className="border-muted text-muted-foreground opacity-60 cursor-not-allowed" title="This customer asked to stop texts. You can't send SMS to this number.">
-        <MessageSquareOff className="h-4 w-4 mr-2" />
-        SMS Off
+      <Button variant="outline" size="lg" disabled className="border-muted text-muted-foreground opacity-60 cursor-not-allowed lg:px-3" title="This customer opted out of texts">
+        <MessageSquareOff className="h-4 w-4 mr-2 lg:mr-0" />
+        <span className="lg:hidden">SMS Off</span>
       </Button>
     )
   }
 
   return (
     <>
-      <Button variant="outline" size="lg" className="border-[#F07018] text-[#F07018] hover:bg-[#F07018]/10" onClick={openSheet}>
-        <MessageSquare className="h-4 w-4 mr-2" />
-        Text
+      <Button variant="outline" size="lg" className="border-[#F07018] text-[#F07018] hover:bg-[#F07018]/10 lg:px-3" onClick={openSheet} title="Text">
+        <MessageSquare className="h-4 w-4 mr-2 lg:mr-0" />
+        <span className="lg:hidden">Text</span>
       </Button>
 
       <Sheet open={open} onOpenChange={o => { if (!o) resetAndClose() }}>

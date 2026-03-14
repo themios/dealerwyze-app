@@ -613,49 +613,217 @@ function StepTeam({ onNext, onSkip }: { onNext: () => void; onSkip: () => void }
   )
 }
 
-// ── Step 5: Complete ──────────────────────────────────────────────────────────
-const FEATURES = [
-  { icon: <LayoutDashboard className="h-5 w-5 text-primary" />,         title: 'Today Page',           desc: 'See who is waiting for a reply and what needs your attention first thing each morning.', href: '/today' },
-  { icon: <TrendingUp className="h-5 w-5 text-orange-500" />,           title: 'Market Intelligence',  desc: 'Live pricing data for every vehicle. Know if you are priced to sell or leaving money on the table.', href: '/vehicles' },
-  { icon: <MessageSquare className="h-5 w-5 text-green-500" />,         title: 'Lead Management',      desc: 'Every lead from every source in one inbox. Text or email customers without switching apps.', href: '/customers' },
-  { icon: <PhoneCall className="h-5 w-5 text-purple-500" />,            title: 'AI Voice Agent',       desc: 'Set up an AI agent that answers calls after hours and collects lead information for you.', href: '/settings/organization' },
-]
-
 function StepComplete({ businessName, onFinish, finishing }: {
   businessName: string; onFinish: () => void; finishing: boolean
 }) {
   return (
-    <div className="flex-1 px-6 py-6 flex flex-col gap-5">
-      <div className="text-center py-4">
-        <CheckCircle2 className="h-14 w-14 text-green-500 mx-auto mb-3" />
-        <h2 className="text-xl font-bold">You're all set{businessName ? `, ${businessName}` : ''}!</h2>
-        <p className="text-sm text-muted-foreground mt-2">Your dealership is ready. Here's what to explore first.</p>
-      </div>
+    <div className="flex-1 px-4 py-4 sm:px-6 sm:py-6 flex flex-col gap-4">
+      <div className="rounded-xl overflow-hidden border border-border bg-background shadow-sm">
+        <div className="bg-[#0D2B55] px-5 py-4">
+          <p className="text-[11px] font-semibold tracking-[0.18em] text-amber-300 uppercase">
+            DealerWyze
+          </p>
+          <h2 className="mt-2 text-lg sm:text-xl font-bold text-white">
+            You&apos;re in{businessName ? `, ${businessName}` : ''}. Let&apos;s turn more leads into sold deals.
+          </h2>
+          <p className="mt-2 text-xs sm:text-sm text-blue-100 max-w-xl">
+            You&apos;ve just given your dealership a single place for leads, follow-ups, and customer conversations.
+            From here on, every morning starts with a clear list of who needs you — and every deal has a clean trail
+            from first click to sold.
+          </p>
+        </div>
 
-      <div className="space-y-2">
-        {FEATURES.map((f, i) => (
-          <a key={i} href={f.href}
-            className="flex items-start gap-3 p-3 rounded-xl border hover:bg-accent/50 transition-colors group">
-            <div className="mt-0.5 shrink-0">{f.icon}</div>
-            <div>
-              <p className="text-sm font-semibold group-hover:text-primary transition-colors">{f.title}</p>
-              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{f.desc}</p>
+        <div className="px-5 py-4 space-y-4">
+          {/* Triune framing */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3">
+              <p className="text-[11px] font-semibold tracking-[0.16em] text-emerald-700 uppercase mb-1">
+                Confidence &amp; Safety
+              </p>
+              <p className="text-xs text-emerald-900 leading-relaxed">
+                DealerWyze keeps you from missing the leads and follow-ups that silently cost you real money.
+                When it&apos;s in the system, it&apos;s on your radar.
+              </p>
             </div>
-          </a>
-        ))}
+            <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-3">
+              <p className="text-[11px] font-semibold tracking-[0.16em] text-indigo-900 uppercase mb-1">
+                Status &amp; Team
+              </p>
+              <p className="text-xs text-slate-800 leading-relaxed">
+                You&apos;re now running the same follow-up playbook as top-performing stores that treat every
+                opportunity like it matters — and your team sees your work, not just the results.
+              </p>
+            </div>
+            <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-3">
+              <p className="text-[11px] font-semibold tracking-[0.16em] text-amber-800 uppercase mb-1">
+                Clarity &amp; Control
+              </p>
+              <p className="text-xs text-amber-900 leading-relaxed">
+                Every screen is built to answer one thing: &ldquo;What should I do next to move deals forward?&rdquo;
+                Start with the areas below.
+              </p>
+            </div>
+          </div>
+
+          {/* Main feature grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+              <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-900 uppercase">
+                1. Today Page
+              </p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">
+                Start here every morning
+              </p>
+              <p className="mt-1 text-xs text-slate-600 leading-relaxed">
+                See who&apos;s waiting for a reply, what&apos;s overdue, and what&apos;s coming up. Protect every opportunity
+                without digging through inboxes and sticky notes.
+              </p>
+              <ul className="mt-2 text-[11px] text-slate-600 list-disc list-inside space-y-0.5">
+                <li>Clear list of customers who need a call, text, or email</li>
+                <li>Instant view of what&apos;s urgent versus what can wait</li>
+                <li>Daily habit that keeps your pipeline moving</li>
+              </ul>
+              <a href="/today" className="mt-2 inline-flex text-[11px] font-semibold text-[#F07018] hover:underline">
+                Open Today and clear the list &rarr;
+              </a>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+              <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-900 uppercase">
+                2. Lead Inbox
+              </p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">
+                One place for every new opportunity
+              </p>
+              <p className="mt-1 text-xs text-slate-600 leading-relaxed">
+                Leads from CarGurus, AutoTrader, your website, Facebook, and email all land in one queue.
+                Reply by text or email without ever leaving DealerWyze.
+              </p>
+              <ul className="mt-2 text-[11px] text-slate-600 list-disc list-inside space-y-0.5">
+                <li>No more hunting across inboxes and logins</li>
+                <li>Every message is saved to the customer&apos;s timeline</li>
+                <li>Faster responses that win more conversations</li>
+              </ul>
+              <a href="/customers" className="mt-2 inline-flex text-[11px] font-semibold text-[#F07018] hover:underline">
+                Open the Lead Inbox and reply to one new lead &rarr;
+              </a>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+              <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-900 uppercase">
+                3. Inventory &amp; Market Intelligence
+              </p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">
+                Price to win, not guess
+              </p>
+              <p className="mt-1 text-xs text-slate-600 leading-relaxed">
+                See each vehicle with live market context: competition, days on market, and pricing guidance.
+                Spot cars that are invisible or overpriced and fix them before they go stale.
+              </p>
+              <ul className="mt-2 text-[11px] text-slate-600 list-disc list-inside space-y-0.5">
+                <li>Understand which units are underpriced or stuck</li>
+                <li>Make faster price and promotion decisions</li>
+                <li>Turn inventory without sacrificing margin</li>
+              </ul>
+              <a href="/vehicles" className="mt-2 inline-flex text-[11px] font-semibold text-[#F07018] hover:underline">
+                Run Market Intelligence on 3 aging units &rarr;
+              </a>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+              <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-900 uppercase">
+                4. Customer Profiles
+              </p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">
+                Every conversation in one timeline
+              </p>
+              <p className="mt-1 text-xs text-slate-600 leading-relaxed">
+                Calls, texts, emails, notes, and vehicles all live in a single view per customer.
+                Anyone on your team can pick up the conversation without asking, &ldquo;What happened last time?&rdquo;
+              </p>
+              <ul className="mt-2 text-[11px] text-slate-600 list-disc list-inside space-y-0.5">
+                <li>Instant context before every call or message</li>
+                <li>Professional, consistent communication every time</li>
+                <li>Trust-building experience customers can feel</li>
+              </ul>
+              <a href="/customers" className="mt-2 inline-flex text-[11px] font-semibold text-[#F07018] hover:underline">
+                Open an active deal and scan the full timeline &rarr;
+              </a>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+              <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-900 uppercase">
+                5. Automation &amp; Templates
+              </p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">
+                Keep your follow-up tight on autopilot
+              </p>
+              <p className="mt-1 text-xs text-slate-600 leading-relaxed">
+                Save the messages you send every day as simple, human templates. Turn on light automation to bump
+                stale leads and key events without sounding like a robot.
+              </p>
+              <ul className="mt-2 text-[11px] text-slate-600 list-disc list-inside space-y-0.5">
+                <li>More touches with less typing</li>
+                <li>A consistent voice across your whole team</li>
+                <li>Follow-up that feels intentional, not random</li>
+              </ul>
+              <a href="/settings/automation" className="mt-2 inline-flex text-[11px] font-semibold text-[#F07018] hover:underline">
+                Save one of your go-to follow-ups as a template &rarr;
+              </a>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+              <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-900 uppercase">
+                6. Mobile &amp; Voice Assistant
+              </p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">
+                Run the store from anywhere — even after hours
+              </p>
+              <p className="mt-1 text-xs text-slate-600 leading-relaxed">
+                DealerWyze is built to be mobile-friendly so you can check Today, reply to leads,
+                and update notes from the lot, the lane, or your couch.
+              </p>
+              <p className="mt-1 text-xs text-slate-600 leading-relaxed">
+                When you&apos;re ready, turn on the <span className="font-semibold text-lime-700">AI Voice Assistant</span>
+                so missed calls after hours become new leads in your inbox by morning.
+              </p>
+              <ul className="mt-2 text-[11px] text-slate-600 list-disc list-inside space-y-0.5">
+                <li>Stay in control of your pipeline from your phone</li>
+                <li>Never let after-hours calls die in voicemail</li>
+                <li>Operate like a bigger store without a bigger payroll</li>
+              </ul>
+              <a href="/settings/organization" className="mt-2 inline-flex text-[11px] font-semibold text-[#F07018] hover:underline">
+                Explore Voice Assistant settings &rarr;
+              </a>
+            </div>
+          </div>
+
+          <div className="pt-3 mt-1 border-t border-slate-200 text-[11px] text-slate-500">
+            <p className="font-semibold text-slate-800">DealerWyze</p>
+            <p className="mt-0.5">
+              One place for your leads, follow-ups, and customer conversations — so your team can sell more without burning out.
+            </p>
+            <p className="mt-0.5">
+              Make DealerWyze the first tab you open every morning and the last one you close at night. The heavier you use it,
+              the more it will grow your store.
+            </p>
+          </div>
+        </div>
       </div>
 
-      <div className="bg-muted/40 rounded-xl p-4 text-center text-sm text-muted-foreground">
-        Questions? Text Tim at{' '}
-        <a href="sms:+18054043873" className="font-semibold text-foreground hover:text-primary">(805) 404-3873</a>
-        {' '}or email{' '}
-        <a href="mailto:support@dealerwyze.com" className="font-semibold text-foreground hover:text-primary">support@dealerwyze.com</a>
-      </div>
+      <div className="pt-2 flex flex-col gap-3">
+        <div className="bg-muted/40 rounded-xl p-3 text-center text-xs sm:text-sm text-muted-foreground">
+          Questions? Text Tim at{' '}
+          <a href="sms:+18054043873" className="font-semibold text-foreground hover:text-primary">(805) 404-3873</a>
+          {' '}or email{' '}
+          <a href="mailto:support@dealerwyze.com" className="font-semibold text-foreground hover:text-primary">support@dealerwyze.com</a>
+        </div>
 
-      <Button className="w-full" size="lg" onClick={onFinish} disabled={finishing}>
-        {finishing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-        Go to My Dashboard
-      </Button>
+        <Button className="w-full" size="lg" onClick={onFinish} disabled={finishing}>
+          {finishing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+          Go to My Dashboard
+        </Button>
+      </div>
     </div>
   )
 }

@@ -6,6 +6,8 @@ import {
 } from '@/lib/tasks/auto'
 import { sendLeadNotification } from '@/lib/push/send'
 import { startCronRun, finishCronRun } from '@/lib/cron/runLogger'
+import { sendNotificationEmail } from '@/lib/email/notify'
+import { buildNudgeEmailHtml, type NudgeItem } from '@/lib/email/onboarding'
 
 export const runtime = 'nodejs'
 export const maxDuration = 55
@@ -404,6 +406,321 @@ export async function GET(req: NextRequest) {
     purgedOrgs++
   }
 
+  // ── Job 10: Onboarding nudge email ─────────────────────────────────────────
+  // Send a follow-up nudge to dealers who signed up 4+ hours ago but haven't
+  // completed onboarding. Identifies exactly what is incomplete and provides
+  // targeted guidance for each item. Sends once per org (deduped via admin_alerts).
+  let onboardingNudges = 0
+
+  const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()
+
+  const { data: pendingOnboarding } = await supabase
+    .from('org_settings')
+    .select('org_id, business_phone, business_address, zip_code, timezone, voice_business_hours_start, voice_business_hours_end')
+    .is('onboarding_completed_at', null)
+
+  for (const row of pendingOnboarding ?? []) {
+    const orgId = row.org_id
+    if (!orgId) continue
+
+    // Check org was created 4+ hours ago and is approved
+    const { data: org } = await supabase
+      .from('organizations')
+      .select('id, name, created_at')
+      .eq('id', orgId)
+      .not('approved_at', 'is', null)
+      .lt('created_at', fourHoursAgo)
+      .maybeSingle()
+
+    if (!org) continue
+
+    // Check if nudge already sent
+    const { data: existing } = await supabase
+      .from('admin_alerts')
+      .select('id')
+      .eq('org_id', orgId)
+      .eq('alert_type', 'onboarding_nudge')
+      .maybeSingle()
+
+    if (existing) continue
+
+    // Get dealer admin profile + email
+    const { data: adminProfile } = await supabase
+      .from('profiles')
+      .select('id, display_name')
+      .eq('org_id', orgId)
+      .eq('role', 'dealer_admin')
+      .maybeSingle()
+
+    if (!adminProfile) continue
+
+    const { data: authUser } = await supabase.auth.admin.getUserById(adminProfile.id)
+    const email = authUser?.user?.email
+    if (!email) continue
+
+    // Check what's actually missing in parallel
+    const [vehicleResult, gmailResult] = await Promise.all([
+      supabase.from('vehicles').select('id', { count: 'exact', head: true }).eq('user_id', orgId),
+      supabase.from('email_accounts').select('id', { count: 'exact', head: true }).eq('org_id', orgId),
+    ])
+
+    const vehicleCount = vehicleResult.count ?? 0
+    const gmailCount   = gmailResult.count ?? 0
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://dealerwyze.com'
+    const incomplete: NudgeItem[] = []
+
+    // Profile fields
+    if (!row.business_phone) {
+      incomplete.push({
+        title:    'Business phone number missing',
+        detail:   'Your phone number appears in texts and on your AI voice agent greeting. Customers calling in may hear a generic response without it.',
+        action:   'Open the setup wizard and enter your main business phone number on the first step.',
+        link:     `${appUrl}/onboarding`,
+        linkText: 'Add Phone Number',
+      })
+    }
+    if (!row.business_address || !row.zip_code) {
+      incomplete.push({
+        title:    'Business address or zip code missing',
+        detail:   'Your zip code is used to pull local market pricing data for your inventory. Without it, price comparisons will use national averages instead of your local market.',
+        action:   'Open the setup wizard and enter your street address and zip code on the first step.',
+        link:     `${appUrl}/onboarding`,
+        linkText: 'Add Address',
+      })
+    }
+    if (!row.voice_business_hours_start || !row.voice_business_hours_end) {
+      incomplete.push({
+        title:    'Business hours not set',
+        detail:   'Your AI voice agent uses your business hours to greet callers correctly - open hours vs. after hours messages are different.',
+        action:   'Open the setup wizard, scroll to Business Hours on the first step, and set your open and close times.',
+        link:     `${appUrl}/onboarding`,
+        linkText: 'Set Business Hours',
+      })
+    }
+
+    // Inventory
+    if (vehicleCount === 0) {
+      incomplete.push({
+        title:    'No vehicles in your inventory',
+        detail:   'Without inventory, DealerWyze cannot run market pricing analysis or let customers inquire about specific vehicles.',
+        action:   'Go to Inventory and add your first vehicle. You only need the VIN - DealerWyze fills in year, make, and model automatically.',
+        link:     `${appUrl}/vehicles/new`,
+        linkText: 'Add First Vehicle',
+      })
+    }
+
+    // Gmail / Lead Inbox
+    if (gmailCount === 0) {
+      incomplete.push({
+        title:    'Lead inbox not connected',
+        detail:   'Without a connected Gmail account, leads from CarGurus, AutoTrader, Cars.com, and direct email will not appear in DealerWyze. You could be missing inquiries right now.',
+        action:   'Go to Settings and connect your Gmail account. It takes about 30 seconds and you can pick any Google account.',
+        link:     `${appUrl}/settings`,
+        linkText: 'Connect Gmail',
+      })
+    }
+
+    void sendNotificationEmail({
+      to:      email,
+      subject: `Action needed: ${incomplete.length} thing${incomplete.length !== 1 ? 's' : ''} left to finish your DealerWyze setup`,
+      html:    buildNudgeEmailHtml(adminProfile.display_name, appUrl, incomplete),
+    })
+
+    // Mark as sent
+    await supabase.from('admin_alerts').insert({
+      org_id:     orgId,
+      alert_type: 'onboarding_nudge',
+      severity:   'info',
+    })
+
+    onboardingNudges++
+  }
+
+  // ── Job 11: Auto-send pending email sequence activities ────────────────────
+  let sequenceSent = 0
+  try {
+    const nowIso = new Date().toISOString()
+
+    // Find all due sequence emails not yet sent
+    const { data: sequenceActivities } = await supabase
+      .from('activities')
+      .select('id, user_id, customer_id, body, sequence_day')
+      .eq('type', 'email')
+      .eq('direction', 'outbound')
+      .is('completed_at', null)
+      .gte('sequence_day', 3)
+      .lte('due_at', nowIso)
+      .limit(100)
+
+    const { sendSequenceEmail } = await import('@/lib/email/sendSequenceEmail')
+
+    for (const act of sequenceActivities ?? []) {
+      // Check if customer has replied since Day 1 was sent — if so, cancel all pending
+      const { data: replies } = await supabase
+        .from('activities')
+        .select('id')
+        .eq('customer_id', act.customer_id)
+        .eq('type', 'email')
+        .eq('direction', 'inbound')
+        .limit(1)
+
+      if (replies && replies.length > 0) {
+        // Customer replied — cancel all pending sequence emails for this customer
+        await supabase
+          .from('activities')
+          .update({ completed_at: nowIso, outcome: 'cancelled' })
+          .eq('customer_id', act.customer_id)
+          .eq('type', 'email')
+          .eq('direction', 'outbound')
+          .is('completed_at', null)
+          .gte('sequence_day', 3)
+        continue
+      }
+
+      // Parse body JSON
+      let parsed: { to?: string; subject?: string; body?: string } = {}
+      try { parsed = JSON.parse(act.body ?? '') } catch { continue }
+      if (!parsed.to || !parsed.subject || !parsed.body) continue
+
+      const result = await sendSequenceEmail({
+        orgId: act.user_id,
+        customerId: act.customer_id,
+        customerEmail: parsed.to,
+        customerName: '',
+        subject: parsed.subject,
+        body: parsed.body,
+        activityId: act.id,
+        sequenceDay: act.sequence_day ?? 0,
+      })
+
+      if (!result.ok && result.error === 'no_account') {
+        // Org has no email account — cancel sequence silently
+        await supabase
+          .from('activities')
+          .update({ completed_at: nowIso, outcome: 'cancelled' })
+          .eq('id', act.id)
+      } else if (result.ok) {
+        sequenceSent++
+      }
+    }
+  } catch (e) {
+    console.error('[check-tasks] Job 11 sequence send error:', e)
+  }
+
+  // ── Job 12: Auto-fire full_auto sequence steps ─────────────────────────────
+  let fullAutoFired = 0
+  try {
+    const nowIso = new Date().toISOString()
+    const { sendSequenceEmail: sendSeqEmail } = await import('@/lib/email/sendSequenceEmail')
+
+    // Fetch due email_followup activities linked to full_auto sequences
+    const { data: dueActivities } = await supabase
+      .from('activities')
+      .select('id, user_id, customer_id, body, customer_sequence_id')
+      .eq('type', 'email_followup')
+      .is('completed_at', null)
+      .lte('due_at', nowIso)
+      .not('customer_sequence_id', 'is', null)
+      .limit(50)
+
+    for (const act of dueActivities ?? []) {
+      if (!act.customer_sequence_id) continue
+
+      // Only fire if the sequence is full_auto and active
+      const { data: enrollment } = await supabase
+        .from('customer_sequences')
+        .select('id, status, org_id, sequence:sequences(auto_mode)')
+        .eq('id', act.customer_sequence_id)
+        .maybeSingle()
+
+      if (!enrollment || enrollment.status !== 'active') continue
+      const seqData = Array.isArray(enrollment.sequence) ? enrollment.sequence[0] : enrollment.sequence
+      if ((seqData as { auto_mode?: string } | null)?.auto_mode !== 'full_auto') continue
+
+      // Check unsubscribe
+      const { data: cust } = await supabase
+        .from('customers')
+        .select('unsubscribe_email, email')
+        .eq('id', act.customer_id)
+        .maybeSingle()
+
+      if (cust?.unsubscribe_email) {
+        await supabase
+          .from('activities')
+          .update({ completed_at: nowIso, outcome: 'unsubscribed' })
+          .eq('id', act.id)
+        continue
+      }
+
+      // Check for inbound reply since enrollment - cancel all pending if replied
+      const { data: reply } = await supabase
+        .from('activities')
+        .select('id')
+        .eq('customer_id', act.customer_id)
+        .eq('direction', 'inbound')
+        .in('type', ['email', 'sms'])
+        .limit(1)
+        .maybeSingle()
+
+      if (reply) {
+        await supabase
+          .from('activities')
+          .update({ completed_at: nowIso, outcome: 'cancelled' })
+          .eq('customer_sequence_id', act.customer_sequence_id)
+          .is('completed_at', null)
+          .in('type', ['email_followup', 'sms_followup'])
+        await supabase
+          .from('customer_sequences')
+          .update({ status: 'cancelled', completed_at: nowIso })
+          .eq('id', act.customer_sequence_id)
+        continue
+      }
+
+      // Parse body
+      let parsed: { to?: string; subject?: string; body?: string; customer_name?: string } = {}
+      try { parsed = JSON.parse(act.body ?? '') } catch { continue }
+      if (!parsed.to || !parsed.subject || !parsed.body) continue
+
+      const result = await sendSeqEmail({
+        orgId: enrollment.org_id,
+        customerId: act.customer_id,
+        customerEmail: parsed.to,
+        customerName: parsed.customer_name ?? '',
+        subject: parsed.subject,
+        body: parsed.body,
+        activityId: act.id,
+        sequenceDay: 0,
+      })
+
+      if (result.ok) {
+        fullAutoFired++
+      } else if (result.error === 'no_account') {
+        await supabase
+          .from('activities')
+          .update({ completed_at: nowIso, outcome: 'cancelled' })
+          .eq('id', act.id)
+      }
+
+      // Check if this was the last pending step
+      const { count: remaining } = await supabase
+        .from('activities')
+        .select('id', { count: 'exact', head: true })
+        .eq('customer_sequence_id', act.customer_sequence_id)
+        .is('completed_at', null)
+        .in('type', ['email_followup', 'sms_followup'])
+
+      if ((remaining ?? 0) === 0) {
+        await supabase
+          .from('customer_sequences')
+          .update({ status: 'completed', completed_at: nowIso })
+          .eq('id', act.customer_sequence_id)
+      }
+    }
+  } catch (e) {
+    console.error('[check-tasks] Job 12 full_auto sequence error:', e)
+  }
+
   await finishCronRun(runId, 'success', (allOrgs ?? []).length)
 
   return NextResponse.json({
@@ -415,5 +732,8 @@ export async function GET(req: NextRequest) {
     response_alerts: responseAlerts,
     admin_alerts: adminAlerts,
     purged_orgs: purgedOrgs,
+    onboarding_nudges: onboardingNudges,
+    sequence_sent: sequenceSent,
+    full_auto_fired: fullAutoFired,
   })
 }

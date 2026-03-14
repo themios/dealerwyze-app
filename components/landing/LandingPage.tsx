@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
+import Script from 'next/script'
 import {
   ListChecks,
   MessageSquare,
@@ -26,6 +27,11 @@ import {
   BookOpen,
   Sparkles,
   Building2,
+  Paperclip,
+  FileImage,
+  Wallet,
+  TrendingUp,
+  ShieldCheck,
 } from 'lucide-react'
 
 // ─── Colours ─────────────────────────────────────────────────────────────────
@@ -47,6 +53,7 @@ function Nav() {
   const navLinks = [
     { label: 'Features', href: '#features' },
     { label: 'Pricing',  href: '#pricing'  },
+    { label: 'Blog',     href: '/blog'     },
   ]
 
   return (
@@ -395,6 +402,8 @@ const aiFeatures = [
     desc: 'Every morning, a one-paragraph summary of your day: new leads, appointments, overdue follow-ups, and what needs to happen first.' },
   { icon: '🧾', title: 'AI Receipt OCR',
     desc: 'Upload a receipt photo. AI extracts vendor, amount, category, and posts it to your ledger — cutting bookkeeping time by half.' },
+  { icon: '📊', title: 'AI Smart Pricing',
+    desc: 'Get live Fast Sale, Fair Market, and Max Return price tiers for any vehicle in your inventory — with market comps, an NHTSA reliability check, and a full AI market analysis. No CarGurus subscription needed.' },
 ]
 
 function AISection() {
@@ -413,7 +422,7 @@ function AISection() {
             Works while you&apos;re on the lot.
           </h2>
           <p className="text-lg max-w-2xl mx-auto" style={{ color: '#6B6355' }}>
-            Four AI systems handle the tedious parts — so you focus on the customer in front of you.
+            Five AI systems handle the tedious parts — so you focus on the customer in front of you.
           </p>
         </div>
         <div className="grid sm:grid-cols-2 gap-5">
@@ -428,6 +437,122 @@ function AISection() {
               </div>
             </div>
           ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─── Smart Pricing ────────────────────────────────────────────────────────────
+
+function SmartPricingSection() {
+  const tiers = [
+    { label: 'Fast Sale',    color: '#22c55e', desc: '60-day target — price to move now' },
+    { label: 'Fair Market',  color: ORANGE,    desc: '90-day target — balanced approach' },
+    { label: 'Max Return',   color: '#3b82f6', desc: '120-day target — hold for top dollar' },
+  ]
+
+  return (
+    <section className="py-20 lg:py-28" style={{ backgroundColor: '#F4F0EA' }}>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+
+          {/* Left — copy */}
+          <div>
+            <div className="inline-flex items-center gap-2 mb-5 px-4 py-2 rounded-full"
+              style={{ backgroundColor: 'rgba(240,112,24,0.1)', border: '1px solid rgba(240,112,24,0.25)' }}>
+              <TrendingUp className="w-4 h-4" style={{ color: ORANGE }} />
+              <span className="text-xs font-black uppercase tracking-widest" style={{ color: ORANGE }}>
+                Smart Pricing Intelligence
+              </span>
+            </div>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black leading-[1.1] mb-5" style={{ color: NAVY }}>
+              Know exactly what to price
+              <br />
+              <span style={{ color: ORANGE }}>every car on your lot.</span>
+            </h2>
+            <p className="text-lg leading-relaxed mb-6" style={{ color: '#6B6355' }}>
+              CarGurus charges $2,000/month for live pricing comps. DealerWyze puts the same
+              intelligence inside your CRM — with three pricing tiers, a market confidence score,
+              and an AI-written market analysis report — for no additional cost.
+            </p>
+            <ul className="space-y-3 mb-8">
+              {[
+                'Live market comps based on comparable vehicles sold nearby',
+                'NHTSA recall check and reliability risk on every vehicle',
+                'AI-generated listing description from market data',
+                'Deal rating badge for your public inventory pages',
+                'Results cached 7 days — one click, instant answer',
+              ].map((item, i) => (
+                <li key={i} className="flex items-start gap-3">
+                  <ShieldCheck className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: ORANGE }} />
+                  <span className="text-sm leading-snug" style={{ color: '#3D3530' }}>{item}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-sm font-semibold" style={{ color: NAVY }}>
+              Price to move in 60 days — or hold for maximum return. The choice is yours.
+            </p>
+          </div>
+
+          {/* Right — pricing card mockup */}
+          <div className="flex justify-center lg:justify-end">
+            <div className="w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl"
+              style={{ backgroundColor: '#fff', border: '1px solid #E8E2D8' }}>
+
+              {/* Card header */}
+              <div className="px-5 py-4 border-b" style={{ borderColor: '#E8E2D8' }}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-black uppercase tracking-widest" style={{ color: NAVY }}>
+                    Market Intelligence
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                    style={{ backgroundColor: '#dcfce7', color: '#15803d' }}>
+                    Strong Market · 47 comps
+                  </span>
+                </div>
+                <p className="text-sm font-semibold" style={{ color: '#6B6355' }}>2019 Toyota Camry SE · 62k mi</p>
+              </div>
+
+              {/* Pricing tiers */}
+              <div className="px-5 py-4 space-y-3">
+                {tiers.map((t, i) => (
+                  <div key={i} className="flex items-center justify-between py-2.5 px-3 rounded-xl"
+                    style={{ backgroundColor: t.color + '12', border: `1px solid ${t.color}33` }}>
+                    <div>
+                      <p className="text-xs font-black" style={{ color: t.color }}>{t.label}</p>
+                      <p className="text-[10px]" style={{ color: '#9C897A' }}>{t.desc}</p>
+                    </div>
+                    <p className="text-lg font-black" style={{ color: t.color }}>
+                      {i === 0 ? '$18,400' : i === 1 ? '$20,200' : '$22,500'}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {/* NHTSA row */}
+              <div className="px-5 py-3 border-t flex items-center justify-between" style={{ borderColor: '#E8E2D8' }}>
+                <span className="text-xs font-semibold" style={{ color: '#6B6355' }}>NHTSA Reliability</span>
+                <span className="text-[11px] font-black px-2 py-0.5 rounded-full"
+                  style={{ backgroundColor: '#dcfce7', color: '#15803d' }}>Low Risk · 0 recalls</span>
+              </div>
+
+              {/* Deal badge row */}
+              <div className="px-5 py-3 border-t flex items-center justify-between" style={{ borderColor: '#E8E2D8' }}>
+                <span className="text-xs font-semibold" style={{ color: '#6B6355' }}>Your list price: $19,995</span>
+                <span className="text-[11px] font-black px-2 py-0.5 rounded-full"
+                  style={{ backgroundColor: '#dbeafe', color: '#1d4ed8' }}>Good Deal</span>
+              </div>
+
+              {/* Footer */}
+              <div className="px-5 py-3 border-t" style={{ borderColor: '#E8E2D8', backgroundColor: '#FAFAFA' }}>
+                <p className="text-[10px] text-center" style={{ color: '#9C897A' }}>
+                  Powered by live market data · Updated daily · Cached 7 days
+                </p>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
     </section>
@@ -580,19 +705,25 @@ const features: { icon: React.ElementType; title: string; desc: string; badge?: 
   { icon: Mail,          title: 'Gmail & IMAP Lead Import',
     desc: 'AutoTrader, CarGurus, and web form leads auto-import from Gmail or any IMAP account. No copy-pasting.' },
   { icon: ScanLine,      title: 'AI Lead Scanner',
-    desc: 'Photograph a walk-in buyer card or PDF. AI extracts contact details and creates the lead in seconds.' },
+    desc: 'Photograph a walk-in buyer card or PDF. AI extracts name, phone, email, and vehicle interest — pre-fills the lead form in seconds.' },
+  { icon: Paperclip,      title: 'Document Attachments',
+    desc: 'Attach photos, PDFs, and docs to vehicles or customer records. Vehicle docs get an AI-generated summary on upload.' },
   { icon: CalendarDays,  title: 'Calendar & Appointments',
     desc: 'Schedule test drives, sync to Google Calendar, and get SMS reminders to customers — one tap.' },
   { icon: Building2,     title: 'Google Business Reviews',
     desc: 'Pull and reply to Google Business Profile reviews from inside the app. Never let a review go unanswered.' },
   { icon: CreditCard,    title: 'BHPH Loan Tracking',
     desc: 'Track in-house loans, payment schedules, and collections. Automated payment reminders via SMS.' },
+  { icon: FileImage,      title: 'Vehicle Documents',
+    desc: 'Store title photos, inspection reports, and repair records with each vehicle. Blocked on sold vehicles to preserve legal records.' },
   { icon: BookOpen,      title: 'Receipts & Ledger',
     desc: 'Upload receipt photos → AI extracts vendor, amount, and category → auto-posted to your ledger. CSV export.' },
   { icon: Printer,       title: 'Fax',
     desc: 'Send and receive faxes from the app. PDFs and images supported. Full history per customer.' },
   { icon: BarChart3,     title: 'Analytics & Reports',
     desc: 'Lead funnel, SMS stats, response time, BHPH collection rate, revenue trends. Full XLSX export.' },
+  { icon: Wallet,         title: 'Prepaid Overage Credit',
+    desc: 'Add credit ($10–$100) to keep texting and calling past your plan limits. Deducts automatically — no surprise bills.' },
   { icon: Search,        title: 'Instant Search',
     desc: 'Find any customer by name, phone, email, VIN, or make/model in under a second. Mid-conversation fast.' },
   { icon: Users,         title: 'Team & Roles',
@@ -604,6 +735,8 @@ const features: { icon: React.ElementType; title: string; desc: string; badge?: 
   { icon: Phone,         title: 'AI Voice Agent',
     desc: 'Retell AI answers calls, qualifies leads, and writes the full transcript to the customer record — even after hours.',
     badge: 'Core + Voice' },
+  { icon: TrendingUp,    title: 'Smart Pricing Intelligence',
+    desc: 'Fast Sale, Fair Market, and Max Return price tiers with live comps, NHTSA reliability check, AI market analysis, and a public deal badge — all in one click.' },
 ]
 
 function FeaturesSection() {
@@ -665,6 +798,8 @@ const freeFeatures = [
   'AI Lead Scanner (photo & PDF)',
   'AI Dealer Brief (daily summary)',
   'AI Receipt OCR & ledger posting',
+  'Smart Pricing Intelligence (Fast/Fair/Max tiers)',
+  'NHTSA recall check on every vehicle',
   'BHPH loan & payment tracking',
   'Receipts, bookkeeping & CSV export',
   'Google Calendar & GBP reviews',
@@ -682,6 +817,8 @@ const crmFeatures = [
   'AI Lead Scanner (photo & PDF)',
   'AI Dealer Brief (daily summary)',
   'AI Receipt OCR & ledger posting',
+  'Smart Pricing Intelligence (Fast/Fair/Max tiers)',
+  'NHTSA recall check on every vehicle',
   'BHPH loan & payment tracking',
   'Receipts, bookkeeping & CSV export',
   'Fax send & receive',
@@ -1013,6 +1150,7 @@ function Footer() {
             {[
               { label: 'Features', href: '#features' },
               { label: 'Pricing',  href: '#pricing'  },
+              { label: 'Blog',     href: '/blog'      },
               { label: 'Terms',    href: '/terms'     },
               { label: 'Privacy',  href: '/privacy'   },
               { label: 'Sign In',  href: '/login'     },
@@ -1039,8 +1177,29 @@ function Footer() {
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
 export default function LandingPage() {
+  const intervoWidgetId =
+    process.env.NEXT_PUBLIC_INTERVO_WIDGET_ID ?? '1708eacc-5d8e-4d85-95ea-9ba6f309989a'
+
   return (
     <>
+      {/* Intervo.ai website widget (temporary test) */}
+      <Script
+        src="https://widget.intervo.ai"
+        id="intervoLoader"
+        data-widget-id={intervoWidgetId}
+        strategy="afterInteractive"
+      />
+      {/* Right-side float override (best-effort; targets Intervo iframe by src). */}
+      <style jsx global>{`
+        iframe[src*="intervo"] {
+          position: fixed !important;
+          right: 16px !important;
+          top: 50% !important;
+          transform: translateY(-50%) !important;
+          z-index: 2147483647 !important;
+        }
+      `}</style>
+
       <Nav />
       <main>
         <HeroSection />
@@ -1048,6 +1207,7 @@ export default function LandingPage() {
         <HowItWorksSection />
         <TodayListSection />
         <AISection />
+        <SmartPricingSection />
         <FounderSection />
         <ReviewsSection />
         <IntegrationsSection />

@@ -7,7 +7,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { requirePlatformSuperAdmin } from '@/lib/auth/platform'
+import { requirePlatformArea } from '@/lib/auth/platform'
 import { createServiceClient } from '@/lib/supabase/service'
 import { MIN_PAYOUT } from '@/lib/stripe/commissions'
 
@@ -16,7 +16,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const profile = await requireProfile()
-  const denied  = await requirePlatformSuperAdmin(profile.id)
+  const denied  = await requirePlatformArea(profile.id, 'commissions')
   if (denied) return denied
 
   const { id: affiliateCode } = await params

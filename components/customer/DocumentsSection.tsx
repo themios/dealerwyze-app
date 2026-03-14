@@ -283,7 +283,7 @@ export default function DocumentsSection({ customerId }: Props) {
                   <div className="flex items-center gap-1.5">
                     <p className="text-sm font-medium leading-tight truncate">{doc.label}</p>
                     {PII_LABELS.has(doc.label) && (
-                      <ShieldAlert className="h-3 w-3 text-amber-500 flex-shrink-0" title="Contains sensitive PII" />
+                      <ShieldAlert className="h-3 w-3 text-amber-500 flex-shrink-0" aria-label="Contains sensitive PII" />
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground truncate">

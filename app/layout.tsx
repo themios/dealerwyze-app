@@ -8,7 +8,8 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'DealerWyze',
-  description: 'The Intelligent Dealer Operating System',
+  description:
+    'DealerWyze — CRM for independent and used car dealers. Lead inbox, texting, inventory, BHPH, and receipts in one place.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,

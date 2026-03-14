@@ -1,6 +1,8 @@
 import type { UserRole } from '@/types/index'
 import { isDealerAdmin } from '@/types/index'
 
+export { isDealerAdmin }
+
 export function canManageUsers(role: UserRole): boolean {
   return isDealerAdmin(role)
 }

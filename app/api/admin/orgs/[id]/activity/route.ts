@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
-import { requirePlatformSuperAdmin } from '@/lib/auth/platform'
+import { requirePlatformArea } from '@/lib/auth/platform'
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const profile = await requireProfile()
-  const denied = await requirePlatformSuperAdmin(profile.id)
+  const denied = await requirePlatformArea(profile.id, 'dealers')
   if (denied) return denied
 
   const { id: orgId } = await params

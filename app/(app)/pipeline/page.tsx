@@ -1,5 +1,5 @@
 import { requireProfile } from '@/lib/auth/profile'
-import { createClient } from '@/lib/supabase/server'
+import { createClientForRequest } from '@/lib/supabase/forRequest'
 import TopBar from '@/components/layout/TopBar'
 import PipelineBoard from './PipelineBoard'
 
@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function PipelinePage() {
   const profile = await requireProfile()
-  const supabase = await createClient()
+  const supabase = await createClientForRequest()
 
   const { data: customers } = await supabase
     .from('customers')

@@ -9,6 +9,7 @@ import DesktopSidebar from '@/components/layout/DesktopSidebar'
 import PushPermission from '@/components/push/PushPermission'
 import PastDueBanner from '@/components/layout/PastDueBanner'
 import ImpersonationBanner from '@/components/admin/ImpersonationBanner'
+import SupportSessionBanner from '@/components/layout/SupportSessionBanner'
 import BetaBanner from '@/components/layout/BetaBanner'
 import FeedbackButton from '@/components/layout/FeedbackButton'
 import { isDealerAdmin } from '@/types/index'
@@ -39,19 +40,24 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     })())
 
   if (!isPlatformUser) {
-    // Gate 1: Onboarding wizard — redirect new dealers if not yet completed
-    const { data: orgSettings } = await supabase
-      .from('org_settings')
-      .select('onboarding_completed_at')
-      .eq('org_id', profile.org_id ?? '')
-      .maybeSingle()
+    const isAdmin = isDealerAdmin(profile.role)
 
-    if (orgSettings && orgSettings.onboarding_completed_at === null && !pathname.startsWith('/onboarding')) {
-      redirect('/onboarding')
+    // Gate 1: Onboarding wizard — only dealer admins are forced through setup.
+    // Staff and sales reps can go straight into the app even if onboarding isn't complete.
+    if (isAdmin) {
+      const { data: orgSettings } = await supabase
+        .from('org_settings')
+        .select('onboarding_completed_at')
+        .eq('org_id', profile.org_id ?? '')
+        .maybeSingle()
+
+      if (orgSettings && orgSettings.onboarding_completed_at === null && !pathname.startsWith('/onboarding')) {
+        redirect('/onboarding')
+      }
     }
 
     // Gate 2: Approval check — dealer admins must be approved before accessing app
-    if (isDealerAdmin(profile.role) && !pathname.startsWith('/pending')) {
+    if (isAdmin && !pathname.startsWith('/pending')) {
       const service = createServiceClient()
       const { data: org } = await service
         .from('organizations')
@@ -109,6 +115,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {impersonationOrgName && (
           <ImpersonationBanner orgName={impersonationOrgName} writeMode={impersonationWriteMode} />
         )}
+        {!isPlatformUser && <SupportSessionBanner />}
         <BetaBanner />
         <PushPermission />
         {/* pb-20 on mobile for BottomNav; no padding needed on desktop */}

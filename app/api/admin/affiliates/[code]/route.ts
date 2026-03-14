@@ -5,7 +5,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { requirePlatformSuperAdmin } from '@/lib/auth/platform'
+import { requirePlatformArea } from '@/lib/auth/platform'
 import { createServiceClient } from '@/lib/supabase/service'
 
 export async function GET(
@@ -13,7 +13,7 @@ export async function GET(
   { params }: { params: Promise<{ code: string }> }
 ) {
   const profile = await requireProfile()
-  const denied  = await requirePlatformSuperAdmin(profile.id)
+  const denied  = await requirePlatformArea(profile.id, 'affiliates')
   if (denied) return denied
 
   const { code } = await params
@@ -29,7 +29,54 @@ export async function GET(
     return NextResponse.json({ error: 'Affiliate code not found' }, { status: 404 })
   }
 
-  return NextResponse.json({ affiliate: data })
+  // Linked portal account (channel_rep profile with this affiliate_code)
+  let rep_profile: { id: string; display_name: string; email?: string; last_sign_in_at?: string } | null = null
+  try {
+    const { data: pRow } = await supabase
+      .from('profiles')
+      .select('id, display_name')
+      .eq('affiliate_code', code)
+      .maybeSingle()
+    if (pRow) {
+      const { data: authUser } = await supabase.auth.admin.getUserById(pRow.id)
+      rep_profile = {
+        id:              pRow.id,
+        display_name:    pRow.display_name,
+        email:           authUser?.user?.email,
+        last_sign_in_at: authUser?.user?.last_sign_in_at ?? undefined,
+      }
+    }
+  } catch { /* migration 055 may be pending */ }
+
+  // Dealers who signed up via this code
+  const { data: dealers } = await supabase
+    .from('organizations')
+    .select('id, name, subscription_status, created_at')
+    .eq('affiliate_code', code)
+    .order('created_at', { ascending: false })
+    .limit(100)
+
+  // Commission summary (graceful — migration 054 may be pending)
+  let commission_summary = { pending_balance: 0, all_time_paid: 0 }
+  try {
+    const { data: ledger } = await supabase
+      .from('commission_ledger')
+      .select('amount, status')
+      .eq('affiliate_code', code)
+    if (ledger) {
+      commission_summary = {
+        pending_balance: ledger.filter(r => r.status === 'pending').reduce((s, r) => s + Number(r.amount), 0),
+        all_time_paid:   ledger.filter(r => r.status === 'paid').reduce((s, r) => s + Number(r.amount), 0),
+      }
+    }
+  } catch { /* graceful */ }
+
+  return NextResponse.json({
+    affiliate: data,
+    rep_profile,
+    dealers: dealers ?? [],
+    commission_summary,
+  })
 }
 
 export async function PATCH(
@@ -37,7 +84,7 @@ export async function PATCH(
   { params }: { params: Promise<{ code: string }> }
 ) {
   const profile = await requireProfile()
-  const denied  = await requirePlatformSuperAdmin(profile.id)
+  const denied  = await requirePlatformArea(profile.id, 'affiliates')
   if (denied) return denied
 
   const { code } = await params
@@ -111,7 +158,7 @@ export async function DELETE(
   { params }: { params: Promise<{ code: string }> }
 ) {
   const profile = await requireProfile()
-  const denied  = await requirePlatformSuperAdmin(profile.id)
+  const denied  = await requirePlatformArea(profile.id, 'affiliates')
   if (denied) return denied
 
   const { code } = await params

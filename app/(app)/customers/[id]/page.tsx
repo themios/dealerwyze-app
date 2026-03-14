@@ -1,5 +1,5 @@
 export const dynamic = 'force-dynamic'
-import { createClient } from '@/lib/supabase/server'
+import { createClientForRequest } from '@/lib/supabase/forRequest'
 import { requireProfile } from '@/lib/auth/profile'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -16,9 +16,9 @@ interface PageProps {
 export default async function CustomerDetailPage({ params }: PageProps) {
   const { id } = await params
   const profile = await requireProfile()
-  const supabase = await createClient()
+  const supabase = await createClientForRequest()
 
-  const [{ data: customer }, { data: activities }, { data: tasks }] = await Promise.all([
+  const [{ data: customer }, { data: activities }, { data: tasks }, { data: cvData }] = await Promise.all([
     supabase.from('customers').select('*').eq('id', id).eq('user_id', profile.org_id).single(),
     supabase.from('activities').select('*, vehicle:vehicles(id, year, make, model)').eq('customer_id', id).order('created_at', { ascending: false }).limit(50),
     supabase.from('tasks')
@@ -27,7 +27,16 @@ export default async function CustomerDetailPage({ params }: PageProps) {
       .eq('status', 'open')
       .order('due_at', { ascending: true, nullsFirst: false })
       .limit(20),
+    supabase.from('customer_vehicles').select('vehicle:vehicles(*)').eq('customer_id', id),
   ])
+
+  // Pick the primary vehicle: prefer non-sold/non-removed, fall back to first
+  const primaryVehicle = (() => {
+    if (!cvData || cvData.length === 0) return null
+    const rows = cvData as unknown as { vehicle: Record<string, unknown> | null }[]
+    const active = rows.find(r => r.vehicle && r.vehicle.status !== 'sold' && r.vehicle.status !== 'sync_removed')
+    return ((active || rows[0])?.vehicle ?? null)
+  })()
 
   if (!customer) notFound()
 
@@ -46,7 +55,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
           </div>
         }
       />
-      <CustomerDetailClient customer={customer} activities={activities || []} isAdmin={isDealerAdmin(profile.role)} currentUserId={profile.id} tasks={tasks || []} />
+      <CustomerDetailClient customer={customer} activities={activities || []} isAdmin={isDealerAdmin(profile.role)} currentUserId={profile.id} tasks={tasks || []} initialVehicle={primaryVehicle} />
     </div>
   )
 }

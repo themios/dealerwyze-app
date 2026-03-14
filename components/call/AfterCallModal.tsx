@@ -98,8 +98,16 @@ export default function AfterCallModal({ open, pendingCall, onDismiss }: AfterCa
     { value: 'left_vm', label: 'Left VM', icon: <Voicemail className="h-4 w-4" /> },
   ]
 
+  function handleOpenChange(nextOpen: boolean) {
+    if (!nextOpen) {
+      resetForm()
+      clearPendingCall()
+      onDismiss()
+    }
+  }
+
   return (
-    <Sheet open={open} onOpenChange={() => {}}>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent side="bottom" className="h-auto max-h-[85vh] overflow-y-auto" onInteractOutside={(e) => e.preventDefault()}>
         <SheetHeader className="mb-4">
           <SheetTitle>How did the call go?</SheetTitle>

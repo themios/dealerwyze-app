@@ -1,17 +1,17 @@
 import { requireProfile } from '@/lib/auth/profile'
-import { createClient } from '@/lib/supabase/server'
+import { createClientForRequest } from '@/lib/supabase/forRequest'
 import TopBar from '@/components/layout/TopBar'
 import AutomationClient from './AutomationClient'
 import TemplatesClient from '../TemplatesClient'
 
 export default async function AutomationSettingsPage() {
   const profile = await requireProfile()
-  const supabase = await createClient()
+  const supabase = await createClientForRequest()
 
   const [{ data: autoSettings }, { data: templates }] = await Promise.all([
     supabase
       .from('org_settings')
-      .select('automation_mode, lead_response_sla_minutes, followup_delay_hours, followup_next_day_hour, email_automation_mode, email_followup_delay_hours, email_followup_next_day_hour')
+      .select('automation_mode, lead_response_sla_minutes, followup_delay_hours, followup_next_day_hour, email_automation_mode, email_followup_delay_hours, email_followup_next_day_hour, email_signature')
       .eq('org_id', profile.org_id)
       .maybeSingle(),
     supabase
@@ -30,6 +30,7 @@ export default async function AutomationSettingsPage() {
     email_automation_mode:        (autoSettings?.email_automation_mode        ?? 'manual') as AutoMode,
     email_followup_delay_hours:   autoSettings?.email_followup_delay_hours   ?? 4,
     email_followup_next_day_hour: autoSettings?.email_followup_next_day_hour ?? 10,
+    email_signature:              autoSettings?.email_signature              ?? '',
   }
 
   return (

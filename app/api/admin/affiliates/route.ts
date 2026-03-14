@@ -5,11 +5,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
-import { requirePlatformSuperAdmin } from '@/lib/auth/platform'
+import { requirePlatformArea } from '@/lib/auth/platform'
 
 export async function GET() {
   const profile = await requireProfile()
-  const denied  = await requirePlatformSuperAdmin(profile.id)
+  const denied  = await requirePlatformArea(profile.id, 'affiliates')
   if (denied) return denied
 
   const supabase = createServiceClient()
@@ -38,7 +38,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const profile = await requireProfile()
-  const denied  = await requirePlatformSuperAdmin(profile.id)
+  const denied  = await requirePlatformArea(profile.id, 'affiliates')
   if (denied) return denied
 
   const body = await req.json()

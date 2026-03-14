@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 const ALLOWED = [
   'automation_mode', 'lead_response_sla_minutes', 'followup_delay_hours', 'followup_next_day_hour',
   'email_automation_mode', 'email_followup_delay_hours', 'email_followup_next_day_hour',
+  'email_signature',
 ] as const
 type AllowedKey = typeof ALLOWED[number]
 
@@ -16,7 +17,7 @@ export async function GET() {
 
   const { data } = await supabase
     .from('org_settings')
-    .select('automation_mode, lead_response_sla_minutes, followup_delay_hours, followup_next_day_hour, email_automation_mode, email_followup_delay_hours, email_followup_next_day_hour')
+    .select('automation_mode, lead_response_sla_minutes, followup_delay_hours, followup_next_day_hour, email_automation_mode, email_followup_delay_hours, email_followup_next_day_hour, email_signature')
     .eq('org_id', profile.org_id)
     .maybeSingle()
 
@@ -28,6 +29,7 @@ export async function GET() {
     email_automation_mode:        data?.email_automation_mode        ?? 'manual',
     email_followup_delay_hours:   data?.email_followup_delay_hours   ?? 4,
     email_followup_next_day_hour: data?.email_followup_next_day_hour ?? 10,
+    email_signature:              data?.email_signature              ?? '',
   })
 }
 
@@ -35,9 +37,9 @@ export async function PATCH(req: NextRequest) {
   const profile = await requireProfile()
   const supabase = await createClient()
 
-  const body = await req.json() as Partial<Record<AllowedKey, string | number>>
+  const body = await req.json() as Partial<Record<AllowedKey, string | number | null>>
 
-  const patch: Record<string, string | number> = {
+  const patch: Record<string, string | number | null> = {
     org_id: profile.org_id,
     updated_at: new Date().toISOString(),
   }
@@ -52,7 +54,9 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid email_automation_mode' }, { status: 400 })
   }
 
-  await supabase.from('org_settings').upsert(patch, { onConflict: 'org_id' })
+  // org_settings RLS blocks INSERT (only UPDATE allowed) — use update(), not upsert()
+  // The org_settings row always exists (created by create_org_on_signup trigger)
+  await supabase.from('org_settings').update(patch).eq('org_id', profile.org_id)
 
   return NextResponse.json({ ok: true })
 }

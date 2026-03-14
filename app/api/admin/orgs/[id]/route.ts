@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
 import { logAdminAction } from '@/lib/admin/audit'
-import { requirePlatformSuperAdmin } from '@/lib/auth/platform'
+import { requirePlatformArea } from '@/lib/auth/platform'
 import { stripe } from '@/lib/stripe'
 
 const SMS_PLANS: Record<string, { quota: number; label: string }> = {
@@ -16,7 +16,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const profile = await requireProfile()
-  const denied = await requirePlatformSuperAdmin(profile.id)
+  const denied = await requirePlatformArea(profile.id, 'dealers')
   if (denied) return denied
 
   const { id: orgId } = await params
@@ -81,7 +81,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const profile = await requireProfile()
-  const denied = await requirePlatformSuperAdmin(profile.id)
+  const denied = await requirePlatformArea(profile.id, 'dealers')
   if (denied) return denied
 
   const { id: orgId } = await params

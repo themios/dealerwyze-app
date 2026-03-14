@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { CheckCircle, AlertCircle, CreditCard, MessageSquare, Zap, ScanLine } from 'lucide-react'
+import { CheckCircle, AlertCircle, CreditCard, MessageSquare, Zap, ScanLine, Wallet } from 'lucide-react'
 import { PLAN_LABEL, PLAN_PRICE, SMS_TIER_PRICE, SMS_TIER_LABEL, SMS_TIER_QUOTA, SMS_OVERAGE_RATE, type PlanTier, type SmsTier } from '@/lib/stripeConstants'
 
 interface BillingStatus {
@@ -21,6 +21,7 @@ interface BillingStatus {
   monthly_voice_seconds: number | null
   monthly_scan_image_count: number | null
   monthly_scan_pdf_count: number | null
+  overage_buffer_cents: number | null
 }
 
 function QuotaBar({ used, quota, label }: { used: number; quota: number; label: string }) {
@@ -48,6 +49,8 @@ export default function BillingPage() {
   const [status, setStatus] = useState<BillingStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [redirecting, setRedirecting] = useState(false)
+  const [topupAmount, setTopupAmount] = useState<number | null>(null)
+  const [topupBanner, setTopupBanner] = useState<'success' | 'canceled' | null>(null)
 
   async function load() {
     const res = await fetch('/api/stripe/billing-status')
@@ -57,6 +60,12 @@ export default function BillingPage() {
   }
 
   useEffect(() => { load() }, [])
+
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search)
+    if (p.get('topup') === 'success') setTopupBanner('success')
+    else if (p.get('topup') === 'canceled') setTopupBanner('canceled')
+  }, [])
 
   async function handleSubscribe(plan: PlanTier, smsTier?: SmsTier) {
     setRedirecting(true)
@@ -73,6 +82,18 @@ export default function BillingPage() {
     setRedirecting(true)
     const res = await fetch('/api/stripe/portal', { method: 'POST' })
     const { url } = await res.json()
+    window.location.href = url
+  }
+
+  async function handleTopup(amount: number) {
+    setTopupAmount(amount)
+    const res = await fetch('/api/stripe/overage-topup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount }),
+    })
+    const { url, error } = await res.json()
+    if (error) { setTopupAmount(null); return }
     window.location.href = url
   }
 
@@ -106,6 +127,9 @@ export default function BillingPage() {
   const scanPdfLimit  = SCAN_PDF_QUOTA[planKey] ?? 25
   const scanImgUsed   = status?.monthly_scan_image_count ?? 0
   const scanPdfUsed   = status?.monthly_scan_pdf_count ?? 0
+  const bufferCents   = status?.overage_buffer_cents ?? 0
+  const bufferDollars = (bufferCents / 100).toFixed(2)
+  const bufferLow     = bufferCents > 0 && bufferCents <= 500
 
   return (
     <div className="p-4 space-y-4">
@@ -252,6 +276,65 @@ export default function BillingPage() {
             )}
           </div>
           <QuotaBar used={voiceMinUsed} quota={voiceMinQuota} label="Minutes used" />
+        </div>
+      )}
+
+      {/* Overage Buffer — shown for active paid subscribers */}
+      {hasStripe && isActive && (
+        <div className={`rounded-xl border p-4 space-y-3 ${bufferLow ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/20' : ''}`}>
+          <div className="flex items-center gap-2">
+            <Wallet className="h-4 w-4 text-emerald-500" />
+            <p className="text-sm font-medium">Extra Messaging Credit</p>
+            {bufferCents > 0 && (
+              <span className={`ml-auto text-sm font-bold ${bufferLow ? 'text-amber-600' : 'text-emerald-600'}`}>
+                ${bufferDollars} left
+              </span>
+            )}
+          </div>
+
+          {topupBanner === 'success' && (
+            <p className="text-xs text-emerald-700 bg-emerald-100 dark:bg-emerald-900/30 rounded px-2 py-1">
+              Payment received — your credit has been added.
+            </p>
+          )}
+          {topupBanner === 'canceled' && (
+            <p className="text-xs text-muted-foreground bg-muted rounded px-2 py-1">
+              No charge was made.
+            </p>
+          )}
+
+          {bufferCents === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              When you hit your monthly message limit, texting stops. Add credit below to keep going —
+              it never expires and is only used when you go over your plan.
+            </p>
+          ) : bufferLow ? (
+            <p className="text-xs text-amber-700 dark:text-amber-400">
+              Your credit is almost gone. Add more now to avoid losing service mid-month.
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Used only when you exceed your monthly plan: 8¢ per text, 15¢ per picture message.
+            </p>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            {[10, 25, 50, 100].map((amt) => (
+              <Button
+                key={amt}
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs"
+                onClick={() => handleTopup(amt)}
+                disabled={topupAmount !== null}
+              >
+                {topupAmount === amt ? '…' : `Add $${amt}`}
+              </Button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            One-time charge · Stays on your account until used · Never expires
+          </p>
         </div>
       )}
 

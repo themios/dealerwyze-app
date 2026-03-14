@@ -1,7 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import type { UserRole } from '@/types/index'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { getStaffSessionInfo } from '@/lib/auth/staffSession'
 
 export interface Profile {
   id: string
@@ -39,6 +41,12 @@ export async function requireProfile(): Promise<Profile> {
   if (profile.deactivated_at) {
     await (supabase as SupabaseClient).auth.signOut()
     redirect('/login?reason=deactivated')
+  }
+  // Staff impersonation: override org_id from signed cookie
+  const jar = await cookies()
+  const staffSession = getStaffSessionInfo(jar)
+  if (staffSession?.orgId) {
+    return { ...profile, org_id: staffSession.orgId }
   }
   return profile
 }

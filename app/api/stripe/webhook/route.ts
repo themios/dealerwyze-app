@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { stripe, tierFromPriceId, smsTierFromPriceId, PLAN_QUOTA, SMS_TIER_QUOTA } from '@/lib/stripe'
+import { stripe, tierFromPriceId, smsTierFromPriceId, storagePackFromPriceId, PLAN_QUOTA, SMS_TIER_QUOTA, STORAGE_PACK_QUOTA, STORAGE_BASE_QUOTA } from '@/lib/stripe'
 import { createServiceClient } from '@/lib/supabase/service'
 import { sendNotificationEmail } from '@/lib/email/notify'
 import { recordCommission } from '@/lib/stripe/commissions'
@@ -48,9 +48,29 @@ export async function POST(req: NextRequest) {
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session
+
+      // ── One-time overage buffer top-up ──────────────────────────────────────
+      if (session.mode === 'payment' && session.metadata?.topup_type === 'overage_buffer') {
+        const orgId = session.metadata.org_id
+        const topupCents = parseInt(session.metadata.topup_cents ?? '0', 10)
+        if (orgId && topupCents > 0) {
+          await supabase.rpc('add_overage_buffer', { p_org_id: orgId, p_cents: topupCents })
+          // Log an admin alert so platform can see top-up activity
+          await supabase.from('admin_alerts').insert({
+            org_id:     orgId,
+            alert_type: 'overage_buffer_topup',
+            severity:   'info',
+            details:    { topup_cents: topupCents },
+          }).maybeSingle()
+        }
+        break
+      }
+
+      // ── Subscription checkout ────────────────────────────────────────────────
+      if (!session.subscription) break
       const sub0 = await stripe.subscriptions.retrieve(session.subscription as string)
       const orgId = sub0.metadata?.org_id
-      if (!orgId || !session.subscription) break
+      if (!orgId) break
 
       const sub = sub0
       // Find CRM base price and optional SMS add-on price from line items
@@ -118,9 +138,13 @@ export async function POST(req: NextRequest) {
 
       let crmPriceId: string | undefined
       let smsPriceId: string | undefined
+      let storagePack: string | null = null
       for (const item of sub.items.data) {
+        const sp = storagePackFromPriceId(item.price.id)
         const st = smsTierFromPriceId(item.price.id)
-        if (st) { smsPriceId = item.price.id } else { crmPriceId = item.price.id }
+        if (sp) { storagePack = sp }
+        else if (st) { smsPriceId = item.price.id }
+        else { crmPriceId = item.price.id }
       }
       const tier = crmPriceId ? tierFromPriceId(crmPriceId) : undefined
       const smsTier = smsPriceId ? smsTierFromPriceId(smsPriceId) : null
@@ -138,6 +162,27 @@ export async function POST(req: NextRequest) {
           : null,
         updated_at: new Date().toISOString(),
       }).eq('id', orgId)
+
+      // Sync storage pack quota to org_settings
+      if (storagePack) {
+        const packKey = storagePack as '10gb' | '25gb'
+        await supabase.from('org_settings').update({
+          storage_pack: packKey,
+          storage_quota_bytes: STORAGE_PACK_QUOTA[packKey],
+          storage_pack_expires_at: null,
+        }).eq('org_id', orgId)
+      } else if (sub.status !== 'active') {
+        // Pack removed or subscription degraded — start 90-day grace
+        const { data: settings } = await supabase.from('org_settings')
+          .select('storage_pack').eq('org_id', orgId).maybeSingle()
+        if (settings?.storage_pack && settings.storage_pack !== 'none') {
+          const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()
+          await supabase.from('org_settings').update({
+            storage_pack: 'none',
+            storage_pack_expires_at: expiresAt,
+          }).eq('org_id', orgId)
+        }
+      }
       break
     }
 

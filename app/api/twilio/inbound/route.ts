@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { sendLeadNotification } from '@/lib/push/send'
+import { sendTelegramMessage } from '@/lib/notifications/telegram'
 import { detectAppointment } from '@/lib/sms/detectAppointment'
 import { incrementUsage } from '@/lib/sms/quota'
 import { transitionThreadState } from '@/lib/sms/threadState'
@@ -307,7 +308,7 @@ export async function POST(req: NextRequest) {
   // Find customer by phone number, scoped to org
   const { data: allCustomers } = await supabase
     .from('customers')
-    .select('id, name, user_id, primary_phone, secondary_phone, sms_opt_out')
+    .select('id, name, user_id, primary_phone, secondary_phone, sms_opt_out, unsubscribe_sms')
     .eq('user_id', orgId)
 
   const customer = allCustomers?.find(c => {
@@ -334,9 +335,10 @@ export async function POST(req: NextRequest) {
   // ── TCPA opt-out ─────────────────────────────────────────────────────────
   if (isOptOut) {
     if (customer) {
+      const now = new Date().toISOString()
       await supabase
         .from('customers')
-        .update({ sms_opt_out: true, sms_opt_out_at: new Date().toISOString() })
+        .update({ sms_opt_out: true, sms_opt_out_at: now, unsubscribe_sms: true, unsubscribed_at: now })
         .eq('id', customer.id)
 
       await supabase.from('activities').insert({
@@ -348,8 +350,28 @@ export async function POST(req: NextRequest) {
         body,
         priority: 'normal',
         external_id: messageSid || null,
-        completed_at: new Date().toISOString(),
+        completed_at: now,
       })
+
+      // Cancel any active SMS sequences for this customer
+      const { data: activeSeqs } = await supabase
+        .from('customer_sequences')
+        .select('id')
+        .eq('customer_id', customer.id)
+        .eq('status', 'active')
+
+      for (const seq of activeSeqs ?? []) {
+        await supabase
+          .from('customer_sequences')
+          .update({ status: 'cancelled', completed_at: now })
+          .eq('id', seq.id)
+        await supabase
+          .from('activities')
+          .update({ completed_at: now, outcome: 'cancelled' })
+          .eq('customer_sequence_id', seq.id)
+          .is('completed_at', null)
+          .in('type', ['sms_followup', 'email_followup'])
+      }
     }
     // TCPA requires a confirmation reply — send it regardless of customer match
     const optOutReply = tcpaOptOutMsg
@@ -438,6 +460,18 @@ export async function POST(req: NextRequest) {
     } catch {
       // Non-fatal
     }
+
+    sendTelegramMessage(
+      `<b>${hint.detected ? '📅 Appt request' : 'Inbound text'}</b> from ${customer.name}\n` +
+      (body.length > 160 ? body.slice(0, 157) + '...' : body)
+    ).catch(() => {})
+  } else {
+    // Unknown number — new potential lead
+    sendTelegramMessage(
+      `<b>Unknown texter</b> - not in your contacts\n` +
+      `From: ${fromRaw}\n` +
+      `"${body.length > 160 ? body.slice(0, 157) + '...' : body}"`
+    ).catch(() => {})
   }
 
   return new NextResponse(TWIML_EMPTY, {

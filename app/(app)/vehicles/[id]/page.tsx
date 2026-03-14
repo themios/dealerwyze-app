@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClientForRequest } from '@/lib/supabase/forRequest'
 import { requireProfile } from '@/lib/auth/profile'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -9,6 +9,12 @@ import { ArrowLeft, Pencil } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import VehicleSoldButton from '@/components/vehicle/VehicleSoldButton'
 import VehicleDocuments from '@/components/vehicle/VehicleDocuments'
+import VehiclePhotos from '@/components/vehicle/VehiclePhotos'
+import ShareVehicleSheet from '@/components/vehicle/ShareVehicleSheet'
+import MarketIntelligenceCard from '@/components/vehicles/MarketIntelligenceCard'
+import ReconSection from '@/components/vehicle/ReconSection'
+import VehicleMarkReadyButton from '@/components/vehicle/VehicleMarkReadyButton'
+import { canAccessLedger, isDealerAdmin } from '@/lib/auth/dealerRoles'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,19 +26,22 @@ const statusColors: Record<string, string> = {
   available: 'bg-green-500/10 text-green-600 dark:text-green-400',
   pending: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
   sold: 'bg-muted text-muted-foreground',
+  staging: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
 }
 
 export default async function VehicleDetailPage({ params }: PageProps) {
   const { id } = await params
   const profile = await requireProfile()
-  const supabase = await createClient()
+  const supabase = await createClientForRequest()
 
   const isAdmin = profile.role === 'admin'
-
-  const [{ data: vehicle }, { data: activities }, { data: leads }] = await Promise.all([
+  const canEdit = canAccessLedger(profile.role)
+  const canDelete = isDealerAdmin(profile.role) || profile.role === 'dealer_manager'
+  const [{ data: vehicle }, { data: activities }, { data: leads }, { data: org }] = await Promise.all([
     supabase.from('vehicles').select('*').eq('id', id).eq('user_id', profile.org_id).single(),
     supabase.from('activities').select('*, customer:customers(id, name, primary_phone)').eq('vehicle_id', id).order('created_at', { ascending: false }).limit(50),
     supabase.from('customer_vehicles').select('*, customer:customers(id, name, primary_phone)').eq('vehicle_id', id).order('created_at', { ascending: false }),
+    supabase.from('organizations').select('slug').eq('id', profile.org_id).single(),
   ])
 
   if (!vehicle) notFound()
@@ -43,10 +52,23 @@ export default async function VehicleDetailPage({ params }: PageProps) {
         title={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
         right={
           <div className="flex items-center gap-1">
-            {isAdmin && vehicle.status !== 'sold' && (
+            {vehicle.status === 'staging' && canDelete && (
+              <VehicleMarkReadyButton
+                vehicleId={id}
+                vehicleLabel={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
+              />
+            )}
+            {isAdmin && vehicle.status !== 'sold' && vehicle.status !== 'staging' && (
               <VehicleSoldButton
                 vehicleId={id}
                 vehicleLabel={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
+              />
+            )}
+            {vehicle.published && vehicle.public_slug && org && (
+              <ShareVehicleSheet
+                vehicleId={id}
+                vehicleLabel={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
+                publicUrl={`https://dealerwyze.com/${org.slug}/inventory/${vehicle.public_slug}`}
               />
             )}
             <Link href={`/vehicles/${id}/edit`} title="Edit vehicle">
@@ -60,7 +82,27 @@ export default async function VehicleDetailPage({ params }: PageProps) {
       />
 
       <div className="px-4 py-4 space-y-4">
-        {/* Price + Status */}
+        {/* Compact details + price */}
+        {(() => {
+          const details = [
+            vehicle.mileage ? `${vehicle.mileage.toLocaleString()} mi` : null,
+            vehicle.color || null,
+            vehicle.trim || null,
+          ].filter(Boolean).join(' · ')
+          // Stock numbers that look like URL slugs (web-year-make-model) are not real stock numbers
+          const isSlug = vehicle.stock_no && /^web-\d{4}-/.test(vehicle.stock_no)
+          const stockNo = !isSlug ? vehicle.stock_no : null
+          // Always render the details block (VIN always shown)
+          return (
+            <div className="space-y-0.5">
+              {details && <p className="text-xs text-muted-foreground">{details}</p>}
+              <p className="text-xs text-muted-foreground font-mono">VIN: {vehicle.vin || '—'}</p>
+              {stockNo && <p className="text-xs text-muted-foreground truncate">Stock: {stockNo}</p>}
+            </div>
+          )
+        })()}
+
+        {/* Price + Status + Market Intelligence */}
         <div className="flex items-center justify-between">
           {vehicle.price ? (
             <p className="text-3xl font-bold">{formatCurrency(vehicle.price)}</p>
@@ -70,27 +112,56 @@ export default async function VehicleDetailPage({ params }: PageProps) {
           </span>
         </div>
 
-        {/* Details grid */}
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            { label: 'Stock #', value: vehicle.stock_no },
-            { label: 'Mileage', value: vehicle.mileage ? `${vehicle.mileage.toLocaleString()} mi` : '—' },
-            { label: 'Color', value: vehicle.color || '—' },
-            { label: 'Trim', value: vehicle.trim || '—' },
-            { label: 'VIN', value: vehicle.vin || '—' },
-            { label: 'Year', value: vehicle.year.toString() },
-          ].map(({ label, value }) => (
-            <div key={label} className="bg-muted/50 rounded-lg p-3">
-              <p className="text-xs text-muted-foreground">{label}</p>
-              <p className="font-medium mt-0.5 truncate">{value}</p>
-            </div>
-          ))}
-        </div>
+        <MarketIntelligenceCard
+          vehicleId={id}
+          vehicleStatus={vehicle.status}
+          initialData={(vehicle.market_data_json as any) ?? null}
+          initialRecallCount={vehicle.nhtsa_recall_count ?? null}
+          initialReliabilityTier={vehicle.reliability_tier ?? null}
+        />
 
         {vehicle.notes && (
           <div className="border rounded-lg p-3">
             <p className="text-xs text-muted-foreground mb-1">Notes</p>
             <p className="text-sm">{vehicle.notes}</p>
+          </div>
+        )}
+
+        {/* Acquisition details (staging vehicles) */}
+        {vehicle.status === 'staging' && (
+          <div className="border rounded-lg p-3 space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Acquisition</p>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              {vehicle.purchase_price != null && (
+                <div>
+                  <p className="text-xs text-muted-foreground">Purchase Price</p>
+                  <p className="font-semibold">{formatCurrency(vehicle.purchase_price)}</p>
+                </div>
+              )}
+              {vehicle.purchased_from && (
+                <div>
+                  <p className="text-xs text-muted-foreground">Purchased From</p>
+                  <p className="font-semibold">{vehicle.purchased_from}</p>
+                </div>
+              )}
+              {vehicle.purchased_at && (
+                <div>
+                  <p className="text-xs text-muted-foreground">Purchase Date</p>
+                  <p className="font-semibold">{new Date(vehicle.purchased_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Recon Checklist (staging vehicles) */}
+        {vehicle.status === 'staging' && (
+          <div className="border rounded-xl overflow-hidden">
+            <ReconSection
+              vehicleId={id}
+              canEdit={canEdit}
+              canDelete={canDelete}
+            />
           </div>
         )}
 
@@ -150,6 +221,9 @@ export default async function VehicleDetailPage({ params }: PageProps) {
             </div>
           </div>
         )}
+
+        {/* Photos */}
+        <VehiclePhotos vehicleId={id} />
 
         {/* Documents */}
         <VehicleDocuments vehicleId={id} vehicleStatus={vehicle.status} />

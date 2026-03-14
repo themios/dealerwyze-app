@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import crypto from 'crypto'
+import { sendNotificationEmail } from '@/lib/email/notify'
+import { buildWelcomeEmailHtml } from '@/lib/email/onboarding'
 
 function generateInviteCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -171,6 +173,14 @@ export async function POST(req: NextRequest) {
     }
 
     await service.from('org_settings').insert({ org_id: orgId })
+
+    // Welcome email -- fire and forget
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://dealerwyze.com'
+    void sendNotificationEmail({
+      to: email,
+      subject: "You're in. Let's get your dealership ready today.",
+      html: buildWelcomeEmailHtml(display_name, appUrl),
+    })
 
     // If referred by an existing active dealer, activate their 5% referral discount
     if (referredByOrgId) {

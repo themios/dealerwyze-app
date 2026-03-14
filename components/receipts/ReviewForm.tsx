@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   CheckCircle, ChevronDown, ChevronUp, AlertTriangle,
-  Loader2, BookmarkCheck, Car, Search, X,
+  Loader2, BookmarkCheck, Car, Search, X, ZoomIn,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,7 +23,7 @@ interface Vehicle {
   year: number
   make: string
   model: string
-  status: 'available' | 'pending' | 'sold'
+  status: 'staging' | 'available' | 'pending' | 'sold'
   sold_at?: string | null
 }
 
@@ -88,7 +88,10 @@ function VehiclePicker({
         )
       : list
 
-  const filteredLot = filter(lotVehicles)
+  const stagingVehicles = lotVehicles.filter(v => v.status === 'staging')
+  const activeLotVehicles = lotVehicles.filter(v => v.status !== 'staging')
+  const filteredStaging = filter(stagingVehicles)
+  const filteredLot = filter(activeLotVehicles)
   const filteredSold = filter(soldVehicles)
   const selected = [...lotVehicles, ...soldVehicles].find(v => v.id === value)
 
@@ -123,6 +126,35 @@ function VehiclePicker({
       )}
 
       <div className="max-h-52 overflow-y-auto divide-y">
+        {/* Staging */}
+        {filteredStaging.length > 0 && (
+          <>
+            <p className="px-4 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide bg-purple-50/50 dark:bg-purple-950/10">
+              Staging ({filteredStaging.length})
+            </p>
+            {filteredStaging.map(v => (
+              <button
+                key={v.id}
+                onClick={() => onChange(v.id === value ? null : v.id)}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/30 transition-colors ${
+                  v.id === value ? 'bg-primary/5' : ''
+                }`}
+              >
+                <div className={`flex-shrink-0 w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                  v.id === value ? 'border-primary' : 'border-muted-foreground/30'
+                }`}>
+                  {v.id === value && <div className="w-2 h-2 rounded-full bg-primary" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm truncate">{v.year} {v.make} {v.model}</p>
+                  <p className="text-xs text-muted-foreground">Stock {v.stock_no}</p>
+                </div>
+                <span className="text-[10px] text-purple-600 bg-purple-50 dark:bg-purple-950/30 px-1.5 py-0.5 rounded-full flex-shrink-0">Staging</span>
+              </button>
+            ))}
+          </>
+        )}
+
         {/* On Lot */}
         {filteredLot.length > 0 && (
           <>
@@ -185,7 +217,7 @@ function VehiclePicker({
           </>
         )}
 
-        {filteredLot.length === 0 && filteredSold.length === 0 && (
+        {filteredStaging.length === 0 && filteredLot.length === 0 && filteredSold.length === 0 && (
           <p className="px-4 py-4 text-sm text-muted-foreground text-center">No vehicles match</p>
         )}
       </div>
@@ -207,7 +239,21 @@ export default function ReviewForm({ receipt, categories, lotVehicles, soldVehic
   const [showAllCategories, setShowAllCategories] = useState(false)
   const [posting, setPosting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [imageExpanded, setImageExpanded] = useState(false)
+  const [imageExpanded, setImageExpanded] = useState(true)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+
+  // Editable receipt fields
+  const [vendor, setVendor] = useState(receipt.vendor_norm ?? receipt.vendor_raw ?? '')
+  const [receiptDate, setReceiptDate] = useState(receipt.receipt_date ?? '')
+  const [total, setTotal] = useState(receipt.total != null ? String(receipt.total) : '')
+
+  async function saveField(field: 'vendor_norm' | 'receipt_date' | 'total', value: string) {
+    await fetch(`/api/receipts/${receipt.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [field]: value || null }),
+    })
+  }
 
   const selectedCategory = categories.find(c => c.id === selectedCategoryId)
   const requiresVehicle = selectedCategory?.requires_vehicle ?? false
@@ -248,61 +294,112 @@ export default function ReviewForm({ receipt, categories, lotVehicles, soldVehic
   return (
     <div className="px-4 pb-8 space-y-4">
 
-      {/* Receipt image (collapsible) */}
+      {/* Receipt image (collapsible + lightbox) */}
       {receipt.signed_url && (
-        <div className="rounded-xl border bg-card overflow-hidden">
-          <button
-            className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium"
-            onClick={() => setImageExpanded(e => !e)}
-          >
-            Receipt Image
-            {imageExpanded
-              ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
-              : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-          </button>
-          {imageExpanded && (
-            <img
-              src={receipt.signed_url}
-              alt="Receipt"
-              className="w-full max-h-72 object-contain bg-muted"
-            />
+        <>
+          <div className="rounded-xl border bg-card overflow-hidden">
+            <button
+              className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium"
+              onClick={() => setImageExpanded(e => !e)}
+            >
+              Receipt Image
+              {imageExpanded
+                ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+            </button>
+            {imageExpanded && (
+              <div className="relative bg-muted">
+                <img
+                  src={receipt.signed_url}
+                  alt="Receipt"
+                  className="w-full max-h-72 object-contain cursor-zoom-in"
+                  onClick={() => setLightboxOpen(true)}
+                />
+                <button
+                  onClick={() => setLightboxOpen(true)}
+                  className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1.5"
+                  title="View full size"
+                >
+                  <ZoomIn className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Lightbox */}
+          {lightboxOpen && (
+            <div
+              className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
+              onClick={() => setLightboxOpen(false)}
+            >
+              <button
+                className="absolute top-4 right-4 text-white bg-black/50 hover:bg-black/70 rounded-full p-2"
+                onClick={() => setLightboxOpen(false)}
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+              <img
+                src={receipt.signed_url}
+                alt="Receipt full size"
+                className="max-w-full max-h-full object-contain"
+                onClick={e => e.stopPropagation()}
+              />
+            </div>
           )}
-        </div>
+        </>
       )}
 
-      {/* Extracted data */}
+      {/* Extracted data — editable */}
       <div className="rounded-xl border bg-card divide-y">
-        <div className="px-4 py-3 flex justify-between items-baseline">
-          <span className="text-sm text-muted-foreground">Vendor</span>
-          <span className="text-sm font-medium text-right max-w-[60%] truncate">
-            {receipt.vendor_norm ?? receipt.vendor_raw ?? '—'}
-          </span>
+        <div className="px-4 py-2.5 flex items-center gap-3">
+          <span className="text-sm text-muted-foreground w-14 shrink-0">Vendor</span>
+          <input
+            type="text"
+            value={vendor}
+            onChange={e => setVendor(e.target.value)}
+            onBlur={() => saveField('vendor_norm', vendor)}
+            placeholder="Enter vendor name"
+            className="flex-1 text-sm font-medium bg-transparent outline-none border-b border-transparent focus:border-primary/50 transition-colors placeholder:text-muted-foreground/50 text-right"
+          />
         </div>
-        <div className="px-4 py-3 flex justify-between items-baseline">
-          <span className="text-sm text-muted-foreground">Date</span>
-          <span className="text-sm font-medium">
-            {receipt.receipt_date
-              ? new Date(receipt.receipt_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-              : '—'}
-          </span>
+        <div className="px-4 py-2.5 flex items-center gap-3">
+          <span className="text-sm text-muted-foreground w-14 shrink-0">Date</span>
+          <input
+            type="date"
+            value={receiptDate}
+            onChange={e => setReceiptDate(e.target.value)}
+            onBlur={() => saveField('receipt_date', receiptDate)}
+            className="flex-1 text-sm font-medium bg-transparent outline-none border-b border-transparent focus:border-primary/50 transition-colors text-right"
+          />
         </div>
         {receipt.subtotal != null && (
-          <div className="px-4 py-3 flex justify-between items-baseline">
+          <div className="px-4 py-2.5 flex justify-between items-baseline">
             <span className="text-sm text-muted-foreground">Subtotal</span>
             <span className="text-sm">${Number(receipt.subtotal).toFixed(2)}</span>
           </div>
         )}
         {receipt.tax != null && (
-          <div className="px-4 py-3 flex justify-between items-baseline">
+          <div className="px-4 py-2.5 flex justify-between items-baseline">
             <span className="text-sm text-muted-foreground">Tax</span>
             <span className="text-sm">${Number(receipt.tax).toFixed(2)}</span>
           </div>
         )}
-        <div className="px-4 py-3 flex justify-between items-baseline">
-          <span className="text-sm text-muted-foreground">Total</span>
-          <span className="text-lg font-bold">
-            {receipt.total != null ? `$${Number(receipt.total).toFixed(2)}` : '—'}
-          </span>
+        <div className="px-4 py-2.5 flex items-center gap-3">
+          <span className="text-sm text-muted-foreground w-14 shrink-0">Total</span>
+          <div className="flex-1 flex items-center justify-end gap-1">
+            <span className="text-sm text-muted-foreground">$</span>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={total}
+              onChange={e => setTotal(e.target.value)}
+              onBlur={() => saveField('total', total)}
+              placeholder="0.00"
+              className="w-28 text-lg font-bold bg-transparent outline-none border-b border-transparent focus:border-primary/50 transition-colors text-right placeholder:font-normal placeholder:text-base placeholder:text-muted-foreground/50"
+            />
+          </div>
         </div>
       </div>
 

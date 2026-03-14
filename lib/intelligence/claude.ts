@@ -22,6 +22,7 @@ OUTPUT: a single JSON object with these exact fields (no extra keys):
 "inventory_insight": one sentence on inventory age risk or opportunity,
 "discipline_insight": one sentence on task completion and follow-up compliance,
 "twilio_insight": one sentence on SMS usage rate, quota health, and response effectiveness (use twilio_metrics data),
+"pricing_insight": one sentence on how inventory is priced vs. market — call out overpriced units by name if any, avg premium/discount, and pricing strategy impact on turn rate (use pricing_intelligence data),
 "alerts": array of 0-4 objects {severity("warn"|"critical"), message(max 20 words)} — include BHPH overdue and defaulted alerts if applicable,
 
 PAYLOAD:
@@ -41,6 +42,7 @@ export interface BriefReport {
   inventory_insight: string
   discipline_insight: string
   twilio_insight: string
+  pricing_insight: string
   alerts: Array<{ severity: 'warn' | 'critical'; message: string }>
 }
 

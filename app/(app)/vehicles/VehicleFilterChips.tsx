@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 
 interface Props {
   current: string
-  counts: { all: number; available: number; pending: number; sold: number }
+  counts: { all: number; available: number; pending: number; sold: number; staging: number }
   currentSort: string
 }
 
@@ -22,6 +22,7 @@ export default function VehicleFilterChips({ current, counts, currentSort }: Pro
 
   const filters = [
     { key: 'all', label: `All (${counts.all})` },
+    { key: 'staging', label: `Staging (${counts.staging})`, activeClass: 'bg-purple-600 text-white border-purple-600' },
     { key: 'available', label: `Available (${counts.available})`, activeClass: 'bg-green-600 text-white border-green-600' },
     { key: 'pending', label: `Pending (${counts.pending})`, activeClass: 'bg-yellow-500 text-white border-yellow-500' },
     { key: 'sold', label: `Sold (${counts.sold})` },

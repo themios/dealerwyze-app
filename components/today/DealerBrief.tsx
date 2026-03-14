@@ -18,6 +18,7 @@ interface ReportJson {
   lead_insight: string
   inventory_insight: string
   discipline_insight: string
+  pricing_insight?: string
   alerts: Array<{ severity: 'warn' | 'critical'; message: string }>
 }
 
@@ -108,6 +109,7 @@ export default function DealerBrief() {
     { label: 'Performance', text: r.performance_insight },
     { label: 'Leads', text: r.lead_insight },
     { label: 'Inventory', text: r.inventory_insight },
+    { label: 'Pricing vs Market', text: r.pricing_insight },
     { label: 'Discipline', text: r.discipline_insight },
     { label: 'SMS', text: (r as unknown as Record<string, string>).twilio_insight },
   ].filter(x => x.text)

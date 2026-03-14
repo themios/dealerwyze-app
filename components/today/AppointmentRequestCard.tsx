@@ -51,6 +51,14 @@ export default function AppointmentRequestCard({ activity, onUpdate }: Props) {
         body: `Test drive / appointment with ${customer.name}\n\nRequested: "${activity.body}"`,
       })
       .eq('id', activity.id)
+
+    // Auto-complete overdue tasks for this customer now that appointment is confirmed
+    fetch('/api/activities/reconcile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customer_id: customer.id }),
+    }).catch(() => {})
+
     setSaving(false)
     onUpdate()
   }

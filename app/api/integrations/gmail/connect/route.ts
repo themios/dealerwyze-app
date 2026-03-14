@@ -22,6 +22,7 @@ export async function GET() {
     scope: [
       'https://www.googleapis.com/auth/gmail.readonly',
       'https://www.googleapis.com/auth/gmail.modify',
+      'https://www.googleapis.com/auth/gmail.send',
     ],
     state: profile.org_id,
   })

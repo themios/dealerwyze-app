@@ -11,11 +11,12 @@ export async function PATCH(
   const profile = await requireProfile()
   const supabase = await createClient()
 
-  const body = await req.json() as { completed_at?: string; outcome?: string; body?: string }
+  const body = await req.json() as { completed_at?: string; outcome?: string; body?: string; snoozed_until?: string }
 
   const updates: Record<string, unknown> = {}
   if (body.completed_at !== undefined) updates.completed_at = body.completed_at
   if (body.outcome !== undefined) updates.outcome = body.outcome
+  if (body.snoozed_until !== undefined) updates.snoozed_until = body.snoozed_until
 
   if (body.body !== undefined) {
     const { data: activity } = await supabase
