@@ -11,11 +11,20 @@ import { Plus, ChevronRight, Mail, MessageSquare } from 'lucide-react'
 interface SequenceRow {
   id: string
   name: string
-  channel: 'sms' | 'email'
+  channel: 'sms' | 'email' | 'card'
   auto_mode: 'manual' | 'semi_auto' | 'full_auto'
+  trigger_type?: string | null
   created_at: string
   sequence_steps?: { count: number }[]
   customer_sequences?: { count: number }[]
+}
+
+const TRIGGER_LABELS: Record<string, string> = {
+  birthday:          'Birthday',
+  sale_anniversary:  'Anniversary',
+  service_due:       'Service Due',
+  post_sale:         'Post-Sale',
+  referral_thankyou: 'Referral',
 }
 
 interface Props {
@@ -34,8 +43,24 @@ export default function SequencesClient({ initialSequences }: Props) {
   const [createOpen, setCreateOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [creating, setCreating] = useState(false)
+  const [seeding, setSeeding] = useState(false)
 
   const filtered = initialSequences.filter(s => s.channel === activeTab)
+
+  async function handleSeedStarters() {
+    setSeeding(true)
+    try {
+      const res = await fetch('/api/sequences/seed-starters', { method: 'POST' })
+      const d = await res.json().catch(() => ({})) as { error?: string }
+      if (!res.ok) {
+        alert(d.error ?? 'Failed to load starter campaigns')
+        return
+      }
+      router.refresh()
+    } finally {
+      setSeeding(false)
+    }
+  }
 
   async function handleCreate() {
     if (!newName.trim()) return
@@ -87,17 +112,35 @@ export default function SequencesClient({ initialSequences }: Props) {
       </div>
 
       <div className="space-y-2 mb-4">
-        {filtered.length === 0 && (
+        {initialSequences.length === 0 && filtered.length === 0 && (
           <div className="text-center py-12 text-muted-foreground">
             <div className="flex justify-center mb-3">
               {activeTab === 'email' ? <Mail className="h-8 w-8 opacity-40" /> : <MessageSquare className="h-8 w-8 opacity-40" />}
             </div>
-            <p className="font-medium text-sm">No {activeTab} sequences yet</p>
-            <p className="text-xs mt-1">Create a sequence to start automating your follow-ups.</p>
-            <Button size="sm" className="mt-4" onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4 mr-1.5" />
-              Create your first sequence
-            </Button>
+            <p className="font-medium text-sm">No sequences yet</p>
+            <p className="text-xs mt-1 mb-4">Load ready-made starter campaigns or build your own from scratch.</p>
+            <div className="flex flex-col gap-2 items-center">
+              <Button
+                size="sm"
+                className="bg-[#F07018] hover:bg-[#d4611a] text-white gap-1.5"
+                onClick={handleSeedStarters}
+                disabled={seeding}
+              >
+                {seeding ? 'Loading...' : 'Load starter campaigns'}
+              </Button>
+              <button
+                className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+                onClick={() => setCreateOpen(true)}
+              >
+                or build your own
+              </button>
+            </div>
+          </div>
+        )}
+        {initialSequences.length > 0 && filtered.length === 0 && (
+          <div className="text-center py-8 text-muted-foreground text-sm">
+            No {activeTab} sequences yet.
+            <button className="ml-1 text-primary underline-offset-2 hover:underline" onClick={() => setCreateOpen(true)}>Create one</button>
           </div>
         )}
         {filtered.map(seq => (
@@ -111,6 +154,11 @@ export default function SequencesClient({ initialSequences }: Props) {
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <p className="font-medium text-sm">{seq.name}</p>
                   <Badge variant="outline" className="text-xs">{AUTO_MODE_LABELS[seq.auto_mode]}</Badge>
+                  {seq.trigger_type && seq.trigger_type !== 'manual' && (
+                    <Badge variant="secondary" className="text-xs bg-orange-50 text-orange-700 border-orange-200">
+                      {TRIGGER_LABELS[seq.trigger_type] ?? seq.trigger_type}
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {stepCount(seq)} step{stepCount(seq) !== 1 ? 's' : ''} - {enrollCount(seq)} active enrollment{enrollCount(seq) !== 1 ? 's' : ''}

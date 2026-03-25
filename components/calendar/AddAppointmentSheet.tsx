@@ -120,16 +120,18 @@ export default function AddAppointmentSheet({ open, onClose, defaultDate, orgNam
       ? `name: ${profile.display_name}\n${rawBody}`
       : rawBody
 
-    await supabase.from('activities').insert({
-      user_id: profile?.org_id ?? user!.id,
-      customer_id: selected?.id ?? null,
-      type: 'appointment',
-      direction: null,
-      outcome: 'pending',
-      priority: 'high',
-      body: bodyWithAuthor,
-      due_at: startDate.toISOString(),
-      completed_at: null,
+    await fetch('/api/activities', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'appointment',
+        direction: null,
+        outcome: 'pending',
+        priority: 'high',
+        body: bodyWithAuthor,
+        due_at: startDate.toISOString(),
+        customer_id: selected?.id ?? null,
+      }),
     })
 
     const gcalUrl = googleCalendarUrl(

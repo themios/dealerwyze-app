@@ -54,6 +54,14 @@ export interface Customer {
   sms_opt_out?: boolean
   sms_opt_out_at?: string | null
   thread_state?: string
+  lead_rating?: 'hot' | 'warm' | 'cold' | null
+  address?: string | null
+  city?: string | null
+  state?: string | null
+  birthday?: string | null
+  last_service_date?: string | null
+  referred_by?: string | null
+  referral_source?: string | null
   engagement_score?: number
   first_response_at?: string | null
   response_time_seconds?: number | null
@@ -168,6 +176,8 @@ export interface Activity {
   customer_sequence_id?: string | null
   external_id?: string | null
   created_by?: string | null
+  gmail_message_id?: string | null
+  gmail_thread_id?: string | null
   created_at: string
   customer?: Customer
   vehicle?: Vehicle

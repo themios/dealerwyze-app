@@ -55,7 +55,7 @@ The app pulls every inquiry into one place, ties each person to the exact car th
 
 **Simple:** You don't have to type every message from scratch. The app has saved messages (templates) for common situations - for example, first contact when someone asked about a car and wants a virtual walkthrough, delivery, or financing. You pick the template, it fills in their name, the car, and the price, and you send. One or two taps.
 
-**Deeper:** The templates use placeholders (like {firstName}, {vehicle}, {price}) that the app replaces with the real data for that contact and that car. So the buyer gets a message that feels personal - "Hi Marcus, the 2009 Acura MDX at $7,495 is available..." - without the dealer typing it every time. That makes it possible to reply in under five minutes, which matters because research shows the first dealer to reply clearly and quickly usually gets the conversation - and often the sale.
+**Deeper:** The templates use placeholders (like {firstName}, {vehicle}, {price}) that the app replaces with the real data for that contact and that car. So the buyer gets a message that feels personal - "Hi Marcus, the 2009 Acura MDX at $7,495 is available..." - without the dealer typing it every time. That makes it possible to reply in under 60 seconds, which matters because research shows the first dealer to reply clearly and quickly usually gets the conversation - and often the sale.
 
 **Real-world example:** Like quick replies or suggested responses on your phone, but written for selling cars. You tap "First contact - virtual look + delivery + financing," the app inserts Marcus's name and the Acura's details, and you hit send. Fast and still personal.
 
@@ -63,11 +63,11 @@ The app pulls every inquiry into one place, ties each person to the exact car th
 
 ### 5. The app records when you replied and how fast
 
-**Simple:** Every time you send a message or log a call, the app records it and notes how quickly you responded after they first got in touch. Later you can see your "response time" - for example green if you replied in under five minutes, yellow if 5-30 minutes, red if longer. So you're not guessing; you can see if you're getting back to people fast enough.
+**Simple:** Every time you send a message or log a call, the app records it and notes how quickly you responded after they first got in touch. Later you can see your "response time" - for example green if you replied in under 60 seconds, yellow if 1-5 minutes, red if longer. So you're not guessing; you can see if you're getting back to people fast enough.
 
 **Deeper:** The app tracks "first response time" - the time from when the inquiry arrived to when you first replied (by text, email, or call). That number is one of the most important predictors of whether you'll get the sale. The app shows this in simple dashboards (analytics): how many leads came in, how many you replied to, how fast on average, and how that compares over time. So the dealer can improve based on real numbers, not gut feeling.
 
-**Real-world example:** Like when you see "Delivered" or "Read" on a text - you know your message got there. Here, the dealer sees "You replied in 3 minutes" or "You replied in 2 days." The first one usually wins the sale. The app makes that visible.
+**Real-world example:** Like when you see "Delivered" or "Read" on a text - you know your message got there. Here, the dealer sees "You replied in under 60 seconds" or "You replied in 2 days." The first one usually wins the sale. The app makes that visible.
 
 ---
 
@@ -112,7 +112,7 @@ The app pulls every inquiry into one place, ties each person to the exact car th
 
 **Dealer without this app:** Inquiries in Gmail, on CarGurus, AutoTrader, texts, voicemails. No single list. They switch apps, forget who wanted which car, and often reply too late. The buyer goes to the dealer who answered first.
 
-**Dealer with this app:** Every inquiry lands in one place. Each person is tied to the car they asked about. One "Today" list shows who needs attention. They reply in a few taps with a real message and a link to the right car. The app records when they replied and shows whether they're hitting the "under five minutes" target. Optional tools handle the daily summary, photo leads, receipts, and after-hours calls. For BHPH, loans and payment reminders live in the same app.
+**Dealer with this app:** Every inquiry lands in one place. Each person is tied to the car they asked about. One "Today" list shows who needs attention. They reply in a few taps with a real message and a link to the right car. The app records when they replied and shows whether they're hitting the "under 60 seconds" target. Optional tools handle the daily summary, photo leads, receipts, and after-hours calls. For BHPH, loans and payment reminders live in the same app.
 
 **The change:** Same idea as "have one place for your people and your conversations" - but built for the specific job of a small used car lot, where speed and not dropping anyone matters. The dealer stops losing sales to the one who replied at 10:01.
 

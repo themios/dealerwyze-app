@@ -93,6 +93,12 @@ export interface IntelligencePayload {
     overpriced: Array<{ vehicle: string; list_price: number; fair_market: number; premium_pct: number }>
     best_deals: Array<{ vehicle: string; list_price: number; fair_market: number; discount_pct: number }>
   }
+  retention_metrics: {
+    active_sequences: number        // customer_sequences with status='active'
+    cards_sent_mtd: number          // card_mailings queued/printed this month
+    birthdays_next_7d: number       // customers with birthday in next 7 days
+    referrals_mtd: number           // new customers with referred_by set this month
+  }
 }
 
 function vehicleLabel(v: { year: number; make: string; model: string; trim?: string | null }): string {
@@ -416,6 +422,47 @@ export async function computePayload(
     best_deals: belowMarket.slice(0, 2).map(v => ({ vehicle: v.vehicle, list_price: v.list_price, fair_market: v.fair_market, discount_pct: Math.abs(v.pct) })),
   }
 
+  // --- Retention metrics ---
+  const mtdStart = new Date(now.getUTCFullYear(), now.getUTCMonth(), 1).toISOString()
+
+  const [
+    { data: activeSeqRows },
+    { data: cardsMTDRows },
+    { data: referralsMTDRows },
+    { data: birthdayCustomers },
+  ] = await Promise.all([
+    // active enrollments: join through sequences to scope by org
+    supabase.from('customer_sequences')
+      .select('id, sequences!inner(org_id)')
+      .eq('sequences.org_id', orgId)
+      .eq('status', 'active'),
+    supabase.from('card_mailings').select('id')
+      .eq('org_id', orgId).in('status', ['print_ready', 'queued']).gte('created_at', mtdStart),
+    supabase.from('customers').select('id')
+      .eq('user_id', orgId).not('referred_by', 'is', null).gte('created_at', mtdStart),
+    supabase.from('customers').select('birthday').eq('user_id', orgId).not('birthday', 'is', null),
+  ])
+
+  // Count birthdays in next 7 days by month+day
+  let birthdaysNext7d = 0
+  for (const c of (birthdayCustomers ?? []) as Array<{ birthday: string }>) {
+    if (!c.birthday) continue
+    const bd = new Date(c.birthday)
+    const bdM = bd.getUTCMonth() + 1
+    const bdD = bd.getUTCDate()
+    for (let i = 0; i <= 7; i++) {
+      const check = new Date(now.getTime() + i * 86400000)
+      if (check.getUTCMonth() + 1 === bdM && check.getUTCDate() === bdD) { birthdaysNext7d++; break }
+    }
+  }
+
+  const retentionMetrics = {
+    active_sequences:  activeSeqRows?.length  ?? 0,
+    cards_sent_mtd:    cardsMTDRows?.length    ?? 0,
+    referrals_mtd:     referralsMTDRows?.length ?? 0,
+    birthdays_next_7d: birthdaysNext7d,
+  }
+
   return {
     dealer: { dealer_name: dealerName, timezone: 'America/Los_Angeles', report_type: 'daily', for_date_local: forDate },
     lead_metrics: { leads_yesterday: leadsYestCount, leads_7d_avg: leads7dAvg, leads_30d_avg: leads30dAvg, response_time_minutes_target: 5, appointments_set_yesterday: apptsYesterday?.length ?? 0, shows_scheduled_next_24h: upcomingAppts?.length ?? 0, close_rate_30d: closeRate30d, lead_sources: leadSources },
@@ -429,5 +476,6 @@ export async function computePayload(
     salesperson_performance: { leads_yesterday: leadsYestCount, leads_responded_yesterday: leadsRespondedYesterday, response_rate_yesterday: responseRate, lead_to_appt_rate_yesterday: leadToApptRate, outbound_touches_yesterday: outboundTouches, avg_touches_per_responded_lead: avgTouchesPerLead },
     twilio_metrics: { messages_mtd: messagesMTD, quota, quota_pct: quotaPct, avg_response_time_minutes: avgResponseTimeMinutes, ghost_rate_pct: ghostRatePct, messages_per_sold_lead: messagesPerSoldLead, mms_count: mmsCount, overage_forecast_day: overageForecastDay },
     pricing_intelligence: pricingIntelligence,
+    retention_metrics: retentionMetrics,
   }
 }

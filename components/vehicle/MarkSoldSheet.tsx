@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { CONSENT_DISCLOSURE } from '@/lib/bhph/schedule'
-import { FileText, ExternalLink, Trash2, X, ArrowRight } from 'lucide-react'
+import { FileText, ExternalLink, Trash2, X, ArrowRight, CheckCircle, MinusCircle } from 'lucide-react'
 
 interface Props {
   vehicleId: string
@@ -28,19 +28,64 @@ interface DocEntry {
 }
 
 interface CustomerResult { id: string; name: string; primary_phone: string; email?: string }
+interface InterestedCustomer { customer_id: string; name: string; primary_phone: string | null; email: string | null; is_buyer?: boolean }
+type NotifyStatus = 'idle' | 'sending' | 'sent' | 'skipped'
 
 export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }: Props) {
   const router = useRouter()
   const supabase = createClient()
 
   // Document cleanup step
-  const [step, setStep] = useState<'loading' | 'docs' | 'form'>('loading')
+  const [step, setStep] = useState<'loading' | 'docs' | 'form' | 'notify'>('loading')
   const [docs, setDocs] = useState<DocEntry[]>([])
   const [deletingDoc, setDeletingDoc] = useState<string | null>(null)
   const [confirmDeleteDoc, setConfirmDeleteDoc] = useState<string | null>(null)
 
+  const [interestedCustomers, setInterestedCustomers] = useState<InterestedCustomer[]>([])
+  const [notifyMessages, setNotifyMessages] = useState<Record<string, string>>({})
+  const [notifyStatus, setNotifyStatus] = useState<Record<string, NotifyStatus>>({})
+
+  function defaultNotifyMessage(name: string, isBuyer?: boolean) {
+    if (isBuyer) {
+      return `Hi ${name}, thank you for your purchase! It was a pleasure doing business with you. If you ever need anything, don't hesitate to reach out. Enjoy your new ride!`
+    }
+    return `Hi ${name}, the ${vehicleLabel} you were interested in just sold. We may have something else that works for you - give us a call or reply here.`
+  }
+
+  async function sendNotification(c: InterestedCustomer, channel: 'sms' | 'email') {
+    setNotifyStatus(p => ({ ...p, [c.customer_id]: 'sending' }))
+    const msg = notifyMessages[c.customer_id] ?? defaultNotifyMessage(c.name, c.is_buyer)
+    try {
+      let res: Response
+      if (channel === 'sms') {
+        res = await fetch('/api/sms/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to: c.primary_phone, body: msg, customer_id: c.customer_id }),
+        })
+      } else {
+        res = await fetch('/api/email/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customer_id: c.customer_id, subject: `About the ${vehicleLabel}`, emailBody: msg }),
+        })
+      }
+      if (!res.ok) throw new Error('Send failed')
+      setNotifyStatus(p => ({ ...p, [c.customer_id]: 'sent' }))
+    } catch {
+      setNotifyStatus(p => ({ ...p, [c.customer_id]: 'idle' }))
+    }
+  }
+
   useEffect(() => {
-    if (!open) { setStep('loading'); setDocs([]); return }
+    if (!open) {
+      setStep('loading')
+      setDocs([])
+      setInterestedCustomers([])
+      setNotifyMessages({})
+      setNotifyStatus({})
+      return
+    }
     fetch(`/api/vehicles/${vehicleId}/documents`)
       .then(r => r.json())
       .then(data => {
@@ -142,8 +187,29 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
       return
     }
 
-    router.refresh()
-    onClose()
+    // Trigger Google review request if configured
+    if (form.customer_id) {
+      fetch('/api/customers/review-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customer_id: form.customer_id }),
+      }).catch(() => {}) // fire-and-forget
+    }
+
+    const interested: InterestedCustomer[] = data.interestedCustomers ?? []
+    if (interested.length > 0) {
+      const initialMessages: Record<string, string> = {}
+      for (const c of interested) {
+        initialMessages[c.customer_id] = defaultNotifyMessage(c.name, c.is_buyer)
+      }
+      setInterestedCustomers(interested)
+      setNotifyMessages(initialMessages)
+      setNotifyStatus({})
+      setStep('notify')
+    } else {
+      router.refresh()
+      onClose()
+    }
   }
 
   const isBhph = form.finance_type === 'bhph'
@@ -398,6 +464,87 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
             {saving ? 'Saving…' : 'Mark as Sold'}
           </Button>
         </form>
+        )}
+
+        {/* Step 3: Notify interested customers */}
+        {step === 'notify' && (
+          <div className="pb-8 space-y-4">
+            <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 p-3">
+              <p className="text-sm font-semibold">Sale complete - send your messages</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Thank the buyer, then let interested customers know it sold. Edit before sending.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {interestedCustomers.map(c => {
+                const status = notifyStatus[c.customer_id] ?? 'idle'
+                const msg = notifyMessages[c.customer_id] ?? defaultNotifyMessage(c.name, c.is_buyer)
+
+                if (status === 'sent') {
+                  return (
+                    <div key={c.customer_id} className="rounded-lg border bg-green-50 dark:bg-green-950/30 p-3 flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium">{c.name}</p>
+                        <p className="text-xs text-muted-foreground">Message sent</p>
+                      </div>
+                    </div>
+                  )
+                }
+
+                if (status === 'skipped') {
+                  return (
+                    <div key={c.customer_id} className="rounded-lg border bg-muted/30 p-3 flex items-center gap-2">
+                      <MinusCircle className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">{c.name}</p>
+                        <p className="text-xs text-muted-foreground">Skipped</p>
+                      </div>
+                    </div>
+                  )
+                }
+
+                return (
+                  <div key={c.customer_id} className={`rounded-lg border p-3 space-y-2 ${c.is_buyer ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20' : ''}`}>
+                    <div>
+                      <p className="text-sm font-medium">{c.name}{c.is_buyer && <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-green-600 bg-green-100 dark:bg-green-900/40 rounded px-1.5 py-0.5">Buyer</span>}</p>
+                      <p className="text-xs text-muted-foreground">{c.primary_phone ?? c.email ?? 'No contact info'}</p>
+                    </div>
+                    <Textarea
+                      value={msg}
+                      onChange={e => setNotifyMessages(p => ({ ...p, [c.customer_id]: e.target.value }))}
+                      rows={3}
+                      className="resize-none text-sm"
+                      disabled={status === 'sending'}
+                    />
+                    <div className="flex gap-2">
+                      {c.primary_phone && (
+                        <Button size="sm" className="flex-1" disabled={status === 'sending'}
+                          onClick={() => sendNotification(c, 'sms')}>
+                          {status === 'sending' ? 'Sending…' : 'Send Text'}
+                        </Button>
+                      )}
+                      {c.email && (
+                        <Button size="sm" variant="outline" className="flex-1" disabled={status === 'sending'}
+                          onClick={() => sendNotification(c, 'email')}>
+                          {status === 'sending' ? 'Sending…' : 'Send Email'}
+                        </Button>
+                      )}
+                      <Button size="sm" variant="ghost"
+                        onClick={() => setNotifyStatus(p => ({ ...p, [c.customer_id]: 'skipped' }))}>
+                        Skip
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <Button className="w-full h-12" onClick={() => { router.refresh(); onClose() }}>
+              Done
+            </Button>
+          </div>
         )}
       </SheetContent>
     </Sheet>

@@ -204,6 +204,23 @@ export async function processVoiceCall(params: VoiceCallParams): Promise<void> {
         })
       }
 
+      // Create callback task when caller gave a range/intent but no exact time
+      if (!summary.appointment_exact && summary.appointment_range && customerId) {
+        const tomorrow = new Date(new Date().getTime() + 86400000)
+        const vehicleNote = summary.vehicle_interest ? ` re: ${summary.vehicle_interest}` : ''
+        const callerLabel = summary.caller_name || formatPhone(from)
+        await supabase.from('tasks').insert({
+          user_id:           userId,
+          linked_customer_id: customerId,
+          task_type:         'callback',
+          title:             `Call back ${callerLabel}${vehicleNote}`,
+          priority:          'high',
+          status:            'open',
+          due_at:            tomorrow.toISOString(),
+          notes:             `Requested callback: ${summary.appointment_range}${summary.additional_notes ? ` — ${summary.additional_notes}` : ''}`,
+        })
+      }
+
       // Create appointment activity + Google Calendar event if specific time captured
       if (summary.appointment_exact) {
         const vehicleLabel = summary.vehicle_interest ? ` — ${summary.vehicle_interest}` : ''

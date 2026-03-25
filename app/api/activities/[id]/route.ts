@@ -11,12 +11,19 @@ export async function PATCH(
   const profile = await requireProfile()
   const supabase = await createClient()
 
-  const body = await req.json() as { completed_at?: string; outcome?: string; body?: string; snoozed_until?: string }
+  const body = await req.json() as {
+    completed_at?: string
+    outcome?: string
+    body?: string
+    snoozed_until?: string
+    addressed_at?: string
+  }
 
   const updates: Record<string, unknown> = {}
   if (body.completed_at !== undefined) updates.completed_at = body.completed_at
   if (body.outcome !== undefined) updates.outcome = body.outcome
   if (body.snoozed_until !== undefined) updates.snoozed_until = body.snoozed_until
+  if (body.addressed_at !== undefined) updates.addressed_at = body.addressed_at
 
   if (body.body !== undefined) {
     const { data: activity } = await supabase
@@ -43,6 +50,19 @@ export async function PATCH(
     .eq('id', id)
     .eq('user_id', profile.org_id)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    // Backward compatibility: some envs may not have migration 047_addressed_at applied yet.
+    if (
+      body.addressed_at !== undefined &&
+      !('completed_at' in body) &&
+      !('outcome' in body) &&
+      !('body' in body) &&
+      !('snoozed_until' in body) &&
+      /addressed_at/i.test(error.message)
+    ) {
+      return NextResponse.json({ ok: true, warning: 'addressed_at column missing' })
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
   return NextResponse.json({ ok: true })
 }

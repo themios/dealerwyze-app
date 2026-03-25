@@ -39,6 +39,10 @@ export async function PATCH(
     const n = body.cost != null ? parseFloat(body.cost) : null
     patch.cost = n === null || isNaN(n) ? null : Math.max(0, Math.round(n * 100) / 100)
   }
+  if ('category' in body) {
+    const allowed = ['mandatory', 'value_add', 'standard']
+    if (allowed.includes(String(body.category))) patch.category = body.category
+  }
 
   if (Object.keys(patch).length === 0) return NextResponse.json({ ok: true })
 

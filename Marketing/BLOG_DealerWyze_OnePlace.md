@@ -22,9 +22,9 @@ That’s almost impossible when leads are scattered. Gmail here. CarGurus digest
 
 ## Why speed + the right link wins
 
-Research and real-world results both say the same thing: the first dealer to reply clearly and with the right info usually gets the conversation. “Clearly” means the buyer sees the car they asked about and a real price, not a generic “give us a call.” “First” often means under five minutes.
+Research and real-world results both say the same thing: the first dealer to reply clearly and with the right info usually gets the conversation. “Clearly” means the buyer sees the car they asked about and a real price, not a generic “give us a call.” “First” often means under 60 seconds.
 
-So you need two things: **speed** and **relevance**. Typing a custom message for every lead is slow. Sending the wrong link (or no link) is weak. The solution is **templates that feel personal**: the app fills in the customer’s name, the exact car, the price, and the link to that car’s listing. You pick the right message and send. The buyer gets “Hi Marcus, the 2009 Acura MDX at $7,495 is available — here’s the link” in under five minutes. You didn’t type it from scratch, but it’s personal and correct.
+So you need two things: **speed** and **relevance**. Typing a custom message for every lead is slow. Sending the wrong link (or no link) is weak. The solution is **templates that feel personal**: the app fills in the customer’s name, the exact car, the price, and the link to that car’s listing. You pick the right message and send. The buyer gets “Hi Marcus, the 2009 Acura MDX at $7,495 is available — here’s the link” in under 60 seconds. You didn’t type it from scratch, but it’s personal and correct.
 
 That’s the combination that wins: one list so you see the lead, and one-tap replies so you answer first with the right car and link.
 

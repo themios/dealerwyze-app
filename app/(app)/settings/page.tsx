@@ -2,7 +2,7 @@ import { createClientForRequest } from '@/lib/supabase/forRequest'
 import { requireProfile } from '@/lib/auth/profile'
 import TopBar from '@/components/layout/TopBar'
 import Link from 'next/link'
-import { BarChart2, Users, ChevronRight, ExternalLink, CreditCard, Building2, Target, BookOpen, Zap, MessageSquare, ClipboardList, ListOrdered } from 'lucide-react'
+import { BarChart2, Users, ChevronRight, ExternalLink, CreditCard, Building2, Target, BookOpen, Zap, MessageSquare, ClipboardList, ListOrdered, Webhook, DollarSign, Layers, Star } from 'lucide-react'
 import FontSizeSetting from '@/components/settings/FontSizeSetting'
 import SignOutButton from '@/components/settings/SignOutButton'
 import ProfileEditForm from '@/components/settings/ProfileEditForm'
@@ -100,6 +100,22 @@ export default async function SettingsPage() {
             </section>
 
             <section>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Payments & Booking</p>
+              <Link href="/settings/payments">
+                <div className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent transition-colors">
+                  <div className="flex items-center gap-3">
+                    <DollarSign className="h-5 w-5 text-primary" />
+                    <div>
+                      <p className="font-medium text-sm">Payments & Booking</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Stripe keys for BHPH online payments, customer booking page</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </div>
+              </Link>
+            </section>
+
+            <section>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Communication</p>
               <div className="space-y-2">
                 <Link href="/settings/automation">
@@ -121,6 +137,42 @@ export default async function SettingsPage() {
                       <div>
                         <p className="font-medium text-sm">Sequences</p>
                         <p className="text-xs text-muted-foreground mt-0.5">Build automated follow-up cadences for email and SMS leads</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </Link>
+                <Link href="/customers/segments">
+                  <div className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent transition-colors">
+                    <div className="flex items-center gap-3">
+                      <Layers className="h-5 w-5 text-primary" />
+                      <div>
+                        <p className="font-medium text-sm">Smart Segments</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Save customer filters and bulk-enroll them into sequences</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </Link>
+                <Link href="/settings/reviews">
+                  <div className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent transition-colors">
+                    <div className="flex items-center gap-3">
+                      <Star className="h-5 w-5 text-yellow-500" />
+                      <div>
+                        <p className="font-medium text-sm">Google Reviews</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Auto-send review requests after a sale - immediately or on a delay</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </Link>
+                <Link href="/settings/webhooks">
+                  <div className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent transition-colors">
+                    <div className="flex items-center gap-3">
+                      <Webhook className="h-5 w-5 text-primary" />
+                      <div>
+                        <p className="font-medium text-sm">Webhooks</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Send real-time events to your own systems when leads, stages, or appointments change</p>
                       </div>
                     </div>
                     <ChevronRight className="h-4 w-4 text-muted-foreground" />

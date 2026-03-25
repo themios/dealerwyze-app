@@ -3,9 +3,13 @@ import { SkeletonCard } from '@/components/ui/SkeletonRow'
 export default function TodayLoading() {
   return (
     <div>
-      {/* TopBar skeleton */}
-      <div className="h-14 border-b px-4 flex items-center animate-pulse">
-        <div className="h-4 w-32 bg-muted rounded" />
+      {/* TopBar skeleton — matches actual bg-[#0D2B55] header */}
+      <div className="sticky top-0 z-10 h-12 bg-[#0D2B55] shadow-md px-3 flex items-center justify-between animate-pulse">
+        <div className="h-4 w-16 bg-white/20 rounded" />
+        <div className="flex gap-2">
+          <div className="h-7 w-7 bg-white/20 rounded" />
+          <div className="h-7 w-7 bg-white/20 rounded" />
+        </div>
       </div>
 
       {/* KPI strip skeleton */}

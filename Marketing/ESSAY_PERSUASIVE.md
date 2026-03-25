@@ -24,9 +24,9 @@ Small used car dealers who put every lead, every car, and every next step in one
 
 ## Argument 1: Speed Wins. The First Dealer to Reply Gets the Conversation.
 
-The industry benchmark for lead response is under five minutes. Not same day. Not first thing tomorrow. Five minutes. Buyers who inquire about a used car are often contacting two or three dealers at once. The first one to answer clearly, with the right vehicle and a real next step, gets the conversation. Everyone else gets silence - and then a ghosted thread.
+The industry benchmark for lead response is under 60 seconds. Not same day. Not first thing tomorrow. 60 seconds. Buyers who inquire about a used car are often contacting two or three dealers at once. The first one to answer clearly, with the right vehicle and a real next step, gets the conversation. Everyone else gets silence - and then a ghosted thread.
 
-You don't lose because your pitch is weak or your cars are wrong. You lose because by the time you find the lead in your inbox, remember which car they wanted, and type a reply, five minutes have become five hours. The fix is not working harder. It is having one place where every lead lands the moment it arrives, tied to the exact vehicle, with a reply you can send in one tap. When that exists, first response in three minutes is normal. When it doesn't, "we'll get back to you in the morning" is the decision to lose. Speed is the lever. The system either makes it possible or it doesn't.
+You don't lose because your pitch is weak or your cars are wrong. You lose because by the time you find the lead in your inbox, remember which car they wanted, and type a reply, a minute has become five hours. The fix is not working harder. It is having one place where every lead lands the moment it arrives, tied to the exact vehicle, with a reply you can send in one tap. When that exists, first response in under 60 seconds is normal. When it doesn't, "we'll get back to you in the morning" is the decision to lose. Speed is the lever. The system either makes it possible or it doesn't.
 
 ---
 
@@ -34,7 +34,7 @@ You don't lose because your pitch is weak or your cars are wrong. You lose becau
 
 Leads arrive everywhere: Gmail, AutoTrader, CarGurus, Cars For Sale, your website, a handwritten slip. If you don't have one place that pulls them in and ties each person to the vehicle they care about, you are not "using a CRM." You are juggling. And when you juggle, you drop. A lead who wanted a virtual walkthrough and driveway delivery doesn't need another spec sheet. They need a clear next step: *What time works for a quick virtual look?* If that reply doesn't go out fast, with the right car and the right link to the actual listing, they move on.
 
-One list - every lead, every car, every next step - changes the game. You see who needs attention today. You reply with one-tap templates that use the real vehicle and the real listing link. You log a call in 10 seconds. Response time is tracked so you know when you're hitting the under-five-minute benchmark and when you're not. For Buy Here Pay Here, the same app handles loans, payments, and reminders so nothing falls through the cracks. The value is not in the word "CRM." It is in never again asking "which car did they want?" or "did I follow up?" One place is the strategy. Everything else is damage control.
+One list - every lead, every car, every next step - changes the game. You see who needs attention today. You reply with one-tap templates that use the real vehicle and the real listing link. You log a call in 10 seconds. Response time is tracked so you know when you're hitting the under-60-second benchmark and when you're not. For Buy Here Pay Here, the same app handles loans, payments, and reminders so nothing falls through the cracks. The value is not in the word "CRM." It is in never again asking "which car did they want?" or "did I follow up?" One place is the strategy. Everything else is damage control.
 
 ---
 

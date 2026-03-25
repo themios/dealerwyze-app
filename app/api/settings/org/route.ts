@@ -70,6 +70,14 @@ export async function PATCH(req: NextRequest) {
     locations?: unknown[]
     dealer_website_url?: string
     dealer_website_inventory_path?: string
+    postgrid_api_key?: string | null
+    stripe_dealer_publishable_key?: string | null
+    stripe_dealer_secret_key?: string | null
+    booking_enabled?: boolean
+    booking_intro_text?: string
+    google_review_url?: string | null
+    review_request_enabled?: boolean
+    review_request_delay_days?: number
   } = await req.json()
 
   // Update organizations.name if provided
@@ -105,6 +113,14 @@ export async function PATCH(req: NextRequest) {
     if (body.dealer_website_inventory_path === undefined) settingsPayload.dealer_website_inventory_path = ''
   }
   if (body.dealer_website_inventory_path !== undefined) settingsPayload.dealer_website_inventory_path = body.dealer_website_inventory_path
+  if (body.postgrid_api_key !== undefined) (settingsPayload as Record<string, unknown>).postgrid_api_key = body.postgrid_api_key
+  if (body.stripe_dealer_publishable_key !== undefined) (settingsPayload as Record<string, unknown>).stripe_dealer_publishable_key = body.stripe_dealer_publishable_key
+  if (body.stripe_dealer_secret_key !== undefined) (settingsPayload as Record<string, unknown>).stripe_dealer_secret_key = body.stripe_dealer_secret_key
+  if (body.booking_enabled !== undefined) (settingsPayload as Record<string, unknown>).booking_enabled = body.booking_enabled
+  if (body.booking_intro_text !== undefined) (settingsPayload as Record<string, unknown>).booking_intro_text = body.booking_intro_text
+  if (body.google_review_url !== undefined) (settingsPayload as Record<string, unknown>).google_review_url = body.google_review_url
+  if (body.review_request_enabled !== undefined) (settingsPayload as Record<string, unknown>).review_request_enabled = body.review_request_enabled
+  if (body.review_request_delay_days !== undefined) (settingsPayload as Record<string, unknown>).review_request_delay_days = body.review_request_delay_days
 
   const hasSettingsUpdate = Object.keys(settingsPayload).length > 2 // more than just org_id + updated_at
   if (hasSettingsUpdate) {

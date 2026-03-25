@@ -9,7 +9,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
-import { MessageSquare, Zap, MessageSquareOff, Star, ArrowLeft, Search } from 'lucide-react'
+import { MessageSquare, Zap, MessageSquareOff, Star, ArrowLeft, Search, PenLine } from 'lucide-react'
+import AttachmentPicker, { Attachment } from '@/components/shared/AttachmentPicker'
 
 // ─── Hardcoded fallback templates (used when org has no DB templates yet) ─────
 const FALLBACK_TEMPLATES: Template[] = [
@@ -50,6 +51,7 @@ export default function TemplatePicker({ customer, vehicle }: TemplatePickerProp
   const [history, setHistory]                 = useState<SmsMessage[]>([])
   const [displayName, setDisplayName]         = useState<string | null>(null)
   const [dbTemplates, setDbTemplates]         = useState<Template[]>([])
+  const [attachments, setAttachments]         = useState<Attachment[]>([])
 
   const supabase = createClient()
   const twilioEnabled = process.env.NEXT_PUBLIC_TWILIO_ENABLED === 'true'
@@ -145,10 +147,18 @@ export default function TemplatePicker({ customer, vehicle }: TemplatePickerProp
     setSending(true)
     setSendError(null)
     try {
+      const mediaUrls = attachments.filter(a => !!a.signedUrl).map(a => a.signedUrl!)
       const res = await fetch('/api/sms/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: customer.primary_phone, body, customer_id: customer.id, vehicle_id: vehicle?.id ?? null }),
+        body: JSON.stringify({
+          to: customer.primary_phone,
+          body,
+          customer_id: customer.id,
+          vehicle_id: vehicle?.id ?? null,
+          is_mms: mediaUrls.length > 0,
+          mediaUrls,
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to send')
@@ -169,6 +179,7 @@ export default function TemplatePicker({ customer, vehicle }: TemplatePickerProp
     setBody('')
     setSearch('')
     setSendError(null)
+    setAttachments([])
   }
 
   function openSheet() { setOpen(true); setView('categories'); loadHistory() }
@@ -242,6 +253,23 @@ export default function TemplatePicker({ customer, vehicle }: TemplatePickerProp
           {/* ── Categories ── */}
           {view === 'categories' && (
             <div className="flex flex-col flex-1 min-h-0">
+              {/* Blank message — always at top */}
+              <button
+                onClick={() => {
+                  setSelectedTemplate('Blank message')
+                  setBody('')
+                  setSendError(null)
+                  setView('compose')
+                }}
+                className="flex-shrink-0 w-full flex items-center gap-3 p-3 mb-3 rounded-lg border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 hover:bg-accent transition-colors text-left"
+              >
+                <PenLine className="h-4 w-4 text-muted-foreground shrink-0" />
+                <div>
+                  <p className="font-medium text-sm">Blank message</p>
+                  <p className="text-xs text-muted-foreground">Write from scratch</p>
+                </div>
+              </button>
+
               <div className="relative flex-shrink-0 mb-3">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
@@ -320,8 +348,17 @@ export default function TemplatePicker({ customer, vehicle }: TemplatePickerProp
               <Textarea
                 value={body}
                 onChange={e => setBody(e.target.value)}
+                placeholder="Write your message…"
                 className="resize-none flex-1"
               />
+              <div className="flex-shrink-0">
+                <AttachmentPicker
+                  vehicleId={vehicle?.id}
+                  mode="sms"
+                  selected={attachments}
+                  onChange={setAttachments}
+                />
+              </div>
               {sendError && <p className="text-xs text-destructive flex-shrink-0">{sendError}</p>}
               <div className="flex gap-2 flex-shrink-0">
                 <Button className="flex-1 h-11 gap-2" onClick={handleOpenMessages}>
@@ -331,13 +368,15 @@ export default function TemplatePicker({ customer, vehicle }: TemplatePickerProp
                 {twilioEnabled && (
                   <Button variant="outline" className="flex-1 h-11 gap-2" onClick={handleSendTwilio} disabled={sending}>
                     <Zap className="h-4 w-4" />
-                    {sending ? 'Sending…' : 'Send Now'}
+                    {sending ? 'Sending…' : attachments.length > 0 ? `Send MMS (+${attachments.length})` : 'Send Now'}
                   </Button>
                 )}
               </div>
               {twilioEnabled && (
                 <p className="text-xs text-center text-muted-foreground flex-shrink-0">
-                  Send Now sends the text immediately to the customer&apos;s phone.
+                  {attachments.length > 0
+                    ? 'Attached files will be sent as a picture message (MMS).'
+                    : 'Send Now sends the text immediately to the customer\'s phone.'}
                 </p>
               )}
             </div>

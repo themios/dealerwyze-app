@@ -54,6 +54,79 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
       .order('sync_removed_at', { ascending: false }),
   ])
 
+  // Fetch recon costs + ledger totals for all vehicles on this page
+  const stagingIds = (vehicles ?? []).map(v => v.id)
+  let reconStatusMap: Record<string, 'red' | 'amber' | 'green'> = {}
+  let reconCostMap: Record<string, number> = {}
+  let ledgerTotalMap: Record<string, number> = {}
+
+  if (stagingIds.length > 0) {
+    const [{ data: checklistRows }, { data: ledgerRows }] = await Promise.all([
+      supabase
+        .from('recon_checklist_items')
+        .select('vehicle_id, checked, category, cost')
+        .in('vehicle_id', stagingIds)
+        .eq('org_id', profile.org_id),
+      supabase
+        .from('ledger_transactions')
+        .select('vehicle_id, amount_total')
+        .in('vehicle_id', stagingIds)
+        .eq('user_id', profile.org_id)
+        .eq('status', 'posted'),
+    ])
+
+    const vehicleStatusById = Object.fromEntries((vehicles ?? []).map(v => [v.id, v.status]))
+    for (const vid of stagingIds) {
+      const rows = (checklistRows ?? []).filter(r => r.vehicle_id === vid)
+      if (rows.length === 0) continue  // no checklist = no indicator
+      const hasMandatoryUnchecked = rows.some(r => !r.checked && r.category === 'mandatory')
+      const hasAnyUnchecked = rows.some(r => !r.checked)
+      if (hasAnyUnchecked) {
+        reconStatusMap[vid] = hasMandatoryUnchecked ? 'red' : 'amber'
+      } else if (vehicleStatusById[vid] === 'staging') {
+        reconStatusMap[vid] = 'green'  // all done + still staging = ready to promote
+      }
+      // available/pending with all items done = no indicator (expected state)
+      reconCostMap[vid] = rows.reduce((s, r) => s + (r.cost ?? 0), 0)
+    }
+    for (const row of ledgerRows ?? []) {
+      if (row.vehicle_id) {
+        ledgerTotalMap[row.vehicle_id] = (ledgerTotalMap[row.vehicle_id] ?? 0) + (row.amount_total ?? 0)
+      }
+    }
+  }
+
+  // Build investment summary for every vehicle
+  type InvestmentSummary = {
+    purchase_price: number | null
+    recon_total: number
+    ledger_total: number
+    flooring_fee: number
+    floor_plan_interest: number
+    total_investment: number | null
+    list_price: number | null
+    sold_price: number | null
+  }
+  const investmentMap: Record<string, InvestmentSummary> = {}
+  for (const v of vehicles ?? []) {
+    const purchase = v.purchase_price ?? null
+    const recon = reconCostMap[v.id] ?? 0
+    const ledger = ledgerTotalMap[v.id] ?? 0
+    const flooring = v.flooring_fee ?? 0
+    const interest = v.floor_plan_interest ?? 0
+    const total = purchase !== null ? purchase + recon + ledger + flooring + interest : null
+    investmentMap[v.id] = {
+      purchase_price: purchase,
+      recon_total: recon,
+      ledger_total: ledger,
+      flooring_fee: flooring,
+      floor_plan_interest: interest,
+      total_investment: total,
+      list_price: v.price ?? null,
+      sold_price: v.sold_price ?? null,
+    }
+  }
+
   const counts = { all: 0, available: 0, pending: 0, sold: 0, staging: 0 }
   allVehicles?.forEach(v => {
     const s = v.status as string
@@ -91,7 +164,12 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
           />
         ) : (
           vehicles.map(vehicle => (
-            <VehicleCard key={vehicle.id} vehicle={vehicle} />
+            <VehicleCard
+              key={vehicle.id}
+              vehicle={vehicle}
+              reconStatus={reconStatusMap[vehicle.id]}
+              investmentSummary={investmentMap[vehicle.id]}
+            />
           ))
         )}
       </div>

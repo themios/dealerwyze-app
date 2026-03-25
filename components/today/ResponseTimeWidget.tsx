@@ -20,9 +20,13 @@ export default async function ResponseTimeWidget({ orgId }: Props) {
   const avg = Math.round(
     data.reduce((sum, r) => sum + (r.response_time_seconds ?? 0), 0) / data.length
   )
-  const mins = Math.floor(avg / 60)
-  const secs = avg % 60
-  const label = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`
+  const total = Math.max(0, Math.floor(avg))
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  const label = h > 0
+    ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+    : `${m}:${String(s).padStart(2, '0')}`
   const color = avg < 300 ? 'text-green-400' : avg < 600 ? 'text-yellow-400' : 'text-red-400'
 
   return (

@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { VoiceCall } from '@/types'
 import { createClient } from '@/lib/supabase/client'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Phone, Car, Clock } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
@@ -29,7 +28,7 @@ function formatDuration(seconds?: number | null): string {
 }
 
 export default function VoiceLeadCard({ call, onUpdate }: VoiceLeadCardProps) {
-  const [loading, setLoading] = useState<'call' | 'dismiss' | null>(null)
+  const [loading, setLoading] = useState<'dismiss' | null>(null)
   const supabase = createClient()
   const router = useRouter()
 
@@ -39,37 +38,6 @@ export default function VoiceLeadCard({ call, onUpdate }: VoiceLeadCardProps) {
   const timeline   = summary?.appointment_exact || summary?.appointment_range || null
   const phone      = formatPhone(call.from_number)
   const duration   = formatDuration(call.duration_seconds)
-
-  async function handleCallBack() {
-    setLoading('call')
-
-    // Log outbound call activity
-    if (call.customer_id) {
-      const orgId = process.env.NEXT_PUBLIC_SUPABASE_URL ? undefined : undefined // RLS handles user
-      supabase.from('activities').insert({
-        customer_id: call.customer_id,
-        type:        'call',
-        direction:   'outbound',
-        outcome:     'pending',
-        priority:    'high',
-        body:        `Call back re: ${vehicle || 'inquiry'} (voice lead)`,
-      }).then(() => {})
-    }
-
-    // Complete linked task
-    if (call.task_id) {
-      supabase.from('tasks').update({
-        status:       'done',
-        completed_at: new Date().toISOString(),
-      }).eq('id', call.task_id).then(() => {})
-    }
-
-    // Open native dialer
-    window.location.href = `tel:${call.from_number}`
-
-    setLoading(null)
-    onUpdate()
-  }
 
   async function handleDismiss() {
     setLoading('dismiss')
@@ -149,18 +117,6 @@ export default function VoiceLeadCard({ call, onUpdate }: VoiceLeadCardProps) {
           {summary.additional_notes}
         </p>
       )}
-
-      <div className="flex gap-2" onClick={e => e.stopPropagation()}>
-        <Button
-          size="lg"
-          className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
-          onClick={handleCallBack}
-          disabled={loading !== null}
-        >
-          <Phone className="h-4 w-4 mr-2" />
-          {loading === 'call' ? 'Calling…' : 'Call Back'}
-        </Button>
-      </div>
 
       <div className="flex justify-end">
         <button

@@ -1,21 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Activity, Template } from '@/types'
-import { createClient } from '@/lib/supabase/client'
-import { fillTemplate, tomorrow8am, leadAgeBadge, leadIsStale } from '@/lib/utils'
-import { useOrgSettings } from '@/hooks/useOrgSettings'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { useState } from 'react'
+import { Activity } from '@/types'
+import { tomorrow8am, leadAgeBadge, leadIsStale } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Mail, Phone, MapPin, Car, Paperclip, Pause, X, RotateCcw } from 'lucide-react'
-import CallButton from '@/components/call/CallButton'
+import { Phone, Mail, MapPin, Car, Pause, X, RotateCcw } from 'lucide-react'
 import { useOpenCustomer } from '@/components/today/useOpenCustomer'
-import TemplatePicker from '@/components/sms/TemplatePicker'
-import CustomerQuickUploadSheet from '@/components/customer/CustomerQuickUploadSheet'
-import EnrollSheet from '@/components/sequences/EnrollSheet'
 import UnsubscribeBadge from '@/components/sequences/UnsubscribeBadge'
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -42,7 +33,6 @@ interface NewLeadCardProps {
   activity: Activity & {
     customer: { id: string; name: string; primary_phone: string; email?: string; sms_opt_out?: boolean; unsubscribe_email?: boolean; unsubscribe_sms?: boolean }
   }
-  templates: Template[]
   onUpdate: () => void
   hasResponded?: boolean
   sequenceStatus?: SequenceStatus | null
@@ -96,52 +86,11 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-export default function NewLeadCard({ activity, templates, onUpdate, hasResponded, sequenceStatus }: NewLeadCardProps) {
+export default function NewLeadCard({ activity, onUpdate, hasResponded, sequenceStatus }: NewLeadCardProps) {
   const lead = parseLead(activity.body || '')
 
-  const [open, setOpen] = useState(false)
-  const [uploadOpen, setUploadOpen] = useState(false)
-  const [enrollOpen, setEnrollOpen] = useState(false)
-  const [selected, setSelected] = useState<Template | null>(null)
-  const [subject, setSubject] = useState('')
-  const [emailBody, setEmailBody] = useState('')
   const [loading, setLoading] = useState<string | null>(null)
-  const [listingUrl, setListingUrl] = useState('')
-  const supabase = createClient()
-  const orgSettings = useOrgSettings()
   const openCustomer = useOpenCustomer()
-
-  useEffect(() => {
-    let cancelled = false
-    async function resolve() {
-      if (lead.vin) {
-        const { data } = await supabase
-          .from('vehicles')
-          .select('listing_url')
-          .eq('vin', lead.vin)
-          .maybeSingle()
-        if (!cancelled && data?.listing_url) {
-          setListingUrl(data.listing_url)
-          return
-        }
-      }
-      const parsed = parseYearMakeModel(lead.vehicleLine || '')
-      if (!parsed) return
-      const { data } = await supabase
-        .from('vehicles')
-        .select('listing_url')
-        .eq('year', parsed.year)
-        .eq('make', parsed.make)
-        .eq('model', parsed.model)
-        .not('listing_url', 'is', null)
-        .limit(1)
-        .maybeSingle()
-      if (!cancelled && data?.listing_url) setListingUrl(data.listing_url)
-    }
-    resolve()
-    return () => { cancelled = true }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lead.vin, lead.vehicleLine])
 
   const customer = activity.customer
   const stale = leadIsStale(activity.created_at)
@@ -155,70 +104,6 @@ export default function NewLeadCard({ activity, templates, onUpdate, hasResponde
 
   const unsubEmail = customer.unsubscribe_email ?? false
   const unsubSms = customer.unsubscribe_sms ?? false
-
-  function getVars() {
-    const baseUrl = (orgSettings.dealerWebsiteUrl ?? '').replace(/\/$/, '')
-    const inventoryPath = orgSettings.dealerWebsiteInventoryPath ?? '/cars-for-sale'
-    const link = listingUrl
-      ? listingUrl
-      : baseUrl
-        ? `${baseUrl}${inventoryPath.startsWith('/') ? '' : '/'}${inventoryPath}`
-        : 'https://www.apolloauto-em.com/cars-for-sale'
-    return {
-      firstName,
-      vehicle:     vehicleName || '{vehicle}',
-      price:       priceStr ? ` at ${priceStr}` : '',
-      vinLine:     lead.vin ? `• VIN: ${lead.vin}` : '',
-      link,
-      dealerName:  orgSettings.dealerName,
-      dealerPhone: orgSettings.dealerPhone,
-    }
-  }
-
-  function selectTemplate(t: Template) {
-    const vars = getVars()
-    setSelected(t)
-    setSubject(fillTemplate(t.subject || '', vars))
-    setEmailBody(fillTemplate(t.body, vars))
-  }
-
-  async function handleSend() {
-    if (!customer.email) return
-    setLoading('send')
-
-    await fetch(`/api/activities/${activity.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ completed_at: new Date().toISOString(), outcome: 'answered' }),
-    })
-
-    const sendRes = await fetch('/api/email/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customer_id: customer.id, subject, emailBody }),
-    })
-    if (!sendRes.ok) {
-      const errData = await sendRes.json().catch(() => ({}))
-      alert(errData.error ?? 'Could not send email. Check Settings - Integrations.')
-      setLoading(null)
-      return
-    }
-
-    fetch('/api/activities/reconcile', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customer_id: customer.id }),
-    }).catch(() => {})
-
-    setLoading(null)
-    setOpen(false)
-    // Open enroll sheet after send if no active sequence
-    if (!sequenceStatus || sequenceStatus.status === 'completed' || sequenceStatus.status === 'cancelled') {
-      setEnrollOpen(true)
-    } else {
-      onUpdate()
-    }
-  }
 
   async function handleSequenceAction(action: 'pause' | 'resume' | 'cancel') {
     if (!sequenceStatus) return
@@ -354,43 +239,6 @@ export default function NewLeadCard({ activity, templates, onUpdate, hasResponde
           </p>
         )}
 
-        <div className="flex gap-2" onClick={e => e.stopPropagation()}>
-          <CallButton
-            customerId={customer.id}
-            customerName={customer.name}
-            phone={lead.phone || customer.primary_phone}
-            className="flex-1 lg:flex-none lg:px-3"
-            labelClassName="lg:hidden"
-          />
-          <TemplatePicker customer={customer as any} />
-          <Button
-            size="lg"
-            variant="outline"
-            className="flex-1 lg:flex-none lg:px-3"
-            onClick={() => {
-              if (!customer.email) return
-              if (!sequenceStatus || seqDone) {
-                setEnrollOpen(true)
-              } else {
-                setOpen(true)
-              }
-            }}
-            disabled={!customer.email || unsubEmail}
-            title={unsubEmail ? 'Email opted out' : 'Email'}
-          >
-            <Mail className="h-4 w-4 lg:mr-0 mr-2" />
-            <span className="lg:hidden">Email</span>
-          </Button>
-          <Button
-            size="lg"
-            variant="outline"
-            className="px-3"
-            onClick={() => setUploadOpen(true)}
-            title="Attach document"
-          >
-            <Paperclip className="h-4 w-4" />
-          </Button>
-        </div>
 
         {/* Sequence action buttons */}
         {hasActiveSeq && (
@@ -440,18 +288,8 @@ export default function NewLeadCard({ activity, templates, onUpdate, hasResponde
             </Button>
           </div>
         )}
-        {seqDone && (
-          <div onClick={e => e.stopPropagation()}>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs"
-              onClick={() => setEnrollOpen(true)}
-            >
-              <RotateCcw className="h-3 w-3 mr-1" />
-              Re-enroll
-            </Button>
-          </div>
+        {seqDone && sequenceStatus && (
+          <span className="text-xs text-muted-foreground">Open lead to re-enroll in a sequence</span>
         )}
 
         <div className="flex items-center justify-between">
@@ -490,63 +328,6 @@ export default function NewLeadCard({ activity, templates, onUpdate, hasResponde
         </div>
       </div>
 
-      <CustomerQuickUploadSheet
-        customerId={customer.id}
-        customerName={customer.name}
-        open={uploadOpen}
-        onClose={() => setUploadOpen(false)}
-      />
-
-      <EnrollSheet
-        customerId={customer.id}
-        customerName={customer.name}
-        channel="email"
-        open={enrollOpen}
-        onOpenChange={setEnrollOpen}
-        onEnrolled={() => { setEnrollOpen(false); onUpdate() }}
-      />
-
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="bottom" className="h-[85vh] flex flex-col rounded-t-2xl">
-          <SheetHeader className="mb-3 flex-shrink-0">
-            <SheetTitle>Reply to {firstName}</SheetTitle>
-          </SheetHeader>
-
-          {!selected ? (
-            <div className="flex-1 overflow-y-auto space-y-2">
-              {templates.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  No templates yet. Add them in Settings - Lead Response Templates.
-                </p>
-              )}
-              {templates.map(t => (
-                <button
-                  key={t.id}
-                  onClick={() => selectTemplate(t)}
-                  className="w-full text-left p-3 rounded-lg border hover:bg-accent transition-colors"
-                >
-                  <p className="font-medium text-sm">{t.name}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{t.subject}</p>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col flex-1 min-h-0 space-y-3">
-              <button className="text-sm text-primary text-left flex-shrink-0" onClick={() => setSelected(null)}>
-                Back to templates
-              </button>
-              <Input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Subject" className="h-11 flex-shrink-0" />
-              <Textarea value={emailBody} onChange={e => setEmailBody(e.target.value)} className="resize-none flex-1 text-sm" />
-              <Button className="flex-1 h-11 flex-shrink-0" onClick={handleSend} disabled={loading !== null}>
-                {loading === 'send' ? '...' : 'Send & Start Sequence'}
-              </Button>
-              <p className="text-xs text-center text-muted-foreground flex-shrink-0">
-                Sends now - choose a follow-up sequence after sending
-              </p>
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
     </>
   )
 }

@@ -11,6 +11,7 @@ import { google } from 'googleapis'
 import { ImapFlow } from 'imapflow'
 import { simpleParser } from 'mailparser'
 import { createServiceClient } from '@/lib/supabase/service'
+import { stopSequenceOnReply } from '@/lib/sequences/stopSequenceOnReply'
 
 export async function pollCustomerRepliesForOrg(
   orgId: string,
@@ -18,11 +19,12 @@ export async function pollCustomerRepliesForOrg(
 ): Promise<{ processed: number }> {
   const supabase = createServiceClient()
 
-  // Look at all UNREAD inbox messages from the last 2 days
-  // We use 'newer_than:2d' so each poll is cheap and bounded
+  // Look at all inbox messages from the last 2 days.
+  // Do NOT filter by is:unread — if the dealer reads the email before the cron fires
+  // it would be missed. We rely on gmail_message_id dedup instead.
   const listRes = await gmailClient.users.messages.list({
     userId: 'me',
-    q: 'in:inbox is:unread newer_than:2d',
+    q: 'in:inbox newer_than:2d',
     maxResults: 50,
   }).catch(() => null)
 
@@ -33,23 +35,25 @@ export async function pollCustomerRepliesForOrg(
   // NOTE: customers table uses user_id (= org_id post-migration-008), not org_id
   const { data: customers } = await supabase
     .from('customers')
-    .select('id, email, assigned_to')
+    .select('id, name, email, assigned_to')
     .eq('user_id', orgId)
     .not('email', 'is', null)
 
   if (!customers?.length) return { processed: 0 }
 
-  // Build lookup: normalized email → {customer_id, assigned_to}
-  const emailMap = new Map<string, { customer_id: string; assigned_to: string | null }>()
+  // Build lookup: normalized email → {customer_id, customer_name, assigned_to}
+  const emailMap = new Map<string, { customer_id: string; customer_name: string; assigned_to: string | null }>()
   for (const c of customers) {
-    if (c.email) emailMap.set(c.email.toLowerCase().trim(), { customer_id: c.id, assigned_to: c.assigned_to })
+    if (c.email) emailMap.set(c.email.toLowerCase().trim(), { customer_id: c.id, customer_name: c.name, assigned_to: c.assigned_to })
   }
 
   // Get existing gmail_message_ids to avoid duplicate activities
+  // activities has no org_id column — scope by customer_id instead
+  const customerIds = [...emailMap.values()].map(v => v.customer_id)
   const { data: existing } = await supabase
     .from('activities')
     .select('gmail_message_id')
-    .eq('org_id', orgId)
+    .in('customer_id', customerIds)
     .not('gmail_message_id', 'is', null)
   const seenIds = new Set((existing ?? []).map(a => a.gmail_message_id as string))
 
@@ -82,22 +86,6 @@ export async function pollCustomerRepliesForOrg(
     // Skip if already recorded
     if (seenIds.has(gmailMsgId)) continue
 
-    // Determine which user to attribute the activity to
-    // Prefer the assigned rep; fall back to the dealer admin for this org
-    let userId = match.assigned_to
-    if (!userId) {
-      const { data: admin } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('org_id', orgId)
-        .eq('role', 'dealer_admin')
-        .eq('is_active', true)
-        .limit(1)
-        .maybeSingle()
-      userId = admin?.id ?? null
-    }
-    if (!userId) continue
-
     const subject  = parsed.subject ?? '(no subject)'
     const htmlText = typeof parsed.html === 'string'
       ? parsed.html.replace(/<[^>]+>/g, ' ')
@@ -105,8 +93,7 @@ export async function pollCustomerRepliesForOrg(
     const body = (parsed.text?.trim() || htmlText.trim() || '')
 
     await supabase.from('activities').insert({
-      user_id:          userId,
-      org_id:           orgId,
+      user_id:          orgId,
       customer_id:      match.customer_id,
       type:             'email',
       direction:        'inbound',
@@ -117,16 +104,14 @@ export async function pollCustomerRepliesForOrg(
       gmail_thread_id:  gmailThreadId,
     })
 
-    // Cancel any pending email sequence for this customer
-    await supabase
-      .from('activities')
-      .update({ completed_at: new Date().toISOString(), outcome: 'cancelled' })
-      .eq('customer_id', match.customer_id)
-      .eq('user_id', orgId)
-      .eq('type', 'email')
-      .eq('direction', 'outbound')
-      .is('completed_at', null)
-      .gte('sequence_day', 3)
+    // Stop autoresponder — customer replied via email
+    await stopSequenceOnReply({
+      supabase,
+      orgId,
+      customerId:   match.customer_id,
+      customerName: match.customer_name,
+      channel:      'email',
+    })
 
     // Mark as read so we don't process it again on next poll
     await gmailClient.users.messages.modify({
@@ -152,21 +137,23 @@ export async function pollCustomerRepliesViaImap(
   // NOTE: customers table uses user_id (= org_id post-migration-008), not org_id
   const { data: customers } = await supabase
     .from('customers')
-    .select('id, email, assigned_to')
+    .select('id, name, email, assigned_to')
     .eq('user_id', orgId)
     .not('email', 'is', null)
 
   if (!customers?.length) return { processed: 0 }
 
-  const emailMap = new Map<string, { customer_id: string; assigned_to: string | null }>()
+  const emailMap = new Map<string, { customer_id: string; customer_name: string; assigned_to: string | null }>()
   for (const c of customers) {
-    if (c.email) emailMap.set(c.email.toLowerCase().trim(), { customer_id: c.id, assigned_to: c.assigned_to })
+    if (c.email) emailMap.set(c.email.toLowerCase().trim(), { customer_id: c.id, customer_name: c.name, assigned_to: c.assigned_to })
   }
 
+  // activities has no org_id column — scope by customer_id instead
+  const customerIds = [...emailMap.values()].map(v => v.customer_id)
   const { data: existing } = await supabase
     .from('activities')
     .select('gmail_message_id')
-    .eq('org_id', orgId)
+    .in('customer_id', customerIds)
     .not('gmail_message_id', 'is', null)
   const seenIds = new Set((existing ?? []).map(a => a.gmail_message_id as string))
 
@@ -185,8 +172,10 @@ export async function pollCustomerRepliesViaImap(
     const lock = await client.getMailboxLock('INBOX')
 
     try {
+      // Do NOT filter by seen:false — Thunderbird/desktop clients mark emails as read
+      // before the cron fires, causing replies to be missed. Rely on message-ID dedup instead.
       const since = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)
-      const uidsRaw = await client.search({ since, seen: false })
+      const uidsRaw = await client.search({ since })
       const uids = (Array.isArray(uidsRaw) ? uidsRaw : []).slice(-50)
 
       for await (const msg of client.fetch(uids, { source: true, envelope: true })) {
@@ -201,20 +190,6 @@ export async function pollCustomerRepliesViaImap(
         const msgId = parsed.messageId ?? `imap-${account.imap_host}-${msg.uid}`
         if (seenIds.has(msgId)) continue
 
-        let userId = match.assigned_to
-        if (!userId) {
-          const { data: admin } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('org_id', orgId)
-            .eq('role', 'dealer_admin')
-            .eq('is_active', true)
-            .limit(1)
-            .maybeSingle()
-          userId = admin?.id ?? null
-        }
-        if (!userId) continue
-
         const subject  = parsed.subject ?? '(no subject)'
         const htmlText = typeof parsed.html === 'string'
           ? parsed.html.replace(/<[^>]+>/g, ' ')
@@ -222,8 +197,7 @@ export async function pollCustomerRepliesViaImap(
         const body = (parsed.text?.trim() || htmlText.trim() || '')
 
         await supabase.from('activities').insert({
-          user_id:          userId,
-          org_id:           orgId,
+          user_id:          orgId,
           customer_id:      match.customer_id,
           type:             'email',
           direction:        'inbound',
@@ -234,16 +208,14 @@ export async function pollCustomerRepliesViaImap(
           gmail_thread_id:  null,
         })
 
-        // Cancel any pending email sequence for this customer
-        await supabase
-          .from('activities')
-          .update({ completed_at: new Date().toISOString(), outcome: 'cancelled' })
-          .eq('customer_id', match.customer_id)
-          .eq('user_id', orgId)
-          .eq('type', 'email')
-          .eq('direction', 'outbound')
-          .is('completed_at', null)
-          .gte('sequence_day', 3)
+        // Stop autoresponder — customer replied via email
+        await stopSequenceOnReply({
+          supabase,
+          orgId,
+          customerId:   match.customer_id,
+          customerName: match.customer_name,
+          channel:      'email',
+        })
 
         await client.messageFlagsAdd(String(msg.uid), ['\\Seen']).catch(() => null)
         seenIds.add(msgId)

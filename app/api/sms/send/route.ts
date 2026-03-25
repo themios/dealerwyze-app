@@ -15,11 +15,15 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const orgId = profile.org_id
 
-  const { to, body, customer_id, vehicle_id, is_mms = false } = await req.json()
+  const { to, body, customer_id, vehicle_id, is_mms = false, mediaUrls = [] } = await req.json() as {
+    to: string; body: string; customer_id?: string; vehicle_id?: string; is_mms?: boolean; mediaUrls?: string[]
+  }
 
   if (!to || !body) {
     return NextResponse.json({ error: 'to and body are required' }, { status: 400 })
   }
+
+  const hasMedia = Array.isArray(mediaUrls) && mediaUrls.length > 0
 
   // TCPA: check opt-out
   if (customer_id) {
@@ -42,8 +46,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: rateLimit.reason ?? 'Rate limit exceeded' }, { status: 429 })
   }
 
-  // Quota check
-  const quota = await checkQuota(orgId, is_mms)
+  // Quota check — MMS if has media or caller flagged it
+  const quota = await checkQuota(orgId, is_mms || hasMedia)
   if (!quota.allowed) {
     return NextResponse.json({ error: quota.reason ?? 'Quota exceeded' }, { status: 402 })
   }
@@ -75,6 +79,11 @@ export async function POST(req: NextRequest) {
   const twilioParams: Record<string, string> = { To: formattedTo, Body: body }
   if (messagingServiceSid) twilioParams.MessagingServiceSid = messagingServiceSid
   else twilioParams.From = fromNumber!
+
+  // MMS media attachments (max 10 per Twilio)
+  mediaUrls.slice(0, 10).forEach((url, i) => {
+    twilioParams[`MediaUrl${i}`] = url
+  })
 
   const twilioRes = await fetch(
     `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,

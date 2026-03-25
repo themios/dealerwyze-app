@@ -219,6 +219,21 @@ Each entry includes the date, category, migration (if any), and what was built.
 
 ## 2026-03-07 — User-Friendly Messages and Error Copy (Non-Technical, Actionable)
 
+## 2026-03-14 — Sequence enrollment 500 fix (`/api/customer-sequences`)
+
+**Category:** CRM / Sequences / Reliability
+**Migration:** none
+
+**Why:** Starting an email sequence returned `500 Failed to queue sequence steps` for orgs running an older `activities.type` check constraint (allowed `email/sms` but not `email_followup/sms_followup`).
+
+**What was built:**
+- **`app/api/customer-sequences/route.ts`** — Added compatibility fallback. First insert attempts follow-up activity types; on `activities_type_check` violation, retries inserts as `email/sms` while preserving `customer_sequence_id` and sequence metadata in body JSON.
+- **`app/api/customer-sequences/[id]/route.ts`** — Cancel path now targets both legacy and follow-up activity type values.
+- **`app/api/unsubscribe/route.ts`** — Unsubscribe cancellation now targets both legacy and follow-up type values.
+- **`app/api/twilio/inbound/route.ts`** — STOP cancellation now targets both legacy and follow-up type values.
+- **`app/api/cron/check-tasks/route.ts`** — Full-auto email firing and completion checks now include legacy `email/sms` sequence activities (scoped by `customer_sequence_id` and outbound direction for email sends).
+- **`app/(app)/today/page.tsx`** — Next-step due lookup includes legacy and follow-up sequence activity type values when `customer_sequence_id` exists.
+
 **Category:** UX
 **Migration:** none
 
@@ -1009,12 +1024,12 @@ New endpoint `GET/PATCH /api/admin/orgs/[id]/limits` — superadmin only:
 **Category:** CRM / Analytics
 **Migration:** `029_response_tracking.sql` — `first_response_at`, `response_time_seconds` on `customers`
 
-**Why:** Industry benchmark is <5 min lead response. No visibility into actual rep response times existed.
+**Why:** Industry benchmark is <60 sec lead response. No visibility into actual rep response times existed.
 
 **What was built:**
 - `first_response_at` + `response_time_seconds` stamped atomically in `app/api/sms/send/route.ts` using `.is('first_response_at', null)` guard (one-time stamp only)
 - Cron Job 6 in `check-tasks` — fires once per lead when response time > 30 min via `response_alert` task dedup
-- `ResponseTimeWidget.tsx` — avg 7-day response time; green (<5 min) / yellow (5–30 min) / red (>30 min); on Today page
+- `ResponseTimeWidget.tsx` — avg 7-day response time; green (<60 sec) / yellow (1–5 min) / red (>5 min); on Today page
 
 ---
 

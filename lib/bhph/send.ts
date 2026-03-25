@@ -6,6 +6,7 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { ReminderType, buildSmsMessage, buildEmailSubject, buildEmailBody, MessageVars } from './messages'
 import { isWithinSendHours } from './schedule'
+import { getOrCreatePaymentToken, buildPayUrl } from './paymentToken'
 
 interface SendResult {
   sms: 'sent' | 'skipped_optout' | 'skipped_hours' | 'failed' | 'unconfigured'
@@ -26,12 +27,22 @@ export async function sendBhphReminder(params: {
   dealerTimezone: string
   dealerPhone: string
   messageVars: MessageVars
+  amount?: number  // used to generate payment link for due_day
 }): Promise<SendResult> {
   const {
     bhphId, userId, customerId, customerPhone, customerEmail,
     customerSmsOptedOut, reminderType, dealerTimezone, dealerPhone,
-    messageVars,
+    messageVars, amount,
   } = params
+
+  // For due_day reminders, try to attach a Stripe payment link
+  let paymentUrl: string | null = null
+  if (reminderType === 'due_day' && amount) {
+    const token = await getOrCreatePaymentToken({
+      orgId: userId, customerId, bhphContractId: bhphId, amount,
+    }).catch(() => null)
+    if (token) paymentUrl = buildPayUrl(token)
+  }
 
   const service = createServiceClient()
   const result: SendResult = {
@@ -52,7 +63,8 @@ export async function sendBhphReminder(params: {
     } else {
       const digits = customerPhone.replace(/\D/g, '')
       const to = digits.length === 10 ? `+1${digits}` : `+${digits}`
-      const body = buildSmsMessage(reminderType, messageVars)
+      const baseBody = buildSmsMessage(reminderType, messageVars)
+      const body = paymentUrl ? `${baseBody}\nPay online: ${paymentUrl}` : baseBody
 
       try {
         const twilioRes = await fetch(

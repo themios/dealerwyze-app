@@ -2,11 +2,12 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Customer, Activity, Vehicle } from '@/types'
 import { createClient } from '@/lib/supabase/client'
 import CallButton from '@/components/call/CallButton'
 import TemplatePicker from '@/components/sms/TemplatePicker'
-import EmailButton from '@/components/customer/EmailButton'
+import EmailButton, { ReplyContext } from '@/components/customer/EmailButton'
 import AfterCallModal from '@/components/call/AfterCallModal'
 import ActivityTimeline from '@/components/customer/ActivityTimeline'
 import AddTaskModal from '@/components/customer/AddTaskModal'
@@ -17,6 +18,10 @@ import VoiceRecorder from '@/components/call/VoiceRecorder'
 import AssignDropdown from '@/components/customer/AssignDropdown'
 import DocumentsSection from '@/components/customer/DocumentsSection'
 import WantListSheet from '@/components/customer/WantListSheet'
+import AutoresponderCard from '@/components/sequences/AutoresponderCard'
+import ScheduledOutreachCard from '@/components/customer/ScheduledOutreachCard'
+import MergeCustomerSheet from '@/components/customers/MergeCustomerSheet'
+import DealChecklistSheet from '@/components/customers/DealChecklistSheet'
 import { usePendingCall } from '@/components/call/usePendingCall'
 import { useOrgSettings } from '@/hooks/useOrgSettings'
 import { formatPhone } from '@/lib/utils'
@@ -24,7 +29,7 @@ import LeadStateSelector from '@/components/customer/LeadStateSelector'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Mail, Plus, FileText, Archive, X, MessageSquareOff, Trophy, Bot } from 'lucide-react'
+import { Mail, Plus, FileText, Archive, X, MessageSquareOff, Trophy, Bot, Pencil, Trash2, GitMerge, ClipboardList } from 'lucide-react'
 
 interface TaskItem {
   id: string
@@ -39,14 +44,16 @@ interface TaskItem {
 interface Props {
   customer: Customer
   activities: Activity[]
+  scheduledActivities: Activity[]
   isAdmin: boolean
   currentUserId?: string
   tasks: TaskItem[]
   initialVehicle?: Record<string, unknown> | null
 }
 
-export default function CustomerDetailClient({ customer, activities: initialActivities, isAdmin, currentUserId, tasks: initialTasks, initialVehicle }: Props) {
+export default function CustomerDetailClient({ customer, activities: initialActivities, scheduledActivities, isAdmin, currentUserId, tasks: initialTasks, initialVehicle }: Props) {
   const [activities, setActivities] = useState<Activity[]>(initialActivities)
+  const [replyContext, setReplyContext] = useState<ReplyContext | null>(null)
   const [taskOpen, setTaskOpen] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
   const [vehicleRefreshKey, setVehicleRefreshKey] = useState(0)
@@ -59,13 +66,20 @@ export default function CustomerDetailClient({ customer, activities: initialActi
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [archiveReason, setArchiveReason] = useState('')
   const [archiving, setArchiving] = useState(false)
+  const [archiveError, setArchiveError] = useState<string | null>(null)
   const [archiveDocs, setArchiveDocs] = useState<{ id: string; label: string; file_name: string; signed_url?: string | null }[]>([])
   const [archiveDocsLoading, setArchiveDocsLoading] = useState(false)
   const [archiveDocDeleting, setArchiveDocDeleting] = useState<string | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [soldOpen, setSoldOpen] = useState(false)
   const [soldNotes, setSoldNotes] = useState('')
   const [selling, setSelling]    = useState(false)
   const [sellError, setSellError] = useState<string | null>(null)
+  const [mergeOpen, setMergeOpen]         = useState(false)
+  const [checklistOpen, setChecklistOpen] = useState(false)
   const [autoOverride, setAutoOverride] = useState<string | null>(
     (customer as unknown as Record<string, unknown>).automation_override as string | null ?? null
   )
@@ -101,8 +115,9 @@ export default function CustomerDetailClient({ customer, activities: initialActi
       .from('activities')
       .select('*, vehicle:vehicles(id, year, make, model)')
       .eq('customer_id', customer.id)
+      .or('completed_at.not.is.null,customer_sequence_id.is.null')
       .order('created_at', { ascending: false })
-      .limit(50)
+      .limit(100)
     setActivities(data || [])
   }, [customer.id, supabase])
 
@@ -219,11 +234,35 @@ export default function CustomerDetailClient({ customer, activities: initialActi
 
   async function handleArchive() {
     setArchiving(true)
-    await supabase
-      .from('customers')
-      .update({ archived: true, archived_reason: archiveReason || null })
-      .eq('id', customer.id)
+    setArchiveError(null)
+    const res = await fetch(`/api/customers/${customer.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ archived: true, archived_reason: archiveReason || null }),
+    })
     setArchiving(false)
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      setArchiveError(data.error ?? 'Failed to archive lead')
+      return
+    }
+    router.push('/customers')
+  }
+
+  async function handleDelete() {
+    if (deleteConfirm.trim().toUpperCase() !== 'DELETE') return
+    setDeleting(true)
+    setDeleteError(null)
+
+    const res = await fetch(`/api/customers/${customer.id}`, { method: 'DELETE' })
+    setDeleting(false)
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      setDeleteError(data.error ?? 'Failed to delete contact')
+      return
+    }
+
     router.push('/customers')
   }
 
@@ -241,6 +280,26 @@ export default function CustomerDetailClient({ customer, activities: initialActi
             {customer.email}
           </p>
         )}
+        {primaryVehicle && (
+          <p className="text-sm font-semibold mt-1">
+            {primaryVehicle.year} {primaryVehicle.make} {primaryVehicle.model}
+            {primaryVehicle.price ? ` — $${primaryVehicle.price.toLocaleString()}` : ''}
+          </p>
+        )}
+        {/* Lead state + assignment — prominent, always visible */}
+        <div className="flex items-center gap-2 mt-2 flex-wrap">
+          <LeadStateSelector
+            customerId={customer.id}
+            currentState={customer.thread_state ?? 'new_lead'}
+          />
+          {isAdmin && (
+            <AssignDropdown
+              customerId={customer.id}
+              assignedTo={customer.assigned_to}
+              compact
+            />
+          )}
+        </div>
         {customer.sms_opt_out && (
           <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-red-600 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg px-2.5 py-1.5 w-fit">
             <MessageSquareOff className="h-3.5 w-3.5 flex-shrink-0" />
@@ -283,13 +342,6 @@ export default function CustomerDetailClient({ customer, activities: initialActi
           )}
         </div>
         <div className="flex items-center gap-1.5 mt-2">
-          <span className="text-xs text-muted-foreground">Lead state:</span>
-          <LeadStateSelector
-            customerId={customer.id}
-            currentState={customer.thread_state ?? 'new_lead'}
-          />
-        </div>
-        <div className="flex items-center gap-1.5 mt-2">
           <Bot className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
           <span className="text-xs text-muted-foreground">Auto-respond:</span>
           <div className="flex gap-1">
@@ -321,23 +373,14 @@ export default function CustomerDetailClient({ customer, activities: initialActi
         )}
       </div>
 
-      {/* Assign to (admin only) */}
-      {isAdmin && (
-        <AssignDropdown
-          customerId={customer.id}
-          assignedTo={customer.assigned_to}
-        />
-      )}
-
-      {/* Primary actions */}
-      <div className="px-4 py-3 flex gap-2 border-b">
-        <CallButton customerId={customer.id} customerName={customer.name} phone={customer.primary_phone} className="flex-1" />
-        <TemplatePicker customer={customer} vehicle={primaryVehicle} />
-        <EmailButton customer={customer} vehicle={primaryVehicle} onSent={refreshActivities} />
-      </div>
 
       {/* Secondary actions */}
       <div className="px-4 py-2 flex gap-2 border-b">
+        <Link href={`/customers/${customer.id}/edit`}>
+          <Button variant="ghost" size="sm" className="gap-1.5">
+            <Pencil className="h-4 w-4" />
+          </Button>
+        </Link>
         <Button variant="ghost" size="sm" onClick={() => setTaskOpen(true)} className="flex-1 gap-1.5">
           <Plus className="h-4 w-4" />Task
         </Button>
@@ -347,8 +390,29 @@ export default function CustomerDetailClient({ customer, activities: initialActi
         <div className={primaryVehicle ? 'flex justify-center' : 'flex-1 flex justify-center'}>
           <LinkVehicleSheet customerId={customer.id} onLinked={() => setVehicleRefreshKey(k => k + 1)} hasVehicle={!!primaryVehicle} />
         </div>
+        <Button variant="ghost" size="sm" onClick={() => setChecklistOpen(true)} className="gap-1.5 text-muted-foreground" title="Deal checklist">
+          <ClipboardList className="h-4 w-4" />
+        </Button>
+        {isAdmin && (
+          <Button variant="ghost" size="sm" onClick={() => setMergeOpen(true)} className="gap-1.5 text-muted-foreground" title="Merge duplicate">
+            <GitMerge className="h-4 w-4" />
+          </Button>
+        )}
         <Button variant="ghost" size="sm" onClick={openArchivePanel} className="gap-1.5 text-muted-foreground" title="Archive">
           <Archive className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            setDeleteOpen(v => !v)
+            setDeleteConfirm('')
+            setDeleteError(null)
+          }}
+          className="gap-1.5 text-destructive"
+          title="Delete contact"
+        >
+          <Trash2 className="h-4 w-4" />
         </Button>
         <WantListSheet
           customerId={customer.id}
@@ -447,6 +511,9 @@ export default function CustomerDetailClient({ customer, activities: initialActi
             onChange={e => setArchiveReason(e.target.value)}
             className="h-9 text-sm"
           />
+          {archiveError && (
+            <p className="text-xs text-destructive">{archiveError}</p>
+          )}
           <Button
             variant="destructive"
             size="sm"
@@ -458,6 +525,51 @@ export default function CustomerDetailClient({ customer, activities: initialActi
           </Button>
         </div>
       )}
+
+      {/* Delete panel */}
+      {deleteOpen && (
+        <div className="mx-4 my-2 p-3 rounded-lg border border-destructive bg-destructive/5 space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-destructive">Delete this contact permanently?</p>
+            <button
+              onClick={() => { setDeleteOpen(false); setDeleteConfirm(''); setDeleteError(null) }}
+              title="Close"
+            >
+              <X className="h-4 w-4 text-muted-foreground" />
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            This will remove this contact and related timeline/tasks from your CRM. Type <span className="font-semibold">DELETE</span> to confirm.
+          </p>
+          <Input
+            placeholder="Type DELETE to confirm"
+            value={deleteConfirm}
+            onChange={e => setDeleteConfirm(e.target.value)}
+            className="h-9 text-sm"
+          />
+          {deleteError && (
+            <p className="text-xs text-destructive">{deleteError}</p>
+          )}
+          <Button
+            variant="destructive"
+            size="sm"
+            className="w-full"
+            onClick={handleDelete}
+            disabled={deleting || deleteConfirm.trim().toUpperCase() !== 'DELETE'}
+          >
+            {deleting ? 'Deleting…' : 'Delete Contact'}
+          </Button>
+        </div>
+      )}
+
+      <AutoresponderCard
+        customerId={customer.id}
+        customerName={customer.name}
+        unsubEmail={unsubEmail}
+        unsubSms={unsubSms}
+      />
+
+      <ScheduledOutreachCard activities={scheduledActivities} />
 
       <LinkedVehicles customerId={customer.id} refreshKey={vehicleRefreshKey} />
 
@@ -542,19 +654,35 @@ export default function CustomerDetailClient({ customer, activities: initialActi
 
       <div className="px-4 py-4">
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4 border-l-2 border-[#F07018] pl-2">Activity</h2>
-        <ActivityTimeline activities={activities} currentUserId={currentUserId} isAdmin={isAdmin} onNoteUpdated={refreshActivities} />
+        <ActivityTimeline activities={activities} currentUserId={currentUserId} isAdmin={isAdmin} onNoteUpdated={refreshActivities} onEmailReply={setReplyContext} />
       </div>
 
       {/* Pinned reply bar — mobile only, sits above BottomNav */}
       <div className="lg:hidden fixed bottom-16 inset-x-0 z-30 bg-background border-t flex gap-2 px-4 py-2 safe-area-inset-bottom">
         <CallButton customerId={customer.id} customerName={customer.name} phone={customer.primary_phone} className="flex-1" />
         <TemplatePicker customer={customer} vehicle={primaryVehicle} />
-        <EmailButton customer={customer} vehicle={primaryVehicle} onSent={refreshActivities} />
+        <EmailButton customer={customer} vehicle={primaryVehicle} onSent={refreshActivities} replyContext={replyContext} onReplyComplete={() => setReplyContext(null)} />
       </div>
 
       <AddTaskModal open={taskOpen} onClose={() => setTaskOpen(false)} customerId={customer.id} customerName={customer.name} vehicleId={primaryVehicle?.id} orgName={orgSettings.dealerName} orgPhone={orgSettings.dealerPhone} orgAddress={orgSettings.dealerAddress} onSaved={refreshActivities} />
       <AddNoteModal open={noteOpen} onClose={() => setNoteOpen(false)} customerId={customer.id} onSaved={refreshActivities} />
       <AfterCallModal open={modalOpen} pendingCall={pendingCall} onDismiss={() => { dismissModal(); refreshActivities() }} />
+      <DealChecklistSheet
+        customerId={customer.id}
+        customerName={customer.name}
+        open={checklistOpen}
+        onOpenChange={setChecklistOpen}
+      />
+      <MergeCustomerSheet
+        open={mergeOpen}
+        onClose={() => setMergeOpen(false)}
+        sourceCustomer={{
+          id: customer.id,
+          name: customer.name,
+          primary_phone: customer.primary_phone,
+          email: customer.email,
+        }}
+      />
     </div>
   )
 }

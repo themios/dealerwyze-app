@@ -40,7 +40,7 @@ export function buildSmsMessage(type: ReminderType, vars: MessageVars): string {
       return `Hi ${first}, this is a reminder from ${dealerName} that your payment of ${a} for your ${vehicleLabel} is due on ${d}. Questions? Call us at ${dealerPhone}. Reply STOP to opt out.`
 
     case 'due_day':
-      return `Hi ${first}, your payment of ${a} to ${dealerName} is due TODAY for your ${vehicleLabel}. Please call ${dealerPhone} or stop by to make your payment. Reply STOP to opt out.`
+      return `Hi ${first}, your payment of ${a} to ${dealerName} is due TODAY for your ${vehicleLabel}. Please call ${dealerPhone} or stop by to make your payment. Reply PAY to confirm you are coming in. Reply STOP to opt out.`
 
     case 'late_2day':
       return `Hi ${first}, your payment of ${a} to ${dealerName} for your ${vehicleLabel} is now 2 days past due. Please contact us at ${dealerPhone} as soon as possible to keep your account current. Reply STOP to opt out.`

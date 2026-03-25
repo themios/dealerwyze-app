@@ -43,10 +43,13 @@ export async function PUT(req: NextRequest) {
       const t = item as Record<string, unknown>
       const label = String(t.label ?? '').trim().slice(0, 120)
       if (!label) throw new Error('empty label')
+      const allowed = ['mandatory', 'value_add', 'standard']
+      const cat = allowed.includes(String(t.category ?? '')) ? String(t.category) : 'standard'
       return {
         label,
         is_required: Boolean(t.is_required),
         sort_order: i + 1,
+        category: cat as 'mandatory' | 'value_add' | 'standard',
       }
     })
   } catch {

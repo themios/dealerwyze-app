@@ -5,7 +5,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import TopBar from '@/components/layout/TopBar'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, Pencil } from 'lucide-react'
+import { ArrowLeft, Pencil, Flame } from 'lucide-react'
 import { isDealerAdmin } from '@/types/index'
 import CustomerDetailClient from './CustomerDetailClient'
 
@@ -18,9 +18,23 @@ export default async function CustomerDetailPage({ params }: PageProps) {
   const profile = await requireProfile()
   const supabase = await createClientForRequest()
 
-  const [{ data: customer }, { data: activities }, { data: tasks }, { data: cvData }] = await Promise.all([
+  const [{ data: customer }, { data: sentActivities }, { data: scheduledActivities }, { data: tasks }, { data: cvData }] = await Promise.all([
     supabase.from('customers').select('*').eq('id', id).eq('user_id', profile.org_id).single(),
-    supabase.from('activities').select('*, vehicle:vehicles(id, year, make, model)').eq('customer_id', id).order('created_at', { ascending: false }).limit(50),
+    // Actual sent/received communication — excludes pending sequence steps
+    supabase.from('activities')
+      .select('*, vehicle:vehicles(id, year, make, model)')
+      .eq('customer_id', id)
+      .or('completed_at.not.is.null,customer_sequence_id.is.null')
+      .order('created_at', { ascending: false })
+      .limit(100),
+    // Pending scheduled sequence steps — not yet sent
+    supabase.from('activities')
+      .select('*')
+      .eq('customer_id', id)
+      .is('completed_at', null)
+      .not('customer_sequence_id', 'is', null)
+      .order('due_at', { ascending: true })
+      .limit(30),
     supabase.from('tasks')
       .select('id, title, task_type, priority, due_at, status, notes')
       .eq('linked_customer_id', id)
@@ -43,7 +57,14 @@ export default async function CustomerDetailPage({ params }: PageProps) {
   return (
     <div>
       <TopBar
-        title={customer.name}
+        left={
+          <h1 className="text-lg font-semibold flex items-center gap-1.5">
+            {(customer as { lead_rating?: string | null }).lead_rating === 'hot' && (
+              <Flame className="h-4 w-4 text-orange-400 flex-shrink-0" />
+            )}
+            {customer.name}
+          </h1>
+        }
         right={
           <div className="flex items-center gap-1">
             <Link href={`/customers/${id}/edit`} title="Edit lead">
@@ -55,7 +76,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
           </div>
         }
       />
-      <CustomerDetailClient customer={customer} activities={activities || []} isAdmin={isDealerAdmin(profile.role)} currentUserId={profile.id} tasks={tasks || []} initialVehicle={primaryVehicle} />
+      <CustomerDetailClient customer={customer} activities={sentActivities || []} scheduledActivities={scheduledActivities || []} isAdmin={isDealerAdmin(profile.role)} currentUserId={profile.id} tasks={tasks || []} initialVehicle={primaryVehicle} />
     </div>
   )
 }

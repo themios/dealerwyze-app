@@ -6,10 +6,10 @@
 
 ## Hero / landing headline options
 
-- **Reply in 5 minutes, not 5 hours.** One place for every lead. DealerWyze.
+- **Reply in 60 seconds, not 5 hours.** One place for every lead. DealerWyze.
 - **One list. Every lead. Every car. Reply first.**
 - **Stop losing deals to the dealer who replied at 9:05.**
-- **Your leads in one place. Your replies in under five minutes.**
+- **Your leads in one place. Your replies in under 60 seconds.**
 - **The first dealer to reply clearly usually gets the sale. Be that dealer.**
 
 ---
@@ -30,17 +30,17 @@ DealerWyze pulls every inquiry — from Gmail, CarGurus, your website, and texts
 ## LinkedIn / Facebook ad (emotional angle)
 
 You had the car. You had the price. What you didn’t have was the first reply.  
-DealerWyze gives you one list for every lead and the tools to reply in under five minutes — so the next deal doesn’t go to the lot that answered while you were still digging through email.  
+DealerWyze gives you one list for every lead and the tools to reply in under 60 seconds — so the next deal doesn’t go to the lot that answered while you were still digging through email.  
 Built for independent dealers. One place. Fast reply. Fewer lost deals.
 
 ---
 
 ## Email subject lines (for newsletters or nurture)
 
-- Reply in 5 minutes, not 5 hours — how one list changes the game  
+- Reply in 60 seconds, not 5 hours — how one list changes the game  
 - The dealer who replied first got the sale. Here’s how to be that dealer.  
 - One place for every lead: why your inbox is costing you deals  
-- Stop losing leads to Gmail. One list. One link. Five minutes.
+- Stop losing leads to Gmail. One list. One link. 60 seconds.
 
 ---
 

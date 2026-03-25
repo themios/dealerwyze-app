@@ -8,9 +8,9 @@
 
 The deal you lost at 9:05 wasn’t lost because your car was worse. It was lost because someone else replied first.
 
-Most small dealers are still running on Gmail + memory. Leads land in five places. You switch tabs, forget who wanted which car, and reply a few hours later. By then the buyer is already talking to the lot that answered in five minutes.
+Most small dealers are still running on Gmail + memory. Leads land in five places. You switch tabs, forget who wanted which car, and reply a few hours later. By then the buyer is already talking to the lot that answered in 60 seconds.
 
-We built DealerWyze so that doesn’t happen. One list for every lead — from email, CarGurus, your website, and texts. Each person tied to the car they asked about. Reply in a few taps with the right message and the right link. A Today list so callbacks and follow-ups don’t slip. Response time so you see if you’re hitting “under five minutes.”
+We built DealerWyze so that doesn’t happen. One list for every lead — from email, CarGurus, your website, and texts. Each person tied to the car they asked about. Reply in a few taps with the right message and the right link. A Today list so callbacks and follow-ups don’t slip. Response time so you see if you’re hitting “under 60 seconds.”
 
 No enterprise CRM. Just one place, fast reply, and fewer lost deals. Built for independent used-car dealers and small lots.
 
@@ -33,7 +33,7 @@ Problem: leads are scattered. Gmail here. CarGurus there. A text on your phone. 
 Fix: one list. Every inquiry — email, listing sites, website, texts — lands in the same app. You see who’s new, who’s waiting, who you said you’d call back. Work from urgency, not from which email arrived first.
 
 **5**  
-Speed + relevance. Templates fill in name, car, price, and the exact listing link. You pick the message and send. Buyer gets “Hi Marcus, 2009 Acura MDX at $7,495 — here’s the link” in under 5 minutes. No novel. Just fast and right.
+Speed + relevance. Templates fill in name, car, price, and the exact listing link. You pick the message and send. Buyer gets “Hi Marcus, 2009 Acura MDX at $7,495 — here’s the link” in under 60 seconds. No novel. Just fast and right.
 
 **6**  
 Follow-up has to be built in. “Call back in 2 hours” or “tomorrow 9am” becomes a task on a Today list. You don’t remember — you work the list. Nothing falls through the cracks.

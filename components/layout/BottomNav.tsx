@@ -116,7 +116,7 @@ export default function BottomNav() {
       <div className="flex items-center justify-around h-16">
         {DEALER_NAV_ITEMS.map(({ href, label, icon: Icon }) => {
           const active = href === '/more'
-            ? ['/more', '/bhph', '/analytics', '/admin', '/support', '/fax'].some(p => pathname.startsWith(p))
+            ? ['/more', '/bhph', '/analytics', '/reports', '/admin', '/support', '/fax'].some(p => pathname.startsWith(p))
             : pathname.startsWith(href)
           return (
             <Link

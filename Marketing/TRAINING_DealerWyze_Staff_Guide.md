@@ -46,7 +46,7 @@ Buyers contact you in many ways: email (Gmail, listing-site notifications), webs
 
 **What you'll learn in this guide**
 
-You will learn how to: find and open any lead; use the Today list to prioritize your day; send a first reply in under five minutes using templates; text customers from the app; log calls and choose outcomes; understand response time and basic analytics; and use optional tools (daily brief, lead scanner, after-hours voice, BHPH) if your dealership has them turned on.
+You will learn how to: find and open any lead; use the Today list to prioritize your day; send a first reply in under 60 seconds using templates; text customers from the app; log calls and choose outcomes; understand response time and basic analytics; and use optional tools (daily brief, lead scanner, after-hours voice, BHPH) if your dealership has them turned on.
 
 **Check your understanding**
 
@@ -144,7 +144,7 @@ When you're on a customer record, you can add a task (e.g. "Call back Friday 10a
 
 **Why speed matters**
 
-Research shows that the first dealer to reply clearly and quickly usually gets the conversation — and often the sale. DealerWyze is built so you can send a relevant, personal-feeling reply in under five minutes.
+Research shows that the first dealer to reply clearly and quickly usually gets the conversation — and often the sale. DealerWyze is built so you can send a relevant, personal-feeling reply in under 60 seconds.
 
 **What templates are**
 
@@ -246,7 +246,7 @@ If the pop-up appears but you don't want to log anything right then, use the **X
 **What the app tracks**
 
 - **Leads:** How many came in, by source (e.g. CarGurus, email, voice), and over what period.
-- **Response time:** How quickly the first reply was sent after the lead came in (e.g. under 5 minutes, 5–30 minutes, over 30 minutes). Many dealers aim for under five minutes.
+- **Response time:** How quickly the first reply was sent after the lead came in (e.g. under 60 seconds, 1–5 minutes, over 5 minutes). Many dealers aim for under 60 seconds.
 - **SMS:** How many messages were sent and how many customers replied (reply rate).
 - **Voice:** Call volume, average duration, and estimated cost if applicable.
 - **Funnel:** How many leads are at each stage (new, contacted, engaged, appointment set, showed, sold).
@@ -322,14 +322,14 @@ If your store finances cars and collects payments, the app can track loans, send
 **Suggested daily workflow**
 
 1. **Start with Today.** Open the Today list and see what’s urgent: new leads, overdue callbacks, appointments.
-2. **Handle new leads first.** Reply within five minutes when possible. Use a template, add the right car link, and send. If you need to call, log the call and set a follow-up if you didn’t reach them.
+2. **Handle new leads first.** Reply within 60 seconds when possible. Use a template, add the right car link, and send. If you need to call, log the call and set a follow-up if you didn’t reach them.
 3. **Work through callbacks and tasks.** Use Today to drive the order. When you complete something, add the next step (e.g. "Call back Friday") so it appears on the right day.
 4. **Check Leads for anything not on Today.** Sometimes a lead comes in and doesn’t create a task yet. Scan Leads (or your assigned slice) for "new" or "contacted" and make sure no one is waiting.
 5. **End the day with a quick look at Tomorrow.** See what’s due tomorrow so you’re ready in the morning.
 
 **Best practices**
 
-- **Reply fast.** First response under five minutes when you can. Use templates so speed doesn’t mean generic messages.
+- **Reply fast.** First response under 60 seconds when you can. Use templates so speed doesn’t mean generic messages.
 - **Use the right link.** Always send the link to the specific car they asked about. The app provides it; use it.
 - **Log every call.** Outcome + short notes + follow-up if needed. That keeps the team and analytics accurate.
 - **Don’t let Today get stale.** Complete tasks or reschedule them. If you can’t reach someone, set a new callback instead of leaving it overdue.

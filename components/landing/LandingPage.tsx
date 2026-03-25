@@ -210,13 +210,13 @@ function HeroSection() {
             <p className="text-lg sm:text-xl leading-relaxed mb-8 max-w-lg"
               style={{ color: 'rgba(255,255,255,0.75)' }}>
               DealerWyze gives you one place for every lead, every car, and every
-              next step — so you stop context-switching and start closing.
+              next step - so you stop context-switching and start closing.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 mb-6">
               <Link href="/signup"
                 className="inline-flex items-center justify-center gap-2 px-7 py-4 rounded-xl font-bold text-base text-white transition-all hover:opacity-90 active:scale-95 shadow-lg"
                 style={{ backgroundColor: ORANGE, boxShadow: '0 4px 20px rgba(240,112,24,0.4)' }}>
-                Start Free — No Card Needed
+                Start Free - No Card Needed
                 <ChevronRight className="w-4 h-4" />
               </Link>
               <a href="#features"
@@ -245,11 +245,40 @@ function HeroSection() {
   )
 }
 
+// ─── Elevator Pitch ───────────────────────────────────────────────────────────
+
+function ElevatorPitchSection() {
+  return (
+    <section style={{ backgroundColor: ORANGE }}>
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-16 lg:py-20 text-center">
+        <p className="text-xs font-black uppercase tracking-widest mb-6 text-white/70">
+          Who This Is For
+        </p>
+        <blockquote className="text-2xl sm:text-3xl lg:text-4xl font-black text-white leading-snug mb-10">
+          &ldquo;If you&rsquo;re tired of paying for leads that never get followed up on, frustrated you can&rsquo;t see what your sales team is actually doing, and losing deals to the dealer down the street simply because they called back first- sign up for DealerWyze.&rdquo;
+        </blockquote>
+        <p className="text-lg sm:text-xl font-semibold text-white/90 mb-10 max-w-2xl mx-auto">
+          Every lead texted back in under 60 seconds. Every rep accountable. Every follow-up automated- even while you sleep.
+        </p>
+        <Link
+          href="/signup"
+          className="inline-flex items-center gap-2 px-8 py-4 rounded-xl font-bold text-base transition-all hover:opacity-90 active:scale-95 shadow-xl"
+          style={{ backgroundColor: NAVY, color: '#fff', boxShadow: '0 4px 24px rgba(13,43,85,0.35)' }}
+        >
+          Start Free Today
+          <ChevronRight className="w-4 h-4" />
+        </Link>
+        <p className="mt-4 text-sm text-white/60">No credit card. No commitment. Free during beta.</p>
+      </div>
+    </section>
+  )
+}
+
 // ─── Pain ────────────────────────────────────────────────────────────────────
 
 const painPoints = [
   { emoji: '📱', title: 'Leads from everywhere',
-    desc: 'Calls, texts, Gmail, AutoTrader, CarGurus — no single place to track them all.' },
+    desc: 'Calls, texts, Gmail, AutoTrader, CarGurus - no single place to track them all.' },
   { emoji: '🌙', title: 'The overnight miss',
     desc: "A lead came in at 10pm. By morning, they'd already bought from the dealer who responded at 10:01pm." },
   { emoji: '🚗', title: 'Which car did they want?',
@@ -270,7 +299,7 @@ function PainSection() {
             Running a small lot means wearing every hat.
           </h2>
           <p className="text-lg max-w-xl mx-auto" style={{ color: '#6B6355' }}>
-            And somewhere between the calls, texts, and emails — deals fall through the cracks.
+            And somewhere between the calls, texts, and emails - deals fall through the cracks.
           </p>
         </div>
         <div className="grid sm:grid-cols-2 gap-5">
@@ -295,7 +324,7 @@ const howSteps = [
   {
     num: '01',
     title: 'Connect your lead sources',
-    desc: 'Link Gmail or any IMAP account. Leads from AutoTrader, CarGurus, and your website forms import automatically — no copy-pasting ever again.',
+    desc: 'Link Gmail or any IMAP account. Leads from AutoTrader, CarGurus, and your website forms import automatically - no copy-pasting ever again.',
   },
   {
     num: '02',
@@ -304,7 +333,7 @@ const howSteps = [
   },
   {
     num: '03',
-    title: 'Close more deals — and prove it',
+    title: 'Close more deals - and prove it',
     desc: 'Track every deal from first contact to sold. BHPH loans, payments, and collections in the same app. Analytics show what\'s working.',
   },
 ]
@@ -372,7 +401,7 @@ function TodayListSection() {
           </h2>
           <p className="text-lg max-w-2xl mx-auto" style={{ color: 'rgba(255,255,255,0.65)' }}>
             Overdue calls. Appointment requests. New leads. Customers waiting on a reply.
-            All in one place — ranked by urgency, not by when it arrived in your inbox.
+            All in one place - ranked by urgency, not by when it arrived in your inbox.
           </p>
         </div>
         <div className="grid sm:grid-cols-3 gap-5">
@@ -395,15 +424,15 @@ function TodayListSection() {
 
 const aiFeatures = [
   { icon: '🤖', title: 'AI Voice Agent',
-    desc: 'A Retell AI agent answers inbound calls, qualifies leads, and logs the full transcript and summary back to the customer record — automatically.' },
+    desc: 'A Retell AI agent answers inbound calls, qualifies leads, and logs the full transcript and summary back to the customer record - automatically.' },
   { icon: '📸', title: 'AI Lead Scanner',
     desc: 'Snap a photo of a handwritten buyer inquiry or upload a PDF. AI extracts the customer name, phone, vehicle interest, and creates the lead in seconds.' },
   { icon: '📰', title: 'AI Dealer Brief',
     desc: 'Every morning, a one-paragraph summary of your day: new leads, appointments, overdue follow-ups, and what needs to happen first.' },
   { icon: '🧾', title: 'AI Receipt OCR',
-    desc: 'Upload a receipt photo. AI extracts vendor, amount, category, and posts it to your ledger — cutting bookkeeping time by half.' },
+    desc: 'Upload a receipt photo. AI extracts vendor, amount, category, and posts it to your ledger - cutting bookkeeping time by half.' },
   { icon: '📊', title: 'AI Smart Pricing',
-    desc: 'Get live Fast Sale, Fair Market, and Max Return price tiers for any vehicle in your inventory — with market comps, an NHTSA reliability check, and a full AI market analysis. No CarGurus subscription needed.' },
+    desc: 'Get live Fast Sale, Fair Market, and Max Return price tiers for any vehicle in your inventory - with market comps, an NHTSA reliability check, and a full AI market analysis. No CarGurus subscription needed.' },
 ]
 
 function AISection() {
@@ -422,7 +451,7 @@ function AISection() {
             Works while you&apos;re on the lot.
           </h2>
           <p className="text-lg max-w-2xl mx-auto" style={{ color: '#6B6355' }}>
-            Five AI systems handle the tedious parts — so you focus on the customer in front of you.
+            Five AI systems handle the tedious parts - so you focus on the customer in front of you.
           </p>
         </div>
         <div className="grid sm:grid-cols-2 gap-5">
@@ -447,9 +476,9 @@ function AISection() {
 
 function SmartPricingSection() {
   const tiers = [
-    { label: 'Fast Sale',    color: '#22c55e', desc: '60-day target — price to move now' },
-    { label: 'Fair Market',  color: ORANGE,    desc: '90-day target — balanced approach' },
-    { label: 'Max Return',   color: '#3b82f6', desc: '120-day target — hold for top dollar' },
+    { label: 'Fast Sale',    color: '#22c55e', desc: '60-day target - price to move now' },
+    { label: 'Fair Market',  color: ORANGE,    desc: '90-day target - balanced approach' },
+    { label: 'Max Return',   color: '#3b82f6', desc: '120-day target - hold for top dollar' },
   ]
 
   return (
@@ -457,7 +486,7 @@ function SmartPricingSection() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
 
-          {/* Left — copy */}
+          {/* Left - copy */}
           <div>
             <div className="inline-flex items-center gap-2 mb-5 px-4 py-2 rounded-full"
               style={{ backgroundColor: 'rgba(240,112,24,0.1)', border: '1px solid rgba(240,112,24,0.25)' }}>
@@ -473,8 +502,8 @@ function SmartPricingSection() {
             </h2>
             <p className="text-lg leading-relaxed mb-6" style={{ color: '#6B6355' }}>
               CarGurus charges $2,000/month for live pricing comps. DealerWyze puts the same
-              intelligence inside your CRM — with three pricing tiers, a market confidence score,
-              and an AI-written market analysis report — for no additional cost.
+              intelligence inside your CRM - with three pricing tiers, a market confidence score,
+              and an AI-written market analysis report - for no additional cost.
             </p>
             <ul className="space-y-3 mb-8">
               {[
@@ -482,7 +511,7 @@ function SmartPricingSection() {
                 'NHTSA recall check and reliability risk on every vehicle',
                 'AI-generated listing description from market data',
                 'Deal rating badge for your public inventory pages',
-                'Results cached 7 days — one click, instant answer',
+                'Results cached 7 days - one click, instant answer',
               ].map((item, i) => (
                 <li key={i} className="flex items-start gap-3">
                   <ShieldCheck className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: ORANGE }} />
@@ -491,11 +520,11 @@ function SmartPricingSection() {
               ))}
             </ul>
             <p className="text-sm font-semibold" style={{ color: NAVY }}>
-              Price to move in 60 days — or hold for maximum return. The choice is yours.
+              Price to move in 60 days - or hold for maximum return. The choice is yours.
             </p>
           </div>
 
-          {/* Right — pricing card mockup */}
+          {/* Right - pricing card mockup */}
           <div className="flex justify-center lg:justify-end">
             <div className="w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl"
               style={{ backgroundColor: '#fff', border: '1px solid #E8E2D8' }}>
@@ -579,8 +608,8 @@ function FounderSection() {
           <blockquote className="relative z-10 text-base sm:text-lg leading-relaxed italic pl-4"
             style={{ color: '#3D3530', borderLeft: `3px solid ${ORANGE}` }}>
             <p className="mb-4">
-              Running a small lot meant every lead came through a different place — calls, texts,
-              Gmail lead emails, platform messages — and I was constantly context-switching and still
+              Running a small lot meant every lead came through a different place - calls, texts,
+              Gmail lead emails, platform messages - and I was constantly context-switching and still
               missing follow-ups. I&apos;d wake up realizing I lost a deal overnight because I couldn&apos;t
               find the last conversation, didn&apos;t remember which car it was tied to, or forgot the
               next step.
@@ -592,7 +621,7 @@ function FounderSection() {
             </p>
           </blockquote>
           <div className="mt-6 pl-4">
-            <p className="font-bold text-sm" style={{ color: NAVY }}>— Independent dealer, Los Angeles, CA</p>
+            <p className="font-bold text-sm" style={{ color: NAVY }}>Independent dealer, Los Angeles, CA</p>
           </div>
         </div>
         <div className="mt-10 rounded-xl px-5 py-4 text-sm text-center leading-relaxed"
@@ -610,7 +639,7 @@ function FounderSection() {
 
 const reviews = [
   {
-    body: "I run a small used car lot and this is the first CRM that actually fits how we work. One tap to call/text, it logs the attempt automatically, and when I come back it forces a quick outcome + next step so nothing falls through. The Today list alone paid for it — I stopped losing leads overnight.",
+    body: "I run a small used car lot and this is the first CRM that actually fits how we work. One tap to call/text, it logs the attempt automatically, and when I come back it forces a quick outcome + next step so nothing falls through. The Today list alone paid for it - I stopped losing leads overnight.",
     author: 'Independent Dealer, Southern California',
   },
   {
@@ -618,7 +647,7 @@ const reviews = [
     author: 'Used Car Dealer, Central Valley, CA',
   },
   {
-    body: "This feels like a 'dealer brain' app, not a corporate CRM. It's mobile-first, instant search by phone/VIN/make-model, and lightweight enough that I actually use it during a busy day. The voice notes feature is clutch — after a call I record 15 seconds and I'm done.",
+    body: "This feels like a 'dealer brain' app, not a corporate CRM. It's mobile-first, instant search by phone/VIN/make-model, and lightweight enough that I actually use it during a busy day. The voice notes feature is clutch - after a call I record 15 seconds and I'm done.",
     author: 'Small Lot Owner, Los Angeles, CA',
   },
 ]
@@ -648,7 +677,7 @@ function ReviewsSection() {
               <p className="text-sm leading-relaxed flex-1 mb-5" style={{ color: '#3D3530' }}>
                 &ldquo;{r.body}&rdquo;
               </p>
-              <p className="text-xs font-semibold" style={{ color: '#6B6355' }}>— {r.author}</p>
+              <p className="text-xs font-semibold" style={{ color: '#6B6355' }}>{r.author}</p>
             </div>
           ))}
         </div>
@@ -697,7 +726,7 @@ function IntegrationsSection() {
 
 const features: { icon: React.ElementType; title: string; desc: string; badge?: string }[] = [
   { icon: ListChecks,    title: 'Today Dashboard',
-    desc: 'Prioritized daily action list — overdue tasks, new leads, appointments, and follow-ups ranked by urgency.' },
+    desc: 'Prioritized daily action list - overdue tasks, new leads, appointments, and follow-ups ranked by urgency.' },
   { icon: Car,           title: 'Lead Pipeline',
     desc: 'Kanban board from New Lead → Contacted → Appointment → Sold. Drag to advance, filter by rep.' },
   { icon: MessageSquare, title: 'Two-Way SMS',
@@ -705,11 +734,11 @@ const features: { icon: React.ElementType; title: string; desc: string; badge?: 
   { icon: Mail,          title: 'Gmail & IMAP Lead Import',
     desc: 'AutoTrader, CarGurus, and web form leads auto-import from Gmail or any IMAP account. No copy-pasting.' },
   { icon: ScanLine,      title: 'AI Lead Scanner',
-    desc: 'Photograph a walk-in buyer card or PDF. AI extracts name, phone, email, and vehicle interest — pre-fills the lead form in seconds.' },
+    desc: 'Photograph a walk-in buyer card or PDF. AI extracts name, phone, email, and vehicle interest - pre-fills the lead form in seconds.' },
   { icon: Paperclip,      title: 'Document Attachments',
     desc: 'Attach photos, PDFs, and docs to vehicles or customer records. Vehicle docs get an AI-generated summary on upload.' },
   { icon: CalendarDays,  title: 'Calendar & Appointments',
-    desc: 'Schedule test drives, sync to Google Calendar, and get SMS reminders to customers — one tap.' },
+    desc: 'Schedule test drives, sync to Google Calendar, and get SMS reminders to customers - one tap.' },
   { icon: Building2,     title: 'Google Business Reviews',
     desc: 'Pull and reply to Google Business Profile reviews from inside the app. Never let a review go unanswered.' },
   { icon: CreditCard,    title: 'BHPH Loan Tracking',
@@ -723,7 +752,7 @@ const features: { icon: React.ElementType; title: string; desc: string; badge?: 
   { icon: BarChart3,     title: 'Analytics & Reports',
     desc: 'Lead funnel, SMS stats, response time, BHPH collection rate, revenue trends. Full XLSX export.' },
   { icon: Wallet,         title: 'Prepaid Overage Credit',
-    desc: 'Add credit ($10–$100) to keep texting and calling past your plan limits. Deducts automatically — no surprise bills.' },
+    desc: 'Add credit ($10–$100) to keep texting and calling past your plan limits. Deducts automatically - no surprise bills.' },
   { icon: Search,        title: 'Instant Search',
     desc: 'Find any customer by name, phone, email, VIN, or make/model in under a second. Mid-conversation fast.' },
   { icon: Users,         title: 'Team & Roles',
@@ -733,10 +762,10 @@ const features: { icon: React.ElementType; title: string; desc: string; badge?: 
   { icon: Mic,           title: 'Voice Notes',
     desc: 'Record a 15-second note after a call. AI transcribes and attaches it to the customer timeline.' },
   { icon: Phone,         title: 'AI Voice Agent',
-    desc: 'Retell AI answers calls, qualifies leads, and writes the full transcript to the customer record — even after hours.',
+    desc: 'Retell AI answers calls, qualifies leads, and writes the full transcript to the customer record - even after hours.',
     badge: 'Core + Voice' },
   { icon: TrendingUp,    title: 'Smart Pricing Intelligence',
-    desc: 'Fast Sale, Fair Market, and Max Return price tiers with live comps, NHTSA reliability check, AI market analysis, and a public deal badge — all in one click.' },
+    desc: 'Fast Sale, Fair Market, and Max Return price tiers with live comps, NHTSA reliability check, AI market analysis, and a public deal badge - all in one click.' },
 ]
 
 function FeaturesSection() {
@@ -857,7 +886,7 @@ function PricingSection() {
             Start free today. No credit card needed.
           </h2>
           <p className="text-base" style={{ color: '#6B6355' }}>
-            We&apos;re in beta — free access while we build together. Paid plans launch when the product is ready.
+            We&apos;re in beta - free access while we build together. Paid plans launch when the product is ready.
           </p>
         </div>
 
@@ -878,14 +907,14 @@ function PricingSection() {
         {/* Cards */}
         <div className="grid sm:grid-cols-3 gap-6 max-w-5xl mx-auto">
 
-          {/* Free Beta — featured */}
+          {/* Free Beta - featured */}
           <div className="rounded-2xl p-7 relative flex flex-col"
             style={{ backgroundColor: NAVY, border: `2px solid ${NAVY}`,
               boxShadow: '0 8px 32px rgba(13,43,85,0.35)' }}>
             <div className="mb-5">
               <span className="text-xs font-black uppercase tracking-wide px-3 py-1.5 rounded-full"
                 style={{ backgroundColor: ORANGE, color: '#fff' }}>
-                Available Now — Free
+                Available Now - Free
               </span>
             </div>
             <h3 className="text-xl font-black mb-1 text-white">Beta Access</h3>
@@ -907,14 +936,14 @@ function PricingSection() {
             <Link href="/signup"
               className="w-full py-3.5 rounded-xl font-bold text-sm text-white text-center transition-all hover:opacity-90 active:scale-95"
               style={{ backgroundColor: ORANGE, boxShadow: '0 4px 16px rgba(240,112,24,0.4)' }}>
-              Start Free — No Card Needed
+              Start Free - No Card Needed
             </Link>
             <p className="text-center mt-3 text-xs" style={{ color: 'rgba(255,255,255,0.45)' }}>
               No credit card · No commitment
             </p>
           </div>
 
-          {/* Complete CRM — Coming Soon */}
+          {/* Complete CRM - Coming Soon */}
           <div className="rounded-2xl p-7 relative flex flex-col opacity-75"
             style={{ backgroundColor: '#fff', border: `2px solid #D1C9BF`,
               boxShadow: '0 2px 16px rgba(13,43,85,0.06)' }}>
@@ -926,7 +955,7 @@ function PricingSection() {
             </div>
             <h3 className="text-xl font-black mb-1" style={{ color: NAVY }}>Complete CRM</h3>
             <p className="text-sm mb-3" style={{ color: '#6B6355' }}>
-              All-inclusive CRM — SMS, fax, AI tools, BHPH, no add-ons
+              All-inclusive CRM - SMS, fax, AI tools, BHPH, no add-ons
             </p>
             <div className="mb-1">
               <div className="flex items-end gap-1">
@@ -934,7 +963,7 @@ function PricingSection() {
                 <span className="text-sm pb-1.5" style={{ color: '#6B6355' }}>/mo, billed monthly</span>
               </div>
               <p className="text-xs mt-1" style={{ color: '#9A3412' }}>
-                or <strong>${crmAnnual}/mo</strong> billed annually — save ${crmSavings}/yr
+                or <strong>${crmAnnual}/mo</strong> billed annually - save ${crmSavings}/yr
               </p>
             </div>
             <ul className="space-y-2.5 mb-7 mt-4 flex-1">
@@ -951,7 +980,7 @@ function PricingSection() {
             </div>
           </div>
 
-          {/* Complete CRM + Voice — Coming Soon */}
+          {/* Complete CRM + Voice - Coming Soon */}
           <div className="rounded-2xl p-7 relative flex flex-col opacity-75"
             style={{ backgroundColor: '#fff', border: `2px solid #D1C9BF`,
               boxShadow: '0 2px 16px rgba(13,43,85,0.06)' }}>
@@ -974,7 +1003,7 @@ function PricingSection() {
                 $150 CRM + $200 Voice add-on
               </p>
               <p className="text-xs mt-0.5" style={{ color: '#9A3412' }}>
-                or <strong>${fullAnnual}/mo</strong> billed annually — save ${fullSavings}/yr
+                or <strong>${fullAnnual}/mo</strong> billed annually - save ${fullSavings}/yr
               </p>
             </div>
             <ul className="space-y-2.5 mb-7 mt-4 flex-1">
@@ -1019,11 +1048,11 @@ function PricingSection() {
 const faqs = [
   {
     q: 'Is there a contract?',
-    a: 'No. DealerWyze is month-to-month. Cancel anytime from your billing settings — no phone calls, no cancellation fees.',
+    a: 'No. DealerWyze is month-to-month. Cancel anytime from your billing settings - no phone calls, no cancellation fees.',
   },
   {
     q: 'Do I need a credit card to sign up?',
-    a: 'No. DealerWyze is free during beta — no credit card required at any point. When paid plans launch, you\'ll have at least 30 days notice and the option to choose a plan or cancel.',
+    a: 'No. DealerWyze is free during beta - no credit card required at any point. When paid plans launch, you\'ll have at least 30 days notice and the option to choose a plan or cancel.',
   },
   {
     q: 'Can I import my existing customers and leads?',
@@ -1039,11 +1068,11 @@ const faqs = [
   },
   {
     q: 'What does the Voice AI add-on do?',
-    a: 'The Voice AI add-on ($200/mo, requires Complete CRM) adds a Retell AI phone agent that answers inbound calls 24/7, qualifies leads, and writes call transcripts directly to the customer record — even when you\'re on the lot or after hours. Includes 1,000 voice minutes/month.',
+    a: 'The Voice AI add-on ($200/mo, requires Complete CRM) adds a Retell AI phone agent that answers inbound calls 24/7, qualifies leads, and writes call transcripts directly to the customer record - even when you\'re on the lot or after hours. Includes 1,000 voice minutes/month.',
   },
   {
     q: 'Is there an annual discount?',
-    a: 'Yes — 10% off when you pay annually. Complete CRM drops from $150/mo to $135/mo (saving $180/yr). The full CRM + Voice stack drops from $350/mo to $315/mo (saving $420/yr).',
+    a: 'Yes - 10% off when you pay annually. Complete CRM drops from $150/mo to $135/mo (saving $180/yr). The full CRM + Voice stack drops from $350/mo to $315/mo (saving $420/yr).',
   },
   {
     q: 'Is two-way SMS included?',
@@ -1051,7 +1080,7 @@ const faqs = [
   },
   {
     q: 'How is my data protected?',
-    a: 'All data is encrypted at rest and in transit (AES-256 / TLS 1.3). Each dealership\'s data is fully isolated — no tenant can access another\'s records. Staff access is role-gated, and every admin action is logged.',
+    a: 'All data is encrypted at rest and in transit (AES-256 / TLS 1.3). Each dealership\'s data is fully isolated - no tenant can access another\'s records. Staff access is role-gated, and every admin action is logged.',
   },
   {
     q: 'What happens to my data if I cancel?',
@@ -1125,7 +1154,7 @@ function FinalCTASection() {
         <Link href="/signup"
           className="inline-flex items-center gap-2 px-8 py-4 rounded-xl font-bold text-base text-white transition-all hover:opacity-90 active:scale-95 shadow-xl"
           style={{ backgroundColor: ORANGE, boxShadow: '0 6px 24px rgba(240,112,24,0.45)' }}>
-          Start Free Today — No Card Needed
+          Start Free Today - No Card Needed
           <ChevronRight className="w-4 h-4" />
         </Link>
         <p className="mt-5 text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>
@@ -1151,8 +1180,8 @@ function Footer() {
               { label: 'Features', href: '#features' },
               { label: 'Pricing',  href: '#pricing'  },
               { label: 'Blog',     href: '/blog'      },
-              { label: 'Terms',    href: '/terms'     },
-              { label: 'Privacy',  href: '/privacy'   },
+              { label: 'Terms',    href: '/terms.html'   },
+              { label: 'Privacy',  href: '/privacy.html' },
               { label: 'Sign In',  href: '/login'     },
             ].map((link) => (
               <a key={link.href} href={link.href}
@@ -1203,6 +1232,7 @@ export default function LandingPage() {
       <Nav />
       <main>
         <HeroSection />
+        <ElevatorPitchSection />
         <PainSection />
         <HowItWorksSection />
         <TodayListSection />

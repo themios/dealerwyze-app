@@ -2,8 +2,10 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
-import { Activity, Template, VoiceCall } from '@/types'
+import { Activity, VoiceCall } from '@/types'
 import { SequenceStatus } from '@/components/leads/NewLeadCard'
 import { createClient } from '@/lib/supabase/client'
 import { shouldShowAddressedActivity } from '@/lib/utils'
@@ -55,7 +57,7 @@ interface TodayContentProps {
   initialNewLeads: Activity[]
   initialTasks: Activity[]
   initialWaiting: Activity[]
-  leadTemplates: Template[]
+
   initialApptRequests: Activity[]
   initialVoiceLeads: VoiceCall[]
   initialVehicleMatches?: Activity[]
@@ -64,7 +66,7 @@ interface TodayContentProps {
   sequenceStatusMap?: Record<string, SequenceStatus>
 }
 
-export default function TodayContent({ initialNewLeads, initialTasks, initialWaiting, leadTemplates, initialApptRequests, initialVoiceLeads, initialVehicleMatches = [], respondedCustomerIds = [], sequenceStatusMap = {} }: TodayContentProps) {
+export default function TodayContent({ initialNewLeads, initialTasks, initialWaiting, initialApptRequests, initialVoiceLeads, initialVehicleMatches = [], respondedCustomerIds = [], sequenceStatusMap = {} }: TodayContentProps) {
   const [newLeads, setNewLeads] = useState<Activity[]>(initialNewLeads)
   const [tasks, setTasks] = useState<Activity[]>(initialTasks)
   const [waiting, setWaiting] = useState<Activity[]>(initialWaiting)
@@ -74,6 +76,7 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
   const [responded, setResponded] = useState<string[]>(respondedCustomerIds)
   const { pendingCall, modalOpen, dismissModal } = usePendingCall()
   const supabase = createClient()
+  const router = useRouter()
   const [dateLabel, setDateLabel] = useState('')
   const [motivationalMsg, setMotivationalMsg] = useState('')
   useEffect(() => {
@@ -125,7 +128,7 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
     const [{ data: leads }, { data: t }, { data: w }] = await Promise.all([
       supabase
         .from('activities')
-        .select('*, customer:customers(id, name, primary_phone, email)')
+        .select('*, customer:customers(id, name, primary_phone, email, archived)')
         .eq('type', 'email')
         .eq('direction', 'inbound')
         .eq('outcome', 'pending')
@@ -134,7 +137,7 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
         .order('created_at', { ascending: false }),
       supabase
         .from('activities')
-        .select('*, customer:customers(id, name, primary_phone, email)')
+        .select('*, customer:customers(id, name, primary_phone, email, archived)')
         .in('type', ['task', 'appointment', 'call', 'sms', 'email', 'email_followup', 'sms_followup'])
         .is('completed_at', null)
         .not('direction', 'eq', 'inbound')
@@ -145,7 +148,7 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
         .order('due_at', { ascending: true }),
       supabase
         .from('activities')
-        .select('*, customer:customers(id, name, primary_phone)')
+        .select('*, customer:customers(id, name, primary_phone, archived)')
         .eq('direction', 'outbound')
         .in('type', ['call', 'sms', 'email'])
         .not('outcome', 'eq', 'pending')
@@ -157,19 +160,25 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
     const seenCustomers = new Set<string>()
     const dedupedWaiting = (w || []).filter(a => {
       if (!a.customer_id || seenCustomers.has(a.customer_id)) return false
+      const c = (a as { customer?: { archived?: boolean | null } | null }).customer
+      if (c?.archived) return false
       seenCustomers.add(a.customer_id)
       return true
     })
 
     const todayRef = new Date()
     const safeLeads = (leads || []).filter(
-      a => a.customer != null && shouldShowAddressedActivity(a, todayRef)
+      a => a.customer != null && !(a.customer as { archived?: boolean | null }).archived && shouldShowAddressedActivity(a, todayRef)
     )
-    const tasksFiltered = (t || []).filter(a => shouldShowAddressedActivity(a, todayRef))
+    const tasksFiltered = (t || []).filter(a => {
+      const c = (a as { customer?: { archived?: boolean | null } | null }).customer
+      if (c?.archived) return false
+      return shouldShowAddressedActivity(a, todayRef)
+    })
 
     const { data: appts } = await supabase
       .from('activities')
-      .select('*, customer:customers(id, name, primary_phone)')
+      .select('*, customer:customers(id, name, primary_phone, archived)')
       .eq('type', 'appointment')
       .eq('direction', 'inbound')
       .eq('outcome', 'pending')
@@ -192,7 +201,7 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
     )
 
     const apptsFiltered = (appts || []).filter(
-      a => a.customer != null && shouldShowAddressedActivity(a, todayRef)
+      a => a.customer != null && !(a.customer as { archived?: boolean | null }).archived && shouldShowAddressedActivity(a, todayRef)
     )
 
     // Refresh responded customer IDs (inbound sms/email in last 48h)
@@ -209,14 +218,16 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
     // Refresh vehicle matches
     const { data: vMatches } = await supabase
       .from('activities')
-      .select('*, customer:customers(id, name, primary_phone), vehicle:vehicles(id, year, make, model)')
+      .select('*, customer:customers(id, name, primary_phone, archived), vehicle:vehicles(id, year, make, model)')
       .eq('type', 'vehicle_match')
       .eq('direction', 'inbound')
       .eq('outcome', 'pending')
       .is('completed_at', null)
       .or(`snoozed_until.is.null,snoozed_until.lt.${now}`)
       .order('created_at', { ascending: false })
-    setVehicleMatches((vMatches || []).filter(a => a.customer != null && shouldShowAddressedActivity(a, todayRef)))
+    setVehicleMatches((vMatches || []).filter(
+      a => a.customer != null && !(a.customer as { archived?: boolean | null }).archived && shouldShowAddressedActivity(a, todayRef)
+    ))
 
     setNewLeads(safeLeads)
     setTasks(tasksFiltered)
@@ -225,6 +236,24 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
     setVoiceLeads(activeVoices)
     setResponded(respondedIds)
   }, [supabase])
+
+  // Re-fetch on every mount — catches the case where the user navigated to a customer page,
+  // sent a reply, and came back. The Next.js router cache may serve stale initial props,
+  // so we always pull fresh data from Supabase as soon as Today renders.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { refresh() }, [])
+
+  // Also re-fetch when the tab regains focus (e.g. mobile background/foreground switch).
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        router.refresh()
+        refresh()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [refresh, router])
 
   // ── Supabase Realtime ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -248,12 +277,40 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
           }
         }
       )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'activities' },
+        (payload) => {
+          const row = payload.new as Activity
+          // Re-sort/remove when a lead is addressed or completed
+          if (row.addressed_at || row.completed_at) refresh()
+        }
+      )
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [supabase, refresh])
 
   // ── Build the unified priority queue ────────────────────────────────────────
+  const nblEnabled = process.env.NEXT_PUBLIC_NEXT_BEST_LEAD_V1 === 'true'
   const queue = buildQueue(newLeads, apptRequests, voiceLeads, tasks, waiting, responded, vehicleMatches)
+  const rankByKey = new Map(queue.map((item, idx) => [item.key, idx + 1]))
+
+  const actionLabel: Record<typeof queue[number]['decision']['nextBestAction'], string> = {
+    call_now: 'Call now',
+    text_now: 'Text now',
+    send_email: 'Send email',
+    confirm_appointment: 'Confirm appointment',
+    send_followup: 'Send follow-up',
+    review_reply: 'Review latest reply',
+    wait: 'Wait / monitor',
+  }
+
+  function queueCustomerName(item: typeof queue[number]): string {
+    if ('customer' in item.data && item.data.customer?.name) return item.data.customer.name
+    if ('summary_json' in item.data && item.data.summary_json?.caller_name) return item.data.summary_json.caller_name
+    if ('from_number' in item.data) return item.data.from_number
+    return 'this lead'
+  }
 
   // Group by tier for rendering
   const tierGroups = new Map<number, typeof queue>()
@@ -327,6 +384,31 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
       </div>
 
       <div className="px-4 py-2 space-y-6">
+        {nblEnabled && queue.length > 0 && (() => {
+          const top = queue[0]
+          const href = top.customerId ? `/customers/${top.customerId}` : null
+          const inner = (
+            <>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-primary/80">Do This Now</p>
+              <p className="text-sm font-semibold mt-1">
+                {actionLabel[top.decision.nextBestAction]}: {queueCustomerName(top)}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Why: {top.decision.reasons.slice(0, 2).join(' · ')}
+              </p>
+            </>
+          )
+          return href ? (
+            <Link href={href} className="block rounded-xl border border-primary/25 bg-primary/5 p-3 hover:bg-primary/10 active:bg-primary/15 transition-colors">
+              {inner}
+            </Link>
+          ) : (
+            <section className="rounded-xl border border-primary/25 bg-primary/5 p-3">
+              {inner}
+            </section>
+          )
+        })()}
+
         {queue.length === 0 && (
           <div className="text-center py-16 text-muted-foreground">
             <p className="text-4xl mb-3">✅</p>
@@ -343,61 +425,72 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
             <div className="space-y-2">
               {items.map(item => {
                 const { key, type, data } = item
+                let card: React.ReactNode
                 if (type === 'new_lead') {
-                  return (
+                  card = (
                     <NewLeadCard
-                      key={key}
                       activity={data as Parameters<typeof NewLeadCard>[0]['activity']}
-                      templates={leadTemplates}
                       onUpdate={refresh}
                       hasResponded={responded.includes(item.customerId ?? '')}
                       sequenceStatus={item.customerId ? sequenceStatusMap[item.customerId] ?? null : null}
                     />
                   )
-                }
-                if (type === 'vehicle_match') {
-                  return (
+                } else if (type === 'vehicle_match') {
+                  card = (
                     <VehicleMatchCard
-                      key={key}
                       activity={data as Parameters<typeof VehicleMatchCard>[0]['activity']}
                       onUpdate={refresh}
                     />
                   )
-                }
-                if (type === 'appt_request') {
-                  return (
+                } else if (type === 'appt_request') {
+                  card = (
                     <AppointmentRequestCard
-                      key={key}
                       activity={data as Parameters<typeof AppointmentRequestCard>[0]['activity']}
                       onUpdate={refresh}
                     />
                   )
-                }
-                if (type === 'voice_lead') {
-                  return <VoiceLeadCard key={key} call={data as VoiceCall} onUpdate={refresh} />
-                }
-                if (type === 'overdue_followup' || type === 'today_followup') {
-                  return (
+                } else if (type === 'voice_lead') {
+                  card = <VoiceLeadCard call={data as VoiceCall} onUpdate={refresh} />
+                } else if (type === 'overdue_followup' || type === 'today_followup') {
+                  card = (
                     <EmailFollowUpItem
-                      key={key}
                       activity={data as Parameters<typeof EmailFollowUpItem>[0]['activity']}
                       onUpdate={refresh}
                       hasResponded={responded.includes(item.customerId ?? '')}
                     />
                   )
-                }
-                if (type === 'waiting_responded' || type === 'waiting') {
-                  return (
+                } else if (type === 'waiting_responded' || type === 'waiting') {
+                  card = (
                     <WaitingItem
-                      key={key}
                       activity={data as Activity}
                       onUpdate={refresh}
                       hasResponded={type === 'waiting_responded'}
                     />
                   )
+                } else {
+                  // overdue_task, today_task (includes scheduled appointments in tier 2)
+                  card = <TaskItem activity={data as Activity} onUpdate={refresh} />
                 }
-                // overdue_task, today_task (includes scheduled appointments in tier 2)
-                return <TaskItem key={key} activity={data as Activity} onUpdate={refresh} />
+
+                const pct = Math.round(item.decision.winLikelihood * 100)
+                const showPct = nblEnabled && (item.decision.winLikelihood >= 0.25 || !!item.customerId)
+                return (
+                  <div key={key} className="space-y-1">
+                    {nblEnabled && (
+                      <div className="flex items-center justify-between gap-2 px-1">
+                        <p className="text-[11px] text-muted-foreground">
+                          #{rankByKey.get(key)} &middot; {actionLabel[item.decision.nextBestAction]}
+                        </p>
+                        {showPct && (
+                          <span className="flex-shrink-0 text-[10px] font-semibold rounded-full px-1.5 py-0.5 bg-muted text-muted-foreground">
+                            {pct}%
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {card}
+                  </div>
+                )
               })}
             </div>
           </section>

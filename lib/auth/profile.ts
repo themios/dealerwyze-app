@@ -15,6 +15,14 @@ export interface Profile {
   created_at: string
 }
 
+function normalizeOwnerRole(profile: Profile): Profile {
+  // Org owner account (id === org_id) must always have full admin capabilities.
+  if (profile.id === profile.org_id && profile.role === 'dealer_rep') {
+    return { ...profile, role: 'dealer_admin' }
+  }
+  return profile
+}
+
 /** Get current user's profile. Returns null if not authenticated or no profile. */
 export async function getProfile(): Promise<Profile | null> {
   const supabase = await createClient()
@@ -27,7 +35,8 @@ export async function getProfile(): Promise<Profile | null> {
     .eq('id', user.id)
     .single()
 
-  return data ?? null
+  if (!data) return null
+  return normalizeOwnerRole(data as Profile)
 }
 
 /** Get profile or redirect to login. Use in server components. */
@@ -46,7 +55,7 @@ export async function requireProfile(): Promise<Profile> {
   const jar = await cookies()
   const staffSession = getStaffSessionInfo(jar)
   if (staffSession?.orgId) {
-    return { ...profile, org_id: staffSession.orgId }
+    return normalizeOwnerRole({ ...profile, org_id: staffSession.orgId })
   }
-  return profile
+  return normalizeOwnerRole(profile)
 }

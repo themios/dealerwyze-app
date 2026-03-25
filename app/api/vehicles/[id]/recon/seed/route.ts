@@ -56,6 +56,7 @@ export async function POST(
     label: t.label,
     is_required: t.is_required,
     sort_order: t.sort_order,
+    category: (t as { category?: string }).category ?? 'standard',
   }))
 
   const { data: items, error } = await supabase

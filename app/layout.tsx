@@ -11,6 +11,11 @@ export const metadata: Metadata = {
   description:
     'DealerWyze — CRM for independent and used car dealers. Lead inbox, texting, inventory, BHPH, and receipts in one place.',
   manifest: '/manifest.json',
+  icons: {
+    icon: '/DealerWyseLogoWithName.png',
+    shortcut: '/DealerWyseLogoWithName.png',
+    apple: '/DealerWyseLogoWithName.png',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
@@ -33,7 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+        <link rel="apple-touch-icon" href="/DealerWyseLogoWithName.png" />
       </head>
       <body className={inter.className} suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>

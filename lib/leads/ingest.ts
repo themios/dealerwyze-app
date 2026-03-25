@@ -45,8 +45,11 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId?: 
     .eq('email', lead.email)
     .maybeSingle()
 
+  let isReInquiry = false
+
   if (existingByEmail) {
     customerId = existingByEmail.id
+    isReInquiry = true
     // Backfill email if the record came in via voice (may have been blank)
     await supabase.from('customers').update({ email: lead.email }).eq('id', customerId).is('email', null)
   } else {
@@ -68,6 +71,7 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId?: 
 
     if (existingByPhone) {
       customerId = existingByPhone.id
+      isReInquiry = true
       // Backfill email on the matched record
       await supabase.from('customers').update({ email: lead.email }).eq('id', customerId).is('email', null)
     } else {
@@ -96,6 +100,12 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId?: 
         p_reason:      `New lead from ${lead.source}`,
       })
     }
+  }
+
+  // Mark as hot if source declared it or customer is re-inquiring
+  const shouldMarkHot = lead.is_hot || lead.is_reengaged || isReInquiry
+  if (shouldMarkHot) {
+    await supabase.from('customers').update({ lead_rating: 'hot' }).eq('id', customerId)
   }
 
   // 2. Dedup: customer already has a recent inbound high-priority lead within 7 days
@@ -193,14 +203,16 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId?: 
 
   if (actErr || !activity) return { error: actErr?.message || 'Failed to create activity' }
 
+  const hotLabel = shouldMarkHot ? (isReInquiry ? ' - Returning Customer' : ' - HOT') : ''
+
   sendLeadNotification({
-    title: `New Lead: ${lead.name}`,
+    title: `${shouldMarkHot ? '🔥 ' : ''}New Lead: ${lead.name}${hotLabel}`,
     body: lead.vehicle || lead.source,
     url: `/customers/${customerId}`,
   }).catch(() => {})
 
   sendTelegramMessage(
-    `<b>New Lead</b> (${lead.source})\n` +
+    `${shouldMarkHot ? '🔥 ' : ''}<b>New Lead</b> (${lead.source})${hotLabel}\n` +
     `<b>${lead.name}</b>${lead.vehicle ? ` - ${lead.vehicle}` : ''}\n` +
     (lead.phone ? `Phone: ${lead.phone}\n` : '') +
     (lead.email ? `Email: ${lead.email}\n` : '') +

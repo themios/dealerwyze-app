@@ -16,6 +16,8 @@ const ADMIN_ITEM = {
 interface MeResponse {
   is_platform_admin?: boolean
   role?: string
+  id?: string
+  org_id?: string
 }
 
 export default function MorePage() {
@@ -28,8 +30,9 @@ export default function MorePage() {
       .catch(() => {})
   }, [])
 
-  const isRep = me.role === 'dealer_rep'
-  const canReports = me.role === 'dealer_admin' || me.role === 'dealer_manager' || me.role === 'admin'
+  const isOwner = !!me.id && !!me.org_id && me.id === me.org_id
+  const isRep = me.role === 'dealer_rep' && !isOwner
+  const canReports = isOwner || me.role === 'dealer_admin' || me.role === 'dealer_manager' || me.role === 'admin'
 
   const MENU_ITEMS = [
     ...(!isRep ? [{

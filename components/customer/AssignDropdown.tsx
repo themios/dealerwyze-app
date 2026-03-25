@@ -32,9 +32,11 @@ interface Props {
   /** If false, dropdown is read-only (for dealer_rep viewing their own assignment) */
   canReassign?: boolean
   onAssigned?: () => void
+  /** Render inline without border/padding wrapper */
+  compact?: boolean
 }
 
-export default function AssignDropdown({ customerId, assignedTo, canReassign = true, onAssigned }: Props) {
+export default function AssignDropdown({ customerId, assignedTo, canReassign = true, onAssigned, compact }: Props) {
   const [agents, setAgents] = useState<Agent[]>([])
   const [saving, setSaving] = useState(false)
 
@@ -63,6 +65,32 @@ export default function AssignDropdown({ customerId, assignedTo, canReassign = t
   }
 
   if (agents.length === 0) return null
+
+  if (compact) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <UserCheck className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+        <Select
+          defaultValue={assignedTo ?? 'unassigned'}
+          onValueChange={handleChange}
+          disabled={saving || !canReassign}
+        >
+          <SelectTrigger className="h-7 text-xs border-0 bg-muted px-2 gap-1 w-auto">
+            <SelectValue placeholder="Unassigned" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="unassigned">Unassigned</SelectItem>
+            {agents.map(a => (
+              <SelectItem key={a.id} value={a.id}>
+                {a.display_name}
+                {ROLE_LABELS[a.role] ? ` (${ROLE_LABELS[a.role]})` : ''}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    )
+  }
 
   return (
     <div className="flex items-center gap-2 px-4 py-2 border-b">

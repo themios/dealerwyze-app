@@ -11,6 +11,10 @@ export interface ParsedLead {
   comments: string
   source: LeadSource
   raw_text: string
+  /** Source explicitly flagged this as a high-priority / hot lead */
+  is_hot?: boolean
+  /** Customer previously inquired and is re-engaging */
+  is_reengaged?: boolean
 }
 
 function field(text: string, label: string): string {
@@ -152,6 +156,11 @@ export function parseCarGurusDigest(subject: string, textBody: string): ParsedLe
 
     if (!name) continue
 
+    // "Hot Lead" badge appears in the header line right after the vehicle name
+    const isHot = /hot\s*lead/i.test(block)
+    // "Reengaged" or "Re-engaged" sections in the digest
+    const isReengaged = /reengaged|re-engaged|re-engaged lead/i.test(block)
+
     leads.push({
       name,
       email,
@@ -163,6 +172,8 @@ export function parseCarGurusDigest(subject: string, textBody: string): ParsedLe
       comments: '',
       source: 'cargurus_digest',
       raw_text: block,
+      is_hot: isHot || undefined,
+      is_reengaged: isReengaged || undefined,
     })
   }
 
@@ -218,6 +229,10 @@ export function parseAutoTraderLead(subject: string, textBody: string, fromEmail
   )
   let phone = field(textBody, 'Phone') || field(textBody, 'Telephone') || field(textBody, 'Mobile')
   if (phone && /not provided|not specified|customer did not specify|n\/a/i.test(phone)) phone = ''
+  // AutoTrader Shopper Reminder = customer keeps coming back to the same listing
+  const isReengaged = /shopper reminder/i.test(subject) || /shopper reminder/i.test(textBody)
+  const isHot = /hot\s*lead|high\s*intent/i.test(textBody)
+
   return {
     name,
     email: emailField(textBody, 'Email') || emailField(textBody, 'Email Address'),
@@ -229,6 +244,8 @@ export function parseAutoTraderLead(subject: string, textBody: string, fromEmail
     comments: commentsMatch?.[1]?.trim() || field(textBody, 'Message'),
     source: 'autotrader',
     raw_text: textBody,
+    is_hot: isHot || undefined,
+    is_reengaged: isReengaged || undefined,
   }
 }
 

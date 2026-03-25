@@ -13,7 +13,10 @@ import VehiclePhotos from '@/components/vehicle/VehiclePhotos'
 import ShareVehicleSheet from '@/components/vehicle/ShareVehicleSheet'
 import MarketIntelligenceCard from '@/components/vehicles/MarketIntelligenceCard'
 import ReconSection from '@/components/vehicle/ReconSection'
+import BuySheetCard from '@/components/vehicle/BuySheetCard'
+import MechanicWorksheetCard from '@/components/vehicle/MechanicWorksheetCard'
 import VehicleMarkReadyButton from '@/components/vehicle/VehicleMarkReadyButton'
+import VehicleRestoreButton from '@/components/vehicle/VehicleRestoreButton'
 import { canAccessLedger, isDealerAdmin } from '@/lib/auth/dealerRoles'
 
 export const dynamic = 'force-dynamic'
@@ -60,6 +63,12 @@ export default async function VehicleDetailPage({ params }: PageProps) {
             )}
             {isAdmin && vehicle.status !== 'sold' && vehicle.status !== 'staging' && (
               <VehicleSoldButton
+                vehicleId={id}
+                vehicleLabel={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
+              />
+            )}
+            {isAdmin && vehicle.status === 'sold' && (
+              <VehicleRestoreButton
                 vehicleId={id}
                 vehicleLabel={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
               />
@@ -127,42 +136,35 @@ export default async function VehicleDetailPage({ params }: PageProps) {
           </div>
         )}
 
-        {/* Acquisition details (staging vehicles) */}
-        {vehicle.status === 'staging' && (
-          <div className="border rounded-lg p-3 space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Acquisition</p>
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              {vehicle.purchase_price != null && (
-                <div>
-                  <p className="text-xs text-muted-foreground">Purchase Price</p>
-                  <p className="font-semibold">{formatCurrency(vehicle.purchase_price)}</p>
-                </div>
-              )}
-              {vehicle.purchased_from && (
-                <div>
-                  <p className="text-xs text-muted-foreground">Purchased From</p>
-                  <p className="font-semibold">{vehicle.purchased_from}</p>
-                </div>
-              )}
-              {vehicle.purchased_at && (
-                <div>
-                  <p className="text-xs text-muted-foreground">Purchase Date</p>
-                  <p className="font-semibold">{new Date(vehicle.purchased_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
-                </div>
-              )}
-            </div>
-          </div>
+        {/* Buy Sheet (acquisition details) */}
+        {canEdit && (vehicle.status === 'staging' || vehicle.status === 'available' || vehicle.status === 'pending') && (
+          <BuySheetCard
+            vehicleId={id}
+            initial={{
+              purchase_price:    vehicle.purchase_price    ?? null,
+              purchased_at:      vehicle.purchased_at      ?? null,
+              purchased_from:    vehicle.purchased_from    ?? null,
+              acquisition_source: (vehicle as Record<string, unknown>).acquisition_source as string | null ?? null,
+              auction_name:      (vehicle as Record<string, unknown>).auction_name as string | null ?? null,
+              auction_lot:       (vehicle as Record<string, unknown>).auction_lot  as string | null ?? null,
+              floor_plan_amount: (vehicle as Record<string, unknown>).floor_plan_amount as number | null ?? null,
+              acquisition_notes: (vehicle as Record<string, unknown>).acquisition_notes as string | null ?? null,
+            }}
+          />
         )}
 
-        {/* Recon Checklist (staging vehicles) */}
-        {vehicle.status === 'staging' && (
-          <div className="border rounded-xl overflow-hidden">
-            <ReconSection
-              vehicleId={id}
-              canEdit={canEdit}
-              canDelete={canDelete}
-            />
-          </div>
+        {/* Recon Checklist (staging, available, pending) */}
+        {(vehicle.status === 'staging' || vehicle.status === 'available' || vehicle.status === 'pending') && (
+          <>
+            <div className="border rounded-xl overflow-hidden">
+              <ReconSection
+                vehicleId={id}
+                canEdit={canEdit}
+                canDelete={canDelete}
+              />
+            </div>
+            <MechanicWorksheetCard vehicleId={id} canEdit={canEdit} />
+          </>
         )}
 
         {/* Sale details (sold vehicles) */}

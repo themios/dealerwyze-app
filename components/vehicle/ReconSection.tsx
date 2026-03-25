@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button'
 import ReconChecklistRow from './ReconChecklistRow'
 import CostRollupCard from './CostRollupCard'
 
+type ReconCategory = 'mandatory' | 'value_add' | 'standard'
+
 interface ReconChecklistItem {
   id: string
   vehicle_id: string
@@ -17,12 +19,15 @@ interface ReconChecklistItem {
   notes: string | null
   cost: number | null
   completed_at: string | null
+  category: ReconCategory
 }
 
 interface ReconCostSummary {
   purchase_price: number | null
   recon_checklist_total: number
   ledger_expenses_total: number
+  flooring_fee: number
+  floor_plan_interest: number
   total_investment: number
   list_price: number | null
   estimated_profit: number | null
@@ -63,17 +68,20 @@ export default function ReconSection({ vehicleId, canEdit, canDelete }: Props) {
     if (!res.ok) {
       setItems(prev => prev.map(i => i.id === id ? { ...i, checked: !checked } : i))
     } else {
-      load() // refresh cost summary
+      load()
     }
   }
 
-  async function handleSave(id: string, patch: { cost?: number | null; notes?: string }) {
+  async function handleSave(id: string, patch: { cost?: number | null; notes?: string; category?: ReconCategory }) {
+    if ('category' in patch) {
+      setItems(prev => prev.map(i => i.id === id ? { ...i, category: patch.category! } : i))
+    }
     await fetch(`/api/vehicles/${vehicleId}/recon/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patch),
     })
-    load() // refresh cost summary
+    if (!('category' in patch)) load()
   }
 
   async function handleDelete(id: string) {
@@ -109,6 +117,7 @@ export default function ReconSection({ vehicleId, canEdit, canDelete }: Props) {
 
   const done = items.filter(i => i.checked).length
   const total = items.length
+  const mandatoryUnchecked = items.filter(i => i.category === 'mandatory' && !i.checked).length
 
   return (
     <div className="px-4 py-4 space-y-4">
@@ -127,7 +136,7 @@ export default function ReconSection({ vehicleId, canEdit, canDelete }: Props) {
         )}
       </div>
 
-      {costSummary && <CostRollupCard costSummary={costSummary} />}
+      {costSummary && <CostRollupCard costSummary={costSummary} mandatoryUnchecked={mandatoryUnchecked} vehicleId={vehicleId} canEdit={canEdit} />}
 
       <div className="space-y-2">
         {items.map(item => (

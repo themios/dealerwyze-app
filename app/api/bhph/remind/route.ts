@@ -95,6 +95,7 @@ export async function GET(req: NextRequest) {
       reminderType,
       dealerTimezone: tz,
       dealerPhone,
+      amount: contract.monthly_payment,
       messageVars: {
         customerName: customer.name,
         amount: contract.monthly_payment,

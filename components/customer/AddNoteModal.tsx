@@ -42,6 +42,13 @@ export default function AddNoteModal({ open, onClose, customerId, vehicleId, onS
       completed_at: new Date().toISOString(),
       priority: 'normal',
     })
+    await supabase
+      .from('activities')
+      .update({ addressed_at: new Date().toISOString() })
+      .eq('customer_id', customerId)
+      .eq('direction', 'inbound')
+      .eq('outcome', 'pending')
+      .is('completed_at', null)
     setSaving(false)
     setBody('')
     onSaved()

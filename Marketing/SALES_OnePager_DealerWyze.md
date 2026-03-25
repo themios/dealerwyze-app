@@ -23,11 +23,11 @@ DealerWyze gives you **one place for every lead, every car, and every next step*
 **1. One list, not five inboxes.**  
 Leads from Gmail, CarGurus, AutoTrader, your website, and texts land in one app. You stop switching tabs and missing inquiries. You see who’s new and who’s waiting on you — ranked by urgency on a Today list.
 
-**2. Reply in under five minutes without typing a novel.**  
+**2. Reply in under 60 seconds without typing a novel.**  
 Templates fill in the customer’s name, the exact car, the price, and the listing link. You pick the right message, hit send, and the buyer gets a personal-feeling reply. Speed and relevance in one step.
 
 **3. Nothing falls through the cracks.**  
-Every call can create a “call back in 2 hours” or “tomorrow 9am” task. Follow-ups show up on Today so you don’t forget. The app records response time so you see if you’re hitting the “under five minutes” target.
+Every call can create a “call back in 2 hours” or “tomorrow 9am” task. Follow-ups show up on Today so you don’t forget. The app records response time so you see if you’re hitting the “under 60 seconds” target.
 
 ---
 

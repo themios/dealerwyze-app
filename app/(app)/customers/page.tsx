@@ -11,9 +11,9 @@ import ImportLeadsDialog from '@/components/leads/ImportLeadsDialog'
 import ScanLeadButton from '@/components/leads/ScanLeadButton'
 import PipelineBoard from '@/app/(app)/pipeline/PipelineBoard'
 import { Button } from '@/components/ui/button'
-import { Plus, List, GitBranch, UserX, Archive } from 'lucide-react'
+import { Plus, List, GitBranch, UserX, Archive, Layers } from 'lucide-react'
 import EmptyState from '@/components/ui/EmptyState'
-import { isDealerAdmin, hasFullOrgAccess } from '@/types/index'
+import { isDealerAdmin } from '@/types/index'
 import { isRepRestricted, canManageUsers } from '@/lib/auth/dealerRoles'
 
 export default async function CustomersPage({
@@ -24,7 +24,8 @@ export default async function CustomersPage({
   const profile = await requireProfile()
   const supabase = await createClientForRequest()
   const isAdmin = isDealerAdmin(profile.role)
-  const isRep = isRepRestricted(profile.role)
+  const isOrgOwner = profile.id === profile.org_id
+  const isRep = isRepRestricted(profile.role) && !isOrgOwner
 
   const { archived: showArchivedParam, view } = await searchParams
   const showArchived = showArchivedParam === '1'
@@ -48,20 +49,36 @@ export default async function CustomersPage({
 
   const { data: customers } = await query.order('created_at', { ascending: false })
 
-  // Batch-fetch most recent activity per customer (any direction)
+  // Batch-fetch most recent activity per customer and by channel/type.
   const customerIds = (customers ?? []).map(c => c.id)
-  let lastActivityMap: Record<string, string> = {}
+  const lastActivityMap: Record<string, string> = {}
+  const lastCallMap: Record<string, string> = {}
+  const lastSmsMap: Record<string, string> = {}
+  const lastEmailMap: Record<string, string> = {}
   if (customerIds.length > 0) {
     const { data: acts } = await supabase
       .from('activities')
-      .select('customer_id, created_at')
+      .select('customer_id, created_at, type')
       .in('customer_id', customerIds)
       .not('customer_id', 'is', null)
       .order('created_at', { ascending: false })
-    // Keep only the most recent per customer
+
+    // Keep only the most recent per customer (overall and by channel).
     for (const a of acts ?? []) {
-      if (a.customer_id && !lastActivityMap[a.customer_id]) {
+      if (!a.customer_id) continue
+
+      if (!lastActivityMap[a.customer_id]) {
         lastActivityMap[a.customer_id] = a.created_at
+      }
+
+      if (a.type === 'call' && !lastCallMap[a.customer_id]) {
+        lastCallMap[a.customer_id] = a.created_at
+      }
+      if (a.type === 'sms' && !lastSmsMap[a.customer_id]) {
+        lastSmsMap[a.customer_id] = a.created_at
+      }
+      if (a.type === 'email' && !lastEmailMap[a.customer_id]) {
+        lastEmailMap[a.customer_id] = a.created_at
       }
     }
   }
@@ -97,6 +114,13 @@ export default async function CustomersPage({
         <GitBranch className="h-3.5 w-3.5" />
         Pipeline
       </Link>
+      <Link
+        href="/customers/segments"
+        className="flex items-center gap-1 px-2 py-1 text-xs text-white/60 hover:text-white"
+      >
+        <Layers className="h-3.5 w-3.5" />
+        Segments
+      </Link>
     </div>
   )
 
@@ -126,7 +150,7 @@ export default async function CustomersPage({
       />
 
       {showPipeline ? (
-        <PipelineBoard customers={customers ?? []} />
+        <PipelineBoard customers={customers ?? []} lastActivityMap={lastActivityMap} />
       ) : !customers || customers.length === 0 ? (
         showArchived ? (
           <EmptyState
@@ -148,6 +172,9 @@ export default async function CustomersPage({
           isAdmin={isAdmin}
           agents={agents}
           lastActivityMap={lastActivityMap}
+          lastCallMap={lastCallMap}
+          lastSmsMap={lastSmsMap}
+          lastEmailMap={lastEmailMap}
           showArchived={showArchived}
         />
       )}

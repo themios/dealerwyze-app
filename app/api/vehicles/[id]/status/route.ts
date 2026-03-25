@@ -25,9 +25,26 @@ export async function PATCH(
     ? await supabase.from('vehicles').select('id, year, make, model, body_style, price').eq('id', id).eq('user_id', profile.org_id).single()
     : { data: null }
 
+  const { data: currentVehicle } = await supabase
+    .from('vehicles')
+    .select('status')
+    .eq('id', id)
+    .eq('user_id', profile.org_id)
+    .maybeSingle()
+
+  const updates: Record<string, unknown> = { status, sync_removed_at: null }
+  // If this was accidentally marked sold, fully restore to active inventory state.
+  if (currentVehicle?.status === 'sold' && (status === 'available' || status === 'pending')) {
+    updates.sold_price = null
+    updates.sold_at = null
+    updates.sold_to_customer_id = null
+    updates.finance_type = null
+    updates.finance_company = null
+  }
+
   const { error } = await supabase
     .from('vehicles')
-    .update({ status, sync_removed_at: null })
+    .update(updates)
     .eq('id', id)
     .eq('user_id', profile.org_id)
 

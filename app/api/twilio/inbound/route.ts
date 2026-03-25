@@ -9,6 +9,8 @@ import { getOrgIdByPhone } from '@/lib/orgs/lookup'
 import { parseDealerAppointment } from '@/lib/sms/parseDealerCommand'
 import { isOfferUpLead, parseOfferUpLead } from '@/lib/sms/parseOfferUpLead'
 import { createCalendarEvent } from '@/lib/google/calendar'
+import { stopSequenceOnReply, cancelSequenceOnUnsubscribe } from '@/lib/sequences/stopSequenceOnReply'
+import { dispatchWebhook } from '@/lib/webhooks/dispatch'
 import crypto from 'crypto'
 
 // Twilio sends form-encoded POST to this endpoint when a customer texts your number.
@@ -197,6 +199,15 @@ export async function POST(req: NextRequest) {
           completed_at: new Date().toISOString(),
         })
 
+        if (isNew) {
+          dispatchWebhook(orgId, 'new_lead', {
+            customer_id: customerId,
+            name: lead.name,
+            phone: lead.phone ?? null,
+            source: 'offerup',
+          }).catch(() => {})
+        }
+
         const status = isNew ? '✅ New contact created' : '✅ Existing contact updated'
         return new NextResponse(
           twimlMsg(`${status}: ${lead.name}${phoneDisplay ? ` (${phoneDisplay})` : ''}${lead.note ? ` — "${lead.note}"` : ''}`),
@@ -246,6 +257,12 @@ export async function POST(req: NextRequest) {
           )
         }
         customerId = newCustomer.id
+        dispatchWebhook(orgId, 'new_lead', {
+          customer_id: newCustomer.id,
+          name: parsed.customer_name,
+          phone: parsed.customer_phone ?? null,
+          source: 'dealer_sms',
+        }).catch(() => {})
       }
 
       // Parse appointment datetime
@@ -272,6 +289,13 @@ export async function POST(req: NextRequest) {
         body:        bodyText,
         due_at:      apptDate?.toISOString() ?? null,
       })
+
+      dispatchWebhook(orgId, 'appointment_created', {
+        customer_id: customerId,
+        due_at: apptDate?.toISOString() ?? null,
+        body: bodyText,
+        source: 'dealer_sms',
+      }).catch(() => {})
 
       // Google Calendar event
       if (apptDate && parsed.appointment_datetime) {
@@ -353,25 +377,8 @@ export async function POST(req: NextRequest) {
         completed_at: now,
       })
 
-      // Cancel any active SMS sequences for this customer
-      const { data: activeSeqs } = await supabase
-        .from('customer_sequences')
-        .select('id')
-        .eq('customer_id', customer.id)
-        .eq('status', 'active')
-
-      for (const seq of activeSeqs ?? []) {
-        await supabase
-          .from('customer_sequences')
-          .update({ status: 'cancelled', completed_at: now })
-          .eq('id', seq.id)
-        await supabase
-          .from('activities')
-          .update({ completed_at: now, outcome: 'cancelled' })
-          .eq('customer_sequence_id', seq.id)
-          .is('completed_at', null)
-          .in('type', ['sms_followup', 'email_followup'])
-      }
+      // Cancel SMS sequences and mark unsubscribed
+      await cancelSequenceOnUnsubscribe({ supabase, customerId: customer.id, channel: 'sms' })
     }
     // TCPA requires a confirmation reply — send it regardless of customer match
     const optOutReply = tcpaOptOutMsg
@@ -410,6 +417,32 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  // ── BHPH payment confirmation ("PAY") ────────────────────────────────────
+  if (bodyUpper === 'PAY' && customer) {
+    const now = new Date().toISOString()
+    await supabase.from('activities').insert({
+      user_id:      customer.user_id,
+      customer_id:  customer.id,
+      type:         'sms',
+      direction:    'inbound',
+      outcome:      'answered',
+      body:         'Customer confirmed they are coming in to make their payment.',
+      priority:     'high',
+      external_id:  messageSid || null,
+      completed_at: now,
+    })
+    // Notify dealer via push
+    sendLeadNotification({
+      title: `${customer.name} confirmed payment`,
+      body:  'They replied PAY - expect them in today.',
+      url:   `/customers/${customer.id}`,
+    }).catch(() => {})
+    return new NextResponse(
+      twimlMsg(`Thanks! We have you confirmed for today. See you soon from ${tcpaBizName}.`),
+      { status: 200, headers: { 'Content-Type': 'text/xml' } }
+    )
+  }
+
   // ── Normal inbound message ────────────────────────────────────────────────
   if (customer) {
     await supabase.from('activities').insert({
@@ -422,6 +455,15 @@ export async function POST(req: NextRequest) {
       priority: 'normal',
       external_id: messageSid || null,
       completed_at: new Date().toISOString(),
+    })
+
+    // Stop any active autoresponder sequences — customer replied
+    await stopSequenceOnReply({
+      supabase,
+      orgId:        customer.user_id,
+      customerId:   customer.id,
+      customerName: customer.name,
+      channel:      'sms',
     })
 
     // Increment org SMS usage counter (fire and forget)

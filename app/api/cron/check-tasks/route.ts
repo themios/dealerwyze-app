@@ -8,6 +8,7 @@ import { sendLeadNotification } from '@/lib/push/send'
 import { startCronRun, finishCronRun } from '@/lib/cron/runLogger'
 import { sendNotificationEmail } from '@/lib/email/notify'
 import { buildNudgeEmailHtml, type NudgeItem } from '@/lib/email/onboarding'
+import { stopSequenceOnReply } from '@/lib/sequences/stopSequenceOnReply'
 
 export const runtime = 'nodejs'
 export const maxDuration = 55
@@ -542,66 +543,79 @@ export async function GET(req: NextRequest) {
   try {
     const nowIso = new Date().toISOString()
 
-    // Find all due sequence emails not yet sent
+    // Find all due sequence emails not yet sent (all days, not just day 3+)
     const { data: sequenceActivities } = await supabase
       .from('activities')
-      .select('id, user_id, customer_id, body, sequence_day')
-      .eq('type', 'email')
+      .select('id, user_id, customer_id, body, sequence_day, customer_sequence_id')
+      .in('type', ['email', 'email_followup'])
       .eq('direction', 'outbound')
       .is('completed_at', null)
-      .gte('sequence_day', 3)
+      .not('customer_sequence_id', 'is', null)
       .lte('due_at', nowIso)
       .limit(100)
 
     const { sendSequenceEmail } = await import('@/lib/email/sendSequenceEmail')
 
     for (const act of sequenceActivities ?? []) {
-      // Check if customer has replied since Day 1 was sent — if so, cancel all pending
+      // Get enrollment date so we only check replies AFTER the sequence started
+      const { data: enrollment } = await supabase
+        .from('customer_sequences')
+        .select('enrolled_at')
+        .eq('id', act.customer_sequence_id)
+        .maybeSingle()
+      const enrolledAt = enrollment?.enrolled_at ?? '1970-01-01T00:00:00Z'
+
+      // Check if customer has replied AFTER enrollment — if so, cancel pending steps
       const { data: replies } = await supabase
         .from('activities')
         .select('id')
         .eq('customer_id', act.customer_id)
-        .eq('type', 'email')
         .eq('direction', 'inbound')
+        .in('type', ['email', 'sms'])
+        .gte('created_at', enrolledAt)
         .limit(1)
 
       if (replies && replies.length > 0) {
-        // Customer replied — cancel all pending sequence emails for this customer
-        await supabase
-          .from('activities')
-          .update({ completed_at: nowIso, outcome: 'cancelled' })
-          .eq('customer_id', act.customer_id)
-          .eq('type', 'email')
-          .eq('direction', 'outbound')
-          .is('completed_at', null)
-          .gte('sequence_day', 3)
+        // Customer replied — stop autoresponder and create takeover task
+        const { data: cData } = await supabase
+          .from('customers')
+          .select('name, user_id')
+          .eq('id', act.customer_id)
+          .maybeSingle()
+        await stopSequenceOnReply({
+          supabase,
+          orgId:        act.user_id,
+          customerId:   act.customer_id,
+          customerName: cData?.name ?? 'Customer',
+        })
         continue
       }
 
       // Parse body JSON
-      let parsed: { to?: string; subject?: string; body?: string } = {}
+      let parsed: { to?: string; subject?: string; body?: string; step_label?: string; customer_name?: string } = {}
       try { parsed = JSON.parse(act.body ?? '') } catch { continue }
       if (!parsed.to || !parsed.subject || !parsed.body) continue
 
       const result = await sendSequenceEmail({
-        orgId: act.user_id,
-        customerId: act.customer_id,
+        orgId:         act.user_id,
+        customerId:    act.customer_id,
         customerEmail: parsed.to,
-        customerName: '',
-        subject: parsed.subject,
-        body: parsed.body,
-        activityId: act.id,
-        sequenceDay: act.sequence_day ?? 0,
+        customerName:  parsed.customer_name ?? '',
+        subject:       parsed.subject,
+        body:          parsed.body,
+        activityId:    act.id,
+        sequenceDay:   act.sequence_day ?? 0,
+        stepLabel:     parsed.step_label,
       })
 
-      if (!result.ok && result.error === 'no_account') {
-        // Org has no email account — cancel sequence silently
+      if (result.ok) {
+        sequenceSent++
+      } else {
+        // Mark as failed/cancelled so it doesn't retry on every cron run
         await supabase
           .from('activities')
-          .update({ completed_at: nowIso, outcome: 'cancelled' })
+          .update({ completed_at: nowIso, outcome: result.error === 'no_account' ? 'cancelled' : 'failed' })
           .eq('id', act.id)
-      } else if (result.ok) {
-        sequenceSent++
       }
     }
   } catch (e) {
@@ -618,7 +632,8 @@ export async function GET(req: NextRequest) {
     const { data: dueActivities } = await supabase
       .from('activities')
       .select('id, user_id, customer_id, body, customer_sequence_id')
-      .eq('type', 'email_followup')
+      .in('type', ['email_followup', 'email'])
+      .eq('direction', 'outbound')
       .is('completed_at', null)
       .lte('due_at', nowIso)
       .not('customer_sequence_id', 'is', null)
@@ -669,7 +684,7 @@ export async function GET(req: NextRequest) {
           .update({ completed_at: nowIso, outcome: 'cancelled' })
           .eq('customer_sequence_id', act.customer_sequence_id)
           .is('completed_at', null)
-          .in('type', ['email_followup', 'sms_followup'])
+          .in('type', ['email_followup', 'sms_followup', 'email', 'sms'])
         await supabase
           .from('customer_sequences')
           .update({ status: 'cancelled', completed_at: nowIso })
@@ -708,7 +723,7 @@ export async function GET(req: NextRequest) {
         .select('id', { count: 'exact', head: true })
         .eq('customer_sequence_id', act.customer_sequence_id)
         .is('completed_at', null)
-        .in('type', ['email_followup', 'sms_followup'])
+        .in('type', ['email_followup', 'sms_followup', 'email', 'sms'])
 
       if ((remaining ?? 0) === 0) {
         await supabase
@@ -719,6 +734,148 @@ export async function GET(req: NextRequest) {
     }
   } catch (e) {
     console.error('[check-tasks] Job 12 full_auto sequence error:', e)
+  }
+
+  // ── Job 13: Send scheduled Google review requests ─────────────────────────
+  let reviewRequestsSent = 0
+  try {
+    const nowIso = new Date().toISOString()
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
+
+    const { data: dueTasks } = await supabase
+      .from('tasks')
+      .select('id, user_id, linked_customer_id')
+      .eq('task_type', 'review_request')
+      .eq('status', 'open')
+      .lte('due_at', nowIso)
+      .limit(100)
+
+    for (const task of dueTasks ?? []) {
+      if (!task.linked_customer_id || !task.user_id) continue
+      try {
+        // Get a valid session token for this org by using service client directly
+        // We call the review-request API with the org context
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, org_id, role')
+          .eq('org_id', task.user_id)
+          .eq('role', 'dealer_admin')
+          .maybeSingle()
+
+        if (!profile) {
+          // Mark task done to avoid retrying endlessly
+          await supabase.from('tasks').update({ status: 'done', completed_at: nowIso }).eq('id', task.id)
+          continue
+        }
+
+        // Load settings and customer directly (avoids HTTP self-call auth complexity)
+        const { data: settings } = await supabase
+          .from('org_settings')
+          .select('business_name, google_review_url, review_request_enabled')
+          .eq('org_id', task.user_id)
+          .maybeSingle()
+
+        if (!settings?.review_request_enabled || !settings.google_review_url) {
+          await supabase.from('tasks').update({ status: 'done', completed_at: nowIso }).eq('id', task.id)
+          continue
+        }
+
+        const { data: customer } = await supabase
+          .from('customers')
+          .select('id, name, primary_phone, email, unsubscribe_sms, unsubscribe_email, user_id')
+          .eq('id', task.linked_customer_id)
+          .eq('user_id', task.user_id)
+          .maybeSingle()
+
+        if (!customer) {
+          await supabase.from('tasks').update({ status: 'done', completed_at: nowIso }).eq('id', task.id)
+          continue
+        }
+
+        // Dedup check
+        const since60 = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
+        const { data: recent } = await supabase
+          .from('activities')
+          .select('id')
+          .eq('customer_id', customer.id)
+          .eq('type', 'review_request')
+          .gte('completed_at', since60)
+          .maybeSingle()
+
+        if (recent) {
+          await supabase.from('tasks').update({ status: 'done', completed_at: nowIso }).eq('id', task.id)
+          continue
+        }
+
+        const dealerName = settings.business_name || 'your dealership'
+        const reviewUrl  = settings.google_review_url
+        const firstName  = customer.name?.split(' ')[0] || 'there'
+
+        let smsSent = false, emailSent = false
+
+        if (customer.primary_phone && !customer.unsubscribe_sms) {
+          const smsBody = `Hi ${firstName}, thank you for your recent purchase! We would really appreciate if you could share your experience - it helps other customers find us: ${reviewUrl}`
+          const smsRes = await fetch(`${appUrl}/api/sms/send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ to: customer.primary_phone, body: smsBody, customer_id: customer.id, org_id: task.user_id }),
+          })
+          if (smsRes.ok) smsSent = true
+        }
+
+        if (customer.email && !customer.unsubscribe_email) {
+          const emailBody = `Hi ${firstName},\n\nThank you for your recent purchase from ${dealerName}! We hope you are enjoying your vehicle.\n\nIf you have a moment, we would love to hear about your experience. Your review helps other customers find us:\n\n${reviewUrl}\n\nThank you!\n${dealerName}`
+          const emailRes = await fetch(`${appUrl}/api/email/send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              customer_id: customer.id,
+              org_id: task.user_id,
+              subject: `How was your experience at ${dealerName}?`,
+              emailBody,
+            }),
+          })
+          if (emailRes.ok) emailSent = true
+        }
+
+        if (smsSent || emailSent) {
+          const channels = [smsSent && 'SMS', emailSent && 'email'].filter(Boolean).join(' + ')
+          await supabase.from('activities').insert({
+            user_id: customer.user_id,
+            customer_id: customer.id,
+            type: 'review_request',
+            direction: 'outbound',
+            body: `Google review request sent via ${channels}.`,
+            completed_at: nowIso,
+            priority: 'normal',
+          })
+          reviewRequestsSent++
+        }
+
+        await supabase.from('tasks').update({ status: 'done', completed_at: nowIso }).eq('id', task.id)
+      } catch (e) {
+        console.error('[check-tasks] Job 13 review request error for task', task.id, e)
+      }
+    }
+  } catch (e) {
+    console.error('[check-tasks] Job 13 review requests error:', e)
+  }
+
+  // ── Job 14: Renew expiring Gmail push watches ──────────────────────────────
+  // Gmail push watches are valid for ~7 days. Renew any that expire in the
+  // next 25 hours so real-time email delivery stays uninterrupted.
+  let gmailWatchesRenewed = 0
+  let gmailWatchesFailed = 0
+  try {
+    const { renewExpiredWatches } = await import('@/lib/gmail/watch')
+    const watchResult = await renewExpiredWatches()
+    gmailWatchesRenewed = watchResult.renewed
+    gmailWatchesFailed = watchResult.failed
+    if (gmailWatchesRenewed > 0 || gmailWatchesFailed > 0) {
+      console.log(`[check-tasks] Job 14 Gmail watches: ${gmailWatchesRenewed} renewed, ${gmailWatchesFailed} failed`)
+    }
+  } catch (e) {
+    console.error('[check-tasks] Job 14 Gmail watch renewal error:', e)
   }
 
   await finishCronRun(runId, 'success', (allOrgs ?? []).length)
@@ -735,5 +892,8 @@ export async function GET(req: NextRequest) {
     onboarding_nudges: onboardingNudges,
     sequence_sent: sequenceSent,
     full_auto_fired: fullAutoFired,
+    review_requests_sent: reviewRequestsSent,
+    gmail_watches_renewed: gmailWatchesRenewed,
+    gmail_watches_failed: gmailWatchesFailed,
   })
 }

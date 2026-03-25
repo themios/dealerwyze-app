@@ -1,17 +1,27 @@
 'use client'
 
-import { useState, useTransition, useMemo } from 'react'
+import { useState, useTransition, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Customer } from '@/types'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Phone, CheckSquare, Square, X, UserCheck, Archive, ArrowUpDown, Paperclip } from 'lucide-react'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Phone, CheckSquare, Square, X, UserCheck, Archive, ArrowUp, ArrowDown, Paperclip, ChevronRight, Flame } from 'lucide-react'
 import { formatPhone, leadAgeBadge, lastContactBadge } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
-import { LEAD_STATE_CONFIG } from '@/lib/leads/states'
+import { LEAD_STATE_CONFIG, LEAD_STATES, type LeadState } from '@/lib/leads/states'
 import CustomerQuickUploadSheet from './CustomerQuickUploadSheet'
+
+/** Returns Tailwind bg class based on hours since last activity */
+function activityUrgencyBg(lastActivityAt: string | null | undefined): string {
+  if (!lastActivityAt) return 'bg-gray-300'
+  const hours = (Date.now() - new Date(lastActivityAt).getTime()) / 3600000
+  if (hours < 24) return 'bg-green-400'
+  if (hours < 72) return 'bg-yellow-400'
+  return 'bg-red-400'
+}
 
 const SOURCE_LABELS: Record<string, string> = {
   cargurus: 'CarGurus', cargurus_digest: 'CG Digest',
@@ -32,9 +42,13 @@ function timeAgo(iso: string | null | undefined): string {
 
 function fmtRespTime(secs: number | null | undefined): { text: string; cls: string } {
   if (secs == null) return { text: '—', cls: 'text-muted-foreground' }
-  const m = Math.floor(secs / 60)
-  const s = secs % 60
-  const text = m > 0 ? `${m}m ${s}s` : `${s}s`
+  const total = Math.max(0, Math.floor(secs))
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  const text = h > 0
+    ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+    : `${m}:${String(s).padStart(2, '0')}`
   const cls = secs < 300 ? 'text-green-600' : secs < 600 ? 'text-yellow-600' : 'text-destructive'
   return { text, cls }
 }
@@ -50,10 +64,21 @@ interface Props {
   isAdmin: boolean
   agents: Agent[]
   lastActivityMap?: Record<string, string>
+  lastCallMap?: Record<string, string>
+  lastSmsMap?: Record<string, string>
+  lastEmailMap?: Record<string, string>
   showArchived?: boolean
 }
 
-type SortOption = 'name' | 'newest' | 'oldest' | 'last_active'
+type SortOption =
+  | 'created_at'
+  | 'name'
+  | 'response_time'
+  | 'last_activity'
+  | 'last_call'
+  | 'last_sms'
+  | 'last_email'
+type SortDirection = 'asc' | 'desc'
 type StatusFilter =
   | 'all' | 'new_lead' | 'contacted' | 'engaged'
   | 'appointment_set' | 'appointment_confirmed'
@@ -73,33 +98,103 @@ const STATUS_LABELS: Record<StatusFilter, string> = {
 }
 
 const SORT_LABELS: Record<SortOption, string> = {
+  created_at: 'Lead Created',
   name: 'Name',
-  newest: 'Newest',
-  oldest: 'Oldest',
-  last_active: 'Last Active',
+  response_time: 'Response Time',
+  last_activity: 'Last Activity',
+  last_call: 'Last Call',
+  last_sms: 'Last SMS',
+  last_email: 'Last Email',
 }
 
-function sortCustomers(customers: Customer[], sort: SortOption, lastActivityMap: Record<string, string>): Customer[] {
+const SORT_OPTIONS: SortOption[] = [
+  'created_at',
+  'name',
+  'response_time',
+  'last_activity',
+  'last_call',
+  'last_sms',
+  'last_email',
+]
+
+const SORT_STORAGE_KEY = 'customers_sort_v1'
+
+function compareDateLike(a: string | null | undefined, b: string | null | undefined, dir: SortDirection): number {
+  const aa = a ?? ''
+  const bb = b ?? ''
+  return dir === 'asc' ? aa.localeCompare(bb) : bb.localeCompare(aa)
+}
+
+function sortCustomers(
+  customers: Customer[],
+  sort: SortOption,
+  direction: SortDirection,
+  maps: {
+    lastActivityMap: Record<string, string>
+    lastCallMap: Record<string, string>
+    lastSmsMap: Record<string, string>
+    lastEmailMap: Record<string, string>
+  },
+): Customer[] {
   const copy = [...customers]
+
   switch (sort) {
+    case 'created_at':
+      return copy.sort((a, b) => compareDateLike(a.created_at, b.created_at, direction))
     case 'name':
-      return copy.sort((a, b) => a.name.localeCompare(b.name))
-    case 'newest':
-      return copy.sort((a, b) => b.created_at.localeCompare(a.created_at))
-    case 'oldest':
-      return copy.sort((a, b) => a.created_at.localeCompare(b.created_at))
-    case 'last_active':
       return copy.sort((a, b) => {
-        const la = lastActivityMap[a.id] ?? a.created_at
-        const lb = lastActivityMap[b.id] ?? b.created_at
-        return lb.localeCompare(la)
+        const cmp = a.name.localeCompare(b.name)
+        return direction === 'asc' ? cmp : -cmp
+      })
+    case 'response_time':
+      return copy.sort((a, b) => {
+        const av = a.response_time_seconds ?? Number.POSITIVE_INFINITY
+        const bv = b.response_time_seconds ?? Number.POSITIVE_INFINITY
+        return direction === 'asc' ? av - bv : bv - av
+      })
+    case 'last_activity':
+      return copy.sort((a, b) => {
+        const la = maps.lastActivityMap[a.id] ?? a.created_at
+        const lb = maps.lastActivityMap[b.id] ?? b.created_at
+        return compareDateLike(la, lb, direction)
+      })
+    case 'last_call':
+      return copy.sort((a, b) => {
+        const la = maps.lastCallMap[a.id] ?? ''
+        const lb = maps.lastCallMap[b.id] ?? ''
+        const cmp = compareDateLike(la, lb, direction)
+        return cmp !== 0 ? cmp : compareDateLike(a.created_at, b.created_at, 'desc')
+      })
+    case 'last_sms':
+      return copy.sort((a, b) => {
+        const la = maps.lastSmsMap[a.id] ?? ''
+        const lb = maps.lastSmsMap[b.id] ?? ''
+        const cmp = compareDateLike(la, lb, direction)
+        return cmp !== 0 ? cmp : compareDateLike(a.created_at, b.created_at, 'desc')
+      })
+    case 'last_email':
+      return copy.sort((a, b) => {
+        const la = maps.lastEmailMap[a.id] ?? ''
+        const lb = maps.lastEmailMap[b.id] ?? ''
+        const cmp = compareDateLike(la, lb, direction)
+        return cmp !== 0 ? cmp : compareDateLike(a.created_at, b.created_at, 'desc')
       })
   }
 }
 
-export default function CustomersListClient({ customers: initial, isAdmin, agents, lastActivityMap = {}, showArchived = false }: Props) {
+export default function CustomersListClient({
+  customers: initial,
+  isAdmin,
+  agents,
+  lastActivityMap = {},
+  lastCallMap = {},
+  lastSmsMap = {},
+  lastEmailMap = {},
+  showArchived = false,
+}: Props) {
   const [customers, setCustomers] = useState<Customer[]>(initial)
-  const [sort, setSort] = useState<SortOption>('newest')
+  const [sort, setSort] = useState<SortOption>('created_at')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [selectMode, setSelectMode] = useState(false)
@@ -108,7 +203,53 @@ export default function CustomersListClient({ customers: initial, isAdmin, agent
   const [archiveConfirm, setArchiveConfirm] = useState<string | null>(null)
   const [archiveReason, setArchiveReason] = useState('')
   const [uploadCustomerId, setUploadCustomerId] = useState<string | null>(null)
+  const [stagePickerCustomer, setStagePickerCustomer] = useState<string | null>(null)
+  const [savingStage, setSavingStage] = useState(false)
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const router = useRouter()
+
+  function startLongPress(customerId: string) {
+    longPressTimer.current = setTimeout(() => setStagePickerCustomer(customerId), 600)
+  }
+  function cancelLongPress() {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null }
+  }
+  async function handleStageChange(newState: string) {
+    if (!stagePickerCustomer || savingStage) return
+    setSavingStage(true)
+    const id = stagePickerCustomer
+    setStagePickerCustomer(null)
+    setCustomers(prev => prev.map(c => c.id === id ? { ...c, thread_state: newState } : c))
+    await fetch(`/api/customers/${id}/state`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ state: newState }),
+    })
+    setSavingStage(false)
+  }
+
+  useEffect(() => {
+    try {
+      const raw = window.sessionStorage.getItem(SORT_STORAGE_KEY)
+      if (!raw) return
+      const parsed = JSON.parse(raw) as { sort?: SortOption; direction?: SortDirection }
+      if (parsed.sort && SORT_OPTIONS.includes(parsed.sort)) setSort(parsed.sort)
+      if (parsed.direction === 'asc' || parsed.direction === 'desc') setSortDirection(parsed.direction)
+    } catch {
+      // Ignore invalid persisted sort state
+    }
+  }, [])
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(
+        SORT_STORAGE_KEY,
+        JSON.stringify({ sort, direction: sortDirection }),
+      )
+    } catch {
+      // Ignore storage write failures
+    }
+  }, [sort, sortDirection])
 
   const agentMap = useMemo(
     () => Object.fromEntries(agents.map(a => [a.id, a.display_name])),
@@ -120,8 +261,21 @@ export default function CustomersListClient({ customers: initial, isAdmin, agent
       ? customers
       : customers.filter(c => (c.thread_state ?? 'new_lead') === statusFilter),
     sort,
-    lastActivityMap,
+    sortDirection,
+    { lastActivityMap, lastCallMap, lastSmsMap, lastEmailMap },
   )
+
+  const sortableColumnMap: Partial<Record<'name' | 'last_active' | 'response_time', SortOption>> = {
+    name: 'name',
+    last_active: 'last_activity',
+    response_time: 'response_time',
+  }
+
+  function handleHeaderSort(column: keyof typeof sortableColumnMap) {
+    const next = sortableColumnMap[column]
+    if (!next) return
+    setSort(next)
+  }
 
   const toggle = (id: string) => {
     setSelected(prev => {
@@ -208,21 +362,42 @@ export default function CustomersListClient({ customers: initial, isAdmin, agent
 
       {/* Sort bar — hidden in archived view */}
       {!showArchived && (
-        <div className="px-4 pt-0 pb-1 flex items-center gap-2 overflow-x-auto">
+        <div className="px-4 pt-0 pb-1 flex items-center gap-2">
           <span className="text-xs text-muted-foreground flex-shrink-0">Sort:</span>
-          {(Object.keys(SORT_LABELS) as SortOption[]).map(opt => (
+          <select
+            value={sort}
+            onChange={e => setSort(e.target.value as SortOption)}
+            className="h-8 rounded-md border bg-background px-2 text-xs"
+            aria-label="Sort leads"
+          >
+            {SORT_OPTIONS.map(opt => (
+              <option key={opt} value={opt}>
+                {SORT_LABELS[opt]}
+              </option>
+            ))}
+          </select>
+          <div className="flex items-center rounded-md border overflow-hidden">
             <button
-              key={opt}
-              onClick={() => setSort(opt)}
-              className={`text-xs px-2.5 py-1 rounded-full flex-shrink-0 transition-colors ${
-                sort === opt
-                  ? 'bg-primary text-primary-foreground font-medium'
-                  : 'bg-muted text-muted-foreground hover:text-foreground'
+              onClick={() => setSortDirection('asc')}
+              className={`h-8 w-8 grid place-items-center transition-colors ${
+                sortDirection === 'asc' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:text-foreground'
               }`}
+              title="Ascending"
+              aria-label="Sort ascending"
             >
-              {SORT_LABELS[opt]}
+              <ArrowUp className="h-3.5 w-3.5" />
             </button>
-          ))}
+            <button
+              onClick={() => setSortDirection('desc')}
+              className={`h-8 w-8 grid place-items-center transition-colors border-l ${
+                sortDirection === 'desc' ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-muted-foreground hover:text-foreground'
+              }`}
+              title="Descending"
+              aria-label="Sort descending"
+            >
+              <ArrowDown className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       )}
 
@@ -300,25 +475,47 @@ export default function CustomersListClient({ customers: initial, isAdmin, agent
               const ageBadge = leadAgeBadge(customer.created_at)
               const contactBadge = lastContactBadge(lastActivityMap[customer.id] ?? null)
 
+              const urgencyBg = activityUrgencyBg(lastActivityMap[customer.id])
+              const stateConfig = LEAD_STATE_CONFIG[(customer.thread_state ?? 'new_lead') as LeadState]
+
               return (
-                <div key={customer.id} className="flex items-center hover:bg-accent/40 transition-colors">
-                  <Link href={`/customers/${customer.id}`} className="flex items-center gap-3 px-4 py-2.5 flex-1 min-w-0">
+                <div
+                  key={customer.id}
+                  className="relative flex items-center hover:bg-accent/40 transition-colors select-none"
+                  onPointerDown={() => startLongPress(customer.id)}
+                  onPointerUp={cancelLongPress}
+                  onPointerLeave={cancelLongPress}
+                  onPointerCancel={cancelLongPress}
+                >
+                  {/* Activity urgency strip */}
+                  <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${urgencyBg}`} />
+                  <Link href={`/customers/${customer.id}`} className="flex items-center gap-3 pl-5 pr-2 py-2.5 flex-1 min-w-0">
                     <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs flex-shrink-0">
                       {initials}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate text-sm">{customer.name}</p>
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-medium truncate text-sm">{customer.name}</p>
+                        {customer.lead_rating === 'hot' && (
+                          <Flame className="h-3.5 w-3.5 text-orange-500 flex-shrink-0" />
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
                         <Phone className="h-3 w-3 flex-shrink-0" />
                         <span>{formatPhone(customer.primary_phone)}</span>
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${stateConfig?.color ?? 'bg-gray-100 text-gray-500'}`}>
+                          {stateConfig?.label ?? customer.thread_state}
+                        </span>
                       </div>
                     </div>
+
                     <div className="flex flex-col items-end gap-1 flex-shrink-0" suppressHydrationWarning>
                       <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${ageBadge.cls}`}>{ageBadge.label}</span>
                       <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${contactBadge.cls}`}>{contactBadge.label}</span>
                     </div>
                   </Link>
                   <button
+                    onPointerDown={e => { e.stopPropagation(); cancelLongPress() }}
                     onClick={e => { e.stopPropagation(); setUploadCustomerId(customer.id) }}
                     className="text-muted-foreground hover:text-primary p-2 flex-shrink-0"
                     title="Attach document"
@@ -342,7 +539,12 @@ export default function CustomersListClient({ customers: initial, isAdmin, agent
                         </button>
                       </div>
                     ) : (
-                      <button onClick={e => { e.stopPropagation(); setArchiveConfirm(customer.id) }} className="text-muted-foreground hover:text-foreground p-2 pr-3 flex-shrink-0" title="Archive">
+                      <button
+                        onPointerDown={e => { e.stopPropagation(); cancelLongPress() }}
+                        onClick={e => { e.stopPropagation(); setArchiveConfirm(customer.id) }}
+                        className="text-muted-foreground hover:text-foreground p-2 pr-3 flex-shrink-0"
+                        title="Archive"
+                      >
                         <Archive className="h-3.5 w-3.5" />
                       </button>
                     )
@@ -359,6 +561,39 @@ export default function CustomersListClient({ customers: initial, isAdmin, agent
             onClose={() => setUploadCustomerId(null)}
           />
 
+          {/* Long-press stage picker */}
+          <Sheet open={!!stagePickerCustomer} onOpenChange={o => { if (!o) setStagePickerCustomer(null) }}>
+            <SheetContent side="bottom" className="rounded-t-2xl h-auto pb-8">
+              <SheetHeader className="mb-4">
+                <SheetTitle className="text-base">
+                  Move to stage — {customers.find(c => c.id === stagePickerCustomer)?.name}
+                </SheetTitle>
+              </SheetHeader>
+              <div className="space-y-1">
+                {LEAD_STATES.map(s => {
+                  const cfg = LEAD_STATE_CONFIG[s]
+                  const isCurrent = (customers.find(c => c.id === stagePickerCustomer)?.thread_state ?? 'new_lead') === s
+                  return (
+                    <button
+                      key={s}
+                      disabled={savingStage}
+                      onClick={() => handleStageChange(s)}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors ${
+                        isCurrent ? 'bg-muted font-semibold' : 'hover:bg-accent'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className={`inline-block w-2.5 h-2.5 rounded-full ${cfg.color.split(' ')[0]}`} />
+                        <span className="text-sm">{cfg.label}</span>
+                      </div>
+                      {isCurrent && <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                    </button>
+                  )
+                })}
+              </div>
+            </SheetContent>
+          </Sheet>
+
           {/* ── Desktop table view ───────────────────────────────────── */}
           <div className="hidden lg:block px-6 pb-6">
             <table className="w-full text-sm border-collapse">
@@ -366,8 +601,13 @@ export default function CustomersListClient({ customers: initial, isAdmin, agent
                 <tr className="border-b text-xs text-muted-foreground font-medium">
                   {isAdmin && !showArchived && <th className="w-8 py-2 text-left" />}
                   <th className="py-2 text-left">
-                    <button onClick={() => setSort('name')} className={`flex items-center gap-1 hover:text-foreground transition-colors ${sort === 'name' ? 'text-foreground' : ''}`}>
-                      Name <ArrowUpDown className="h-3 w-3" />
+                    <button
+                      onClick={() => handleHeaderSort('name')}
+                      className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${
+                        sort === 'name' ? 'text-foreground' : ''
+                      }`}
+                    >
+                      Name
                     </button>
                   </th>
                   <th className="py-2 text-left">Phone</th>
@@ -375,11 +615,25 @@ export default function CustomersListClient({ customers: initial, isAdmin, agent
                   <th className="py-2 text-left">State</th>
                   <th className="py-2 text-left">Assigned</th>
                   <th className="py-2 text-left">
-                    <button onClick={() => setSort('last_active')} className={`flex items-center gap-1 hover:text-foreground transition-colors ${sort === 'last_active' ? 'text-foreground' : ''}`}>
-                      Last Active <ArrowUpDown className="h-3 w-3" />
+                    <button
+                      onClick={() => handleHeaderSort('last_active')}
+                      className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${
+                        sort === 'last_activity' ? 'text-foreground' : ''
+                      }`}
+                    >
+                      Last Active
                     </button>
                   </th>
-                  <th className="py-2 text-left">Resp. Time</th>
+                  <th className="py-2 text-left">
+                    <button
+                      onClick={() => handleHeaderSort('response_time')}
+                      className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${
+                        sort === 'response_time' ? 'text-foreground' : ''
+                      }`}
+                    >
+                      Resp. Time
+                    </button>
+                  </th>
                   <th className="w-8 py-2" />
                   {!showArchived && <th className="w-8 py-2" />}
                 </tr>

@@ -54,6 +54,9 @@ export default function EnrollSheet({ customerId, customerName, channel = 'email
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [stepCache, setStepCache] = useState<Record<string, SequenceStep[]>>({})
   const [enrolling, setEnrolling] = useState<string | null>(null)
+  const [scheduleFor, setScheduleFor] = useState<string | null>(null) // seqId showing the scheduler
+  const [schedDate, setSchedDate] = useState('')
+  const [schedTime, setSchedTime] = useState('09:00')
 
   const firstName = customerName.split(' ')[0]
 
@@ -78,24 +81,39 @@ export default function EnrollSheet({ customerId, customerName, channel = 'email
     }
   }
 
-  async function handleEnroll(seqId: string) {
+  async function handleEnroll(seqId: string, startImmediately = false, startAt?: string) {
     setEnrolling(seqId)
     try {
       const res = await fetch('/api/customer-sequences', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customer_id: customerId, sequence_id: seqId }),
+        body: JSON.stringify({
+          customer_id:       customerId,
+          sequence_id:       seqId,
+          start_immediately: startImmediately,
+          ...(startAt ? { start_at: startAt } : {}),
+        }),
       })
       if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
-        alert(d.error ?? 'Failed to enroll')
+        const d = await res.json().catch(() => ({})) as { error?: string }
+        alert(d.error ?? 'Failed to start autoresponder')
         return
       }
+      setScheduleFor(null)
       onOpenChange(false)
       onEnrolled()
     } finally {
       setEnrolling(null)
     }
+  }
+
+  function handleScheduledEnroll(seqId: string) {
+    if (!schedDate) {
+      alert('Please pick a start date.')
+      return
+    }
+    const startAt = new Date(`${schedDate}T${schedTime}:00`).toISOString()
+    void handleEnroll(seqId, false, startAt)
   }
 
   const filtered = sequences.filter(s => s.channel === activeTab)
@@ -156,11 +174,20 @@ export default function EnrollSheet({ customerId, customerName, channel = 'email
                   <div className="flex gap-2">
                     <Button
                       size="sm"
-                      className="flex-1 h-9"
-                      onClick={() => handleEnroll(seq.id)}
+                      className="flex-1 h-9 bg-[#F07018] hover:bg-[#d4611a] text-white"
+                      onClick={() => handleEnroll(seq.id, true)}
                       disabled={enrolling !== null}
                     >
-                      {enrolling === seq.id ? 'Starting...' : 'Start'}
+                      {enrolling === seq.id ? 'Starting...' : 'Start Now'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 h-9"
+                      onClick={() => setScheduleFor(scheduleFor === seq.id ? null : seq.id)}
+                      disabled={enrolling !== null}
+                    >
+                      Schedule
                     </Button>
                     <button
                       onClick={() => toggleExpand(seq.id)}
@@ -170,6 +197,35 @@ export default function EnrollSheet({ customerId, customerName, channel = 'email
                       {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                     </button>
                   </div>
+                  {/* Schedule picker */}
+                  {scheduleFor === seq.id && (
+                    <div className="mt-3 p-3 rounded-lg border bg-muted/30 space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground">Start date and time</p>
+                      <div className="flex gap-2">
+                        <input
+                          type="date"
+                          value={schedDate}
+                          min={new Date().toISOString().split('T')[0]}
+                          onChange={e => setSchedDate(e.target.value)}
+                          className="flex-1 rounded-md border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F07018]"
+                        />
+                        <input
+                          type="time"
+                          value={schedTime}
+                          onChange={e => setSchedTime(e.target.value)}
+                          className="w-28 rounded-md border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F07018]"
+                        />
+                      </div>
+                      <Button
+                        size="sm"
+                        className="w-full h-9"
+                        onClick={() => handleScheduledEnroll(seq.id)}
+                        disabled={enrolling !== null || !schedDate}
+                      >
+                        {enrolling === seq.id ? 'Scheduling...' : 'Confirm Schedule'}
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 {isExpanded && (
                   <div className="border-t px-4 py-3 bg-muted/30 space-y-1.5">

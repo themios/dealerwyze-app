@@ -20,7 +20,7 @@ export async function GET(
       .order('sort_order'),
     supabase
       .from('vehicles')
-      .select('purchase_price, price')
+      .select('purchase_price, price, flooring_fee, floor_plan_interest')
       .eq('id', id)
       .eq('user_id', profile.org_id)
       .single(),
@@ -37,7 +37,9 @@ export async function GET(
   const recon_checklist_total = (items ?? []).reduce((s, i) => s + (i.cost ?? 0), 0)
   const ledger_expenses_total = (ledger ?? []).reduce((s, t) => s + (t.amount_total ?? 0), 0)
   const purchase_price = vehicle.purchase_price ?? null
-  const total_investment = (purchase_price ?? 0) + recon_checklist_total + ledger_expenses_total
+  const flooring_fee = vehicle.flooring_fee ?? 0
+  const floor_plan_interest = vehicle.floor_plan_interest ?? 0
+  const total_investment = (purchase_price ?? 0) + recon_checklist_total + ledger_expenses_total + flooring_fee + floor_plan_interest
   const list_price = vehicle.price ?? null
   const estimated_profit = list_price !== null && total_investment > 0
     ? list_price - total_investment
@@ -49,6 +51,8 @@ export async function GET(
       purchase_price,
       recon_checklist_total,
       ledger_expenses_total,
+      flooring_fee,
+      floor_plan_interest,
       total_investment,
       list_price,
       estimated_profit,

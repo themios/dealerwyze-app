@@ -18,6 +18,7 @@ interface SendSequenceEmailArgs {
   body: string
   activityId: string
   sequenceDay: number
+  stepLabel?: string   // e.g. "Day 1 - New Lead Follow-up"
 }
 
 /** Convert plain-text body + optional HTML signature into an HTML email. */
@@ -48,16 +49,61 @@ function smtpHostFrom(imapHost: string): string {
   return imapHost.replace(/^imap\./, 'smtp.')
 }
 
+async function buildGmailRawMessage(args: {
+  fromName: string
+  fromAddress: string
+  to: string
+  replyTo: string
+  subject: string
+  text: string
+  html: string
+}): Promise<string> {
+  const composerTransport = nodemailer.createTransport({
+    streamTransport: true,
+    buffer: true,
+    newline: 'unix',
+  })
+
+  const info = await composerTransport.sendMail({
+    from: { name: args.fromName, address: args.fromAddress },
+    to: args.to,
+    replyTo: args.replyTo,
+    subject: args.subject,
+    text: args.text,
+    html: args.html,
+  })
+
+  const raw = info.message
+  if (!Buffer.isBuffer(raw)) {
+    throw new Error('Failed to compose raw email message.')
+  }
+  return raw.toString('base64url')
+}
+
+function parseProviderError(err: unknown): string {
+  const e = err as {
+    message?: string
+    response?: { data?: unknown }
+    errors?: Array<{ message?: string }>
+  }
+  const data = e.response?.data as { error?: { message?: string } } | undefined
+  return data?.error?.message || e.errors?.[0]?.message || e.message || 'Unknown provider error'
+}
+
+function substituteVars(text: string, vars: Record<string, string>): string {
+  return text.replace(/\{(\w+)\}/g, (_, key) => vars[key] ?? `{${key}}`)
+}
+
 export async function sendSequenceEmail(
   args: SendSequenceEmailArgs
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { orgId, customerId, customerEmail, subject, body, activityId } = args
+  const { orgId, customerId, customerEmail, customerName, subject, body, activityId, stepLabel } = args
   const supabase = createServiceClient()
 
   // Fetch email account
   const { data: account } = await supabase
     .from('email_accounts')
-    .select('email, oauth_refresh_token, imap_host, imap_port, imap_user, imap_pass')
+    .select('id, email, oauth_refresh_token, imap_host, imap_port, imap_user, imap_pass')
     .eq('org_id', orgId)
     .eq('enabled', true)
     .limit(1)
@@ -67,20 +113,51 @@ export async function sendSequenceEmail(
     return { ok: false, error: 'no_account' }
   }
 
-  // Fetch email signature
-  const { data: orgSettings } = await supabase
-    .from('org_settings')
-    .select('email_signature')
-    .eq('org_id', orgId)
-    .maybeSingle()
+  // Fetch org settings + customer vehicle for variable substitution
+  const [{ data: orgSettings }, { data: customerVehicle }] = await Promise.all([
+    supabase
+      .from('org_settings')
+      .select('email_signature, business_name, dealer_cell_number')
+      .eq('org_id', orgId)
+      .maybeSingle(),
+    supabase
+      .from('customer_vehicles')
+      .select('vehicle:vehicles(year, make, model)')
+      .eq('customer_id', customerId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ])
+
+  const firstName = customerName.split(' ')[0] || customerName
+  const vehicleRow = customerVehicle?.vehicle as { year?: number; make?: string; model?: string } | null
+  const vehicleLabel = vehicleRow
+    ? `${vehicleRow.year ?? ''} ${vehicleRow.make ?? ''} ${vehicleRow.model ?? ''}`.trim()
+    : ''
+  const dealerName  = orgSettings?.business_name ?? ''
+  const dealerPhone = orgSettings?.dealer_cell_number ?? ''
+
+  const vars: Record<string, string> = {
+    firstName,
+    vehicle:     vehicleLabel,
+    dealerName,
+    dealerPhone,
+    link:        '',  // placeholder — no public VDP link in scope yet
+  }
+
+  const resolvedSubject = substituteVars(subject, vars)
+  const resolvedBody    = substituteVars(body, vars)
 
   const signature = orgSettings?.email_signature ?? null
-  const htmlBody  = buildEmailHtml(body, signature)
+  const htmlBody  = buildEmailHtml(resolvedBody, signature)
   const plainText = signature
-    ? `${body}\n\n--\n${signature.replace(/<[^>]+>/g, '')}`
-    : body
+    ? `${resolvedBody}\n\n--\n${signature.replace(/<[^>]+>/g, '')}`
+    : resolvedBody
 
   const fromAddress = account.email ?? account.imap_user ?? ''
+  if (!fromAddress) {
+    return { ok: false, error: 'no_from_address' }
+  }
   const fromHeader  = `"Your Sales Team" <${fromAddress}>`
 
   let messageId: string | null = null
@@ -95,43 +172,32 @@ export async function sendSequenceEmail(
     auth.setCredentials({ refresh_token: account.oauth_refresh_token })
     const gmail = google.gmail({ version: 'v1', auth })
 
-    const encodeHeader = (v: string) =>
-      /[^\x20-\x7E]/.test(v)
-        ? `=?UTF-8?B?${Buffer.from(v, 'utf8').toString('base64')}?=`
-        : v
-
-    const boundary = `boundary_${Date.now().toString(36)}`
-    const rawMessage = [
-      `From: ${encodeHeader(fromHeader)}`,
-      `To: ${customerEmail}`,
-      `Reply-To: ${fromAddress}`,
-      `Subject: ${encodeHeader(subject)}`,
-      'MIME-Version: 1.0',
-      `Content-Type: multipart/alternative; boundary="${boundary}"`,
-      '',
-      `--${boundary}`,
-      'Content-Type: text/plain; charset=utf-8',
-      'Content-Transfer-Encoding: quoted-printable',
-      '',
-      plainText,
-      '',
-      `--${boundary}`,
-      'Content-Type: text/html; charset=utf-8',
-      'Content-Transfer-Encoding: quoted-printable',
-      '',
-      htmlBody,
-      '',
-      `--${boundary}--`,
-    ].join('\r\n')
-
     try {
+      const rawMessage = await buildGmailRawMessage({
+        fromName: 'Your Sales Team',
+        fromAddress,
+        to: customerEmail,
+        replyTo: fromAddress,
+        subject: resolvedSubject,
+        text: plainText,
+        html: htmlBody,
+      })
+
       const sent = await gmail.users.messages.send({
         userId: 'me',
-        requestBody: { raw: Buffer.from(rawMessage).toString('base64url') },
+        requestBody: { raw: rawMessage },
       })
       messageId = sent.data.id ?? null
       threadId  = sent.data.threadId ?? null
+      await supabase
+        .from('email_accounts')
+        .update({ last_error: null })
+        .eq('id', account.id)
     } catch (err) {
+      await supabase
+        .from('email_accounts')
+        .update({ last_error: `[gmail-send-sequence] ${parseProviderError(err)}`.slice(0, 1000) })
+        .eq('id', account.id)
       return { ok: false, error: 'gmail_send_failed' }
     }
   } else if (account.imap_host && account.imap_user && account.imap_pass) {
@@ -149,12 +215,20 @@ export async function sendSequenceEmail(
         from:    fromHeader,
         to:      customerEmail,
         replyTo: fromAddress,
-        subject,
+        subject: resolvedSubject,
         text:    plainText,
         html:    htmlBody,
       })
       messageId = info.messageId ?? null
-    } catch (err) {
+      await supabase
+        .from('email_accounts')
+        .update({ last_error: null })
+        .eq('id', account.id)
+    } catch {
+      await supabase
+        .from('email_accounts')
+        .update({ last_error: '[smtp-send-sequence] SMTP provider rejected send request' })
+        .eq('id', account.id)
       return { ok: false, error: 'smtp_send_failed' }
     }
   } else {
@@ -171,13 +245,15 @@ export async function sendSequenceEmail(
     })
     .eq('id', activityId)
 
-  // Log a separate sent record so the activity feed shows the actual email
+  // Log a separate sent record so the activity feed shows the actual email.
+  // Prefix with [Auto: stepLabel] so the timeline can identify and label it.
+  const bodyPrefix = stepLabel ? `[Auto: ${stepLabel}]\n` : ''
   await supabase.from('activities').insert({
     user_id:          orgId,
     customer_id:      customerId,
     type:             'email',
     direction:        'outbound',
-    body:             `Subject: ${subject}\n\n${body}`,
+    body:             `${bodyPrefix}Subject: ${resolvedSubject}\n\n${resolvedBody}`,
     completed_at:     new Date().toISOString(),
     priority:         'normal',
     gmail_message_id: messageId,

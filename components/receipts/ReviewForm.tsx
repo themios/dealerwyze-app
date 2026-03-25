@@ -491,12 +491,14 @@ export default function ReviewForm({ receipt, categories, lotVehicles, soldVehic
 
       {/* Vehicle assignment */}
       {(lotVehicles.length > 0 || soldVehicles.length > 0) && (
-        <div>
+        <div className={`rounded-lg border-2 p-3 ${requiresVehicle ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/20' : 'border-dashed border-muted-foreground/30'}`}>
           <div className="flex items-center justify-between mb-2">
-            <p className={`text-xs font-semibold uppercase tracking-wide ${
-              requiresVehicle ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'
+            <p className={`text-sm font-semibold flex items-center gap-1.5 ${
+              requiresVehicle ? 'text-amber-700 dark:text-amber-400' : 'text-foreground'
             }`}>
-              Vehicle {requiresVehicle ? '(required)' : '(optional)'}
+              <Car className="h-4 w-4" />
+              Assign to Vehicle
+              {requiresVehicle && <span className="text-xs font-normal text-amber-600">(required)</span>}
             </p>
             {!requiresVehicle && (
               <button
@@ -504,17 +506,16 @@ export default function ReviewForm({ receipt, categories, lotVehicles, soldVehic
                   setShowVehicle(s => !s)
                   if (showVehicle) setVehicleId(null)
                 }}
-                className="text-xs text-primary flex items-center gap-1"
+                className="text-sm font-medium text-primary flex items-center gap-1.5 px-3 py-1 rounded-md bg-primary/10 hover:bg-primary/20 transition-colors"
               >
-                <Car className="h-3 w-3" />
-                {showVehicle ? 'Remove' : vehicleId ? vehicleLabel(selectedVehicle!) : 'Assign'}
+                {showVehicle ? 'Remove' : vehicleId ? vehicleLabel(selectedVehicle!) : '+ Assign'}
               </button>
             )}
           </div>
 
           {/* Show selected vehicle summary when picker is closed */}
           {!vehiclePickerOpen && vehicleId && selectedVehicle && (
-            <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+            <div className="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
               <Car className="h-4 w-4 text-primary flex-shrink-0" />
               <span className="text-sm font-medium">{vehicleLabel(selectedVehicle)}</span>
             </div>
@@ -530,8 +531,8 @@ export default function ReviewForm({ receipt, categories, lotVehicles, soldVehic
           )}
 
           {requiresVehicle && !vehicleId && (
-            <p className="text-xs text-amber-600 mt-1">
-              This category tracks per-vehicle recon spend. Assign a unit.
+            <p className="text-xs text-amber-600 mt-1.5">
+              This category tracks per-vehicle recon spend. Assign a unit to continue.
             </p>
           )}
         </div>

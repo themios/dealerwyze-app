@@ -107,7 +107,7 @@ Target audience: Independent used-car dealers, BHPH lots.
 Platform: [CHOOSE: Landing page hero / Google ad / LinkedIn ad / Facebook ad / Email subject line]
 
 Generate 20 headline options using a mix of:
-- Specific number + unexpected benefit (e.g. "Reply in 5 minutes, not 5 hours")
+- Specific number + unexpected benefit (e.g. "Reply in 60 seconds, not 5 hours")
 - How to + desired outcome + without pain point
 - Question that challenges a common assumption (e.g. "What if every lead landed in one list?")
 - Bold contrarian statement

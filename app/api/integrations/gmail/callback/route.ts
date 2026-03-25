@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { google } from 'googleapis'
 import { createServiceClient } from '@/lib/supabase/service'
+import { registerGmailWatch } from '@/lib/gmail/watch'
 
 /**
  * GET /api/integrations/gmail/callback
@@ -43,18 +44,34 @@ export async function GET(req: NextRequest) {
       .eq('email', gmailEmail)
       .maybeSingle()
 
+    let accountId: string
+
     if (existing) {
       await supabase
         .from('email_accounts')
         .update({ oauth_refresh_token: tokens.refresh_token, enabled: true, last_error: null })
         .eq('id', existing.id)
+      accountId = existing.id
     } else {
-      await supabase.from('email_accounts').insert({
-        org_id:               orgId,
-        label:                `Gmail — ${gmailEmail}`,
-        email:                gmailEmail,
-        provider:             'gmail',
-        oauth_refresh_token:  tokens.refresh_token,
+      const { data: inserted } = await supabase
+        .from('email_accounts')
+        .insert({
+          org_id:               orgId,
+          label:                `Gmail — ${gmailEmail}`,
+          email:                gmailEmail,
+          provider:             'gmail',
+          oauth_refresh_token:  tokens.refresh_token,
+        })
+        .select('id')
+        .single()
+      accountId = inserted?.id ?? ''
+    }
+
+    // Register Gmail push watch so new messages trigger real-time delivery
+    if (accountId && tokens.refresh_token) {
+      await registerGmailWatch(accountId, tokens.refresh_token).catch((err) => {
+        // Non-fatal — polling cron is the safety net
+        console.error('Gmail watch registration failed during OAuth callback:', err?.message ?? err)
       })
     }
   } catch (e) {

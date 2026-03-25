@@ -4,7 +4,6 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Bell, ChevronRight, X } from 'lucide-react'
 import { Activity } from '@/types'
-import { createClient } from '@/lib/supabase/client'
 
 interface Props {
   activity: Activity & { customer?: { id: string; name: string; primary_phone?: string | null } | null }
@@ -13,7 +12,6 @@ interface Props {
 
 export default function VehicleMatchCard({ activity, onUpdate }: Props) {
   const [dismissing, setDismissing] = useState(false)
-  const supabase = createClient()
 
   const customer = activity.customer
   const customerName = customer?.name ?? 'Unknown'
@@ -25,10 +23,11 @@ export default function VehicleMatchCard({ activity, onUpdate }: Props) {
 
   async function dismiss() {
     setDismissing(true)
-    await supabase
-      .from('activities')
-      .update({ addressed_at: new Date().toISOString() })
-      .eq('id', activity.id)
+    await fetch(`/api/activities/${activity.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ addressed_at: new Date().toISOString() }),
+    })
     onUpdate()
   }
 

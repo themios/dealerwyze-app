@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
 import { LEAD_STATES } from '@/lib/leads/states'
+import { dispatchWebhook } from '@/lib/webhooks/dispatch'
 
 export async function PATCH(
   req: NextRequest,
@@ -48,6 +49,11 @@ export async function PATCH(
     return NextResponse.json({ error: 'Cannot move backward in pipeline', blocked: true }, { status: 409 })
   }
 
+  dispatchWebhook(profile.org_id, 'stage_change', {
+    customer_id: customerId,
+    lead_state: state,
+  }).catch(() => {})
+
   // Log state change as a note (prefixed with author name)
   const noteBody = `Lead state → "${state}"${reason ? `: ${reason}` : ''}`
   const bodyWithAuthor = `name: ${profile.display_name}\n${noteBody}`
@@ -57,6 +63,16 @@ export async function PATCH(
     type:        'note',
     body:        bodyWithAuthor,
   })
+
+  // Any state change means the rep has taken action — address pending inbound leads
+  await supabase
+    .from('activities')
+    .update({ addressed_at: new Date().toISOString() })
+    .eq('user_id', profile.org_id)
+    .eq('customer_id', customerId)
+    .eq('direction', 'inbound')
+    .eq('outcome', 'pending')
+    .is('completed_at', null)
 
   return NextResponse.json({ ok: true })
 }

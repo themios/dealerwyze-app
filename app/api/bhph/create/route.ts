@@ -70,6 +70,15 @@ export async function POST(req: NextRequest) {
       vehicle_id,
       interest_level: 'hot',
     }, { onConflict: 'customer_id,vehicle_id' })
+
+    // Auto-close the buyer's pending inbound lead activities for this vehicle
+    await service.from('activities')
+      .update({ completed_at: new Date().toISOString() })
+      .eq('user_id', orgId)
+      .eq('customer_id', customer_id)
+      .eq('vehicle_id', vehicle_id)
+      .eq('direction', 'inbound')
+      .is('completed_at', null)
   }
 
   // 3. Create BHPH contract if applicable
@@ -116,5 +125,57 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  return NextResponse.json({ success: true })
+  // Find other customers who expressed interest in this vehicle
+  interface InterestedCustomer { customer_id: string; name: string; primary_phone: string | null; email: string | null; is_buyer?: boolean }
+  const interestedCustomers: InterestedCustomer[] = []
+  const seen = new Set<string>()
+
+  // Prepend the buyer so they get a thank-you message first
+  if (customer_id) {
+    const { data: buyer } = await service
+      .from('customers')
+      .select('id, name, primary_phone, email')
+      .eq('id', customer_id)
+      .single()
+    if (buyer) {
+      interestedCustomers.push({
+        customer_id: buyer.id,
+        name: buyer.name ?? '',
+        primary_phone: buyer.primary_phone ?? null,
+        email: buyer.email ?? null,
+        is_buyer: true,
+      })
+    }
+  }
+  if (customer_id) seen.add(customer_id) // exclude the buyer
+
+  const [{ data: cvRows }, { data: matchRows }] = await Promise.all([
+    service
+      .from('customer_vehicles')
+      .select('customer_id, customer:customers(id, name, primary_phone, email)')
+      .eq('vehicle_id', vehicle_id),
+    service
+      .from('activities')
+      .select('customer_id, customer:customers(id, name, primary_phone, email)')
+      .eq('user_id', orgId)
+      .eq('vehicle_id', vehicle_id)
+      .eq('type', 'vehicle_match')
+      .eq('direction', 'inbound')
+      .is('completed_at', null),
+  ])
+
+  for (const row of [...(cvRows ?? []), ...(matchRows ?? [])]) {
+    if (!row.customer_id || seen.has(row.customer_id)) continue
+    seen.add(row.customer_id)
+    const c = Array.isArray(row.customer) ? row.customer[0] : row.customer
+    if (!c) continue
+    interestedCustomers.push({
+      customer_id: row.customer_id,
+      name: (c as Record<string, string>).name ?? '',
+      primary_phone: (c as Record<string, string | null>).primary_phone ?? null,
+      email: (c as Record<string, string | null>).email ?? null,
+    })
+  }
+
+  return NextResponse.json({ success: true, interestedCustomers })
 }

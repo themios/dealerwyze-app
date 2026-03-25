@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Loader2, Download } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
+import ReportsClient from './ReportsClient'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -140,6 +141,7 @@ function exportCsv(data: AnalyticsData) {
 // ── Main component ─────────────────────────────────────────────────────────
 
 export default function AnalyticsDashboard() {
+  const [activeTab, setActiveTab] = useState<'overview' | 'performance'>('overview')
   const [preset, setPreset]   = useState<number>(30)
   const [data, setData]       = useState<AnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -161,7 +163,31 @@ export default function AnalyticsDashboard() {
   const funnelMax = data?.funnel[0]?.count || 1
 
   return (
-    <div className="px-4 py-4 pb-24 space-y-6 lg:px-6">
+    <div className="pb-24 lg:pb-6">
+
+      {/* Tab switcher */}
+      <div className="flex gap-1 border-b px-4">
+        {(['overview', 'performance'] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors capitalize ${
+              activeTab === tab
+                ? 'border-[#F07018] text-[#F07018]'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {tab === 'overview' ? 'Overview' : 'Performance'}
+          </button>
+        ))}
+      </div>
+
+      {/* Performance tab — rep drill-down, AI brief */}
+      {activeTab === 'performance' && <ReportsClient />}
+
+      {/* Overview tab — existing analytics */}
+      {activeTab === 'overview' && (
+      <div className="px-4 py-4 space-y-6 lg:px-6">
 
       {/* Date range pills + CSV export */}
       <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 lg:mx-0 lg:px-0 no-scrollbar">
@@ -355,6 +381,8 @@ export default function AnalyticsDashboard() {
             </section>
           </div>
         </>
+      )}
+      </div>
       )}
     </div>
   )

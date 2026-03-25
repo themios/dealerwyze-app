@@ -4,6 +4,8 @@ import { useState, useRef } from 'react'
 import { ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
+type ReconCategory = 'mandatory' | 'value_add' | 'standard'
+
 interface ReconChecklistItem {
   id: string
   label: string
@@ -12,20 +14,36 @@ interface ReconChecklistItem {
   notes: string | null
   cost: number | null
   completed_at: string | null
+  category: ReconCategory
 }
 
 interface Props {
   item: ReconChecklistItem
   onToggle: (id: string, checked: boolean) => Promise<void>
-  onSave: (id: string, patch: { cost?: number | null; notes?: string }) => Promise<void>
+  onSave: (id: string, patch: { cost?: number | null; notes?: string; category?: ReconCategory }) => Promise<void>
   onDelete: (id: string) => Promise<void>
   isReadOnly: boolean
   canDelete: boolean
 }
 
+const CATEGORY_LABELS: Record<ReconCategory, string> = {
+  mandatory: 'Mandatory',
+  value_add: 'Value-Add',
+  standard: 'Routine',
+}
+
+const CATEGORY_STYLES: Record<ReconCategory, string> = {
+  mandatory: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  value_add: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  standard:  'bg-muted text-muted-foreground',
+}
+
+const CATEGORY_CYCLE: ReconCategory[] = ['standard', 'mandatory', 'value_add']
+
 export default function ReconChecklistRow({ item, onToggle, onSave, onDelete, isReadOnly, canDelete }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [toggling, setToggling] = useState(false)
+  const [category, setCategory] = useState<ReconCategory>(item.category ?? 'standard')
   const costRef = useRef<HTMLInputElement>(null)
   const notesRef = useRef<HTMLTextAreaElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -52,6 +70,15 @@ export default function ReconChecklistRow({ item, onToggle, onSave, onDelete, is
     }, 600)
   }
 
+  function cycleCategory(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (isReadOnly) return
+    const idx = CATEGORY_CYCLE.indexOf(category)
+    const next = CATEGORY_CYCLE[(idx + 1) % CATEGORY_CYCLE.length]
+    setCategory(next)
+    onSave(item.id, { category: next })
+  }
+
   return (
     <div className={`rounded-lg border bg-card transition-colors ${item.checked ? 'border-green-200 bg-green-50/30 dark:bg-green-950/10' : ''}`}>
       <div
@@ -70,6 +97,13 @@ export default function ReconChecklistRow({ item, onToggle, onSave, onDelete, is
         {item.is_required && !item.checked && (
           <span className="text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-1.5 py-0.5 rounded">REQ</span>
         )}
+        <button
+          className={`text-[10px] font-medium px-1.5 py-0.5 rounded transition-opacity ${CATEGORY_STYLES[category]} ${isReadOnly ? 'opacity-60 cursor-default' : 'hover:opacity-80'}`}
+          onClick={cycleCategory}
+          title={isReadOnly ? CATEGORY_LABELS[category] : 'Click to change category'}
+        >
+          {CATEGORY_LABELS[category]}
+        </button>
         {item.cost != null && item.cost > 0 && (
           <span className="text-xs font-semibold text-muted-foreground">${item.cost.toFixed(2)}</span>
         )}

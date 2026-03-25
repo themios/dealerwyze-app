@@ -28,7 +28,7 @@ export default async function TodayPage() {
 
   const { data: newLeads } = await supabase
     .from('activities')
-    .select('*, customer:customers(id, name, primary_phone, email, sms_opt_out, unsubscribe_email, unsubscribe_sms)')
+    .select('*, customer:customers(id, name, primary_phone, email, sms_opt_out, unsubscribe_email, unsubscribe_sms, archived)')
     .eq('user_id', orgId)
     .eq('type', 'email')
     .eq('direction', 'inbound')
@@ -41,12 +41,12 @@ export default async function TodayPage() {
   // Hide addressed cards until next day or follow-up due date
   const todayRef = new Date()
   const safeNewLeads = (newLeads || []).filter(
-    a => a.customer != null && shouldShowAddressedActivity(a, todayRef)
+    a => a.customer != null && !(a.customer as { archived?: boolean | null }).archived && shouldShowAddressedActivity(a, todayRef)
   )
 
   const { data: tasksRaw } = await supabase
     .from('activities')
-    .select('*, customer:customers(id, name, primary_phone, email)')
+    .select('*, customer:customers(id, name, primary_phone, email, archived)')
     .eq('user_id', orgId)
     .in('type', ['task', 'appointment', 'call', 'sms', 'email', 'email_followup', 'sms_followup'])
     .is('completed_at', null)
@@ -57,11 +57,15 @@ export default async function TodayPage() {
     .order('priority', { ascending: false })
     .order('due_at', { ascending: true })
 
-  const tasks = (tasksRaw || []).filter(a => shouldShowAddressedActivity(a, todayRef))
+  const tasks = (tasksRaw || []).filter(a => {
+    const c = (a as { customer?: { archived?: boolean | null } | null }).customer
+    if (c?.archived) return false
+    return shouldShowAddressedActivity(a, todayRef)
+  })
 
   const { data: waitingRaw } = await supabase
     .from('activities')
-    .select('*, customer:customers(id, name, primary_phone)')
+    .select('*, customer:customers(id, name, primary_phone, archived)')
     .eq('user_id', orgId)
     .eq('direction', 'outbound')
     .in('type', ['call', 'sms', 'email'])
@@ -102,6 +106,8 @@ export default async function TodayPage() {
   const seenCustomers = new Set<string>()
   const waiting = (waitingRaw || []).filter(a => {
     if (!a.customer_id || seenCustomers.has(a.customer_id)) return false
+    const c = (a as { customer?: { archived?: boolean | null } | null }).customer
+    if (c?.archived) return false
     if (!shouldShowAddressedActivity(a, todayRef)) return false
     seenCustomers.add(a.customer_id)
     return true
@@ -148,7 +154,8 @@ export default async function TodayPage() {
       .select('customer_id, due_at, customer_sequence_id')
       .in('customer_id', customerIds)
       .is('completed_at', null)
-      .in('type', ['email_followup', 'sms_followup'])
+      .not('customer_sequence_id', 'is', null)
+      .in('type', ['email_followup', 'sms_followup', 'email', 'sms'])
       .order('due_at', { ascending: true })
 
     for (const step of pendingSteps ?? []) {
@@ -197,7 +204,7 @@ export default async function TodayPage() {
   // Vehicle want-list matches — inbound, pending, not yet addressed
   const { data: vehicleMatchesRaw } = await supabase
     .from('activities')
-    .select('*, customer:customers(id, name, primary_phone), vehicle:vehicles(id, year, make, model)')
+    .select('*, customer:customers(id, name, primary_phone, archived), vehicle:vehicles(id, year, make, model)')
     .eq('user_id', orgId)
     .eq('type', 'vehicle_match')
     .eq('direction', 'inbound')
@@ -206,13 +213,13 @@ export default async function TodayPage() {
     .or(`snoozed_until.is.null,snoozed_until.lt.${now}`)
     .order('created_at', { ascending: false })
   const vehicleMatches = (vehicleMatchesRaw || []).filter(
-    a => a.customer != null && shouldShowAddressedActivity(a, todayRef)
+    a => a.customer != null && !(a.customer as { archived?: boolean | null }).archived && shouldShowAddressedActivity(a, todayRef)
   )
 
   // Appointment requests: inbound appointment activities not yet confirmed (direction=inbound)
   const { data: apptRequests } = await supabase
     .from('activities')
-    .select('*, customer:customers(id, name, primary_phone)')
+    .select('*, customer:customers(id, name, primary_phone, archived)')
     .eq('user_id', orgId)
     .eq('type', 'appointment')
     .eq('direction', 'inbound')
@@ -224,7 +231,7 @@ export default async function TodayPage() {
   // Filter out activities whose customer join returned null (orphaned activities)
   // Hide addressed until next day or follow-up
   const safeApptRequests = (apptRequests || []).filter(
-    a => a.customer != null && shouldShowAddressedActivity(a, todayRef)
+    a => a.customer != null && !(a.customer as { archived?: boolean | null }).archived && shouldShowAddressedActivity(a, todayRef)
   )
 
   const newLeadCount    = safeNewLeads.length
@@ -291,7 +298,6 @@ export default async function TodayPage() {
             initialNewLeads={safeNewLeads}
             initialTasks={tasks || []}
             initialWaiting={waiting}
-            leadTemplates={leadTemplates || []}
             initialApptRequests={safeApptRequests}
             initialVoiceLeads={voiceLeadsRaw || []}
             initialVehicleMatches={vehicleMatches}

@@ -9,14 +9,14 @@
 ## 20 Headlines by Framework
 
 ### Specific number + unexpected benefit
-1. **5 Minutes: Why the First Dealer to Reply Wins (And How to Be That Dealer)**  
+1. **60 Seconds: Why the First Dealer to Reply Wins (And How to Be That Dealer)**  
 2. **3 Clicks to Reply to a CarGurus Lead - No Copy-Paste, No Morning Regrets**  
 3. **One List, 10 Seconds to Log a Call: How Small Lots Stop Losing Deals Overnight**  
-4. **Under 5 Minutes: The Lead-Response Rule 90% of Small Dealers Break**  
+4. **Under 60 Seconds: The Lead-Response Rule Small Dealers Can Finally Hit**  
 
 ### How to + desired outcome + without common pain point
 5. **How to Close More Used Car Deals Without a 6-Week CRM Rollout**  
-6. **How to Answer Every Lead in Under 5 Minutes (Without Living in Your Inbox)**  
+6. **How to Answer Every Lead in Under 60 Seconds (Without Living in Your Inbox)**  
 7. **How to Stop Losing Deals Overnight - Without Hiring an IT Guy**  
 8. **How to Be the Dealer Who Responded at 10:01 (Not the One Who Waited Until Morning)**  
 
@@ -36,7 +36,7 @@
 17. **From “Which Car Did They Want?” to One Tap: How One List Changed Our Lot.**  
 18. **We Stopped Losing Deals at 10 p.m. Here’s the One Change That Fixed It.**  
 19. **Before: Leads in Gmail, texts, and sticky notes. After: One list, one response time.**  
-20. **From 3 Days to 3 Minutes: How We Reply to Every Lead Before They Shop Elsewhere.**  
+20. **From 3 Days to 60 Seconds: How We Reply to Every Lead Before They Shop Elsewhere.**  
 
 ---
 
@@ -60,12 +60,12 @@
 
 ---
 
-### 3. **Under 5 Minutes: The Lead-Response Rule 90% of Small Dealers Break**
+### 3. **Under 60 Seconds: The Lead-Response Rule Small Dealers Can Finally Hit**
 
-- **Emotional pull:** “90%” creates slight alarm (am I in the 90%?) and a desire to be in the minority that gets it right.
+- **Emotional pull:** “Under 60 seconds” feels ambitious and concrete, which creates urgency and a clear standard worth chasing.
 - **Curiosity gap:** What is the rule? Why do so many break it? What happens if I don’t? Drives a click to get the number and the “rule.”
-- **Specificity:** “5 minutes” is a clear benchmark; “small dealers” targets the audience; “lead-response” names the topic.
-- **Clarity:** Benefit is implied (respond in under 5 minutes); the stat makes it feel factual and worth reading. Works well for LinkedIn and blog where a bit more “data” is expected.
+- **Specificity:** “60 seconds” is a clear benchmark; “small dealers” targets the audience; “lead-response” names the topic.
+- **Clarity:** Benefit is implied (respond in under 60 seconds); the stat makes it feel factual and worth reading. Works well for LinkedIn and blog where a bit more “data” is expected.
 
 ---
 

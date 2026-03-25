@@ -31,7 +31,7 @@ In other words: **one list for everyone who might buy, the car they’re interes
 4. Pick a **template** (e.g. “First contact – virtual look + delivery”). The app fills in their name, the car, the price, and the link to that car’s listing.
 5. Check the preview, add a line if you want, then send.
 
-The goal is to reply in under five minutes when you can. Templates let you send a personal-feeling message without typing everything from scratch.
+The goal is to reply in under 60 seconds when you can. Templates let you send a personal-feeling message without typing everything from scratch.
 
 ---
 
@@ -61,7 +61,7 @@ If you don’t want to fill it out right then, you can close the pop-up with the
 
 ## What “response time” means
 
-**Response time** is how long it took from when the lead came in to when someone first replied (by text, email, or call). Many dealers aim for under five minutes. The app can show you and your manager how fast you’re replying so you can improve. Faster, clear first replies usually mean more show-ups and more deals.
+**Response time** is how long it took from when the lead came in to when someone first replied (by text, email, or call). Many dealers aim for under 60 seconds. The app can show you and your manager how fast you’re replying so you can improve. Faster, clear first replies usually mean more show-ups and more deals.
 
 ---
 

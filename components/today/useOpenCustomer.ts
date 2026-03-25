@@ -1,7 +1,6 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 
 /**
  * Mark the activity as addressed (user opened customer from Today) and navigate
@@ -9,14 +8,14 @@ import { createClient } from '@/lib/supabase/client'
  */
 export function useOpenCustomer() {
   const router = useRouter()
-  const supabase = createClient()
 
   return (activityId: string, customerId: string) => {
-    supabase
-      .from('activities')
-      .update({ addressed_at: new Date().toISOString() })
-      .eq('id', activityId)
-      .then(() => {
+    fetch(`/api/activities/${activityId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ addressed_at: new Date().toISOString() }),
+    }).catch(() => {})
+      .finally(() => {
         router.push(`/customers/${customerId}`)
       })
   }

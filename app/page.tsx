@@ -54,6 +54,12 @@ const jsonLd = {
   '@context': 'https://schema.org',
   '@graph': [
     {
+      '@type': 'Organization',
+      name: 'DealerWyze',
+      url: 'https://dealerwyze.com',
+      logo: 'https://dealerwyze.com/DealerWyzeLogoWithName.png',
+    },
+    {
       '@type': 'SoftwareApplication',
       name: 'DealerWyze',
       applicationCategory: 'BusinessApplication',

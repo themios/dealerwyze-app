@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
       .update({ completed_at: now, outcome: 'cancelled' })
       .eq('customer_sequence_id', seq.id)
       .is('completed_at', null)
-      .in('type', ['email_followup', 'sms_followup'])
+      .in('type', ['email_followup', 'sms_followup', 'email', 'sms'])
   }
 
   return new NextResponse(

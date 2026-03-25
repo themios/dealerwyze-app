@@ -12,7 +12,7 @@ This document is the **output** of the million-dollar message framework applied 
 - Reducing context-switching: Gmail, CarGurus, AutoTrader, texts, calls → one Today list and one reply flow.
 
 **Contrarian opinion**
-- Small dealers don’t need a “CRM rollout.” They need one list, one Today view, and the ability to reply in under five minutes. DealerWyze is that, not a six-week implementation.
+- Small dealers don’t need a “CRM rollout.” They need one list, one Today view, and the ability to reply in under 60 seconds. DealerWyze is that, not a six-week implementation.
 
 **Recurring problem we solve**
 - Deals lost because of slow or scattered follow-up — not because the car or price was wrong. Fix the reply speed and the list; close more.
@@ -63,7 +63,7 @@ DealerWyze does that. One inbox. One Today list. Templates that plug in the car,
 
 Someone told you you need a “real CRM.” You looked at the big names. They’re built for stores with IT and training time. You’re a small lot. You don’t have six weeks to implement anything. You just need to stop losing leads because you replied late or forgot.
 
-You need one place for every lead and every car. You need to see who’s new and who’s waiting on you — and reply in under five minutes with the right vehicle and a personal-feeling message. No enterprise bloat. No long rollout.
+You need one place for every lead and every car. You need to see who’s new and who’s waiting on you — and reply in under 60 seconds with the right vehicle and a personal-feeling message. No enterprise bloat. No long rollout.
 
 DealerWyze is built for that. One list. One Today view. Fast replies with templates that fill in the details. The first dealer to respond clearly usually gets the conversation. This is how you make sure that dealer is you.
 
