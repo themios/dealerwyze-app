@@ -23,11 +23,6 @@ interface CalEvent {
 
 const TYPE_COLOR: Record<string, string> = {
   appointment: 'bg-blue-500',
-  task: 'bg-orange-500',
-  call: 'bg-green-500',
-  sms: 'bg-purple-500',
-  email: 'bg-yellow-500',
-  note: 'bg-gray-400',
 }
 
 function isoDate(d: Date) {
@@ -91,6 +86,8 @@ export default function CalendarPage() {
     const { data } = await supabase
       .from('activities')
       .select('id, type, body, due_at, completed_at, customer:customers(id, name)')
+      .eq('type', 'appointment')
+      .is('customer_sequence_id', null)
       .not('due_at', 'is', null)
       .gte('due_at', start.toISOString())
       .lte('due_at', end.toISOString())
