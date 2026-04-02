@@ -11,6 +11,9 @@ export const metadata: Metadata = {
   description:
     'DealerWyze — CRM for independent and used car dealers. Lead inbox, texting, inventory, BHPH, and receipts in one place.',
   manifest: '/manifest.json',
+  other: {
+    'facebook-domain-verification': 'szgt61sv00zpbbljhjit57coefp7a8',
+  },
   icons: {
     icon: '/DealerWyseLogoWithName.png',
     shortcut: '/DealerWyseLogoWithName.png',
