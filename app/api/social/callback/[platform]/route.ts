@@ -159,15 +159,16 @@ async function handleTikTokCallback(
       redirect_uri:  redirect,
     }),
   })
-  const tokenBody = await tokenRes.json() as {
-    data?: { access_token: string; refresh_token: string; expires_in: number; open_id: string }
-    error?: { code: string; message: string }
+  const tokenBody = await tokenRes.json() as Record<string, unknown>
+  console.log('[tiktok/callback] token response:', JSON.stringify(tokenBody))
+
+  const td = (tokenBody.data ?? tokenBody) as {
+    access_token: string; refresh_token: string; expires_in: number; open_id: string
   }
-  if (!tokenRes.ok || (tokenBody.error && tokenBody.error.code !== 'ok')) {
-    console.error('[tiktok/callback] token exchange failed:', JSON.stringify(tokenBody))
-    throw new Error(tokenBody.error?.message ?? 'TikTok token exchange failed')
+  if (!td?.access_token) {
+    console.error('[tiktok/callback] no access_token in response:', JSON.stringify(tokenBody))
+    throw new Error('TikTok token exchange failed - no access_token')
   }
-  const td = tokenBody.data!
 
   // Get user info
   const userRes = await fetch('https://open.tiktokapis.com/v2/user/info/?fields=display_name,username', {
