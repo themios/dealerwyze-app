@@ -160,7 +160,6 @@ async function handleTikTokCallback(
     }),
   })
   const tokenBody = await tokenRes.json() as Record<string, unknown>
-  console.log('[tiktok/callback] token response:', JSON.stringify(tokenBody))
 
   const td = (tokenBody.data ?? tokenBody) as {
     access_token: string; refresh_token: string; expires_in: number; open_id: string
