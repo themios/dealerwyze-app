@@ -95,3 +95,56 @@ export async function createCalendarEvent(
     return null
   }
 }
+
+export interface CalendarEvent {
+  id:          string
+  summary:     string
+  description: string | null
+  location:    string | null
+  startIso:    string   // ISO 8601
+  endIso:      string
+  htmlLink:    string | null
+}
+
+/**
+ * Reads upcoming events from the org's primary Google Calendar.
+ * Returns up to `maxResults` events starting from `fromIso` (default: now).
+ * Returns [] if org has no calendar token or on API failure.
+ */
+export async function getCalendarEvents(
+  orgId: string,
+  options: { fromIso?: string; maxResults?: number } = {},
+): Promise<CalendarEvent[]> {
+  const supabase = createServiceClient()
+  const { data: tokens } = await supabase
+    .from('org_google_tokens')
+    .select('calendar_refresh_token')
+    .eq('org_id', orgId)
+    .maybeSingle()
+
+  if (!tokens?.calendar_refresh_token) return []
+
+  try {
+    const calendar = makeCalendarClient(tokens.calendar_refresh_token)
+    const res = await calendar.events.list({
+      calendarId:   'primary',
+      timeMin:      options.fromIso ?? new Date().toISOString(),
+      maxResults:   options.maxResults ?? 20,
+      singleEvents: true,
+      orderBy:      'startTime',
+    })
+
+    return (res.data.items ?? []).map(ev => ({
+      id:          ev.id ?? '',
+      summary:     ev.summary ?? '(No title)',
+      description: ev.description ?? null,
+      location:    ev.location ?? null,
+      startIso:    ev.start?.dateTime ?? ev.start?.date ?? '',
+      endIso:      ev.end?.dateTime   ?? ev.end?.date   ?? '',
+      htmlLink:    ev.htmlLink ?? null,
+    }))
+  } catch (err) {
+    console.error('[calendar] getCalendarEvents failed:', err)
+    return []
+  }
+}
