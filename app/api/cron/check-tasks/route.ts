@@ -9,6 +9,7 @@ import { startCronRun, finishCronRun } from '@/lib/cron/runLogger'
 import { sendNotificationEmail } from '@/lib/email/notify'
 import { buildNudgeEmailHtml, type NudgeItem } from '@/lib/email/onboarding'
 import { stopSequenceOnReply } from '@/lib/sequences/stopSequenceOnReply'
+import { sendAppointmentNotification } from '@/lib/calendar/sendAppointmentNotification'
 
 export const runtime = 'nodejs'
 export const maxDuration = 55
@@ -878,6 +879,150 @@ export async function GET(req: NextRequest) {
     console.error('[check-tasks] Job 14 Gmail watch renewal error:', e)
   }
 
+  // ── Job 15: Gmail OAuth token health check ────────────────────────────────
+  // Proactively test each Gmail OAuth account daily. On invalid_grant, disable
+  // the account and notify the dealer admin so they can reconnect before
+  // customers notice a gap in lead syncing.
+  let gmailTokensOk = 0
+  let gmailTokensRevoked = 0
+  try {
+    const { google } = await import('googleapis')
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
+
+    const { data: gmailAccounts } = await supabase
+      .from('email_accounts')
+      .select('id, org_id, email, oauth_refresh_token, label')
+      .not('oauth_refresh_token', 'is', null)
+      .eq('enabled', true)
+
+    for (const acct of gmailAccounts ?? []) {
+      try {
+        const auth = new google.auth.OAuth2(
+          process.env.GMAIL_CLIENT_ID,
+          process.env.GMAIL_CLIENT_SECRET,
+        )
+        auth.setCredentials({ refresh_token: acct.oauth_refresh_token })
+        await auth.getAccessToken() // throws on invalid_grant
+        gmailTokensOk++
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e)
+        if (!msg.includes('invalid_grant') && !msg.includes('Token has been expired')) continue
+
+        gmailTokensRevoked++
+        console.warn(`[check-tasks] Job 15 Gmail token revoked for account ${acct.id} (${acct.email})`)
+
+        // Disable the account so sync doesn't keep failing
+        await supabase.from('email_accounts').update({
+          enabled:    false,
+          last_error: 'Connection expired - please reconnect this account in Settings',
+        }).eq('id', acct.id)
+
+        // Dedup alert: only fire once per account per 7 days
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+        const { data: existing } = await supabase
+          .from('admin_alerts')
+          .select('id')
+          .eq('org_id', acct.org_id)
+          .eq('alert_type', 'gmail_token_expired')
+          .eq('metadata->>account_id', acct.id)
+          .gt('created_at', sevenDaysAgo)
+          .maybeSingle()
+        if (existing) continue
+
+        await supabase.from('admin_alerts').insert({
+          org_id:     acct.org_id,
+          alert_type: 'gmail_token_expired',
+          severity:   'warning',
+          metadata:   { account_id: acct.id, email: acct.email },
+        })
+
+        // Notify dealer admin by email
+        const { data: adminProfile } = await supabase
+          .from('profiles')
+          .select('display_name, email:id')
+          .eq('org_id', acct.org_id)
+          .eq('role', 'dealer_admin')
+          .order('created_at')
+          .limit(1)
+          .maybeSingle()
+        if (adminProfile?.email) {
+          // Get actual email from auth.users via service client
+          const { data: { users } } = await supabase.auth.admin.listUsers()
+          const adminUser = users?.find((u: { id: string }) => u.id === adminProfile.email)
+          if (adminUser?.email) {
+            void sendNotificationEmail({
+              to: adminUser.email,
+              subject: 'Action needed: Your email connection needs to be reconnected',
+              html: `
+                <p>Hi ${adminProfile.display_name ?? 'there'},</p>
+                <p>Your <strong>${acct.label || acct.email}</strong> inbox connection has expired and lead syncing has paused for that account.</p>
+                <p>This happens periodically and is quick to fix.</p>
+                <p><a href="${appUrl}/settings/organization" style="background:#F07018;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;margin:12px 0">Reconnect Gmail in Settings</a></p>
+                <p>Once reconnected, lead syncing will resume automatically.</p>
+                <p>- The DealerWyze Team</p>
+              `,
+            })
+          }
+        }
+      }
+    }
+    if (gmailTokensRevoked > 0) {
+      console.log(`[check-tasks] Job 15 Gmail tokens: ${gmailTokensOk} ok, ${gmailTokensRevoked} revoked + notified`)
+    }
+  } catch (e) {
+    console.error('[check-tasks] Job 15 Gmail token health check error:', e)
+  }
+
+  // ── Job: Appointment reminders (24h before) ──────────────────────────────────
+  // Find confirmed appointments due in 18-30 hours that haven't been reminded yet.
+  const apptReminderWindowStart = new Date(Date.now() + 18 * 60 * 60 * 1000).toISOString()
+  const apptReminderWindowEnd   = new Date(Date.now() + 30 * 60 * 60 * 1000).toISOString()
+
+  const { data: upcomingAppts2 } = await supabase
+    .from('activities')
+    .select('id, due_at, body, user_id, customer_id, customer:customers(name, primary_phone, email)')
+    .eq('type', 'appointment')
+    .is('direction', null)
+    .is('completed_at', null)
+    .is('appt_reminder_sent_at', null)
+    .gte('due_at', apptReminderWindowStart)
+    .lte('due_at', apptReminderWindowEnd)
+    .limit(100)
+
+  let remindersQueued = 0
+
+  for (const appt of upcomingAppts2 ?? []) {
+    const cust = Array.isArray(appt.customer) ? appt.customer[0] : appt.customer
+    if (!cust) continue
+
+    const { data: orgSettingsRow } = await supabase
+      .from('org_settings')
+      .select('business_name')
+      .eq('org_id', appt.user_id)
+      .maybeSingle()
+
+    await sendAppointmentNotification({
+      orgId:          appt.user_id,
+      customerId:     appt.customer_id,
+      customerName:   (cust as any).name ?? 'Customer',
+      customerPhone:  (cust as any).primary_phone ?? '',
+      customerEmail:  (cust as any).email ?? '',
+      appointmentIso: appt.due_at,
+      dealerName:     orgSettingsRow?.business_name ?? 'the dealership',
+      calendarUrl:    null,
+      type:           'reminder',
+    }).catch(err => console.error('[cron/reminders] notification failed:', err))
+
+    await supabase
+      .from('activities')
+      .update({ appt_reminder_sent_at: new Date().toISOString() })
+      .eq('id', appt.id)
+
+    remindersQueued++
+  }
+
+  console.log(`[check-tasks] appointment reminders queued: ${remindersQueued}`)
+
   await finishCronRun(runId, 'success', (allOrgs ?? []).length)
 
   return NextResponse.json({
@@ -895,5 +1040,8 @@ export async function GET(req: NextRequest) {
     review_requests_sent: reviewRequestsSent,
     gmail_watches_renewed: gmailWatchesRenewed,
     gmail_watches_failed: gmailWatchesFailed,
+    gmail_tokens_ok: gmailTokensOk,
+    gmail_tokens_revoked: gmailTokensRevoked,
+    reminders_queued: remindersQueued,
   })
 }
