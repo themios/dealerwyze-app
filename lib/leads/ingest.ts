@@ -3,6 +3,10 @@ import type { ParsedLead } from '@/lib/leads/parser'
 import { sendLeadNotification } from '@/lib/push/send'
 import { createLeadResponseTask } from '@/lib/tasks/auto'
 import { sendTelegramMessage } from '@/lib/notifications/telegram'
+import { sendSmsConsentRequest } from '@/lib/sms/sendConsent'
+import { resolveLeadAssignee } from '@/lib/leads/assignLead'
+import { sendAutoResponseStep1 } from '@/lib/sequences/sendAutoResponseStep1'
+import { detectAppointmentIntent } from '@/lib/leads/detectAppointmentIntent'
 
 function parseVehicleName(name: string) {
   const parts = name.trim().split(/\s+/)
@@ -75,6 +79,7 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId?: 
       // Backfill email on the matched record
       await supabase.from('customers').update({ email: lead.email }).eq('id', customerId).is('email', null)
     } else {
+      const assignedTo = await resolveLeadAssignee(userId)
       const { data: created, error } = await supabase
         .from('customers')
         .insert({
@@ -84,6 +89,7 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId?: 
           email: lead.email,
           lead_source: lead.source,
           zip_code: lead.zip,
+          assigned_to: assignedTo,
         })
         .select('id')
         .single()
@@ -122,48 +128,21 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId?: 
 
   if (recentLead) return { status: 'duplicate', activity_id: recentLead.id }
 
-  // 4. Find or create vehicle
+  // 4. Match vehicle from existing inventory only — never create from a lead
+  // The dealer adds vehicles to inventory manually; leads just express interest in a vehicle.
   let vehicleId: string | null = null
   if (lead.vehicle) {
-    const { year, make, model, trim } = parseVehicleName(lead.vehicle)
-
-    let existingVehicle = null
     const normVin = (v: string) => v.trim().toUpperCase().replace(/\s/g, '')
 
     if (lead.vin) {
       const cleanVin = normVin(lead.vin)
-      // Match by VIN only — avoids assigning wrong vehicle when multiple of same model exist
       const { data: vinCandidates } = await supabase
-        .from('vehicles').select('id, vin').not('vin', 'is', null)
-      existingVehicle = vinCandidates?.find(v => normVin(v.vin ?? '') === cleanVin) ?? null
-    }
-
-    // Backfill VIN onto inventory vehicle if we matched by model but lead has a VIN
-    if (existingVehicle && lead.vin && !(existingVehicle as { vin?: string }).vin) {
-      await supabase.from('vehicles')
-        .update({ vin: normVin(lead.vin) })
-        .eq('id', existingVehicle.id)
-    }
-
-    if (existingVehicle) {
-      vehicleId = existingVehicle.id
-    } else {
-      const stockNo = lead.vin ? `CG-${lead.vin.slice(-6)}` : `CG-${Date.now().toString().slice(-6)}`
-      const { data: newVehicle, error: vErr } = await supabase
         .from('vehicles')
-        .insert({
-          user_id: userId,
-          stock_no: stockNo,
-          vin: lead.vin || null,
-          year, make, model,
-          trim: trim || null,
-          price: lead.listed_price || null,
-          status: 'available',
-          notes: `Imported from CarGurus lead — ${new Date().toLocaleDateString()}`,
-        })
-        .select('id')
-        .single()
-      if (!vErr && newVehicle) vehicleId = newVehicle.id
+        .select('id, vin')
+        .eq('user_id', userId)
+        .not('vin', 'is', null)
+      const match = vinCandidates?.find(v => normVin(v.vin ?? '') === cleanVin) ?? null
+      if (match) vehicleId = match.id
     }
 
     if (vehicleId) {
@@ -219,6 +198,17 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId?: 
     `Reply via DealerWyze`
   ).catch(() => {})
 
+  // Send SMS consent request to new leads with a phone number (double opt-in for TCPA)
+  if (!isReInquiry && lead.phone) {
+    sendSmsConsentRequest({
+      customerId,
+      orgId: userId,
+      customerName: lead.name,
+      phone: lead.phone,
+      vehicle: lead.vehicle || null,
+    }).catch(() => {})
+  }
+
   // Auto-create a lead_response task due in 10 minutes
   createLeadResponseTask(
     customerId,
@@ -227,6 +217,64 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId?: 
     vehicleId,
     userId
   ).catch(() => {})
+
+  // Auto-respond: if org has a default sequence configured, send Step 1 immediately.
+  // Runs non-blocking — a failure here never prevents the lead from being ingested.
+  const { data: autoSettings } = await supabase
+    .from('org_settings')
+    .select('auto_respond_email_sequence_id, auto_respond_sms_sequence_id')
+    .eq('org_id', userId)
+    .maybeSingle()
+
+  if (autoSettings?.auto_respond_email_sequence_id && lead.email) {
+    sendAutoResponseStep1({
+      orgId:         userId,
+      customerId,
+      sequenceId:    autoSettings.auto_respond_email_sequence_id,
+      channel:       'email',
+      customerEmail: lead.email,
+      customerName:  lead.name,
+    }).catch(() => {})
+  }
+
+  if (autoSettings?.auto_respond_sms_sequence_id && lead.phone) {
+    sendAutoResponseStep1({
+      orgId:         userId,
+      customerId,
+      sequenceId:    autoSettings.auto_respond_sms_sequence_id,
+      channel:       'sms',
+      customerPhone: lead.phone,
+      customerName:  lead.name,
+    }).catch(() => {})
+  }
+
+  // Detect appointment intent in lead comments — creates a Today card for the dealer
+  if (lead.comments && detectAppointmentIntent(lead.comments)) {
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    Promise.resolve(
+      supabase
+        .from('activities')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('customer_id', customerId)
+        .eq('type', 'appointment')
+        .eq('direction', 'inbound')
+        .gte('created_at', oneDayAgo)
+        .maybeSingle()
+    ).then(({ data: existingAppt }) => {
+      if (!existingAppt) {
+        Promise.resolve(supabase.from('activities').insert({
+          user_id:     userId,
+          customer_id: customerId,
+          type:        'appointment',
+          direction:   'inbound',
+          outcome:     'pending',
+          priority:    'high',
+          body:        lead.comments,
+        })).catch((err: unknown) => console.error('[ingest] appointment intent insert failed:', err))
+      }
+    }).catch((err: unknown) => console.error('[ingest] appointment intent check failed:', err))
+  }
 
   return { status: 'created', customer_id: customerId, vehicle_id: vehicleId, activity_id: activity.id }
 }
