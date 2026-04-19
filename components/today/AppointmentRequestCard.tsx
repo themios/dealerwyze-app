@@ -36,35 +36,37 @@ export default function AppointmentRequestCard({ activity, onUpdate }: Props) {
   const [datetime, setDatetime] = useState(toLocalDatetimeValue(defaultDate))
   const [saving, setSaving] = useState(false)
   const [dismissing, setDismissing] = useState(false)
-  const supabase = createClient()
 
   async function handleSchedule() {
     setSaving(true)
-    // Confirm the appointment: set the due_at, clear direction so it shows in calendar
-    await supabase
-      .from('activities')
-      .update({
-        due_at: new Date(datetime).toISOString(),
-        direction: null,       // no longer "inbound request" — now a real appointment
-        outcome: 'pending',
-        priority: 'high',
-        body: `Test drive / appointment with ${customer.name}\n\nRequested: "${activity.body}"`,
+    try {
+      const res = await fetch('/api/appointments/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          activity_id:    activity.id,
+          datetime:       datetime,
+          customer_id:    customer.id,
+          customer_name:  customer.name,
+          customer_phone: customer.primary_phone,
+          customer_email: (activity.customer as any)?.email ?? '',
+          original_body:  activity.body ?? '',
+        }),
       })
-      .eq('id', activity.id)
-
-    // Auto-complete overdue tasks for this customer now that appointment is confirmed
-    fetch('/api/activities/reconcile', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customer_id: customer.id }),
-    }).catch(() => {})
-
-    setSaving(false)
-    onUpdate()
+      if (!res.ok) {
+        console.error('[AppointmentRequestCard] confirm failed', await res.text())
+      }
+    } catch (err) {
+      console.error('[AppointmentRequestCard] confirm error:', err)
+    } finally {
+      setSaving(false)
+      onUpdate()
+    }
   }
 
   async function handleDismiss() {
     setDismissing(true)
+    const supabase = createClient()
     await supabase
       .from('activities')
       .update({ completed_at: new Date().toISOString(), outcome: 'answered' })
