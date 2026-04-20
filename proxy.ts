@@ -97,7 +97,7 @@ function isImpersonationBlocked(request: NextRequest): boolean {
 
 // ── Auth + subscription gating (original proxy.ts) ───────────────────────────
 
-const PUBLIC_PATHS    = ['/', '/login', '/signup', '/privacy', '/terms', '/privacy.html', '/terms.html', '/forgot-password', '/reset-password']
+const PUBLIC_PATHS    = ['/', '/login', '/signup', '/privacy', '/terms', '/privacy.html', '/terms.html', '/forgot-password', '/reset-password', '/sms-opt-in']
 const PUBLIC_PREFIXES = ['/auth/', '/api/auth/', '/api/stripe/webhook', '/_next/', '/blog', '/robots.txt', '/sitemap.xml']
 const PUBLIC_FILES    = ['/favicon.ico', '/logo.jpg', '/manifest.json']
 const BILLING_EXEMPT  = ['/settings/billing', '/settings/users', '/pending', '/suspended', '/onboarding']

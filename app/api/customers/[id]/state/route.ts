@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
-import { LEAD_STATES } from '@/lib/leads/states'
+import { DEFAULT_ORG_STAGES } from '@/lib/leads/states'
 import { dispatchWebhook } from '@/lib/webhooks/dispatch'
 
 export async function PATCH(
@@ -22,7 +22,6 @@ export async function PATCH(
 
   if (!customer) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Guard against malformed body
   let state: string, reason: string | undefined
   try {
     const body = await req.json() as { state: string; reason?: string }
@@ -32,21 +31,33 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
 
-  if (!LEAD_STATES.includes(state as never)) {
-    return NextResponse.json({ error: 'Invalid state' }, { status: 400 })
+  // Fetch org stages to validate the new state and check is_hot
+  const { data: orgStagesData } = await supabase
+    .from('org_pipeline_stages')
+    .select('stage_key, is_hot, is_active')
+    .eq('org_id', profile.org_id)
+
+  const orgStages = orgStagesData?.length ? orgStagesData : DEFAULT_ORG_STAGES
+  const targetStage = orgStages.find(s => s.stage_key === state && s.is_active)
+
+  if (!targetStage) {
+    return NextResponse.json({ error: 'Invalid or inactive stage' }, { status: 400 })
   }
 
-  const { data: applied, error } = await supabase.rpc('advance_lead_state', {
+  const { error } = await supabase.rpc('advance_lead_state', {
     p_customer_id: customerId,
     p_new_state:   state,
     p_reason:      reason ?? 'Manual override',
   })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Failed to update state' }, { status: 500 })
 
-  // RPC returns false when a backward transition was blocked
-  if (applied === false) {
-    return NextResponse.json({ error: 'Cannot move backward in pipeline', blocked: true }, { status: 409 })
+  // Auto-mark hot if the stage is flagged is_hot
+  if (targetStage.is_hot) {
+    await supabase
+      .from('customers')
+      .update({ lead_rating: 'hot' })
+      .eq('id', customerId)
   }
 
   dispatchWebhook(profile.org_id, 'stage_change', {
@@ -54,17 +65,16 @@ export async function PATCH(
     lead_state: state,
   }).catch(() => {})
 
-  // Log state change as a note (prefixed with author name)
-  const noteBody = `Lead state → "${state}"${reason ? `: ${reason}` : ''}`
-  const bodyWithAuthor = `name: ${profile.display_name}\n${noteBody}`
+  // Log state change as a note
+  const noteBody = `Lead state changed to "${state}"${reason ? `: ${reason}` : ''}`
   await supabase.from('activities').insert({
     user_id:     profile.org_id,
     customer_id: customerId,
     type:        'note',
-    body:        bodyWithAuthor,
+    body:        `name: ${profile.display_name}\n${noteBody}`,
   })
 
-  // Any state change means the rep has taken action — address pending inbound leads
+  // Address pending inbound leads for this customer
   await supabase
     .from('activities')
     .update({ addressed_at: new Date().toISOString() })

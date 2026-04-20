@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
   const includeDeactivated = req.nextUrl.searchParams.get('include_deactivated') === 'true'
 
   const service = createServiceClient()
-  const [{ data: profiles, error }, { data: customerCounts }] = await Promise.all([
+  const [{ data: profiles, error }, { data: customerCounts }, { data: orgSettings }] = await Promise.all([
     service
       .from('profiles')
       .select('*')
@@ -66,6 +66,11 @@ export async function GET(req: NextRequest) {
       .select('assigned_to')
       .eq('user_id', auth.profile.org_id)
       .not('assigned_to', 'is', null),
+    service
+      .from('org_settings')
+      .select('lead_assignment_mode')
+      .eq('org_id', auth.profile.org_id)
+      .maybeSingle(),
   ])
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -81,7 +86,7 @@ export async function GET(req: NextRequest) {
     role_label: ROLE_LABELS[p.role as UserRole] ?? p.role,
   })) ?? []
 
-  return NextResponse.json({ users })
+  return NextResponse.json({ users, lead_assignment_mode: orgSettings?.lead_assignment_mode ?? 'owner' })
 }
 
 /** POST /api/admin/users — invite a new user to this org */

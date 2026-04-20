@@ -1,12 +1,17 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from '@/lib/auth/profile'
+import { canAccessBilling } from '@/lib/auth/dealerRoles'
 import { stripe, SMS_PRICE_ID } from '@/lib/stripe'
+import type { UserRole } from '@/types'
 
 // POST: add SMS add-on to existing subscription
 // DELETE: remove SMS add-on
 export async function POST() {
   const profile = await requireProfile()
+  if (!canAccessBilling(profile.role as UserRole)) {
+    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+  }
   const supabase = await createClient()
 
   const { data: org } = await supabase
@@ -37,6 +42,9 @@ export async function POST() {
 
 export async function DELETE() {
   const profile = await requireProfile()
+  if (!canAccessBilling(profile.role as UserRole)) {
+    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+  }
   const supabase = await createClient()
 
   const { data: org } = await supabase

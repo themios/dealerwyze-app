@@ -1,10 +1,20 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter } from 'next/font/google'
+import { Inter, Barlow_Semi_Condensed, Archivo } from 'next/font/google'
 import { ThemeProvider } from 'next-themes'
 import FontSizeProvider from '@/components/providers/FontSizeProvider'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
+const barlow = Barlow_Semi_Condensed({
+  subsets: ['latin'],
+  weight: ['600', '700', '800'],
+  variable: '--font-display',
+})
+const archivo = Archivo({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-body',
+})
 
 export const metadata: Metadata = {
   title: 'DealerWyze',
@@ -43,7 +53,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <link rel="apple-touch-icon" href="/DealerWyseLogoWithName.png" />
       </head>
-      <body className={inter.className} suppressHydrationWarning>
+      <body className={`${inter.className} ${barlow.variable} ${archivo.variable}`} suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <FontSizeProvider>{children}</FontSizeProvider>
         </ThemeProvider>

@@ -4,8 +4,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import {
-  Home, Users, Car, BookUser, MoreHorizontal,
-  LayoutDashboard, Building2, Bell, TicketCheck, ShieldCheck,
+  LayoutDashboard, Home, Users, Car, CalendarDays,
+  Building2, Bell, TicketCheck, ShieldCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -25,20 +25,17 @@ function AdminTicketsBadge() {
   )
 }
 
-function TodayBadge() {
+function useUrgentCount(): number {
   const [count, setCount] = useState(0)
   useEffect(() => {
-    fetch('/api/tasks/count')
-      .then(r => r.json())
-      .then((d: { count?: number }) => setCount(d.count ?? 0))
+    fetch('/api/dashboard/stats')
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { today?: { urgent_leads?: number; appt_requests?: number } } | null) => {
+        setCount((d?.today?.urgent_leads ?? 0) + (d?.today?.appt_requests ?? 0))
+      })
       .catch(() => {})
   }, [])
-  if (!count) return null
-  return (
-    <span className="absolute -top-0.5 right-0 min-w-[16px] h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none">
-      {count > 9 ? '9+' : count}
-    </span>
-  )
+  return count
 }
 
 function AlertsBadgeMobile() {
@@ -58,11 +55,11 @@ function AlertsBadgeMobile() {
 }
 
 const DEALER_NAV_ITEMS = [
-  { href: '/today',     label: 'Today',     icon: Home },
-  { href: '/customers', label: 'Leads',     icon: Users },
-  { href: '/vehicles',  label: 'Inventory', icon: Car },
-  { href: '/contacts',  label: 'Contacts',  icon: BookUser },
-  { href: '/more',      label: 'More',      icon: MoreHorizontal },
+  { href: '/today',     label: 'Today',     icon: Home,            urgent: false, center: false },
+  { href: '/customers', label: 'Leads',     icon: Users,           urgent: false, center: false },
+  { href: '/dashboard', label: 'Home',      icon: LayoutDashboard, urgent: true,  center: true  },
+  { href: '/vehicles',  label: 'Inventory', icon: Car,             urgent: false, center: false },
+  { href: '/calendar',  label: 'Calendar',  icon: CalendarDays,    urgent: false, center: false },
 ]
 
 const ADMIN_BOTTOM_NAV = [
@@ -76,6 +73,7 @@ const ADMIN_BOTTOM_NAV = [
 export default function BottomNav() {
   const pathname = usePathname()
   const isAdminArea = pathname.startsWith('/admin')
+  const urgentCount = useUrgentCount()
 
   if (isAdminArea) {
     return (
@@ -97,7 +95,7 @@ export default function BottomNav() {
                 )}
               >
                 {active && (
-                  <span className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-[#F07018] rounded-full" />
+                  <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 bg-[#F07018] rounded-full" />
                 )}
                 {badge === 'alerts'  && <AlertsBadgeMobile />}
                 {badge === 'tickets' && <AdminTicketsBadge />}
@@ -112,12 +110,38 @@ export default function BottomNav() {
   }
 
   return (
-    <nav className="lg:hidden fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md border-t border-[#1B4A8A] bg-[#0D2B55]">
-      <div className="flex items-center justify-around h-16">
-        {DEALER_NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-          const active = href === '/more'
-            ? ['/more', '/bhph', '/analytics', '/reports', '/admin', '/support', '/fax'].some(p => pathname.startsWith(p))
-            : pathname.startsWith(href)
+    <nav className="lg:hidden fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md border-t border-[#1B4A8A] bg-[#0D2B55] overflow-visible">
+      <div className="flex items-center justify-around h-16 relative">
+        {DEALER_NAV_ITEMS.map(({ href, label, icon: Icon, urgent, center }) => {
+          const active = href === '/dashboard'
+            ? pathname === '/dashboard' || pathname === '/'
+            : href === '/today'
+              ? pathname === '/today'
+              : pathname.startsWith(href)
+          if (center) {
+            return (
+              <Link
+                key={href}
+                href={href}
+                aria-label={label}
+                aria-current={active ? 'page' : undefined}
+                className="relative flex flex-col items-center gap-0.5 px-1 -mt-5"
+              >
+                <span className={cn(
+                  'flex items-center justify-center w-14 h-14 rounded-full shadow-lg transition-colors',
+                  active ? 'bg-[#F07018]' : 'bg-[#F07018]/90 hover:bg-[#F07018]'
+                )}>
+                  {urgent && urgentCount > 0 && (
+                    <span className="absolute top-0 right-0 min-w-[16px] h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none animate-pulse">
+                      {urgentCount > 9 ? '9+' : urgentCount}
+                    </span>
+                  )}
+                  <Icon className="h-6 w-6 text-white" />
+                </span>
+                <span className="text-[10px] font-medium text-[#F07018]">{label}</span>
+              </Link>
+            )
+          }
           return (
             <Link
               key={href}
@@ -132,8 +156,6 @@ export default function BottomNav() {
               {active && (
                 <span className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-[#F07018] rounded-full" />
               )}
-              {href === '/today' && <TodayBadge />}
-              {href === '/more' && <AdminTicketsBadge />}
               <Icon className="h-5 w-5" />
               {label}
             </Link>

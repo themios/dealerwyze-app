@@ -53,8 +53,10 @@ export async function fetchMarketCheckStats(
       model: model.toLowerCase(),
       car_type: 'used',
       rows: '50',
-      fields: 'price,miles,dom,city,state,build.trim',
+      fields: 'price,miles,dom,city,state,build.trim,vehicle_status',
       title_status: 'clean',
+      has_price: 'true',
+      has_miles: 'true',
     })
 
     if (trim) params.set('trim', trim)
@@ -67,7 +69,7 @@ export async function fetchMarketCheckStats(
 
     const res = await fetch(
       `https://mc-api.marketcheck.com/v2/search/car/active?${params}`,
-      { signal: AbortSignal.timeout(12_000) },
+      { signal: AbortSignal.timeout(12_000), headers: { 'x-version': 'v4.6.0' } },
     )
 
     if (!res.ok) {

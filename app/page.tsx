@@ -153,7 +153,7 @@ const jsonLd = {
 export default async function RootPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (user) redirect('/today')
+  if (user) redirect('/dashboard')
   return (
     <>
       <script

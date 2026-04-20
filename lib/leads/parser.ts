@@ -46,17 +46,23 @@ export function parseCarGurusPhoneLead(subject: string, textBody: string): Parse
   const phone = field(textBody, 'Phone')
   const zip = field(textBody, 'Zip')
   const state = field(textBody, 'State')
+  const vehicle = field(textBody, 'Vehicle')
+  const listedPriceStr = field(textBody, 'Listed Price')
+  const listedPrice = listedPriceStr ? parseFloat(listedPriceStr.replace(/[$,]/g, '')) : null
   if (!phone) return null
+  const commentParts: string[] = ['Phone lead from CarGurus - callback needed']
+  if (state) commentParts.push(`State: ${state}`)
   return {
     name: callerId || 'CarGurus Caller',
     email: '',
     phone,
     zip: zip || '',
-    vehicle: '',
+    vehicle: vehicle || '',
     vin: '',
-    listed_price: null,
-    comments: state ? `State: ${state}` : 'Phone lead from CarGurus',
+    listed_price: listedPrice && !isNaN(listedPrice) ? listedPrice : null,
+    comments: commentParts.join(' | '),
     source: 'cargurus',
+    is_hot: true,
     raw_text: textBody,
   }
 }

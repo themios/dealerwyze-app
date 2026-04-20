@@ -3,9 +3,8 @@
 import { useState } from 'react'
 import { Activity } from '@/types'
 import { tomorrow8am, leadAgeBadge, leadIsStale } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Phone, Mail, MapPin, Car, Pause, X, RotateCcw } from 'lucide-react'
+import { Phone, Mail, MapPin, Car, Pause, X, ChevronDown, Zap, CalendarPlus, Check, Pencil } from 'lucide-react'
 import { useOpenCustomer } from '@/components/today/useOpenCustomer'
 import UnsubscribeBadge from '@/components/sequences/UnsubscribeBadge'
 
@@ -34,6 +33,7 @@ interface NewLeadCardProps {
     customer: { id: string; name: string; primary_phone: string; email?: string; sms_opt_out?: boolean; unsubscribe_email?: boolean; unsubscribe_sms?: boolean }
   }
   onUpdate: () => void
+  onAddressed?: () => void   // optimistic: called immediately when card is opened or marked done
   hasResponded?: boolean
   sequenceStatus?: SequenceStatus | null
 }
@@ -77,7 +77,7 @@ function ScoreBadge({ score }: { score: number }) {
   const label = score >= 7 ? 'Hot' : score >= 4 ? 'Warm' : 'Cold'
   return (
     <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${color}`}>
-      {label} {score}/10
+      {label}
     </span>
   )
 }
@@ -86,10 +86,15 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-export default function NewLeadCard({ activity, onUpdate, hasResponded, sequenceStatus }: NewLeadCardProps) {
+export default function NewLeadCard({ activity, onUpdate, onAddressed, hasResponded, sequenceStatus }: NewLeadCardProps) {
   const lead = parseLead(activity.body || '')
 
   const [loading, setLoading] = useState<string | null>(null)
+  const [snoozeExpanded, setSnoozeExpanded] = useState(false)
+  const [apptOpen, setApptOpen] = useState(false)
+  const [apptDate, setApptDate] = useState('')
+  const [apptTime, setApptTime] = useState('10:00')
+  const [apptSaved, setApptSaved] = useState(false)
   const openCustomer = useOpenCustomer()
 
   const customer = activity.customer
@@ -118,18 +123,55 @@ export default function NewLeadCard({ activity, onUpdate, hasResponded, sequence
     onUpdate()
   }
 
-  async function handleDismiss() {
-    setLoading('dismiss')
+  async function handleSnooze(isoDate: string) {
+    setLoading('snooze')
     await fetch(`/api/activities/${activity.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ snoozed_until: tomorrow8am().toISOString() }),
+      body: JSON.stringify({ snoozed_until: isoDate }),
     })
     setLoading(null)
+    setSnoozeExpanded(false)
     onUpdate()
   }
 
-  const handleCardClick = () => openCustomer(activity.id, customer.id)
+  function snoozePreset(preset: 'tomorrow' | '3days' | '1week' | '2weeks'): string {
+    const d = new Date()
+    if (preset === 'tomorrow') d.setDate(d.getDate() + 1)
+    if (preset === '3days')    d.setDate(d.getDate() + 3)
+    if (preset === '1week')    d.setDate(d.getDate() + 7)
+    if (preset === '2weeks')   d.setDate(d.getDate() + 14)
+    d.setHours(8, 0, 0, 0)
+    return d.toISOString()
+  }
+
+  async function handleSaveAppt() {
+    if (!apptDate) return
+    setLoading('appt')
+    const dueAt = new Date(`${apptDate}T${apptTime}:00`).toISOString()
+    await fetch('/api/activities', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'appointment',
+        customer_id: customer.id,
+        due_at: dueAt,
+        direction: 'outbound',
+        outcome: 'scheduled',
+        priority: 'high',
+        body: `Appointment${vehicleName ? ` re: ${vehicleName}` : ''}`,
+      }),
+    })
+    setLoading(null)
+    setApptOpen(false)
+    setApptSaved(true)
+    onUpdate()
+  }
+
+  const handleCardClick = () => {
+    onAddressed?.()       // optimistically remove from Today list immediately
+    openCustomer(activity.id, customer.id)
+  }
 
   const hasActiveSeq = sequenceStatus?.status === 'active'
   const hasPausedSeq = sequenceStatus?.status === 'paused'
@@ -145,32 +187,65 @@ export default function NewLeadCard({ activity, onUpdate, hasResponded, sequence
           </div>
         )}
 
-        {/* Sequence status banner */}
-        {hasActiveSeq && sequenceStatus && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-700 text-xs font-medium">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-              {sequenceStatus.sequence_name}
-              {sequenceStatus.step_number && sequenceStatus.step_total
-                ? ` - Step ${sequenceStatus.step_number} of ${sequenceStatus.step_total}`
-                : ''}
+        {/* Autoresponder — status + controls in one section */}
+        {sequenceStatus && (
+          <div className="flex items-center gap-2 flex-wrap" onClick={e => e.stopPropagation()}>
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+              hasActiveSeq ? 'bg-green-500/10 text-green-700' :
+              hasPausedSeq ? 'bg-yellow-500/10 text-yellow-700' :
+              'bg-muted text-muted-foreground'
+            }`}>
+              <Zap className={`h-3 w-3 ${hasActiveSeq ? 'fill-green-500 text-green-500' : hasPausedSeq ? 'text-yellow-500' : 'text-muted-foreground'}`} />
+              {hasActiveSeq ? 'Auto' : hasPausedSeq ? 'Paused' : sequenceStatus.status === 'completed' ? 'Done' : 'Stopped'}
+              {' · '}{sequenceStatus.sequence_name}
+              {sequenceStatus.next_step_due && hasActiveSeq ? ` · Next ${formatDate(sequenceStatus.next_step_due)}` : ''}
             </span>
-            {sequenceStatus.next_step_due && (
-              <span className="text-xs text-muted-foreground">Next: {formatDate(sequenceStatus.next_step_due)}</span>
+            {hasActiveSeq && (
+              <>
+                <button
+                  className="text-[11px] px-2 py-0.5 rounded-full border border-yellow-400/50 text-yellow-700 hover:bg-yellow-50 transition-colors"
+                  onClick={() => handleSequenceAction('pause')}
+                  disabled={loading !== null}
+                >
+                  <Pause className="h-2.5 w-2.5 inline mr-0.5" />Pause
+                </button>
+                <button
+                  className="text-[11px] px-2 py-0.5 rounded-full border border-red-300/50 text-red-600 hover:bg-red-50 transition-colors"
+                  onClick={() => handleSequenceAction('cancel')}
+                  disabled={loading !== null}
+                >
+                  <X className="h-2.5 w-2.5 inline mr-0.5" />Stop
+                </button>
+              </>
+            )}
+            {hasPausedSeq && (
+              <>
+                <button
+                  className="text-[11px] px-2 py-0.5 rounded-full border border-green-400/50 text-green-700 hover:bg-green-50 transition-colors"
+                  onClick={() => handleSequenceAction('resume')}
+                  disabled={loading !== null}
+                >
+                  Resume
+                </button>
+                <button
+                  className="text-[11px] px-2 py-0.5 rounded-full border border-red-300/50 text-red-600 hover:bg-red-50 transition-colors"
+                  onClick={() => handleSequenceAction('cancel')}
+                  disabled={loading !== null}
+                >
+                  <X className="h-2.5 w-2.5 inline mr-0.5" />Stop
+                </button>
+              </>
+            )}
+            {seqDone && (
+              <span className="text-[11px] text-muted-foreground">Open to re-enroll</span>
             )}
           </div>
         )}
-        {hasPausedSeq && sequenceStatus && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-700 text-xs font-medium">
-              Paused - {sequenceStatus.sequence_name}
-            </span>
-          </div>
-        )}
-        {seqDone && sequenceStatus && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-muted-foreground text-xs font-medium">
-              {sequenceStatus.status === 'completed' ? 'Completed' : 'Cancelled'} - {sequenceStatus.sequence_name}
+        {!sequenceStatus && (
+          <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+              <Zap className="h-3 w-3 text-red-400" />
+              <span className="text-red-500">No autoresponder</span>
             </span>
           </div>
         )}
@@ -198,12 +273,6 @@ export default function NewLeadCard({ activity, onUpdate, hasResponded, sequence
               <ScoreBadge score={score} />
             </div>
             <p className={`font-semibold text-sm ${stale ? 'text-red-600' : ''}`}>{customer.name}</p>
-            {vehicleName && (
-              <p className="text-sm text-muted-foreground flex items-center gap-1 mt-0.5">
-                <Car className="h-3 w-3" />
-                {vehicleName}{priceStr ? ` · ${priceStr}` : ''}
-              </p>
-            )}
           </div>
           {(() => { const b = leadAgeBadge(activity.created_at); return (
             <span suppressHydrationWarning className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${b.cls}`}>
@@ -225,6 +294,29 @@ export default function NewLeadCard({ activity, onUpdate, hasResponded, sequence
               {customer.email}
             </p>
           )}
+          {vehicleName ? (
+            <p className="flex items-center gap-1.5">
+              <Car className="h-3 w-3" />
+              <span className="truncate">{vehicleName}{priceStr ? ` · ${priceStr}` : ''}</span>
+              <button
+                className="text-muted-foreground hover:text-foreground shrink-0"
+                onClick={() => openCustomer(activity.id, customer.id)}
+                title="Edit vehicle"
+              >
+                <Pencil className="h-3 w-3" />
+              </button>
+            </p>
+          ) : (
+            <p className="flex items-center gap-1.5">
+              <Car className="h-3 w-3" />
+              <button
+                className="text-primary hover:underline"
+                onClick={() => openCustomer(activity.id, customer.id)}
+              >
+                + Add vehicle
+              </button>
+            </p>
+          )}
           {lead.zip && (
             <p className="flex items-center gap-1.5">
               <MapPin className="h-3 w-3" />
@@ -240,90 +332,119 @@ export default function NewLeadCard({ activity, onUpdate, hasResponded, sequence
         )}
 
 
-        {/* Sequence action buttons */}
-        {hasActiveSeq && (
-          <div className="flex gap-2" onClick={e => e.stopPropagation()}>
-            <Button
-              size="sm"
-              variant="outline"
-              className="flex-1 h-8 text-xs"
-              onClick={() => handleSequenceAction('pause')}
-              disabled={loading !== null}
-            >
-              <Pause className="h-3 w-3 mr-1" />
-              Pause
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="flex-1 h-8 text-xs text-destructive border-destructive/30"
-              onClick={() => handleSequenceAction('cancel')}
-              disabled={loading !== null}
-            >
-              <X className="h-3 w-3 mr-1" />
-              Cancel
-            </Button>
-          </div>
-        )}
-        {hasPausedSeq && (
-          <div className="flex gap-2" onClick={e => e.stopPropagation()}>
-            <Button
-              size="sm"
-              variant="outline"
-              className="flex-1 h-8 text-xs"
-              onClick={() => handleSequenceAction('resume')}
-              disabled={loading !== null}
-            >
-              Resume
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="flex-1 h-8 text-xs text-destructive border-destructive/30"
-              onClick={() => handleSequenceAction('cancel')}
-              disabled={loading !== null}
-            >
-              <X className="h-3 w-3 mr-1" />
-              Cancel
-            </Button>
-          </div>
-        )}
-        {seqDone && sequenceStatus && (
-          <span className="text-xs text-muted-foreground">Open lead to re-enroll in a sequence</span>
+
+        {stale && (
+          <span className="text-[10px] font-medium text-red-500 bg-red-50 px-2 py-0.5 rounded-full w-fit">
+            No activity in 15+ days
+          </span>
         )}
 
-        <div className="flex items-center justify-between">
-          {stale ? (
-            <span className="text-[10px] font-medium text-red-500 bg-red-50 px-2 py-0.5 rounded-full">
-              No activity in 15+ days
-            </span>
-          ) : <span />}
-          <div className="flex gap-3">
-            {stale && (
+        {/* Inline appointment picker */}
+        {apptOpen && (
+          <div className="flex flex-col gap-2 p-2 rounded-lg bg-muted/50 border" onClick={e => e.stopPropagation()}>
+            <p className="text-xs font-medium text-muted-foreground">Schedule appointment</p>
+            <div className="flex gap-2">
+              <input
+                type="date"
+                value={apptDate}
+                onChange={e => setApptDate(e.target.value)}
+                min={new Date().toISOString().slice(0, 10)}
+                className="flex-1 text-xs rounded border border-border bg-background px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              <input
+                type="time"
+                value={apptTime}
+                onChange={e => setApptTime(e.target.value)}
+                className="w-24 text-xs rounded border border-border bg-background px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+            <div className="flex gap-2">
               <button
-                className="text-xs text-red-500 hover:text-red-700 py-1"
-                onClick={async () => {
-                  setLoading('archive')
-                  await fetch(`/api/activities/${activity.id}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ completed_at: new Date().toISOString(), outcome: 'no_response' }),
-                  })
-                  setLoading(null)
-                  onUpdate()
-                }}
-                disabled={loading !== null}
+                onClick={handleSaveAppt}
+                disabled={!apptDate || loading !== null}
+                className="flex-1 text-xs font-medium py-1.5 rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
               >
-                {loading === 'archive' ? 'Archiving...' : 'Archive'}
+                {loading === 'appt' ? 'Saving…' : 'Confirm'}
               </button>
-            )}
+              <button
+                onClick={() => setApptOpen(false)}
+                className="text-xs px-3 py-1.5 rounded border border-border hover:bg-muted transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="flex gap-2 items-center flex-wrap" onClick={e => e.stopPropagation()}>
+          <button
+            className={`text-xs font-medium py-1 px-2 rounded transition-colors flex items-center gap-1 ${apptSaved ? 'bg-blue-500/10 text-blue-700' : 'text-blue-700 bg-blue-500/10 hover:bg-blue-500/20'}`}
+            onClick={() => { setApptOpen(o => !o); setApptSaved(false) }}
+            disabled={loading !== null}
+          >
+            {apptSaved ? <><Check className="h-3 w-3" />Scheduled</> : <><CalendarPlus className="h-3 w-3" />Schedule</>}
+          </button>
+          <button
+            className="text-xs font-medium text-green-700 bg-green-500/10 hover:bg-green-500/20 py-1 px-2 rounded transition-colors"
+            onClick={async () => {
+              onAddressed?.()
+              setLoading('done')
+              await fetch(`/api/activities/${activity.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ addressed_at: new Date().toISOString() }),
+              })
+              setLoading(null)
+              onUpdate()
+            }}
+            disabled={loading !== null}
+          >
+            {loading === 'done' ? 'Saving…' : 'Done'}
+          </button>
+          <button
+            className="text-xs text-muted-foreground hover:text-destructive py-1 px-2 rounded hover:bg-destructive/10 transition-colors"
+            onClick={async () => {
+              setLoading('archive')
+              await fetch(`/api/activities/${activity.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ completed_at: new Date().toISOString(), outcome: 'no_response' }),
+              })
+              setLoading(null)
+              onUpdate()
+            }}
+            disabled={loading !== null}
+          >
+            {loading === 'archive' ? 'Archiving…' : 'Archive'}
+          </button>
+
+          <div className="relative ml-auto">
             <button
-              className="text-xs text-muted-foreground hover:text-foreground py-1"
-              onClick={handleDismiss}
+              className="text-xs text-muted-foreground hover:text-foreground py-1 px-2 rounded hover:bg-muted flex items-center gap-1 transition-colors"
+              onClick={() => setSnoozeExpanded(v => !v)}
               disabled={loading !== null}
             >
-              {loading === 'dismiss' ? 'Snoozing...' : 'Snooze to tomorrow'}
+              {loading === 'snooze' ? 'Snoozing…' : 'Follow up'}
+              <ChevronDown className="h-3 w-3" />
             </button>
+            {snoozeExpanded && (
+              <div className="absolute right-0 bottom-full mb-1 z-50 bg-popover border rounded-xl shadow-lg py-1 w-40">
+                {([
+                  ['tomorrow', 'Tomorrow'],
+                  ['3days', 'In 3 days'],
+                  ['1week', 'In 1 week'],
+                  ['2weeks', 'In 2 weeks'],
+                ] as const).map(([preset, label]) => (
+                  <button
+                    key={preset}
+                    onClick={() => void handleSnooze(snoozePreset(preset))}
+                    className="w-full text-left px-3 py-2 text-xs hover:bg-muted"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

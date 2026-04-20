@@ -11,4 +11,4 @@ cp .vercel/project.staging.json .vercel/project.json
 
 npx vercel --prod
 
-echo "✅ Staging deploy complete → https://apollo-crm.vercel.app"
+echo "✅ Staging deploy complete → dealer-wyze-themio-5359-apollo-projects.vercel.app"

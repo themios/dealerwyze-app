@@ -77,6 +77,7 @@ export interface Vehicle {
   make: string
   model: string
   trim?: string
+  body_style?: string | null
   color?: string
   mileage?: number
   price?: number

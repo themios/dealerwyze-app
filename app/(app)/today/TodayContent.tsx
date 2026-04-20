@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import { motion } from 'framer-motion'
 import Image from 'next/image'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
 import { Activity, VoiceCall } from '@/types'
@@ -53,6 +53,7 @@ const MOTIVATIONAL_MESSAGES = [
   'Great service is your best ad.',
 ]
 
+
 interface TodayContentProps {
   initialNewLeads: Activity[]
   initialTasks: Activity[]
@@ -74,6 +75,8 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
   const [voiceLeads, setVoiceLeads] = useState<VoiceCall[]>(initialVoiceLeads)
   const [vehicleMatches, setVehicleMatches] = useState<Activity[]>(initialVehicleMatches)
   const [responded, setResponded] = useState<string[]>(respondedCustomerIds)
+  // Track locally dismissed activity IDs so refresh() can't un-dismiss them
+  const dismissedIds = useRef<Set<string>>(new Set())
   const { pendingCall, modalOpen, dismissModal } = usePendingCall()
   const supabase = createClient()
   const router = useRouter()
@@ -159,6 +162,7 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
 
     const seenCustomers = new Set<string>()
     const dedupedWaiting = (w || []).filter(a => {
+      if (dismissed.has(a.id)) return false
       if (!a.customer_id || seenCustomers.has(a.customer_id)) return false
       const c = (a as { customer?: { archived?: boolean | null } | null }).customer
       if (c?.archived) return false
@@ -167,10 +171,12 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
     })
 
     const todayRef = new Date()
+    const dismissed = dismissedIds.current
     const safeLeads = (leads || []).filter(
-      a => a.customer != null && !(a.customer as { archived?: boolean | null }).archived && shouldShowAddressedActivity(a, todayRef)
+      a => !dismissed.has(a.id) && a.customer != null && !(a.customer as { archived?: boolean | null }).archived && shouldShowAddressedActivity(a, todayRef)
     )
     const tasksFiltered = (t || []).filter(a => {
+      if (dismissed.has(a.id)) return false
       const c = (a as { customer?: { archived?: boolean | null } | null }).customer
       if (c?.archived) return false
       return shouldShowAddressedActivity(a, todayRef)
@@ -201,7 +207,7 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
     )
 
     const apptsFiltered = (appts || []).filter(
-      a => a.customer != null && !(a.customer as { archived?: boolean | null }).archived && shouldShowAddressedActivity(a, todayRef)
+      a => !dismissed.has(a.id) && a.customer != null && !(a.customer as { archived?: boolean | null }).archived && shouldShowAddressedActivity(a, todayRef)
     )
 
     // Refresh responded customer IDs (inbound sms/email in last 48h)
@@ -226,7 +232,7 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
       .or(`snoozed_until.is.null,snoozed_until.lt.${now}`)
       .order('created_at', { ascending: false })
     setVehicleMatches((vMatches || []).filter(
-      a => a.customer != null && !(a.customer as { archived?: boolean | null }).archived && shouldShowAddressedActivity(a, todayRef)
+      a => !dismissed.has(a.id) && a.customer != null && !(a.customer as { archived?: boolean | null }).archived && shouldShowAddressedActivity(a, todayRef)
     ))
 
     setNewLeads(safeLeads)
@@ -243,7 +249,7 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { refresh() }, [])
 
-  // Also re-fetch when the tab regains focus (e.g. mobile background/foreground switch).
+  // Re-fetch when the tab regains focus — covers mobile background/foreground and multi-tab usage.
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
@@ -251,8 +257,13 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
         refresh()
       }
     }
+    const handleFocus = () => { refresh() }
     document.addEventListener('visibilitychange', handleVisibility)
-    return () => document.removeEventListener('visibilitychange', handleVisibility)
+    window.addEventListener('focus', handleFocus)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      window.removeEventListener('focus', handleFocus)
+    }
   }, [refresh, router])
 
   // ── Supabase Realtime ────────────────────────────────────────────────────────
@@ -265,6 +276,7 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
         (payload) => {
           const row = payload.new as Activity
           if (row.type === 'email' && row.direction === 'inbound' && row.outcome === 'pending') {
+            // New inbound lead — play sound and notify
             playLeadSound()
             if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
               new Notification('New lead just came in', {
@@ -273,6 +285,10 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
                 tag: 'new-lead',
               })
             }
+            refresh()
+          } else if (row.direction === 'outbound') {
+            // Rep responded from another page (Leads, customer detail, etc.)
+            // Refresh so the original inbound card is removed from Today queue
             refresh()
           }
         }
@@ -291,26 +307,7 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
   }, [supabase, refresh])
 
   // ── Build the unified priority queue ────────────────────────────────────────
-  const nblEnabled = process.env.NEXT_PUBLIC_NEXT_BEST_LEAD_V1 === 'true'
   const queue = buildQueue(newLeads, apptRequests, voiceLeads, tasks, waiting, responded, vehicleMatches)
-  const rankByKey = new Map(queue.map((item, idx) => [item.key, idx + 1]))
-
-  const actionLabel: Record<typeof queue[number]['decision']['nextBestAction'], string> = {
-    call_now: 'Call now',
-    text_now: 'Text now',
-    send_email: 'Send email',
-    confirm_appointment: 'Confirm appointment',
-    send_followup: 'Send follow-up',
-    review_reply: 'Review latest reply',
-    wait: 'Wait / monitor',
-  }
-
-  function queueCustomerName(item: typeof queue[number]): string {
-    if ('customer' in item.data && item.data.customer?.name) return item.data.customer.name
-    if ('summary_json' in item.data && item.data.summary_json?.caller_name) return item.data.summary_json.caller_name
-    if ('from_number' in item.data) return item.data.from_number
-    return 'this lead'
-  }
 
   // Group by tier for rendering
   const tierGroups = new Map<number, typeof queue>()
@@ -336,16 +333,13 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
   }
 
   return (
-    <>
+    <div className="page-enter">
       <div className="gradient-sunset px-4 py-2.5 text-white flex items-center gap-3">
         <Image src="/logo-mark.png" alt="DealerWyze" width={32} height={32} className="rounded-md flex-shrink-0 opacity-90" />
         <div className="min-w-0">
-          <p className="text-sm font-semibold leading-tight" suppressHydrationWarning>
-            {motivationalMsg || '\u00A0'}
-          </p>
-          <p className="text-xs opacity-70 mt-0.5" suppressHydrationWarning>
+          <h1 className="text-sm font-semibold leading-tight" suppressHydrationWarning style={{ fontFamily: 'var(--font-display)' }}>
             {dateLabel || '…'}
-          </p>
+          </h1>
         </div>
       </div>
 
@@ -384,30 +378,6 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
       </div>
 
       <div className="px-4 py-2 space-y-6">
-        {nblEnabled && queue.length > 0 && (() => {
-          const top = queue[0]
-          const href = top.customerId ? `/customers/${top.customerId}` : null
-          const inner = (
-            <>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-primary/80">Do This Now</p>
-              <p className="text-sm font-semibold mt-1">
-                {actionLabel[top.decision.nextBestAction]}: {queueCustomerName(top)}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Why: {top.decision.reasons.slice(0, 2).join(' · ')}
-              </p>
-            </>
-          )
-          return href ? (
-            <Link href={href} className="block rounded-xl border border-primary/25 bg-primary/5 p-3 hover:bg-primary/10 active:bg-primary/15 transition-colors">
-              {inner}
-            </Link>
-          ) : (
-            <section className="rounded-xl border border-primary/25 bg-primary/5 p-3">
-              {inner}
-            </section>
-          )
-        })()}
 
         {queue.length === 0 && (
           <div className="text-center py-16 text-muted-foreground">
@@ -422,15 +392,25 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
             <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${tierColor[tier]}`}>
               {TIER_LABELS[tier]} ({items.length})
             </p>
-            <div className="space-y-2">
+            <motion.div
+              className="space-y-2"
+              initial="hidden"
+              animate="visible"
+              variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.04 } } }}
+            >
               {items.map(item => {
                 const { key, type, data } = item
                 let card: React.ReactNode
                 if (type === 'new_lead') {
+                  const actId = (data as Activity).id
                   card = (
                     <NewLeadCard
                       activity={data as Parameters<typeof NewLeadCard>[0]['activity']}
                       onUpdate={refresh}
+                      onAddressed={() => {
+                        dismissedIds.current.add(actId)
+                        setNewLeads(prev => prev.filter(a => a.id !== actId))
+                      }}
                       hasResponded={responded.includes(item.customerId ?? '')}
                       sequenceStatus={item.customerId ? sequenceStatusMap[item.customerId] ?? null : null}
                     />
@@ -472,32 +452,26 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
                   card = <TaskItem activity={data as Activity} onUpdate={refresh} />
                 }
 
-                const pct = Math.round(item.decision.winLikelihood * 100)
-                const showPct = nblEnabled && (item.decision.winLikelihood >= 0.25 || !!item.customerId)
                 return (
-                  <div key={key} className="space-y-1">
-                    {nblEnabled && (
-                      <div className="flex items-center justify-between gap-2 px-1">
-                        <p className="text-[11px] text-muted-foreground">
-                          #{rankByKey.get(key)} &middot; {actionLabel[item.decision.nextBestAction]}
-                        </p>
-                        {showPct && (
-                          <span className="flex-shrink-0 text-[10px] font-semibold rounded-full px-1.5 py-0.5 bg-muted text-muted-foreground">
-                            {pct}%
-                          </span>
-                        )}
-                      </div>
-                    )}
+                  <motion.div
+                    key={key}
+                    variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.16, 1, 0.3, 1] } } }}
+                  >
                     {card}
-                  </div>
+                  </motion.div>
                 )
               })}
-            </div>
+            </motion.div>
           </section>
         ))}
+        {motivationalMsg && (
+          <p className="text-xs italic opacity-60 text-muted-foreground text-center mt-4 pb-2" suppressHydrationWarning>
+            {motivationalMsg}
+          </p>
+        )}
       </div>
 
       <AfterCallModal open={modalOpen} pendingCall={pendingCall} onDismiss={dismissModal} />
-    </>
+    </div>
   )
 }

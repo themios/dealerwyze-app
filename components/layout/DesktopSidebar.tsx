@@ -40,6 +40,7 @@ function OpenTicketsBadge() {
 }
 
 const BASE_NAV = [
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/today',     label: 'Today',     icon: Home },
   { href: '/customers', label: 'Leads',     icon: Users },
   { href: '/vehicles',  label: 'Inventory', icon: Car },
@@ -256,7 +257,8 @@ function DealerSidebar({ orgName, role, isPlatformAdmin }: { orgName?: string | 
   ]
 
   function isActive(href: string) {
-    if (href === '/today') return pathname === '/today' || pathname === '/'
+    if (href === '/dashboard') return pathname === '/dashboard' || pathname === '/'
+    if (href === '/today') return pathname === '/today'
     return pathname.startsWith(href)
   }
 

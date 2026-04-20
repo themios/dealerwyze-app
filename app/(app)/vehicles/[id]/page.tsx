@@ -18,6 +18,8 @@ import MechanicWorksheetCard from '@/components/vehicle/MechanicWorksheetCard'
 import VehicleMarkReadyButton from '@/components/vehicle/VehicleMarkReadyButton'
 import VehicleRestoreButton from '@/components/vehicle/VehicleRestoreButton'
 import { canAccessLedger, isDealerAdmin } from '@/lib/auth/dealerRoles'
+import VehicleVideoSection from '@/components/vehicles/VehicleVideoSection'
+import InlinePriceEdit from '@/components/vehicle/InlinePriceEdit'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,11 +42,12 @@ export default async function VehicleDetailPage({ params }: PageProps) {
   const isAdmin = profile.role === 'admin'
   const canEdit = canAccessLedger(profile.role)
   const canDelete = isDealerAdmin(profile.role) || profile.role === 'dealer_manager'
-  const [{ data: vehicle }, { data: activities }, { data: leads }, { data: org }] = await Promise.all([
+  const [{ data: vehicle }, { data: activities }, { data: leads }, { data: org }, { data: vehiclePhotos }] = await Promise.all([
     supabase.from('vehicles').select('*').eq('id', id).eq('user_id', profile.org_id).single(),
     supabase.from('activities').select('*, customer:customers(id, name, primary_phone)').eq('vehicle_id', id).order('created_at', { ascending: false }).limit(50),
     supabase.from('customer_vehicles').select('*, customer:customers(id, name, primary_phone)').eq('vehicle_id', id).order('created_at', { ascending: false }),
     supabase.from('organizations').select('slug').eq('id', profile.org_id).single(),
+    supabase.from('vehicle_photos').select('url').eq('vehicle_id', id).order('position').limit(8),
   ])
 
   if (!vehicle) notFound()
@@ -113,9 +116,13 @@ export default async function VehicleDetailPage({ params }: PageProps) {
 
         {/* Price + Status + Market Intelligence */}
         <div className="flex items-center justify-between">
-          {vehicle.price ? (
+          {canEdit && vehicle.status !== 'sold' ? (
+            <InlinePriceEdit vehicleId={id} initialPrice={vehicle.price ?? null} />
+          ) : vehicle.price ? (
             <p className="text-3xl font-bold">{formatCurrency(vehicle.price)}</p>
-          ) : <p className="text-muted-foreground">No price set</p>}
+          ) : (
+            <p className="text-muted-foreground">No price set</p>
+          )}
           <span className={`text-sm font-medium px-3 py-1 rounded-full capitalize ${statusColors[vehicle.status]}`}>
             {vehicle.status}
           </span>
@@ -226,6 +233,18 @@ export default async function VehicleDetailPage({ params }: PageProps) {
 
         {/* Photos */}
         <VehiclePhotos vehicleId={id} />
+
+        {/* Video & Social */}
+        {vehicle.status !== 'sold' && (
+          <VehicleVideoSection
+            vehicleId={id}
+            vehicleLabel={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
+            photos={
+              vehiclePhotos?.map((p: Record<string, string>) => p.url).filter(Boolean) ??
+              (vehicle.photo_url ? [vehicle.photo_url] : [])
+            }
+          />
+        )}
 
         {/* Documents */}
         <VehicleDocuments vehicleId={id} vehicleStatus={vehicle.status} />

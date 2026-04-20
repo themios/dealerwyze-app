@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   CheckCircle, ChevronDown, ChevronUp, AlertTriangle,
-  Loader2, BookmarkCheck, Car, Search, X, ZoomIn,
+  Loader2, BookmarkCheck, Car, Search, X, ZoomIn, Copy,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -239,6 +239,8 @@ export default function ReviewForm({ receipt, categories, lotVehicles, soldVehic
   const [showAllCategories, setShowAllCategories] = useState(false)
   const [posting, setPosting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [dupWarning, setDupWarning] = useState<{ id: string; date: string; vendor_norm: string | null; amount_total: number | null; memo: string | null }[] | null>(null)
+  const [checking, setChecking] = useState(false)
   const [imageExpanded, setImageExpanded] = useState(true)
   const [lightboxOpen, setLightboxOpen] = useState(false)
 
@@ -265,11 +267,10 @@ export default function ReviewForm({ receipt, categories, lotVehicles, soldVehic
   // Auto-expand vehicle picker when category requires it
   const vehiclePickerOpen = requiresVehicle || showVehicle
 
-  async function handlePost() {
-    if (!selectedCategoryId) { setError('Please select a category'); return }
-    if (requiresVehicle && !vehicleId) { setError('This category requires a vehicle assignment'); return }
+  async function doPost() {
     setPosting(true)
     setError(null)
+    setDupWarning(null)
     try {
       const res = await fetch(`/api/receipts/${receipt.id}/post`, {
         method: 'POST',
@@ -289,6 +290,37 @@ export default function ReviewForm({ receipt, categories, lotVehicles, soldVehic
       setError(String(e))
       setPosting(false)
     }
+  }
+
+  async function handlePost() {
+    if (!selectedCategoryId) { setError('Please select a category'); return }
+    if (requiresVehicle && !vehicleId) { setError('This category requires a vehicle assignment'); return }
+
+    // If user already confirmed duplicates, skip the check
+    if (dupWarning !== null) { await doPost(); return }
+
+    // Run duplicate check
+    const v = vendor.trim()
+    const a = parseFloat(total)
+    const d = receiptDate
+    if (v && !isNaN(a) && d) {
+      setChecking(true)
+      try {
+        const params = new URLSearchParams({ vendor: v, amount: String(a), date: d })
+        const res = await fetch(`/api/receipts/ledger/check-duplicate?${params}`)
+        const data = await res.json()
+        if (data.duplicates?.length > 0) {
+          setDupWarning(data.duplicates)
+          setChecking(false)
+          return
+        }
+      } catch {
+        // If check fails, proceed anyway
+      }
+      setChecking(false)
+    }
+
+    await doPost()
   }
 
   return (
@@ -575,23 +607,77 @@ export default function ReviewForm({ receipt, categories, lotVehicles, soldVehic
         </button>
       )}
 
+      {/* Duplicate warning */}
+      {dupWarning && dupWarning.length > 0 && (
+        <div className="rounded-xl border-2 border-amber-400 bg-amber-50 dark:bg-amber-950/20 p-4 space-y-3">
+          <div className="flex items-start gap-2">
+            <Copy className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                Possible duplicate detected
+              </p>
+              <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+                A similar entry already exists in your ledger. Check before posting.
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-amber-200 dark:border-amber-800 divide-y divide-amber-200 dark:divide-amber-800 overflow-hidden">
+            {dupWarning.map(d => (
+              <div key={d.id} className="px-3 py-2.5 bg-white dark:bg-amber-950/30">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">{d.vendor_norm ?? 'Unknown vendor'}</p>
+                  <p className="text-sm font-semibold">
+                    {d.amount_total != null ? `$${Number(d.amount_total).toFixed(2)}` : '—'}
+                  </p>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {new Date(d.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                  {d.memo ? ` · ${d.memo}` : ''}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              variant="outline"
+              className="border-amber-400 text-amber-700 hover:bg-amber-100"
+              onClick={() => setDupWarning(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="bg-[#F07018] hover:bg-[#d95e10] text-white"
+              onClick={doPost}
+              disabled={posting}
+            >
+              {posting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              Post Anyway
+            </Button>
+          </div>
+        </div>
+      )}
+
       {error && (
         <p className="text-sm text-destructive text-center">{error}</p>
       )}
 
       {/* Post button */}
-      <Button
-        size="lg"
-        className="w-full h-14 text-base font-semibold bg-[#F07018] hover:bg-[#d95e10] text-white"
-        onClick={handlePost}
-        disabled={posting || !selectedCategoryId}
-      >
-        {posting ? (
-          <><Loader2 className="h-5 w-5 animate-spin mr-2" />Posting…</>
-        ) : (
-          'Post to Ledger'
-        )}
-      </Button>
+      {!dupWarning && (
+        <Button
+          size="lg"
+          className="w-full h-14 text-base font-semibold bg-[#F07018] hover:bg-[#d95e10] text-white"
+          onClick={handlePost}
+          disabled={posting || checking || !selectedCategoryId}
+        >
+          {posting || checking ? (
+            <><Loader2 className="h-5 w-5 animate-spin mr-2" />{checking ? 'Checking…' : 'Posting…'}</>
+          ) : (
+            'Post to Ledger'
+          )}
+        </Button>
+      )}
     </div>
   )
 }

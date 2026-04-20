@@ -18,7 +18,7 @@ export async function GET() {
 
   const { data: settings } = await supabase
     .from('org_settings')
-    .select('business_name, business_phone, business_address, zip_code, timezone, dealer_cell_number, voice_business_hours_start, voice_business_hours_end, twilio_phone_number, retell_agent_id, gbp_location_id, locations, resend_from_domain, dealer_website_url, dealer_website_inventory_path')
+    .select('business_name, business_phone, business_address, zip_code, timezone, dealer_cell_number, voice_business_hours_start, voice_business_hours_end, twilio_phone_number, retell_agent_id, gbp_location_id, locations, resend_from_domain, dealer_website_url, dealer_website_inventory_path, lead_assignment_mode')
     .eq('org_id', profile.org_id)
     .maybeSingle()
 
@@ -49,6 +49,7 @@ export async function GET() {
     dealer_website_url: settings?.dealer_website_url ?? null,
     dealer_website_inventory_path: settings?.dealer_website_inventory_path ?? '/cars-for-sale',
     calendar_connected: !!(calendarToken?.calendar_refresh_token),
+    lead_assignment_mode: settings?.lead_assignment_mode ?? 'owner',
   })
 }
 
@@ -78,6 +79,8 @@ export async function PATCH(req: NextRequest) {
     google_review_url?: string | null
     review_request_enabled?: boolean
     review_request_delay_days?: number
+    lead_assignment_mode?: string
+    lead_assignment_rep_index?: number
   } = await req.json()
 
   // Update organizations.name if provided
@@ -121,6 +124,8 @@ export async function PATCH(req: NextRequest) {
   if (body.google_review_url !== undefined) (settingsPayload as Record<string, unknown>).google_review_url = body.google_review_url
   if (body.review_request_enabled !== undefined) (settingsPayload as Record<string, unknown>).review_request_enabled = body.review_request_enabled
   if (body.review_request_delay_days !== undefined) (settingsPayload as Record<string, unknown>).review_request_delay_days = body.review_request_delay_days
+  if (body.lead_assignment_mode !== undefined) (settingsPayload as Record<string, unknown>).lead_assignment_mode = body.lead_assignment_mode
+  if (body.lead_assignment_rep_index !== undefined) (settingsPayload as Record<string, unknown>).lead_assignment_rep_index = body.lead_assignment_rep_index
 
   const hasSettingsUpdate = Object.keys(settingsPayload).length > 2 // more than just org_id + updated_at
   if (hasSettingsUpdate) {

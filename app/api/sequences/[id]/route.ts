@@ -48,10 +48,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
 
+  const VALID_TOPICS = ['new_lead', 're_inquiry', 'post_sale', 'trade_in', 'financing', 'general']
+
   const allowed: Record<string, unknown> = {}
   if (typeof body.name === 'string' && body.name.trim()) allowed.name = body.name.trim()
   if (['manual', 'semi_auto', 'full_auto'].includes(body.auto_mode as string)) {
     allowed.auto_mode = body.auto_mode
+  }
+  if (typeof body.topic === 'string' && VALID_TOPICS.includes(body.topic)) {
+    allowed.topic = body.topic
   }
 
   if (Object.keys(allowed).length === 0) {

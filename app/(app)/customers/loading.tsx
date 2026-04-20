@@ -13,7 +13,7 @@ export default function CustomersLoading() {
       {/* List skeleton */}
       <div className="divide-y">
         {Array.from({ length: 8 }).map((_, i) => (
-          <SkeletonRow key={i} lines={2} />
+          <SkeletonRow key={i} lines={2} delay={i * 60} />
         ))}
       </div>
     </div>

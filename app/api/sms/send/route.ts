@@ -25,16 +25,22 @@ export async function POST(req: NextRequest) {
 
   const hasMedia = Array.isArray(mediaUrls) && mediaUrls.length > 0
 
-  // TCPA: check opt-out
+  // TCPA: check opt-out and consent status
   if (customer_id) {
     const { data: customerRow } = await supabase
       .from('customers')
-      .select('sms_opt_out')
+      .select('sms_opt_out, sms_consent_status')
       .eq('id', customer_id)
       .single()
     if (customerRow?.sms_opt_out) {
       return NextResponse.json(
         { error: 'This customer has opted out of SMS messages (STOP). Cannot send.' },
+        { status: 403 }
+      )
+    }
+    if (customerRow?.sms_consent_status === 'pending') {
+      return NextResponse.json(
+        { error: 'Waiting for customer to confirm SMS opt-in. They were sent a consent request — once they reply YES you can text them.' },
         { status: 403 }
       )
     }

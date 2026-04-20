@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition, useMemo, useEffect, useRef } from 'react'
+import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Customer } from '@/types'
@@ -318,7 +319,7 @@ export default function CustomersListClient({
   }
 
   return (
-    <>
+    <div className="page-enter">
       {/* Archive toggle link */}
       <div className="px-4 pt-2 pb-0 flex justify-end">
         {showArchived ? (
@@ -438,14 +439,21 @@ export default function CustomersListClient({
       {sorted.length > 0 && (
         <>
           {/* ── Mobile card view ─────────────────────────────────────── */}
-          <div className={`lg:hidden ${selectMode ? 'px-4 py-2 space-y-2' : 'divide-y divide-border bg-card border rounded-xl mx-3 my-2 overflow-hidden'}`}>
+          <motion.div
+            className={`lg:hidden ${selectMode ? 'px-4 py-2 space-y-2' : 'divide-y divide-border bg-card border rounded-xl mx-3 my-2 overflow-hidden'}`}
+            initial="hidden"
+            animate="visible"
+            variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.04 } } }}
+          >
             {sorted.map(customer => {
               const initials = customer.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
 
               if (selectMode) {
                 const isChecked = selected.has(customer.id)
                 return (
-                  <div key={customer.id} onClick={() => toggle(customer.id)}>
+                  <motion.div key={customer.id} onClick={() => toggle(customer.id)}
+                    variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.16, 1, 0.3, 1] } } }}
+                  >
                     <Card className={`transition-colors cursor-pointer ${isChecked ? 'border-primary bg-primary/5' : ''}`}>
                       <CardContent className="p-4">
                         <div className="flex items-center gap-3">
@@ -468,7 +476,7 @@ export default function CustomersListClient({
                         </div>
                       </CardContent>
                     </Card>
-                  </div>
+                  </motion.div>
                 )
               }
 
@@ -479,9 +487,10 @@ export default function CustomersListClient({
               const stateConfig = LEAD_STATE_CONFIG[(customer.thread_state ?? 'new_lead') as LeadState]
 
               return (
-                <div
+                <motion.div
                   key={customer.id}
                   className="relative flex items-center hover:bg-accent/40 transition-colors select-none"
+                  variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.16, 1, 0.3, 1] } } }}
                   onPointerDown={() => startLongPress(customer.id)}
                   onPointerUp={cancelLongPress}
                   onPointerLeave={cancelLongPress}
@@ -549,10 +558,10 @@ export default function CustomersListClient({
                       </button>
                     )
                   )}
-                </div>
+                </motion.div>
               )
             })}
-          </div>
+          </motion.div>
 
           <CustomerQuickUploadSheet
             customerId={uploadCustomerId ?? ''}
@@ -744,6 +753,6 @@ export default function CustomersListClient({
           </div>
         </div>
       )}
-    </>
+    </div>
   )
 }

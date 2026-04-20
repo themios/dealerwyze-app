@@ -8,10 +8,10 @@ export default async function AutomationSettingsPage() {
   const profile = await requireProfile()
   const supabase = await createClientForRequest()
 
-  const [{ data: autoSettings }, { data: templates }] = await Promise.all([
+  const [{ data: autoSettings }, { data: templates }, { data: sequences }] = await Promise.all([
     supabase
       .from('org_settings')
-      .select('automation_mode, lead_response_sla_minutes, followup_delay_hours, followup_next_day_hour, email_automation_mode, email_followup_delay_hours, email_followup_next_day_hour, email_signature')
+      .select('automation_mode, lead_response_sla_minutes, followup_delay_hours, followup_next_day_hour, email_automation_mode, email_followup_delay_hours, email_followup_next_day_hour, email_signature, sms_consent_message, auto_respond_email_sequence_id, auto_respond_sms_sequence_id')
       .eq('org_id', profile.org_id)
       .maybeSingle(),
     supabase
@@ -19,18 +19,26 @@ export default async function AutomationSettingsPage() {
       .select('*')
       .eq('user_id', profile.org_id)
       .order('created_at', { ascending: true }),
+    supabase
+      .from('sequences')
+      .select('id, name, channel, topic, sequence_steps(count)')
+      .eq('org_id', profile.org_id)
+      .order('created_at', { ascending: true }),
   ])
 
   type AutoMode = 'manual' | 'semi_auto' | 'full_auto'
   const initial = {
-    automation_mode:              (autoSettings?.automation_mode              ?? 'manual') as AutoMode,
-    lead_response_sla_minutes:    autoSettings?.lead_response_sla_minutes    ?? 10,
-    followup_delay_hours:         autoSettings?.followup_delay_hours         ?? 2,
-    followup_next_day_hour:       autoSettings?.followup_next_day_hour       ?? 10,
-    email_automation_mode:        (autoSettings?.email_automation_mode        ?? 'manual') as AutoMode,
-    email_followup_delay_hours:   autoSettings?.email_followup_delay_hours   ?? 4,
-    email_followup_next_day_hour: autoSettings?.email_followup_next_day_hour ?? 10,
-    email_signature:              autoSettings?.email_signature              ?? '',
+    automation_mode:                   (autoSettings?.automation_mode              ?? 'manual') as AutoMode,
+    lead_response_sla_minutes:         autoSettings?.lead_response_sla_minutes    ?? 10,
+    followup_delay_hours:              autoSettings?.followup_delay_hours         ?? 2,
+    followup_next_day_hour:            autoSettings?.followup_next_day_hour       ?? 10,
+    email_automation_mode:             (autoSettings?.email_automation_mode        ?? 'manual') as AutoMode,
+    email_followup_delay_hours:        autoSettings?.email_followup_delay_hours   ?? 4,
+    email_followup_next_day_hour:      autoSettings?.email_followup_next_day_hour ?? 10,
+    email_signature:                   autoSettings?.email_signature              ?? '',
+    sms_consent_message:               autoSettings?.sms_consent_message          ?? '',
+    auto_respond_email_sequence_id:    autoSettings?.auto_respond_email_sequence_id ?? null,
+    auto_respond_sms_sequence_id:      autoSettings?.auto_respond_sms_sequence_id   ?? null,
   }
 
   return (
@@ -38,7 +46,7 @@ export default async function AutomationSettingsPage() {
       <TopBar title="Automation & Timings" />
       <div className="px-4 py-4 space-y-8">
 
-        <AutomationClient initial={initial} />
+        <AutomationClient initial={initial} sequences={sequences ?? []} />
 
         <section className="space-y-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Templates</p>

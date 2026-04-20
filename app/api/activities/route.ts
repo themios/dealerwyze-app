@@ -58,6 +58,22 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: 'Failed to create activity' }, { status: 500 })
 
+  // When a rep logs any outbound action, mark the customer's pending inbound leads as addressed
+  // so they leave the Today queue. Covers manual call logs, notes, emails, SMS logged via this route.
+  const direction = typeof body.direction === 'string' ? body.direction : null
+  const customerId = typeof body.customer_id === 'string' ? body.customer_id : null
+  if (direction === 'outbound' && customerId) {
+    await supabase
+      .from('activities')
+      .update({ addressed_at: new Date().toISOString() })
+      .eq('user_id', profile.org_id)
+      .eq('customer_id', customerId)
+      .eq('direction', 'inbound')
+      .eq('outcome', 'pending')
+      .is('completed_at', null)
+      .is('addressed_at', null)
+  }
+
   if (type === 'appointment') {
     dispatchWebhook(profile.org_id, 'appointment_created', {
       customer_id: activity.customer_id ?? null,

@@ -29,7 +29,7 @@ async function pollWithClient(
 
   try {
     // Exclude facebookmail.com — each FB Marketplace email triggers Gmail push; they have no contact info and cause a webhook storm. Broad skip in ingest is safety net.
-    const senderQuery = 'from:cargurus.com OR from:autotrader.com OR from:offerup.com OR from:kbb.com OR from:autolist.com OR from:carsforsalemail.com'
+    const senderQuery = 'from:cargurus.com OR from:messages.cargurus.com OR from:autotrader.com OR from:offerup.com OR from:kbb.com OR from:autolist.com OR from:carsforsalemail.com'
     const q = scanMode
       ? 'newer_than:2d'
       : `(${senderQuery}) newer_than:2d`
@@ -181,15 +181,21 @@ export async function runLeadPollForOrg(orgId: string): Promise<LeadPollResult> 
     }
 
     // Update poll status on the account
+    const isAuthError = 'error' in result &&
+      (result.error.includes('invalid_grant') || result.error.includes('Token has been expired'))
     await supabase
       .from('email_accounts')
       .update({
         last_polled_at: new Date().toISOString(),
         last_error:     'error' in result ? result.error : null,
+        ...(isAuthError ? { enabled: false } : {}),
       })
       .eq('id', account.id)
 
-    if ('error' in result) return { error: result.error, accountEmail }
+    if ('error' in result) {
+      console.warn(`[poll] skipping account ${accountEmail}: ${result.error}`)
+      continue
+    }
     allResults.push(...result.results)
   }
 

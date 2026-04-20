@@ -7,9 +7,10 @@ import { ingestLead } from '@/lib/leads/ingest'
 import type { LeadScanResult } from '@/lib/leads/visionIngestTypes'
 
 export interface CreateFromScanBody {
-  scan:           LeadScanResult
-  isPdf:          boolean
-  send_intro_sms: boolean
+  scan:             LeadScanResult
+  isPdf:            boolean
+  send_intro_sms:   boolean
+  link_vehicle_id?: string | null
   // User-edited overrides (merged on top of scan values before saving)
   overrides?: {
     first_name?:    string
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
   const orgId   = profile.org_id
 
   const body: CreateFromScanBody = await req.json()
-  const { scan, isPdf, send_intro_sms, overrides = {} } = body
+  const { scan, isPdf, send_intro_sms, overrides = {}, link_vehicle_id } = body
 
   // Apply user edits on top of scan values
   const merged: LeadScanResult = {
@@ -61,6 +62,24 @@ export async function POST(req: NextRequest) {
   }
 
   const customerId = result.customer_id ?? null
+
+  // Link vehicle from inventory if dealer selected one on the confirm screen
+  if (customerId && link_vehicle_id) {
+    const supabase = await createClient()
+    const { data: existing } = await supabase
+      .from('customer_vehicles')
+      .select('id')
+      .eq('customer_id', customerId)
+      .eq('vehicle_id', link_vehicle_id)
+      .maybeSingle()
+    if (!existing) {
+      await supabase.from('customer_vehicles').insert({
+        customer_id:    customerId,
+        vehicle_id:     link_vehicle_id,
+        interest_level: 'hot',
+      })
+    }
+  }
 
   // Async: increment quota counter + write scan log (no latency impact)
   after(async () => {

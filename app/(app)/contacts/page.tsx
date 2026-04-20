@@ -97,9 +97,12 @@ function ContactCard({ c, onFax }: { c: Contact; onFax: (fax: string) => void })
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <button
-        className="w-full flex items-center gap-3 p-3 text-left"
+      <div
+        className="w-full flex items-center gap-3 p-3 text-left cursor-pointer"
         onClick={() => setOpen(o => !o)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={e => e.key === 'Enter' && setOpen(o => !o)}
       >
         <div className="h-9 w-9 rounded-full bg-[#F07018]/20 flex items-center justify-center flex-shrink-0">
           <User className="h-4 w-4 text-[#F07018]" />
@@ -121,7 +124,7 @@ function ContactCard({ c, onFax }: { c: Contact; onFax: (fax: string) => void })
           <Share2 className="h-4 w-4" />
         </button>
         {open ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-      </button>
+      </div>
 
       {open && (
         <div className="border-t border-border px-3 pb-3 pt-2 space-y-2">

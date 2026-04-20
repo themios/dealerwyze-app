@@ -3,9 +3,26 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { CheckCircle, MessageSquare, Mail } from 'lucide-react'
+import { CheckCircle, MessageSquare, Mail, Zap } from 'lucide-react'
 
 type AutoMode = 'manual' | 'semi_auto' | 'full_auto'
+
+interface SequenceOption {
+  id: string
+  name: string
+  channel: 'email' | 'sms' | 'card'
+  topic: string
+  sequence_steps?: { count: number }[]
+}
+
+const TOPIC_LABELS: Record<string, string> = {
+  new_lead:   'New Lead',
+  re_inquiry: 'Re-inquiry',
+  post_sale:  'Post-Sale',
+  trade_in:   'Trade-In',
+  financing:  'Financing',
+  general:    'General',
+}
 
 interface AutoSettings {
   // SMS
@@ -18,6 +35,11 @@ interface AutoSettings {
   email_followup_delay_hours: number
   email_followup_next_day_hour: number
   email_signature: string
+  // Consent
+  sms_consent_message: string
+  // Auto-respond
+  auto_respond_email_sequence_id: string | null
+  auto_respond_sms_sequence_id: string | null
 }
 
 const MODES: { value: AutoMode; label: string; desc: string }[] = [
@@ -40,6 +62,80 @@ const MODES: { value: AutoMode; label: string; desc: string }[] = [
 
 interface Props {
   initial: AutoSettings
+  sequences: SequenceOption[]
+}
+
+function SequencePicker({
+  label,
+  channel,
+  value,
+  sequences,
+  onChange,
+}: {
+  label: string
+  channel: 'email' | 'sms'
+  value: string | null
+  sequences: SequenceOption[]
+  onChange: (id: string | null) => void
+}) {
+  const opts = sequences.filter(s => s.channel === channel)
+
+  // Group by topic
+  const grouped = opts.reduce<Record<string, SequenceOption[]>>((acc, s) => {
+    const key = s.topic ?? 'general'
+    if (!acc[key]) acc[key] = []
+    acc[key].push(s)
+    return acc
+  }, {})
+
+  const topicOrder = ['new_lead', 're_inquiry', 'post_sale', 'trade_in', 'financing', 'general']
+  const sortedTopics = [
+    ...topicOrder.filter(t => grouped[t]),
+    ...Object.keys(grouped).filter(t => !topicOrder.includes(t)),
+  ]
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-1.5 mb-1">
+        <Zap className="h-3.5 w-3.5 text-[#F07018]" />
+        <label className="text-sm font-medium">{label}</label>
+      </div>
+      {opts.length === 0 ? (
+        <p className="text-xs text-muted-foreground rounded-lg border bg-muted/40 px-3 py-2.5">
+          No {channel} sequences yet.{' '}
+          <a href="/settings/sequences" className="text-primary underline-offset-2 hover:underline">
+            Create one in Sequences
+          </a>{' '}
+          first.
+        </p>
+      ) : (
+        <select
+          value={value ?? ''}
+          onChange={e => onChange(e.target.value || null)}
+          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#F07018]/50"
+        >
+          <option value="">— Off (no auto-response) —</option>
+          {sortedTopics.map(topic => (
+            <optgroup key={topic} label={TOPIC_LABELS[topic] ?? topic}>
+              {grouped[topic].map(seq => {
+                const steps = seq.sequence_steps?.[0]?.count ?? 0
+                return (
+                  <option key={seq.id} value={seq.id}>
+                    {seq.name} ({steps} step{steps !== 1 ? 's' : ''})
+                  </option>
+                )
+              })}
+            </optgroup>
+          ))}
+        </select>
+      )}
+      {value && (
+        <p className="text-xs text-[#F07018]">
+          Step 1 sends within seconds of lead arrival. Steps 2+ follow on their scheduled days.
+        </p>
+      )}
+    </div>
+  )
 }
 
 function ModeSelector({ value, onChange }: { value: AutoMode; onChange: (v: AutoMode) => void }) {
@@ -96,7 +192,7 @@ function ChipRow({
   )
 }
 
-export default function AutomationClient({ initial }: Props) {
+export default function AutomationClient({ initial, sequences }: Props) {
   const [settings, setSettings] = useState<AutoSettings>(initial)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -109,7 +205,11 @@ export default function AutomationClient({ initial }: Props) {
     const res = await fetch('/api/settings/automation', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(settings),
+      body: JSON.stringify({
+        ...settings,
+        auto_respond_email_sequence_id: settings.auto_respond_email_sequence_id ?? null,
+        auto_respond_sms_sequence_id:   settings.auto_respond_sms_sequence_id   ?? null,
+      }),
     })
     setSaving(false)
     if (!res.ok) {
@@ -179,6 +279,57 @@ export default function AutomationClient({ initial }: Props) {
               </div>
             </div>
           </section>
+
+          <section>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Opt-In Consent Message</p>
+            <div className="space-y-3 rounded-xl border bg-card p-4">
+              <div>
+                <label className="text-sm font-medium">Consent request text</label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Sent automatically when a new lead comes in. Leave blank to use the default.
+                  Available placeholders: <code className="bg-muted px-1 rounded">{'{first_name}'}</code>{' '}
+                  <code className="bg-muted px-1 rounded">{'{business_name}'}</code>{' '}
+                  <code className="bg-muted px-1 rounded">{'{vehicle}'}</code>
+                </p>
+                <Textarea
+                  value={settings.sms_consent_message}
+                  onChange={e => setSettings(s => ({ ...s, sms_consent_message: e.target.value }))}
+                  rows={4}
+                  className="text-sm resize-y"
+                  placeholder={
+                    'Hi {first_name}! This is {business_name}. You recently inquired about {vehicle}. ' +
+                    'Reply YES to get text updates. Msg & data rates may apply. Reply STOP to opt out.'
+                  }
+                />
+              </div>
+              <div className="rounded-lg bg-muted/50 px-3 py-2.5">
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">Required by law:</span>{' '}
+                  Your message must include opt-out instructions (Reply STOP). Do not remove that line.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">SMS Auto-Response</p>
+            <div className="rounded-xl border bg-card p-4 space-y-3">
+              <SequencePicker
+                label="Auto-respond sequence for new leads"
+                channel="sms"
+                value={settings.auto_respond_sms_sequence_id}
+                sequences={sequences}
+                onChange={id => setSettings(s => ({ ...s, auto_respond_sms_sequence_id: id }))}
+              />
+              <div className="rounded-lg bg-muted/50 px-3 py-2.5">
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">SMS note:</span>{' '}
+                  Only sends to customers who have already replied YES to the consent request.
+                  New leads get the consent request first - returning customers with opt-in get the sequence immediately.
+                </p>
+              </div>
+            </div>
+          </section>
         </>
       )}
 
@@ -241,6 +392,19 @@ export default function AutomationClient({ initial }: Props) {
                   />
                 </div>
               )}
+            </div>
+          </section>
+
+          <section>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Email Auto-Response</p>
+            <div className="rounded-xl border bg-card p-4">
+              <SequencePicker
+                label="Auto-respond sequence for new leads"
+                channel="email"
+                value={settings.auto_respond_email_sequence_id}
+                sequences={sequences}
+                onChange={id => setSettings(s => ({ ...s, auto_respond_email_sequence_id: id }))}
+              />
             </div>
           </section>
         </>

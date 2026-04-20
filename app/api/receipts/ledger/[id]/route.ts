@@ -45,3 +45,27 @@ export async function PATCH(
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ transaction })
 }
+
+// Admin-only: delete a ledger transaction
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const profile = await requireProfile()
+
+  if (!isDealerAdmin(profile.role as UserRole)) {
+    return NextResponse.json({ error: 'Admin only' }, { status: 403 })
+  }
+
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('ledger_transactions')
+    .delete()
+    .eq('id', id)
+    .eq('user_id', profile.org_id)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  return NextResponse.json({ ok: true })
+}

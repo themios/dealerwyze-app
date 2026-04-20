@@ -84,6 +84,38 @@ Strategic ideas captured here. Promote to ROADMAP.md when ready to schedule.
 - **Pending:** Migration 072 must be applied. `body_style` field not yet in vehicle edit form.
 - **Pending Phase B:** Dealer-to-dealer wholesale matching via want list (see Wholesale Network section).
 
+### Video Auto-Poster — BUILT ✅ (2026-03-29)
+Dealers click "Generate Video" on any vehicle. The system creates a branded, narrated MP4 and auto-posts to connected social platforms.
+
+**What's built:**
+- 3 Remotion templates: VehicleModernDark (16:9 40s), VehicleReelsPortrait (9:16 30s), VehiclePhotoSlideshow (16:9 35s)
+- Google Cloud TTS Neural2 narration (auto-generated from vehicle + dealer data, cached in R2)
+- Remotion Lambda render (~45s per video, ~$0.002/render)
+- Cloudflare R2 video storage at `videos/{org_id}/{vehicle_id}/`
+- Photos pulled from `vehicle_photos` Supabase Storage (no re-upload needed)
+- VideoOptionsSheet: dealer picks photos, template, voice, platforms (smart defaults pre-filled)
+- RenderStatusBadge: auto-polls every 5s, shows queued/rendering/complete/failed
+- SocialPostStatus: per-platform icons with posted links
+- Social OAuth: Facebook, Instagram, TikTok, YouTube (dealers connect their own accounts)
+- Auto-post toggle per org (fires on vehicle status → available)
+- Quota: 50 renders/month on $150 plan, unlimited on $350 plan
+- Settings > Video (preferences) + Settings > Social (connected accounts)
+- Onboarding step: "Connect Social Media"
+- Landing page pricing updated with video features
+
+**Infrastructure set up:**
+- AWS Lambda: `remotion-render-4-0-441-mem2048mb-disk2048mb-120sec` (us-east-1)
+- Remotion site: `dealerwyze-vehicles` on S3
+- R2 bucket: `dealerwyze-videos` (public reads enabled)
+- Meta app ID: `1127948526124238` (Business type, Development mode)
+- Migration 089 applied
+
+**Pending:**
+- Add `refreshAllExpiringTokens()` to `/api/cron/check-tasks` cron
+- Meta app: submit for App Review before going live with real dealers (requires business verification)
+- TikTok Content Posting API: submit application (2-4 week review)
+- Test first end-to-end render on a vehicle with photos
+
 ### CSV / DMS Import
 - Most independent dealers use Frazer, Dealer Center, or DealerSocket.
 - Frazer exports a standard CSV format — one-click import to DealerWyze.
@@ -320,3 +352,32 @@ Track this weekly in admin dashboard. Target: 10,000 published listings within 6
 | Add body_style field to vehicle edit form | 30 min | Medium - want list accuracy | Pending |
 | Context-aware scanner (lead/contact/vehicle) | 2 hrs | Medium - UX correctness | Pending |
 | Email blast to customer list | 8 hrs | High - dealer value | Future |
+
+---
+
+## Apollo Auto Physical Space (Tim's Dealership — El Monte CA)
+
+### Dealership Layout — 20ft × 50ft × 10ft ceilings, glass front wall
+
+**File:** `/home/tim/Applications/ApolloCRM/apollo-auto-dealership-layout.html`
+Interactive 3D Three.js render + SVG floor plan + zone psychology guide + Behr paint chip reference.
+
+#### Color Scheme (Behr — Home Depot)
+| Zone | Color | Behr Code |
+|------|-------|-----------|
+| Left wall top (7ft) | Navy / Commodore | M510-7 |
+| Left wall bottom (3ft) + Right wall + Back wall | Warm White / Antique White | PPU5-12 |
+| Right wall accent stripe (36" from floor) | Navy (matches left) | M510-7 |
+| Floor | Cobblestone gray | PPU18-16 |
+
+**Status:** Purchased paint and started painting (2026-04-07). Looks great.
+
+#### Layout Decisions
+- 4 L-shaped cherry desks (Option B: long leg perpendicular to wall, toward aisle)
+- Staggered placement: door is left side of glass front, customers drift right on entry
+  - Right wall: D3 z=12, D4 z=24 (closer to front — greet first)
+  - Left wall: D1 z=17, D2/deal desk z=29 (set back — more private)
+- Deal desk (2nd left, rear) has privacy partitions: 7ft wide x 4ft wood + 12" frosted plexiglass top
+- 2 x 50" TVs: front left (entry zone, ~7ft high), back center (lounge/waiting area)
+- Back door (rear right corner, 36"x6'8"): staff/storage only
+- Frosted glass sign on front wall: APOLLO AUTO / ApolloAuto.US / (805) 404-3873

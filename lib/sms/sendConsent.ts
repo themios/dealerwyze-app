@@ -26,14 +26,21 @@ export async function sendSmsConsentRequest(opts: {
 
   const supabase = createServiceClient()
 
-  // Fetch org settings
-  const { data: settings } = await supabase
-    .from('org_settings')
-    .select('business_name, twilio_phone_number, sms_consent_message')
-    .eq('org_id', orgId)
-    .maybeSingle()
+  // Fetch org settings + org name in parallel
+  const [{ data: settings }, { data: org }] = await Promise.all([
+    supabase
+      .from('org_settings')
+      .select('business_name, twilio_phone_number, sms_consent_message')
+      .eq('org_id', orgId)
+      .maybeSingle(),
+    supabase
+      .from('organizations')
+      .select('name')
+      .eq('id', orgId)
+      .maybeSingle(),
+  ])
 
-  const businessName = settings?.business_name?.trim() || 'our dealership'
+  const businessName = settings?.business_name?.trim() || org?.name?.trim() || 'our dealership'
   const fromNumber = settings?.twilio_phone_number || process.env.TWILIO_FROM_NUMBER
 
   if (!fromNumber) return { sent: false, reason: 'no_twilio_number' }

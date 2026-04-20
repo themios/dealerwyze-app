@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { Customer, Activity, Vehicle } from '@/types'
 import { createClient } from '@/lib/supabase/client'
 import CallButton from '@/components/call/CallButton'
@@ -29,7 +28,7 @@ import LeadStateSelector from '@/components/customer/LeadStateSelector'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Mail, Plus, FileText, Archive, X, MessageSquareOff, Trophy, Bot, Pencil, Trash2, GitMerge, ClipboardList } from 'lucide-react'
+import { Mail, Plus, FileText, Archive, X, MessageSquareOff, Trophy, Trash2, GitMerge, Clock, Pencil, ClipboardList } from 'lucide-react'
 
 interface TaskItem {
   id: string
@@ -56,7 +55,12 @@ export default function CustomerDetailClient({ customer, activities: initialActi
   const [replyContext, setReplyContext] = useState<ReplyContext | null>(null)
   const [taskOpen, setTaskOpen] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
+  const [apptOpen, setApptOpen] = useState(false)
+  const [apptDate, setApptDate] = useState('')
+  const [apptTime, setApptTime] = useState('10:00')
+  const [apptSaving, setApptSaving] = useState(false)
   const [vehicleRefreshKey, setVehicleRefreshKey] = useState(0)
+  const [linkVehicleOpen, setLinkVehicleOpen] = useState(false)
   const [primaryVehicle, setPrimaryVehicle] = useState<Vehicle | undefined>(initialVehicle as Vehicle | undefined)
   const [localTasks, setLocalTasks] = useState<TaskItem[]>(initialTasks)
   const [quickTaskOpen, setQuickTaskOpen] = useState(false)
@@ -80,6 +84,10 @@ export default function CustomerDetailClient({ customer, activities: initialActi
   const [sellError, setSellError] = useState<string | null>(null)
   const [mergeOpen, setMergeOpen]         = useState(false)
   const [checklistOpen, setChecklistOpen] = useState(false)
+  const [snoozeOpen, setSnoozeOpen] = useState(false)
+  const [snoozeDate, setSnoozeDate] = useState('')
+  const [snoozing, setSnoozing] = useState(false)
+  const [snoozeError, setSnoozeError] = useState<string | null>(null)
   const [autoOverride, setAutoOverride] = useState<string | null>(
     (customer as unknown as Record<string, unknown>).automation_override as string | null ?? null
   )
@@ -249,6 +257,76 @@ export default function CustomerDetailClient({ customer, activities: initialActi
     router.push('/customers')
   }
 
+  function snoozePresetDate(preset: 'tomorrow' | '3days' | '1week' | '2weeks'): string {
+    const d = new Date()
+    if (preset === 'tomorrow')  { d.setDate(d.getDate() + 1) }
+    if (preset === '3days')     { d.setDate(d.getDate() + 3) }
+    if (preset === '1week')     { d.setDate(d.getDate() + 7) }
+    if (preset === '2weeks')    { d.setDate(d.getDate() + 14) }
+    d.setHours(8, 0, 0, 0)
+    return d.toISOString()
+  }
+
+  async function handleSnooze(isoDate: string) {
+    setSnoozing(true)
+    setSnoozeError(null)
+    // Snooze all pending inbound activities for this customer
+    const pending = activities.filter(a =>
+      (a as unknown as Record<string, unknown>).direction === 'inbound' &&
+      !(a as unknown as Record<string, unknown>).completed_at &&
+      (a as unknown as Record<string, unknown>).outcome === 'pending'
+    )
+    if (pending.length === 0) {
+      // No pending activities — create a follow-up task instead
+      await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: `Follow up with ${customer.name}`,
+          task_type: 'manual',
+          priority: 'should',
+          linked_customer_id: customer.id,
+          due_at: isoDate,
+        }),
+      })
+    } else {
+      await Promise.all(pending.map(a =>
+        fetch(`/api/activities/${a.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ snoozed_until: isoDate }),
+        })
+      ))
+    }
+    setSnoozing(false)
+    setSnoozeOpen(false)
+    setSnoozeDate('')
+    router.refresh()
+  }
+
+  async function handleSaveAppt() {
+    if (!apptDate) return
+    setApptSaving(true)
+    const dueAt = new Date(`${apptDate}T${apptTime}:00`).toISOString()
+    await fetch('/api/activities', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'appointment',
+        customer_id: customer.id,
+        due_at: dueAt,
+        direction: 'outbound',
+        outcome: 'scheduled',
+        priority: 'high',
+        body: `Appointment${primaryVehicle ? ` re: ${primaryVehicle.year} ${primaryVehicle.make} ${primaryVehicle.model}` : ''}`,
+      }),
+    })
+    setApptSaving(false)
+    setApptOpen(false)
+    setApptDate('')
+    router.refresh()
+  }
+
   async function handleDelete() {
     if (deleteConfirm.trim().toUpperCase() !== 'DELETE') return
     setDeleting(true)
@@ -280,11 +358,25 @@ export default function CustomerDetailClient({ customer, activities: initialActi
             {customer.email}
           </p>
         )}
-        {primaryVehicle && (
-          <p className="text-sm font-semibold mt-1">
+        {primaryVehicle ? (
+          <p className="text-sm font-semibold mt-1 flex items-center gap-1.5">
             {primaryVehicle.year} {primaryVehicle.make} {primaryVehicle.model}
             {primaryVehicle.price ? ` — $${primaryVehicle.price.toLocaleString()}` : ''}
+            <button
+              className="text-muted-foreground hover:text-foreground"
+              onClick={() => setLinkVehicleOpen(true)}
+              title="Add / change vehicle"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
           </p>
+        ) : (
+          <button
+            className="text-sm text-primary hover:underline mt-1 flex items-center gap-1"
+            onClick={() => setLinkVehicleOpen(true)}
+          >
+            + Add vehicle
+          </button>
         )}
         {/* Lead state + assignment — prominent, always visible */}
         <div className="flex items-center gap-2 mt-2 flex-wrap">
@@ -306,61 +398,6 @@ export default function CustomerDetailClient({ customer, activities: initialActi
             This customer asked to stop texts. You can&apos;t send SMS to this number.
           </div>
         )}
-        {/* Communication preferences - follow-up opt-outs */}
-        <div className="mt-3 space-y-1.5">
-          <p className="text-xs font-medium text-muted-foreground">Follow-up preferences</p>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-medium">Email follow-ups</p>
-              {unsubEmail && <p className="text-xs text-red-600">Opted out</p>}
-            </div>
-            <button
-              disabled={savingUnsub}
-              onClick={() => toggleUnsubscribe('unsubscribe_email', !unsubEmail)}
-              className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors ${unsubEmail ? 'bg-red-500' : 'bg-green-500'}`}
-            >
-              <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${unsubEmail ? 'translate-x-4' : 'translate-x-0'}`} />
-            </button>
-          </div>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-medium">SMS follow-ups</p>
-              {unsubSms && <p className="text-xs text-red-600">Opted out</p>}
-            </div>
-            <button
-              disabled={savingUnsub}
-              onClick={() => toggleUnsubscribe('unsubscribe_sms', !unsubSms)}
-              className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors ${unsubSms ? 'bg-red-500' : 'bg-green-500'}`}
-            >
-              <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${unsubSms ? 'translate-x-4' : 'translate-x-0'}`} />
-            </button>
-          </div>
-          {(unsubEmail || unsubSms) && (
-            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1">
-              Only re-enable if the customer has given explicit consent to receive messages again.
-            </p>
-          )}
-        </div>
-        <div className="flex items-center gap-1.5 mt-2">
-          <Bot className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-          <span className="text-xs text-muted-foreground">Auto-respond:</span>
-          <div className="flex gap-1">
-            {([null, 'manual', 'semi_auto', 'full_auto'] as const).map(mode => (
-              <button
-                key={String(mode)}
-                disabled={savingAuto}
-                onClick={() => setAutomationOverride(mode)}
-                className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
-                  autoOverride === mode
-                    ? 'bg-[#0D2B55] text-white border-[#0D2B55]'
-                    : 'border-border text-muted-foreground hover:bg-accent'
-                }`}
-              >
-                {mode === null ? 'Global' : mode === 'manual' ? 'Off' : mode === 'semi_auto' ? 'Semi' : 'Full'}
-              </button>
-            ))}
-          </div>
-        </div>
         {customer.tags && customer.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">
             {customer.tags.map(tag => (
@@ -374,46 +411,51 @@ export default function CustomerDetailClient({ customer, activities: initialActi
       </div>
 
 
-      {/* Secondary actions */}
+      {/* Status actions — labeled, always visible */}
       <div className="px-4 py-2 flex gap-2 border-b">
-        <Link href={`/customers/${customer.id}/edit`}>
-          <Button variant="ghost" size="sm" className="gap-1.5">
-            <Pencil className="h-4 w-4" />
-          </Button>
-        </Link>
-        <Button variant="ghost" size="sm" onClick={() => setTaskOpen(true)} className="flex-1 gap-1.5">
-          <Plus className="h-4 w-4" />Task
-        </Button>
-        <Button variant="ghost" size="sm" onClick={() => setNoteOpen(true)} className="flex-1 gap-1.5">
-          <FileText className="h-4 w-4" />Note
-        </Button>
-        <div className={primaryVehicle ? 'flex justify-center' : 'flex-1 flex justify-center'}>
-          <LinkVehicleSheet customerId={customer.id} onLinked={() => setVehicleRefreshKey(k => k + 1)} hasVehicle={!!primaryVehicle} />
-        </div>
-        <Button variant="ghost" size="sm" onClick={() => setChecklistOpen(true)} className="gap-1.5 text-muted-foreground" title="Deal checklist">
-          <ClipboardList className="h-4 w-4" />
-        </Button>
-        {isAdmin && (
-          <Button variant="ghost" size="sm" onClick={() => setMergeOpen(true)} className="gap-1.5 text-muted-foreground" title="Merge duplicate">
-            <GitMerge className="h-4 w-4" />
-          </Button>
-        )}
-        <Button variant="ghost" size="sm" onClick={openArchivePanel} className="gap-1.5 text-muted-foreground" title="Archive">
-          <Archive className="h-4 w-4" />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={openArchivePanel}
+          className="flex-1 gap-1.5 text-muted-foreground"
+        >
+          <Archive className="h-4 w-4" />Archive
         </Button>
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
-          onClick={() => {
-            setDeleteOpen(v => !v)
-            setDeleteConfirm('')
-            setDeleteError(null)
-          }}
-          className="gap-1.5 text-destructive"
-          title="Delete contact"
+          onClick={() => { setSnoozeOpen(v => !v); setSnoozeDate(''); setSnoozeError(null) }}
+          className="flex-1 gap-1.5 text-muted-foreground"
         >
-          <Trash2 className="h-4 w-4" />
+          <Clock className="h-4 w-4" />Follow Up
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setSoldOpen(v => !v)}
+          className={`flex-1 gap-1.5 ${customer.thread_state === 'sold' ? 'text-green-600 border-green-300' : 'text-muted-foreground'}`}
+          disabled={customer.thread_state === 'sold'}
+        >
+          <Trophy className="h-4 w-4" />{customer.thread_state === 'sold' ? 'Sold' : 'Mark Sold'}
+        </Button>
+      </div>
+
+      {/* Utility actions */}
+      <div className="px-4 py-2 flex gap-1 border-b overflow-x-auto">
+        <Button variant="ghost" size="sm" onClick={() => setTaskOpen(true)} className="gap-1.5">
+          <Plus className="h-4 w-4" />Task
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => setNoteOpen(true)} className="gap-1.5">
+          <FileText className="h-4 w-4" />Note
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => setApptOpen(v => !v)} className="gap-1.5">
+          <Clock className="h-4 w-4" />Appt
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => setChecklistOpen(true)} className="gap-1.5 text-muted-foreground" title="Deal checklist">
+          <ClipboardList className="h-4 w-4" />Docs
+        </Button>
+        {/* LinkVehicleSheet — headless, triggered from contact header */}
+        <LinkVehicleSheet customerId={customer.id} onLinked={() => setVehicleRefreshKey(k => k + 1)} hasVehicle={!!primaryVehicle} open={linkVehicleOpen} onOpenChange={setLinkVehicleOpen} />
         <WantListSheet
           customerId={customer.id}
           customerName={customer.name}
@@ -425,17 +467,49 @@ export default function CustomerDetailClient({ customer, activities: initialActi
             price: primaryVehicle.price,
           } : null}
         />
+        {isAdmin && (
+          <Button variant="ghost" size="sm" onClick={() => setMergeOpen(true)} className="text-muted-foreground" title="Merge duplicate">
+            <GitMerge className="h-4 w-4" />
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => setSoldOpen(v => !v)}
-          className={`gap-1.5 ${customer.thread_state === 'sold' ? 'text-green-600' : 'text-muted-foreground'}`}
-          disabled={customer.thread_state === 'sold'}
-          title="Mark as sold"
+          onClick={() => { setDeleteOpen(v => !v); setDeleteConfirm(''); setDeleteError(null) }}
+          className="text-destructive"
+          title="Delete contact"
         >
-          <Trophy className="h-4 w-4" />
+          <Trash2 className="h-4 w-4" />
         </Button>
       </div>
+
+      {/* Appointment picker */}
+      {apptOpen && (
+        <div className="mx-4 my-2 p-3 rounded-lg border bg-muted/40 space-y-2">
+          <p className="text-sm font-medium">Schedule appointment</p>
+          <div className="flex gap-2">
+            <input
+              type="date"
+              value={apptDate}
+              onChange={e => setApptDate(e.target.value)}
+              min={new Date().toISOString().slice(0, 10)}
+              className="flex-1 text-sm rounded border border-border bg-background px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+            <input
+              type="time"
+              value={apptTime}
+              onChange={e => setApptTime(e.target.value)}
+              className="w-28 text-sm rounded border border-border bg-background px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={handleSaveAppt} disabled={!apptDate || apptSaving} className="flex-1">
+              {apptSaving ? 'Saving…' : 'Confirm'}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setApptOpen(false)}>Cancel</Button>
+          </div>
+        </div>
+      )}
 
       {/* Sold panel */}
       {soldOpen && customer.thread_state !== 'sold' && (
@@ -463,6 +537,56 @@ export default function CustomerDetailClient({ customer, activities: initialActi
           >
             {selling ? 'Saving…' : '🏆 Mark as Sold'}
           </Button>
+        </div>
+      )}
+
+      {/* Snooze / Follow-up panel */}
+      {snoozeOpen && (
+        <div className="mx-4 my-2 p-3 rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950/20 space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-blue-700 dark:text-blue-400">Follow up on…</p>
+            <button onClick={() => setSnoozeOpen(false)} title="Close">
+              <X className="h-4 w-4 text-muted-foreground" />
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(['tomorrow', '3days', '1week', '2weeks'] as const).map(preset => {
+              const labels = { tomorrow: 'Tomorrow', '3days': 'In 3 days', '1week': 'In 1 week', '2weeks': 'In 2 weeks' }
+              return (
+                <button
+                  key={preset}
+                  onClick={() => void handleSnooze(snoozePresetDate(preset))}
+                  disabled={snoozing}
+                  className="px-3 py-1.5 rounded-md border border-blue-300 bg-white text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                >
+                  {labels[preset]}
+                </button>
+              )
+            })}
+          </div>
+          <div className="flex gap-2 items-center">
+            <input
+              type="date"
+              value={snoozeDate}
+              min={new Date().toISOString().split('T')[0]}
+              onChange={e => setSnoozeDate(e.target.value)}
+              className="flex-1 rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+            <Button
+              size="sm"
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              disabled={!snoozeDate || snoozing}
+              onClick={() => {
+                const d = new Date(snoozeDate)
+                d.setHours(8, 0, 0, 0)
+                void handleSnooze(d.toISOString())
+              }}
+            >
+              {snoozing ? 'Saving…' : 'Set date'}
+            </Button>
+          </div>
+          {snoozeError && <p className="text-xs text-red-600">{snoozeError}</p>}
+          <p className="text-xs text-muted-foreground">This lead will reappear in your queue on the selected date.</p>
         </div>
       )}
 
@@ -567,6 +691,11 @@ export default function CustomerDetailClient({ customer, activities: initialActi
         customerName={customer.name}
         unsubEmail={unsubEmail}
         unsubSms={unsubSms}
+        savingUnsub={savingUnsub}
+        onToggleUnsub={toggleUnsubscribe}
+        autoOverride={autoOverride}
+        savingAuto={savingAuto}
+        onSetAutoOverride={setAutomationOverride}
       />
 
       <ScheduledOutreachCard activities={scheduledActivities} />

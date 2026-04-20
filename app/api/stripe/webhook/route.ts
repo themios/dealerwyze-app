@@ -49,6 +49,33 @@ export async function POST(req: NextRequest) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session
 
+      // ── One-time video render pack ───────────────────────────────────────────
+      if (session.mode === 'payment' && session.metadata?.topup_type === 'video_pack') {
+        const orgId  = session.metadata.org_id
+        const credits = parseInt(session.metadata.credits ?? '25', 10)
+        if (orgId && credits > 0) {
+          const { data: existing } = await supabase
+            .from('org_video_settings')
+            .select('render_credits_purchased')
+            .eq('org_id', orgId)
+            .maybeSingle()
+
+          const newCredits = (existing?.render_credits_purchased ?? 0) + credits
+          await supabase.from('org_video_settings').upsert({
+            org_id: orgId,
+            render_credits_purchased: newCredits,
+          }, { onConflict: 'org_id' })
+
+          await supabase.from('admin_alerts').insert({
+            org_id:     orgId,
+            alert_type: 'video_pack_purchased',
+            severity:   'info',
+            details:    { credits_added: credits, new_total: newCredits },
+          }).maybeSingle()
+        }
+        break
+      }
+
       // ── One-time overage buffer top-up ──────────────────────────────────────
       if (session.mode === 'payment' && session.metadata?.topup_type === 'overage_buffer') {
         const orgId = session.metadata.org_id

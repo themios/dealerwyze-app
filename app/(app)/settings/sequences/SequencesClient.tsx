@@ -14,9 +14,19 @@ interface SequenceRow {
   channel: 'sms' | 'email' | 'card'
   auto_mode: 'manual' | 'semi_auto' | 'full_auto'
   trigger_type?: string | null
+  topic?: string | null
   created_at: string
   sequence_steps?: { count: number }[]
   customer_sequences?: { count: number }[]
+}
+
+const TOPIC_LABELS: Record<string, string> = {
+  new_lead:   'New Lead',
+  re_inquiry: 'Re-inquiry',
+  post_sale:  'Post-Sale',
+  trade_in:   'Trade-In',
+  financing:  'Financing',
+  general:    'General',
 }
 
 const TRIGGER_LABELS: Record<string, string> = {
@@ -154,6 +164,11 @@ export default function SequencesClient({ initialSequences }: Props) {
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <p className="font-medium text-sm">{seq.name}</p>
                   <Badge variant="outline" className="text-xs">{AUTO_MODE_LABELS[seq.auto_mode]}</Badge>
+                  {seq.topic && seq.topic !== 'general' && (
+                    <Badge variant="secondary" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                      {TOPIC_LABELS[seq.topic] ?? seq.topic}
+                    </Badge>
+                  )}
                   {seq.trigger_type && seq.trigger_type !== 'manual' && (
                     <Badge variant="secondary" className="text-xs bg-orange-50 text-orange-700 border-orange-200">
                       {TRIGGER_LABELS[seq.trigger_type] ?? seq.trigger_type}

@@ -32,10 +32,10 @@ const statusColors: Record<string, string> = {
   staging: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
 }
 
-const RECON_BORDER: Record<string, string> = {
-  red:   'border-l-4 border-l-red-500',
-  amber: 'border-l-4 border-l-amber-400',
-  green: 'border-l-4 border-l-green-500',
+const RECON_BG: Record<string, string> = {
+  red:   'bg-red-50 border-red-200',
+  amber: 'bg-amber-50 border-amber-200',
+  green: 'bg-green-50 border-green-200',
 }
 
 const RECON_LABEL: Record<string, string> = {
@@ -87,7 +87,7 @@ export default function VehicleCard({ vehicle, reconStatus, investmentSummary }:
 
   return (
     <>
-      <div className={`hover:bg-accent/40 transition-colors ${reconStatus ? RECON_BORDER[reconStatus] : ''}`}
+      <div className={`hover:bg-accent/40 transition-colors border ${reconStatus ? RECON_BG[reconStatus] : 'border-transparent'}`}
         title={reconStatus ? RECON_LABEL[reconStatus] : undefined}
       >
         {/* Main row */}

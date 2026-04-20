@@ -116,10 +116,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <ImpersonationBanner orgName={impersonationOrgName} writeMode={impersonationWriteMode} />
         )}
         {!isPlatformUser && <SupportSessionBanner />}
-        <BetaBanner />
         <PushPermission />
         {/* pb-20 on mobile for BottomNav; no padding needed on desktop */}
-        <main className="flex-1 overflow-y-auto pb-20 lg:pb-0" suppressHydrationWarning>
+        <main className="flex-1 overflow-y-auto overflow-x-hidden pb-20 lg:pb-0" suppressHydrationWarning>
           <PastDueBanner />
           {children}
         </main>

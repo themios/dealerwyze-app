@@ -60,6 +60,8 @@ export default function UsersPage() {
   const [inviteOpen, setInviteOpen] = useState(false)
   const [showDeactivated, setShowDeactivated] = useState(false)
   const [form, setForm] = useState({ email: '', display_name: '', password: '', role: 'dealer_rep' as UserRole })
+  const [assignMode, setAssignMode] = useState<'owner' | 'round_robin' | 'manual'>('owner')
+  const [assignModeSaving, setAssignModeSaving] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
@@ -72,10 +74,22 @@ export default function UsersPage() {
     if (res.status === 403) { setLoading(false); return }
     const data = await res.json()
     setUsers(data.users ?? [])
+    if (data.lead_assignment_mode) setAssignMode(data.lead_assignment_mode)
     setLoading(false)
   }, [showDeactivated])
 
   useEffect(() => { loadUsers() }, [loadUsers])
+
+  async function saveAssignMode(mode: 'owner' | 'round_robin' | 'manual') {
+    setAssignMode(mode)
+    setAssignModeSaving(true)
+    await fetch('/api/settings/org', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lead_assignment_mode: mode, lead_assignment_rep_index: 0 }),
+    })
+    setAssignModeSaving(false)
+  }
 
   const adminProfile = users.find(u => u.role === 'dealer_admin' || u.role === 'admin')
   const inviteCode = adminProfile?.invite_code
@@ -160,6 +174,37 @@ export default function UsersPage() {
       />
 
       <div className="px-4 py-3 space-y-4">
+        {/* Lead Assignment Mode */}
+        <div className="rounded-xl border bg-card p-4 space-y-3">
+          <div>
+            <p className="text-sm font-semibold">New Lead Assignment</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Who gets new leads when they come in</p>
+          </div>
+          <div className="space-y-2">
+            {([
+              { value: 'owner', label: 'Owner only', desc: 'All new leads go to the dealership admin' },
+              { value: 'round_robin', label: 'Round robin', desc: 'Rotate leads evenly across all active sales reps' },
+              { value: 'manual', label: 'Manual', desc: 'Leads arrive unassigned — admin assigns them' },
+            ] as const).map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => saveAssignMode(opt.value)}
+                className={`w-full text-left p-3 rounded-lg border transition-colors ${assignMode === opt.value ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'}`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">{opt.label}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{opt.desc}</p>
+                  </div>
+                  {assignMode === opt.value && (
+                    <span className="text-xs font-semibold text-primary">{assignModeSaving ? 'Saving…' : 'Active'}</span>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Invite code card */}
         {!inviteCode ? (
           <div className="rounded-xl border bg-muted/40 p-4">

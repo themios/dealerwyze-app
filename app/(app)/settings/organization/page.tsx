@@ -765,8 +765,12 @@ export default function OrganizationPage() {
                             {PROVIDER_LABELS[acct.provider] ?? acct.provider}
                             {' · '}
                             {acct.last_error
-                              ? <span className="text-destructive">Error — check credentials</span>
-                              : <span suppressHydrationWarning>Synced {formatLastPolled(acct.last_polled_at)}</span>
+                              ? (acct.last_error.includes('invalid_grant') || acct.last_error.includes('expired') || acct.last_error.includes('reconnect'))
+                                ? <a href="/api/integrations/gmail/connect" className="text-amber-600 font-medium underline">Connection expired - tap to reconnect</a>
+                                : <span className="text-destructive">Sync error - check credentials</span>
+                              : acct.enabled
+                                ? <span suppressHydrationWarning>Synced {formatLastPolled(acct.last_polled_at)}</span>
+                                : <span className="text-amber-600">Paused</span>
                             }
                           </p>
                         </div>

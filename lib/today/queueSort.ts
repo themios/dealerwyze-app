@@ -182,11 +182,13 @@ export function buildQueue(
 
   const followUpTasks = tasks.filter(a =>
     a.type === 'email_followup' || a.type === 'sms_followup' ||
-    (a.type === 'email' && a.sequence_day && a.sequence_day >= 2)
+    (a.type === 'email' && a.sequence_day != null) ||
+    (a.type === 'sms' && a.sequence_day != null)
   )
   const regularTasks = tasks.filter(a =>
     !(a.type === 'email_followup' || a.type === 'sms_followup' ||
-    (a.type === 'email' && a.sequence_day && a.sequence_day >= 2))
+    (a.type === 'email' && a.sequence_day != null) ||
+    (a.type === 'sms' && a.sequence_day != null))
   )
   const appointments = regularTasks.filter(a => a.type === 'appointment')
   const nonApptTasks = regularTasks.filter(a => a.type !== 'appointment')

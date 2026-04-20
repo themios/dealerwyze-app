@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react'
 import Link from 'next/link'
-import { PIPELINE_STATES, LEAD_STATE_CONFIG, LEAD_STATES, type LeadState } from '@/lib/leads/states'
+import { OrgStage, DEFAULT_ORG_STAGES } from '@/lib/leads/states'
 import { formatPhone } from '@/lib/utils'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { ChevronRight, Flame } from 'lucide-react'
@@ -21,6 +21,7 @@ interface PipelineCustomer {
 interface Props {
   customers: PipelineCustomer[]
   lastActivityMap?: Record<string, string>
+  orgStages?: OrgStage[]
 }
 
 function timeAgo(isoStr: string | null): string {
@@ -51,11 +52,7 @@ function urgencyDotClass(lastActivityAt: string | undefined): string {
 }
 
 function PipelineCard({
-  customer,
-  lastActivity,
-  isDragging,
-  onDragStart,
-  onMoveClick,
+  customer, lastActivity, isDragging, onDragStart, onMoveClick,
 }: {
   customer: PipelineCustomer
   lastActivity: string | undefined
@@ -70,11 +67,7 @@ function PipelineCard({
       className={`rounded-xl border-l-4 bg-card p-3 space-y-1 cursor-grab active:cursor-grabbing shadow-sm transition-opacity ${urgencyBorderClass(lastActivity)} ${isDragging ? 'opacity-40 scale-95' : 'hover:bg-accent'}`}
     >
       <div className="flex items-start justify-between gap-1">
-        <Link
-          href={`/customers/${customer.id}`}
-          className="block flex-1 min-w-0"
-          draggable={false}
-        >
+        <Link href={`/customers/${customer.id}`} className="block flex-1 min-w-0" draggable={false}>
           <p className="text-sm font-medium leading-tight truncate flex items-center gap-1">
             {customer.lead_rating === 'hot' && <Flame className="h-3 w-3 text-orange-500 flex-shrink-0" />}
             {customer.name}
@@ -107,31 +100,30 @@ function PipelineCard({
 }
 
 function PipelineColumn({
-  state, customers, lastActivityMap, draggingId, isDragOver,
+  stage, customers, lastActivityMap, draggingId, isDragOver,
   onDragStart, onDragOver, onDragLeave, onDrop, onMoveClick,
 }: {
-  state: LeadState
+  stage: OrgStage
   customers: PipelineCustomer[]
   lastActivityMap: Record<string, string>
   draggingId: string | null
   isDragOver: boolean
   onDragStart: (id: string) => void
-  onDragOver: (e: React.DragEvent, state: LeadState) => void
+  onDragOver: (e: React.DragEvent, key: string) => void
   onDragLeave: () => void
-  onDrop: (e: React.DragEvent, state: LeadState) => void
+  onDrop: (e: React.DragEvent, key: string) => void
   onMoveClick: (id: string) => void
 }) {
-  const cfg = LEAD_STATE_CONFIG[state]
   return (
     <div
       className={`w-52 flex-shrink-0 flex flex-col gap-2 p-1.5 rounded-xl transition-colors ${isDragOver ? 'bg-primary/5 ring-2 ring-primary/20' : ''}`}
-      onDragOver={e => onDragOver(e, state)}
+      onDragOver={e => onDragOver(e, stage.stage_key)}
       onDragLeave={onDragLeave}
-      onDrop={e => onDrop(e, state)}
+      onDrop={e => onDrop(e, stage.stage_key)}
     >
       <div className="flex items-center gap-2 px-1">
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${cfg.color}`}>
-          {cfg.label}
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${stage.color}`}>
+          {stage.label}
         </span>
         <span className="text-xs text-muted-foreground">{customers.length}</span>
       </div>
@@ -157,48 +149,58 @@ function PipelineColumn({
   )
 }
 
-export default function PipelineBoard({ customers: initial, lastActivityMap = {} }: Props) {
+export default function PipelineBoard({ customers: initial, lastActivityMap = {}, orgStages = DEFAULT_ORG_STAGES }: Props) {
   const [customers, setCustomers] = useState<PipelineCustomer[]>(initial)
   const [draggingId, setDraggingId] = useState<string | null>(null)
-  const [dragOverState, setDragOverState] = useState<LeadState | null>(null)
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null)
   const [movePickerCustomer, setMovePickerCustomer] = useState<string | null>(null)
   const [savingMove, setSavingMove] = useState(false)
   const dragLeaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Active stages for pipeline columns (exclude dormant, only active stages)
+  const pipelineStages = orgStages
+    .filter(s => s.is_active && s.stage_key !== 'dormant')
+    .sort((a, b) => a.position - b.position)
+
+  // All active stages for the move picker (including dormant)
+  const allActiveStages = orgStages
+    .filter(s => s.is_active)
+    .sort((a, b) => a.position - b.position)
+
   const byState = Object.fromEntries(
-    PIPELINE_STATES.map(s => [s, customers.filter(c => (c.thread_state ?? 'new_lead') === s)])
-  ) as Record<LeadState, PipelineCustomer[]>
+    pipelineStages.map(s => [s.stage_key, customers.filter(c => (c.thread_state ?? 'new_lead') === s.stage_key)])
+  )
 
   function handleDragStart(id: string) { setDraggingId(id) }
 
-  function handleDragOver(e: React.DragEvent, state: LeadState) {
+  function handleDragOver(e: React.DragEvent, key: string) {
     e.preventDefault()
     if (dragLeaveTimer.current) { clearTimeout(dragLeaveTimer.current); dragLeaveTimer.current = null }
-    setDragOverState(state)
+    setDragOverKey(key)
   }
 
   function handleDragLeave() {
-    dragLeaveTimer.current = setTimeout(() => setDragOverState(null), 60)
+    dragLeaveTimer.current = setTimeout(() => setDragOverKey(null), 60)
   }
 
-  function handleDrop(e: React.DragEvent, state: LeadState) {
+  function handleDrop(e: React.DragEvent, key: string) {
     e.preventDefault()
     if (!draggingId) return
     const id = draggingId
     setDraggingId(null)
-    setDragOverState(null)
-    if ((customers.find(c => c.id === id)?.thread_state ?? 'new_lead') === state) return
-    setCustomers(prev => prev.map(c => c.id === id ? { ...c, thread_state: state } : c))
+    setDragOverKey(null)
+    if ((customers.find(c => c.id === id)?.thread_state ?? 'new_lead') === key) return
+    setCustomers(prev => prev.map(c => c.id === id ? { ...c, thread_state: key } : c))
     fetch(`/api/customers/${id}/state`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ state }),
+      body: JSON.stringify({ state: key }),
     })
   }
 
   function handleDragEnd() {
     setDraggingId(null)
-    setDragOverState(null)
+    setDragOverKey(null)
   }
 
   async function handleMoveStage(newState: string) {
@@ -217,7 +219,6 @@ export default function PipelineBoard({ customers: initial, lastActivityMap = {}
 
   return (
     <>
-      {/* Urgency legend */}
       <div className="px-4 pt-2 pb-0 flex items-center gap-3 text-[10px] text-muted-foreground flex-wrap">
         <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-green-400" /> Active &lt;24h</span>
         <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-yellow-400" /> 24-72h</span>
@@ -229,14 +230,14 @@ export default function PipelineBoard({ customers: initial, lastActivityMap = {}
         className="flex gap-3 overflow-x-auto px-4 py-3 pb-24 min-h-[calc(100dvh-140px)] items-start"
         onDragEnd={handleDragEnd}
       >
-        {PIPELINE_STATES.map(state => (
+        {pipelineStages.map(stage => (
           <PipelineColumn
-            key={state}
-            state={state}
-            customers={byState[state] ?? []}
+            key={stage.stage_key}
+            stage={stage}
+            customers={byState[stage.stage_key] ?? []}
             lastActivityMap={lastActivityMap}
             draggingId={draggingId}
-            isDragOver={dragOverState === state}
+            isDragOver={dragOverKey === stage.stage_key}
             onDragStart={handleDragStart}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -246,7 +247,6 @@ export default function PipelineBoard({ customers: initial, lastActivityMap = {}
         ))}
       </div>
 
-      {/* Stage picker sheet for mobile */}
       <Sheet open={!!movePickerCustomer} onOpenChange={o => { if (!o) setMovePickerCustomer(null) }}>
         <SheetContent side="bottom" className="rounded-t-2xl h-auto pb-8">
           <SheetHeader className="mb-4">
@@ -255,19 +255,19 @@ export default function PipelineBoard({ customers: initial, lastActivityMap = {}
             </SheetTitle>
           </SheetHeader>
           <div className="space-y-1">
-            {LEAD_STATES.map(s => {
-              const cfg = LEAD_STATE_CONFIG[s]
-              const isCurrent = (customers.find(c => c.id === movePickerCustomer)?.thread_state ?? 'new_lead') === s
+            {allActiveStages.map(stage => {
+              const isCurrent = (customers.find(c => c.id === movePickerCustomer)?.thread_state ?? 'new_lead') === stage.stage_key
+              const dotBg = stage.color.split(' ')[0].replace('100', '400')
               return (
                 <button
-                  key={s}
+                  key={stage.stage_key}
                   disabled={savingMove}
-                  onClick={() => handleMoveStage(s)}
+                  onClick={() => handleMoveStage(stage.stage_key)}
                   className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors ${isCurrent ? 'bg-muted font-semibold' : 'hover:bg-accent'}`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <span className={`inline-block w-2.5 h-2.5 rounded-full ${cfg.color.split(' ')[0]}`} />
-                    <span className="text-sm">{cfg.label}</span>
+                    <span className={`inline-block w-2.5 h-2.5 rounded-full ${dotBg}`} />
+                    <span className="text-sm">{stage.label}</span>
                   </div>
                   {isCurrent && <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                 </button>

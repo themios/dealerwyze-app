@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronRight, ExternalLink } from 'lucide-react'
+import { ChevronRight, ExternalLink, Phone, MessageSquare } from 'lucide-react'
 import DateTimePicker15 from '@/components/ui/DateTimePicker15'
 
 export interface Task {
@@ -194,51 +194,94 @@ function DetailSheet({ task, onClose, onComplete, onSnooze, onUpdate, onDelete }
     onClose()
   }
 
-  // Entity details card
-  let entityCard: React.ReactNode = null
-  if (task.vehicles) {
-    entityCard = (
-      <div className="rounded-lg border bg-muted/40 px-3 py-2 text-sm">
-        <div className="text-xs text-muted-foreground mb-0.5">Vehicle</div>
-        <div className="font-medium">{task.vehicles.year} {task.vehicles.make} {task.vehicles.model}</div>
-        <div className="text-xs text-muted-foreground">Stock #{task.vehicles.stock_no}</div>
+  // Entity cards — show all linked entities (customer, vehicle, receipt)
+  const entityCards: React.ReactNode[] = []
+
+  if (task.customers && task.linked_customer_id) {
+    const phone = task.customers.primary_phone
+    entityCards.push(
+      <div key="customer" className="rounded-lg border bg-muted/40 px-3 py-2 text-sm">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-xs text-muted-foreground mb-0.5">Customer</div>
+            <div className="font-medium truncate">{task.customers.name}</div>
+            {phone && <div className="text-xs text-muted-foreground">{phone}</div>}
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
+            {phone && (
+              <>
+                <a
+                  href={`tel:${phone.replace(/\D/g, '')}`}
+                  className="flex items-center gap-1 text-xs text-green-600 font-medium hover:underline"
+                  onClick={e => e.stopPropagation()}
+                >
+                  <Phone className="h-3.5 w-3.5" />
+                  Call
+                </a>
+                <a
+                  href={`sms:${phone.replace(/\D/g, '')}`}
+                  className="flex items-center gap-1 text-xs text-blue-500 font-medium hover:underline"
+                  onClick={e => e.stopPropagation()}
+                >
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  Text
+                </a>
+              </>
+            )}
+            <button
+              onClick={() => { onClose(); router.push(`/customers/${task.linked_customer_id}`) }}
+              className="flex items-center gap-1 text-xs text-primary font-medium hover:underline"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Open
+            </button>
+          </div>
+        </div>
       </div>
     )
-  } else if (task.receipts) {
+  }
+
+  if (task.vehicles && task.linked_vehicle_id) {
+    entityCards.push(
+      <div key="vehicle" className="rounded-lg border bg-muted/40 px-3 py-2 text-sm">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-xs text-muted-foreground mb-0.5">Vehicle</div>
+            <div className="font-medium">{task.vehicles.year} {task.vehicles.make} {task.vehicles.model}</div>
+            <div className="text-xs text-muted-foreground">Stock #{task.vehicles.stock_no}</div>
+          </div>
+          <button
+            onClick={() => { onClose(); router.push(`/vehicles/${task.linked_vehicle_id}`) }}
+            className="flex items-center gap-1 text-xs text-primary font-medium hover:underline shrink-0 mt-0.5"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            Open
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (task.receipts && task.linked_receipt_id) {
     const vendor = task.receipts.vendor_norm ?? task.receipts.vendor_raw
-    entityCard = (
-      <div className="rounded-lg border bg-muted/40 px-3 py-2 text-sm">
-        <div className="flex items-center justify-between gap-2">
-          <div>
+    entityCards.push(
+      <div key="receipt" className="rounded-lg border bg-muted/40 px-3 py-2 text-sm">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
             <div className="text-xs text-muted-foreground mb-0.5">Receipt</div>
             <div className="font-medium">{vendor ?? 'Unknown vendor'}</div>
             {task.receipts.total != null && (
               <div className="text-xs text-muted-foreground">${task.receipts.total.toFixed(2)}</div>
             )}
           </div>
-          {task.linked_receipt_id && (
-            <button
-              onClick={() => {
-                onClose()
-                router.push(`/receipts/${task.linked_receipt_id}/review`)
-              }}
-              className="flex items-center gap-1 text-xs text-primary font-medium hover:underline shrink-0"
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-              Open
-            </button>
-          )}
+          <button
+            onClick={() => { onClose(); router.push(`/receipts/${task.linked_receipt_id}/review`) }}
+            className="flex items-center gap-1 text-xs text-primary font-medium hover:underline shrink-0 mt-0.5"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            Open
+          </button>
         </div>
-      </div>
-    )
-  } else if (task.customers) {
-    entityCard = (
-      <div className="rounded-lg border bg-muted/40 px-3 py-2 text-sm">
-        <div className="text-xs text-muted-foreground mb-0.5">Customer</div>
-        <div className="font-medium">{task.customers.name}</div>
-        {task.customers.primary_phone && (
-          <div className="text-xs text-muted-foreground">{task.customers.primary_phone}</div>
-        )}
       </div>
     )
   }
@@ -271,7 +314,9 @@ function DetailSheet({ task, onClose, onComplete, onSnooze, onUpdate, onDelete }
         </div>
 
         {/* Entity card */}
-        {entityCard && <div className="mb-3">{entityCard}</div>}
+        {entityCards.length > 0 && (
+          <div className="flex flex-col gap-2 mb-3">{entityCards}</div>
+        )}
 
         {/* Due date/time */}
         <div className="mb-3">

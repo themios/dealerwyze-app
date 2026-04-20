@@ -1,18 +1,17 @@
+export const dynamic = 'force-dynamic'
+
 import { createClientForRequest } from '@/lib/supabase/forRequest'
 import { requireProfile } from '@/lib/auth/profile'
 import { shouldShowAddressedActivity } from '@/lib/utils'
 import Link from 'next/link'
-import { Search, Receipt, CalendarDays } from 'lucide-react'
+import { Receipt, CalendarDays } from 'lucide-react'
 import TopBar from '@/components/layout/TopBar'
 import TodayContent from './TodayContent'
 import SyncGmailButton from '@/components/leads/SyncGmailButton'
 import TodoSection from '@/components/today/TodoSection'
 import DealerBriefClient from '@/components/today/DealerBriefClient'
 import OnboardingChecklist from '@/components/today/OnboardingChecklist'
-import ResponseTimeWidget from '@/components/today/ResponseTimeWidget'
 import ReviewsSection from '@/components/today/ReviewsSection'
-
-export const dynamic = 'force-dynamic'
 
 export default async function TodayPage() {
   const profile = await requireProfile()
@@ -34,6 +33,7 @@ export default async function TodayPage() {
     .eq('direction', 'inbound')
     .eq('outcome', 'pending')
     .is('completed_at', null)
+
     .or(`snoozed_until.is.null,snoozed_until.lt.${now}`)
     .order('created_at', { ascending: false })
 
@@ -210,6 +210,7 @@ export default async function TodayPage() {
     .eq('direction', 'inbound')
     .eq('outcome', 'pending')
     .is('completed_at', null)
+
     .or(`snoozed_until.is.null,snoozed_until.lt.${now}`)
     .order('created_at', { ascending: false })
   const vehicleMatches = (vehicleMatchesRaw || []).filter(
@@ -225,6 +226,7 @@ export default async function TodayPage() {
     .eq('direction', 'inbound')
     .eq('outcome', 'pending')
     .is('completed_at', null)
+
     .or(`snoozed_until.is.null,snoozed_until.lt.${now}`)
     .order('created_at', { ascending: false })
 
@@ -246,7 +248,6 @@ export default async function TodayPage() {
         left={<SyncGmailButton compact />}
         right={
           <>
-            <Link href="/search" className="p-1.5 text-white/70 hover:text-white" aria-label="Search" title="Search"><Search className="h-5 w-5" /></Link>
             <Link href="/calendar" className="p-1.5 text-white/70 hover:text-white" aria-label="Calendar" title="Calendar"><CalendarDays className="h-5 w-5" /></Link>
             <Link href="/receipts" className="p-1.5 text-white/70 hover:text-white" aria-label="Receipts" title="Scan receipts"><Receipt className="h-5 w-5" /></Link>
           </>
@@ -275,7 +276,6 @@ export default async function TodayPage() {
         {/* Left column: Intelligence — DealerBrief, ResponseTime, Reviews */}
         <div className="lg:border-r lg:border-border lg:overflow-y-auto lg:h-full">
           <DealerBriefClient />
-          <ResponseTimeWidget orgId={orgId} />
           {(gbpReviews?.length ?? 0) > 0 && (
             <ReviewsSection initialReviews={gbpReviews!} />
           )}

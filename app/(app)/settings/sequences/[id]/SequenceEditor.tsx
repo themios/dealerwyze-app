@@ -28,7 +28,17 @@ interface Sequence {
   name: string
   channel: 'sms' | 'email'
   auto_mode: 'manual' | 'semi_auto' | 'full_auto'
+  topic: string
 }
+
+const TOPIC_OPTIONS = [
+  { value: 'new_lead',   label: 'New Lead' },
+  { value: 're_inquiry', label: 'Re-inquiry' },
+  { value: 'post_sale',  label: 'Post-Sale' },
+  { value: 'trade_in',   label: 'Trade-In' },
+  { value: 'financing',  label: 'Financing' },
+  { value: 'general',    label: 'General' },
+]
 
 interface Props {
   sequence: Sequence
@@ -57,6 +67,7 @@ function hour12To24(hour: number, ampm: 'AM' | 'PM'): number {
 export default function SequenceEditor({ sequence, initialSteps, templates }: Props) {
   const [name, setName] = useState(sequence.name)
   const [autoMode, setAutoMode] = useState<'manual' | 'semi_auto' | 'full_auto'>(sequence.auto_mode)
+  const [topic, setTopic] = useState(sequence.topic ?? 'general')
   const [steps, setSteps] = useState<Step[]>(initialSteps)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -70,7 +81,7 @@ export default function SequenceEditor({ sequence, initialSteps, templates }: Pr
       await fetch(`/api/sequences/${sequence.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, auto_mode: autoMode }),
+        body: JSON.stringify({ name, auto_mode: autoMode, topic }),
       })
       setDirty(false)
     } finally {
@@ -142,7 +153,7 @@ export default function SequenceEditor({ sequence, initialSteps, templates }: Pr
 
   return (
     <div className="space-y-6 pb-24">
-      {/* Name + mode */}
+      {/* Name + topic + mode */}
       <div className="space-y-3">
         <div>
           <p className="text-xs text-muted-foreground mb-1.5">Sequence name</p>
@@ -151,6 +162,21 @@ export default function SequenceEditor({ sequence, initialSteps, templates }: Pr
             onChange={e => { setName(e.target.value); markDirty() }}
             className="font-medium"
           />
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground mb-1.5">Topic</p>
+          <select
+            value={topic}
+            onChange={e => { setTopic(e.target.value); markDirty() }}
+            className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+          >
+            {TOPIC_OPTIONS.map(t => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
+          <p className="text-xs text-muted-foreground mt-1">
+            Used to organize sequences in the auto-response picker (Settings &rarr; Automation).
+          </p>
         </div>
         <div>
           <p className="text-xs text-muted-foreground mb-1.5">Send mode</p>

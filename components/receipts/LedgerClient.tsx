@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { Download, Search, X, Car, Pencil, Check, Loader2 } from 'lucide-react'
+import { Download, Search, X, Car, Pencil, Check, Loader2, Trash2, ArrowUpDown } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 interface VehicleJoin {
   stock_no: string
@@ -293,9 +294,22 @@ export default function LedgerClient({
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [editing, setEditing] = useState<Transaction | null>(null)
+  const [deleting, setDeleting] = useState<string | null>(null)
+  const [filterMonth, setFilterMonth] = useState('')
+  const [sortBy, setSortBy] = useState('date_desc')
+
+  // Unique months from all transactions for the month dropdown
+  const availableMonths = useMemo(() => {
+    const seen = new Set<string>()
+    transactions.forEach(t => {
+      const m = (t.date ?? '').slice(0, 7)
+      if (m) seen.add(m)
+    })
+    return Array.from(seen).sort().reverse()
+  }, [transactions])
 
   const filtered = useMemo(() => {
-    return transactions.filter(t => {
+    const result = transactions.filter(t => {
       const vendor = (t.vendor_norm ?? '').toLowerCase()
       const memo = (t.memo ?? '').toLowerCase()
       const veh = getVehicle(t, allVehicles)
@@ -305,17 +319,42 @@ export default function LedgerClient({
       if (search && !vendor.includes(q) && !memo.includes(q) && !vehText.includes(q)) return false
       if (filterCat && getCatName(t, categories) !== filterCat) return false
       const txDate = (t.date ?? '').slice(0, 10)
+      if (filterMonth && !txDate.startsWith(filterMonth)) return false
       if (dateFrom && txDate < dateFrom) return false
       if (dateTo && txDate > dateTo) return false
       return true
     })
-  }, [transactions, search, filterCat, dateFrom, dateTo, categories, allVehicles])
+
+    result.sort((a, b) => {
+      switch (sortBy) {
+        case 'date_asc':  return (a.date ?? '').localeCompare(b.date ?? '')
+        case 'date_desc': return (b.date ?? '').localeCompare(a.date ?? '')
+        case 'amount_desc': return (b.amount_total ?? 0) - (a.amount_total ?? 0)
+        case 'amount_asc':  return (a.amount_total ?? 0) - (b.amount_total ?? 0)
+        case 'vendor_az':   return (a.vendor_norm ?? '').localeCompare(b.vendor_norm ?? '')
+        default: return 0
+      }
+    })
+
+    return result
+  }, [transactions, search, filterCat, filterMonth, dateFrom, dateTo, sortBy, categories, allVehicles])
 
   const totalAmount = filtered.reduce((sum, t) => sum + (t.amount_total ?? 0), 0)
-  const hasFilters = search || filterCat || dateFrom || dateTo
+  const hasFilters = search || filterCat || dateFrom || dateTo || filterMonth
 
   function handleSaved(updated: Transaction) {
     setTransactions(prev => prev.map(t => t.id === updated.id ? { ...t, ...updated } : t))
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm('Delete this transaction? This cannot be undone.')) return
+    setDeleting(id)
+    try {
+      const res = await fetch(`/api/receipts/ledger/${id}`, { method: 'DELETE' })
+      if (res.ok) setTransactions(prev => prev.filter(t => t.id !== id))
+    } finally {
+      setDeleting(null)
+    }
   }
 
   function exportCsv() {
@@ -340,6 +379,37 @@ export default function LedgerClient({
             <X className="h-4 w-4 text-muted-foreground" />
           </button>
         )}
+      </div>
+
+      {/* Month + Sort row */}
+      <div className="grid grid-cols-2 gap-2">
+        <Select value={filterMonth || 'all'} onValueChange={v => setFilterMonth(v === 'all' ? '' : v)}>
+          <SelectTrigger className="h-9 text-xs">
+            <SelectValue placeholder="All months" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All months</SelectItem>
+            {availableMonths.map(m => {
+              const [yr, mo] = m.split('-')
+              const label = new Date(Number(yr), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+              return <SelectItem key={m} value={m}>{label}</SelectItem>
+            })}
+          </SelectContent>
+        </Select>
+
+        <Select value={sortBy} onValueChange={setSortBy}>
+          <SelectTrigger className="h-9 text-xs">
+            <ArrowUpDown className="h-3 w-3 mr-1 text-muted-foreground" />
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="date_desc">Date: Newest first</SelectItem>
+            <SelectItem value="date_asc">Date: Oldest first</SelectItem>
+            <SelectItem value="amount_desc">Amount: High to low</SelectItem>
+            <SelectItem value="amount_asc">Amount: Low to high</SelectItem>
+            <SelectItem value="vendor_az">Vendor: A to Z</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Date filters */}
@@ -379,7 +449,7 @@ export default function LedgerClient({
           <span className="text-sm font-semibold">{filtered.length} transactions</span>
           {hasFilters && (
             <button
-              onClick={() => { setSearch(''); setFilterCat(''); setDateFrom(''); setDateTo('') }}
+              onClick={() => { setSearch(''); setFilterCat(''); setDateFrom(''); setDateTo(''); setFilterMonth('') }}
               className="ml-2 text-xs text-primary"
             >
               Clear
@@ -439,12 +509,24 @@ export default function LedgerClient({
                     </p>
                   </div>
                   {isAdmin && (
-                    <button
-                      onClick={() => setEditing(t)}
-                      className="mt-0.5 p-1.5 rounded-lg hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
+                    <>
+                      <button
+                        onClick={() => setEditing(t)}
+                        className="mt-0.5 p-1.5 rounded-lg hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(t.id)}
+                        disabled={deleting === t.id}
+                        className="mt-0.5 p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
+                      >
+                        {deleting === t.id
+                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          : <Trash2 className="h-3.5 w-3.5" />
+                        }
+                      </button>
+                    </>
                   )}
                 </div>
               </div>

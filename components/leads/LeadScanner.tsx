@@ -2,8 +2,9 @@
 
 import React, { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Camera, FileText, Image, X, ChevronRight, AlertTriangle, CheckCircle, XCircle } from 'lucide-react'
+import { Camera, FileText, Image, X, ChevronRight, AlertTriangle, CheckCircle, XCircle, Car } from 'lucide-react'
 import type { LeadScanResult, Confidence, ScanField } from '@/lib/leads/visionIngestTypes'
+import VehiclePickerSheet from '@/components/customer/VehiclePickerSheet'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -101,10 +102,13 @@ export default function LeadScanner({ onClose }: { onClose?: () => void }) {
   const [duplicate, setDuplicate] = useState<Duplicate | null>(null)
   const [isPdf,     setIsPdf]     = useState(false)
   const [overrides, setOverrides] = useState<Overrides>({})
-  const [sendSms,   setSendSms]   = useState(false)
-  const [error,     setError]     = useState<string | null>(null)
-  const [quotaMsg,  setQuotaMsg]  = useState<string | null>(null)
-  const [ignoredup, setIgnoreDup] = useState(false)
+  const [sendSms,        setSendSms]        = useState(false)
+  const [error,          setError]          = useState<string | null>(null)
+  const [quotaMsg,       setQuotaMsg]       = useState<string | null>(null)
+  const [ignoredup,      setIgnoreDup]      = useState(false)
+  const [linkVehicleId,  setLinkVehicleId]  = useState<string | null>(null)
+  const [linkVehicleName,setLinkVehicleName]= useState<string | null>(null)
+  const [vehicleSheetOpen, setVehicleSheetOpen] = useState(false)
 
   function set<K extends keyof Overrides>(key: K, val: Overrides[K]) {
     setOverrides(prev => ({ ...prev, [key]: val }))
@@ -147,7 +151,7 @@ export default function LeadScanner({ onClose }: { onClose?: () => void }) {
     const res = await fetch('/api/leads/create-from-scan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ scan, isPdf, send_intro_sms: sendSms, overrides }),
+      body: JSON.stringify({ scan, isPdf, send_intro_sms: sendSms, overrides, link_vehicle_id: linkVehicleId }),
     })
 
     if (!res.ok) {
@@ -300,6 +304,40 @@ export default function LeadScanner({ onClose }: { onClose?: () => void }) {
             <Field label="VIN"   field={scan.vehicle_vin}   override={overrides.vehicle_vin}   onEdit={v => set('vehicle_vin', v)} />
           </section>
 
+          {/* Link to inventory vehicle */}
+          <section className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Link Inventory Vehicle</p>
+            <div className="flex items-center gap-2">
+              {linkVehicleId && linkVehicleName ? (
+                <>
+                  <span className="flex-1 text-sm flex items-center gap-1.5">
+                    <Car className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                    <span className="text-green-700 font-medium">{linkVehicleName}</span>
+                  </span>
+                  <button
+                    className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-border"
+                    onClick={() => setVehicleSheetOpen(true)}
+                  >
+                    Change
+                  </button>
+                  <button
+                    className="text-xs text-red-500 hover:text-red-700 px-2 py-1 rounded border border-red-200"
+                    onClick={() => { setLinkVehicleId(null); setLinkVehicleName(null) }}
+                  >
+                    Remove
+                  </button>
+                </>
+              ) : (
+                <button
+                  className="flex items-center gap-1.5 text-sm text-primary hover:underline"
+                  onClick={() => setVehicleSheetOpen(true)}
+                >
+                  <Car className="h-3.5 w-3.5" />+ Assign from inventory
+                </button>
+              )}
+            </div>
+          </section>
+
           {/* Extra signals */}
           {(scanValue(scan.notes) || scanValue(scan.trade_in) || scanValue(scan.urgency)) && (
             <section className="space-y-2">
@@ -354,6 +392,12 @@ export default function LeadScanner({ onClose }: { onClose?: () => void }) {
           >
             ← Scan another
           </button>
+
+          <VehiclePickerSheet
+            open={vehicleSheetOpen}
+            onOpenChange={setVehicleSheetOpen}
+            onSelect={(id, name) => { setLinkVehicleId(id); setLinkVehicleName(name); setVehicleSheetOpen(false) }}
+          />
         </div>
       )}
 

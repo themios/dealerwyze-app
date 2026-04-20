@@ -32,11 +32,62 @@ import {
   Wallet,
   TrendingUp,
   ShieldCheck,
+  Moon,
+  Inbox,
+  Zap,
+  CalendarCheck,
+  Camera,
+  Newspaper,
+  Link2,
+  FlaskConical,
 } from 'lucide-react'
+import { motion, useInView, type Variants } from 'framer-motion'
+import { useRef } from 'react'
 
 // ─── Colours ─────────────────────────────────────────────────────────────────
 const NAVY   = '#0D2B55'
 const ORANGE = '#F07018'
+
+// ─── Animation helpers ────────────────────────────────────────────────────────
+function FadeUp({ children, delay = 0, className = '' }: { children: React.ReactNode; delay?: number; className?: string }) {
+  const ref = useRef(null)
+  const inView = useInView(ref, { once: true, margin: '-60px' })
+  return (
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, y: 28 }}
+      animate={inView ? { opacity: 1, y: 0 } : {}}
+      transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1], delay }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  )
+}
+
+function StaggerGrid({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  const ref = useRef(null)
+  const inView = useInView(ref, { once: true, margin: '-60px' })
+  return (
+    <motion.div
+      ref={ref}
+      className={className}
+      initial="hidden"
+      animate={inView ? 'visible' : 'hidden'}
+      variants={{
+        hidden: {},
+        visible: { transition: { staggerChildren: 0.08 } },
+      }}
+    >
+      {children}
+    </motion.div>
+  )
+}
+
+const cardVariants: Variants = {
+  hidden: { opacity: 0, y: 24 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] } },
+}
 
 // ─── Nav ────────────────────────────────────────────────────────────────────
 
@@ -161,10 +212,9 @@ function PhoneMockup() {
           </div>
           <div className="flex flex-col gap-2">
             {tasks.map((task, i) => (
-              <div key={i} className="rounded-xl overflow-hidden flex"
-                style={{ backgroundColor: 'rgba(255,255,255,0.07)' }}>
-                <div className="w-1 flex-shrink-0 rounded-l-xl" style={{ backgroundColor: task.color }} />
-                <div className="px-3 py-2.5 flex-1">
+              <div key={i} className="rounded-xl overflow-hidden"
+                style={{ backgroundColor: task.color + '18', border: `1px solid ${task.color}44` }}>
+                <div className="px-3 py-2.5">
                   <div className="flex items-center justify-between mb-0.5">
                     <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded"
                       style={{ backgroundColor: task.color + '33', color: task.color }}>
@@ -196,6 +246,7 @@ function HeroSection() {
 
       <div className="relative max-w-6xl mx-auto px-4 sm:px-6 py-20 lg:py-32">
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+          <FadeUp>
           <div>
             <div className="inline-flex items-center gap-2 mb-6">
               <span className="text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-full"
@@ -204,31 +255,39 @@ function HeroSection() {
               </span>
             </div>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white leading-[1.05] mb-5">
-              Stop Losing Deals<br />
-              <span style={{ color: ORANGE }}>Overnight.</span>
+              Stop Losing Dealer Leads<br />
+              <span style={{ color: ORANGE }}>After Hours.</span>
             </h1>
             <p className="text-lg sm:text-xl leading-relaxed mb-8 max-w-lg"
               style={{ color: 'rgba(255,255,255,0.75)' }}>
-              DealerWyze gives you one place for every lead, every car, and every
-              next step - so you stop context-switching and start closing.
+              DealerWyze captures lead emails, tracks every conversation, and shows
+              exactly who needs attention next - so independent dealers close more
+              deals without adding staff.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 mb-6">
-              <Link href="/signup"
+              <a href="#how-it-works"
                 className="inline-flex items-center justify-center gap-2 px-7 py-4 rounded-xl font-bold text-base text-white transition-all hover:opacity-90 active:scale-95 shadow-lg"
                 style={{ backgroundColor: ORANGE, boxShadow: '0 4px 20px rgba(240,112,24,0.4)' }}>
-                Start Free - No Card Needed
+                See How It Works
                 <ChevronRight className="w-4 h-4" />
-              </Link>
-              <a href="#features"
+              </a>
+              <Link href="/signup"
                 className="inline-flex items-center justify-center gap-2 px-7 py-4 rounded-xl font-semibold text-base transition-all hover:bg-white/10 border"
                 style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.35)' }}>
-                See How It Works
-              </a>
+                Get Beta Access
+              </Link>
             </div>
-            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>
-              Free during beta · No credit card · No commitment
-            </p>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>
+              <span>Built for independent dealers</span>
+              <span>·</span>
+              <span>Gmail + IMAP lead import</span>
+              <span>·</span>
+              <span>Vehicle-linked CRM</span>
+              <span>·</span>
+              <span>Free during beta</span>
+            </div>
           </div>
+          </FadeUp>
           <div className="flex justify-center lg:justify-end">
             <PhoneMockup />
           </div>
@@ -255,10 +314,10 @@ function ElevatorPitchSection() {
           Who This Is For
         </p>
         <blockquote className="text-2xl sm:text-3xl lg:text-4xl font-black text-white leading-snug mb-10">
-          &ldquo;If you&rsquo;re tired of paying for leads that never get followed up on, frustrated you can&rsquo;t see what your sales team is actually doing, and losing deals to the dealer down the street simply because they called back first- sign up for DealerWyze.&rdquo;
+          &ldquo;If you&rsquo;re tired of paying for leads that never get followed up on, frustrated you can&rsquo;t see what your sales team is actually doing, and losing deals to the dealer down the street simply because they called back first: sign up for DealerWyze.&rdquo;
         </blockquote>
         <p className="text-lg sm:text-xl font-semibold text-white/90 mb-10 max-w-2xl mx-auto">
-          Every lead texted back in under 60 seconds. Every rep accountable. Every follow-up automated- even while you sleep.
+          Every lead texted back in under 60 seconds. Every rep accountable. Every follow-up automated, even while you sleep.
         </p>
         <Link
           href="/signup"
@@ -277,13 +336,13 @@ function ElevatorPitchSection() {
 // ─── Pain ────────────────────────────────────────────────────────────────────
 
 const painPoints = [
-  { emoji: '📱', title: 'Leads from everywhere',
+  { icon: Inbox, title: 'Leads from everywhere',
     desc: 'Calls, texts, Gmail, AutoTrader, CarGurus - no single place to track them all.' },
-  { emoji: '🌙', title: 'The overnight miss',
+  { icon: Moon, title: 'The overnight miss',
     desc: "A lead came in at 10pm. By morning, they'd already bought from the dealer who responded at 10:01pm." },
-  { emoji: '🚗', title: 'Which car did they want?',
+  { icon: Car, title: 'Which car did they want?',
     desc: 'You remember the customer but not the vehicle. You scroll through texts trying to piece it together.' },
-  { emoji: '📋', title: 'No system = no follow-up',
+  { icon: Zap, title: 'No system = no follow-up',
     desc: 'You mean to call back. You get busy. Three days pass. The deal is gone.' },
 ]
 
@@ -291,28 +350,37 @@ function PainSection() {
   return (
     <section className="bg-white py-20 lg:py-28">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="text-center mb-14">
+        <FadeUp><div className="text-center mb-14">
           <p className="text-xs font-black uppercase tracking-widest mb-3" style={{ color: ORANGE }}>
             The Problem
           </p>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-4" style={{ color: NAVY }}>
-            Running a small lot means wearing every hat.
+            Most small dealers don&apos;t have a lead problem.
+            <br className="hidden sm:block" />
+            <span style={{ color: ORANGE }}> They have a follow-up problem.</span>
           </h2>
           <p className="text-lg max-w-xl mx-auto" style={{ color: '#6B6355' }}>
-            And somewhere between the calls, texts, and emails - deals fall through the cracks.
+            A lead comes in after hours. A rep forgets to call back. By the time
+            someone follows up, the buyer is already gone.
           </p>
-        </div>
-        <div className="grid sm:grid-cols-2 gap-5">
-          {painPoints.map((p, i) => (
-            <div key={i} className="group rounded-2xl p-6 transition-all duration-200 hover:-translate-y-1 cursor-default"
-              style={{ backgroundColor: '#F8F4EE', border: '1px solid #E8E2D8',
-                boxShadow: '0 1px 4px rgba(13,43,85,0.06)' }}>
-              <div className="text-3xl mb-3">{p.emoji}</div>
-              <h3 className="font-black text-lg mb-2" style={{ color: NAVY }}>{p.title}</h3>
-              <p className="text-sm leading-relaxed" style={{ color: '#6B6355' }}>{p.desc}</p>
-            </div>
-          ))}
-        </div>
+        </div></FadeUp>
+        <StaggerGrid className="grid sm:grid-cols-2 gap-5">
+          {painPoints.map((p, i) => {
+            const Icon = p.icon
+            return (
+              <motion.div key={i} variants={cardVariants} className="group rounded-2xl p-6 transition-all duration-200 hover:-translate-y-1 cursor-default"
+                style={{ backgroundColor: '#F8F4EE', border: '1px solid #E8E2D8',
+                  boxShadow: '0 1px 4px rgba(13,43,85,0.06)' }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4"
+                  style={{ backgroundColor: 'rgba(240,112,24,0.1)' }}>
+                  <Icon className="w-5 h-5" style={{ color: ORANGE }} />
+                </div>
+                <h3 className="font-black text-lg mb-2" style={{ color: NAVY }}>{p.title}</h3>
+                <p className="text-sm leading-relaxed" style={{ color: '#6B6355' }}>{p.desc}</p>
+              </motion.div>
+            )
+          })}
+        </StaggerGrid>
       </div>
     </section>
   )
@@ -340,23 +408,20 @@ const howSteps = [
 
 function HowItWorksSection() {
   return (
-    <section className="py-20 lg:py-28" style={{ backgroundColor: '#F4F0EA' }}>
+    <section id="how-it-works" className="py-20 lg:py-28" style={{ backgroundColor: '#F4F0EA' }}>
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="text-center mb-14">
-          <p className="text-xs font-black uppercase tracking-widest mb-3" style={{ color: ORANGE }}>
-            How It Works
-          </p>
+        <FadeUp><div className="mb-14">
           <h2 className="text-3xl sm:text-4xl font-black" style={{ color: NAVY }}>
             Up and running in an afternoon.
           </h2>
-          <p className="text-base mt-3 max-w-xl mx-auto" style={{ color: '#6B6355' }}>
+          <p className="text-base mt-3 max-w-xl" style={{ color: '#6B6355' }}>
             No IT department. No 6-week onboarding. No training sessions.
           </p>
-        </div>
-        <div className="grid sm:grid-cols-3 gap-6">
+        </div></FadeUp>
+        <StaggerGrid className="grid sm:grid-cols-3 gap-6">
           {howSteps.map((step, i) => (
-            <div key={i} className="relative rounded-2xl p-7 flex flex-col"
-              style={{ backgroundColor: '#fff', border: '1px solid #E8E2D8',
+            <motion.div key={i} variants={cardVariants} className="relative rounded-2xl p-7 flex flex-col"
+              style={{ backgroundColor: '#FDFAF7', border: '1px solid #E8E2D8',
                 boxShadow: '0 2px 12px rgba(13,43,85,0.06)' }}>
               <div className="text-5xl font-black mb-4 leading-none select-none"
                 style={{ color: `rgba(240,112,24,0.18)` }}>
@@ -371,9 +436,9 @@ function HowItWorksSection() {
                   →
                 </div>
               )}
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </StaggerGrid>
       </div>
     </section>
   )
@@ -382,11 +447,11 @@ function HowItWorksSection() {
 // ─── Today List ───────────────────────────────────────────────────────────────
 
 const todayCallouts = [
-  { icon: '⚡', title: '10-second logging',
+  { icon: Zap, title: '10-second logging',
     desc: 'Call a customer, log the outcome and next step in one tap. No typing essays.' },
-  { icon: '📅', title: 'Never miss a follow-up',
+  { icon: CalendarCheck, title: 'Never miss a follow-up',
     desc: 'Every touch auto-creates the next step. Nothing falls off the list.' },
-  { icon: '🚗', title: 'Vehicle-linked',
+  { icon: Link2, title: 'Vehicle-linked',
     desc: "Every customer is connected to the car they're considering. Full context, instantly." },
 ]
 
@@ -394,7 +459,7 @@ function TodayListSection() {
   return (
     <section className="py-20 lg:py-28" style={{ backgroundColor: NAVY }}>
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="text-center mb-14">
+        <FadeUp><div className="text-center mb-14">
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white mb-5">
             One list. Everything that needs your{' '}
             <span style={{ color: ORANGE }}>attention today.</span>
@@ -403,18 +468,24 @@ function TodayListSection() {
             Overdue calls. Appointment requests. New leads. Customers waiting on a reply.
             All in one place - ranked by urgency, not by when it arrived in your inbox.
           </p>
-        </div>
-        <div className="grid sm:grid-cols-3 gap-5">
-          {todayCallouts.map((c, i) => (
-            <div key={i} className="rounded-2xl p-6 transition-all duration-200 hover:-translate-y-1"
-              style={{ backgroundColor: 'rgba(255,255,255,0.07)',
-                border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(10px)' }}>
-              <div className="text-3xl mb-4">{c.icon}</div>
-              <h3 className="font-black text-white text-lg mb-2">{c.title}</h3>
-              <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.6)' }}>{c.desc}</p>
-            </div>
-          ))}
-        </div>
+        </div></FadeUp>
+        <StaggerGrid className="grid sm:grid-cols-3 gap-5">
+          {todayCallouts.map((c, i) => {
+            const Icon = c.icon
+            return (
+              <motion.div key={i} variants={cardVariants} className="rounded-2xl p-6 transition-all duration-200 hover:-translate-y-1"
+                style={{ backgroundColor: 'rgba(255,255,255,0.07)',
+                  border: '1px solid rgba(255,255,255,0.12)' }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4"
+                  style={{ backgroundColor: 'rgba(240,112,24,0.15)' }}>
+                  <Icon className="w-5 h-5" style={{ color: ORANGE }} />
+                </div>
+                <h3 className="font-black text-white text-lg mb-2">{c.title}</h3>
+                <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.6)' }}>{c.desc}</p>
+              </motion.div>
+            )
+          })}
+        </StaggerGrid>
       </div>
     </section>
   )
@@ -423,15 +494,15 @@ function TodayListSection() {
 // ─── AI Section ───────────────────────────────────────────────────────────────
 
 const aiFeatures = [
-  { icon: '🤖', title: 'AI Voice Agent',
+  { icon: Phone, title: 'AI Voice Agent',
     desc: 'A Retell AI agent answers inbound calls, qualifies leads, and logs the full transcript and summary back to the customer record - automatically.' },
-  { icon: '📸', title: 'AI Lead Scanner',
+  { icon: Camera, title: 'AI Lead Scanner',
     desc: 'Snap a photo of a handwritten buyer inquiry or upload a PDF. AI extracts the customer name, phone, vehicle interest, and creates the lead in seconds.' },
-  { icon: '📰', title: 'AI Dealer Brief',
+  { icon: Newspaper, title: 'AI Dealer Brief',
     desc: 'Every morning, a one-paragraph summary of your day: new leads, appointments, overdue follow-ups, and what needs to happen first.' },
-  { icon: '🧾', title: 'AI Receipt OCR',
+  { icon: ScanLine, title: 'AI Receipt OCR',
     desc: 'Upload a receipt photo. AI extracts vendor, amount, category, and posts it to your ledger - cutting bookkeeping time by half.' },
-  { icon: '📊', title: 'AI Smart Pricing',
+  { icon: TrendingUp, title: 'AI Smart Pricing',
     desc: 'Get live Fast Sale, Fair Market, and Max Return price tiers for any vehicle in your inventory - with market comps, an NHTSA reliability check, and a full AI market analysis. No CarGurus subscription needed.' },
 ]
 
@@ -439,34 +510,33 @@ function AISection() {
   return (
     <section className="py-20 lg:py-28" style={{ backgroundColor: '#FAFAFA' }}>
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="text-center mb-14">
-          <div className="inline-flex items-center gap-2 mb-4 px-4 py-2 rounded-full"
-            style={{ backgroundColor: 'rgba(240,112,24,0.1)', border: '1px solid rgba(240,112,24,0.25)' }}>
-            <Sparkles className="w-4 h-4" style={{ color: ORANGE }} />
-            <span className="text-xs font-black uppercase tracking-widest" style={{ color: ORANGE }}>
-              AI-Powered
-            </span>
-          </div>
+        <FadeUp><div className="mb-14">
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-4" style={{ color: NAVY }}>
             Works while you&apos;re on the lot.
           </h2>
-          <p className="text-lg max-w-2xl mx-auto" style={{ color: '#6B6355' }}>
+          <p className="text-lg max-w-2xl" style={{ color: '#6B6355' }}>
             Five AI systems handle the tedious parts - so you focus on the customer in front of you.
           </p>
-        </div>
-        <div className="grid sm:grid-cols-2 gap-5">
-          {aiFeatures.map((f, i) => (
-            <div key={i} className="rounded-2xl p-6 flex gap-4 transition-all duration-200 hover:-translate-y-1"
-              style={{ backgroundColor: '#fff', border: '1px solid #E8E2D8',
-                boxShadow: '0 2px 12px rgba(13,43,85,0.06)' }}>
-              <div className="text-3xl flex-shrink-0">{f.icon}</div>
-              <div>
-                <h3 className="font-black text-base mb-1.5" style={{ color: NAVY }}>{f.title}</h3>
-                <p className="text-sm leading-relaxed" style={{ color: '#6B6355' }}>{f.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
+        </div></FadeUp>
+        <StaggerGrid className="grid sm:grid-cols-2 gap-5">
+          {aiFeatures.map((f, i) => {
+            const Icon = f.icon
+            return (
+              <motion.div key={i} variants={cardVariants} className="rounded-2xl p-6 flex gap-4 transition-all duration-200 hover:-translate-y-1"
+                style={{ backgroundColor: '#fff', border: '1px solid #E8E2D8',
+                  boxShadow: '0 2px 12px rgba(13,43,85,0.06)' }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ backgroundColor: 'rgba(240,112,24,0.1)' }}>
+                  <Icon className="w-5 h-5" style={{ color: ORANGE }} />
+                </div>
+                <div>
+                  <h3 className="font-black text-base mb-1.5" style={{ color: NAVY }}>{f.title}</h3>
+                  <p className="text-sm leading-relaxed" style={{ color: '#6B6355' }}>{f.desc}</p>
+                </div>
+              </motion.div>
+            )
+          })}
+        </StaggerGrid>
       </div>
     </section>
   )
@@ -487,6 +557,7 @@ function SmartPricingSection() {
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
 
           {/* Left - copy */}
+          <FadeUp>
           <div>
             <div className="inline-flex items-center gap-2 mb-5 px-4 py-2 rounded-full"
               style={{ backgroundColor: 'rgba(240,112,24,0.1)', border: '1px solid rgba(240,112,24,0.25)' }}>
@@ -523,11 +594,12 @@ function SmartPricingSection() {
               Price to move in 60 days - or hold for maximum return. The choice is yours.
             </p>
           </div>
+          </FadeUp>
 
           {/* Right - pricing card mockup */}
-          <div className="flex justify-center lg:justify-end">
+          <FadeUp delay={0.15}><div className="flex justify-center lg:justify-end">
             <div className="w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl"
-              style={{ backgroundColor: '#fff', border: '1px solid #E8E2D8' }}>
+              style={{ backgroundColor: '#FDFAF7', border: '1px solid #E8E2D8' }}>
 
               {/* Card header */}
               <div className="px-5 py-4 border-b" style={{ borderColor: '#E8E2D8' }}>
@@ -580,7 +652,7 @@ function SmartPricingSection() {
                 </p>
               </div>
             </div>
-          </div>
+          </div></FadeUp>
 
         </div>
       </div>
@@ -594,9 +666,6 @@ function FounderSection() {
   return (
     <section className="py-20 lg:py-28" style={{ backgroundColor: '#F4F0EA' }}>
       <div className="max-w-3xl mx-auto px-4 sm:px-6">
-        <p className="text-xs font-black uppercase tracking-widest mb-4 text-center" style={{ color: ORANGE }}>
-          Why We Built This
-        </p>
         <h2 className="text-3xl sm:text-4xl font-black mb-10 text-center" style={{ color: NAVY }}>
           I built the CRM I couldn&apos;t find.
         </h2>
@@ -605,8 +674,8 @@ function FounderSection() {
             style={{ color: ORANGE, opacity: 0.25 }} aria-hidden="true">
             &ldquo;
           </div>
-          <blockquote className="relative z-10 text-base sm:text-lg leading-relaxed italic pl-4"
-            style={{ color: '#3D3530', borderLeft: `3px solid ${ORANGE}` }}>
+          <blockquote className="relative z-10 text-base sm:text-lg leading-relaxed italic pl-6"
+            style={{ color: '#3D3530' }}>
             <p className="mb-4">
               Running a small lot meant every lead came through a different place - calls, texts,
               Gmail lead emails, platform messages - and I was constantly context-switching and still
@@ -635,6 +704,77 @@ function FounderSection() {
   )
 }
 
+// ─── Why Dealers Switch ───────────────────────────────────────────────────────
+
+const switchComparisons = [
+  {
+    generic: 'Not vehicle-linked — you lose context on every lead',
+    dealerwyze: 'Every lead tied to the exact car they asked about',
+  },
+  {
+    generic: 'Too slow to log activity during a live selling day',
+    dealerwyze: 'Log a call or text in under 10 seconds, one tap',
+  },
+  {
+    generic: 'Weak or manual lead import from dealer channels',
+    dealerwyze: 'Auto-imports from Gmail, IMAP, AutoTrader, and CarGurus',
+  },
+  {
+    generic: 'Built for enterprise teams of 20 or more',
+    dealerwyze: 'Built for one-person lots and small independent dealers',
+  },
+]
+
+function WhyDealersSwitchSection() {
+  return (
+    <section className="py-20 lg:py-28 bg-white">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="text-center mb-14">
+          <h2 className="text-3xl sm:text-4xl font-black" style={{ color: NAVY }}>
+            Why generic CRMs fail small lots.
+          </h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr>
+                <th className="py-3 px-5 text-left text-sm font-black rounded-tl-xl"
+                  style={{ backgroundColor: '#F4F0EA', color: '#9C897A', width: '50%' }}>
+                  Generic CRM
+                </th>
+                <th className="py-3 px-5 text-left text-sm font-black rounded-tr-xl"
+                  style={{ backgroundColor: NAVY, color: ORANGE, width: '50%' }}>
+                  DealerWyze
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {switchComparisons.map((row, i) => (
+                <tr key={i} className={i % 2 === 0 ? '' : ''}>
+                  <td className="py-4 px-5 text-sm border-b"
+                    style={{ color: '#6B6355', borderColor: '#E8E2D8', backgroundColor: '#FAFAFA' }}>
+                    <span className="flex items-start gap-2">
+                      <span className="flex-shrink-0 mt-0.5 text-red-400 font-black">✕</span>
+                      {row.generic}
+                    </span>
+                  </td>
+                  <td className="py-4 px-5 text-sm border-b"
+                    style={{ color: '#1a2e4a', borderColor: '#dce6f0', backgroundColor: '#f0f5fb' }}>
+                    <span className="flex items-start gap-2">
+                      <span className="flex-shrink-0 mt-0.5 font-black" style={{ color: ORANGE }}>✓</span>
+                      {row.dealerwyze}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 // ─── Reviews ─────────────────────────────────────────────────────────────────
 
 const reviews = [
@@ -657,16 +797,13 @@ function ReviewsSection() {
     <section className="bg-white py-20 lg:py-28">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="text-center mb-14">
-          <p className="text-xs font-black uppercase tracking-widest mb-3" style={{ color: ORANGE }}>
-            Early Access Dealers
-          </p>
           <h2 className="text-3xl sm:text-4xl font-black" style={{ color: NAVY }}>
             Dealers who stopped losing leads.
           </h2>
         </div>
-        <div className="grid sm:grid-cols-3 gap-5">
+        <StaggerGrid className="grid sm:grid-cols-3 gap-5">
           {reviews.map((r, i) => (
-            <div key={i} className="rounded-2xl p-6 flex flex-col"
+            <motion.div key={i} variants={cardVariants} className="rounded-2xl p-6 flex flex-col"
               style={{ backgroundColor: '#fff', border: '1px solid #E8E2D8',
                 boxShadow: '0 2px 12px rgba(13,43,85,0.07)' }}>
               <div className="flex gap-0.5 mb-4">
@@ -678,9 +815,9 @@ function ReviewsSection() {
                 &ldquo;{r.body}&rdquo;
               </p>
               <p className="text-xs font-semibold" style={{ color: '#6B6355' }}>{r.author}</p>
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </StaggerGrid>
       </div>
     </section>
   )
@@ -724,48 +861,31 @@ function IntegrationsSection() {
 
 // ─── Features ─────────────────────────────────────────────────────────────────
 
-const features: { icon: React.ElementType; title: string; desc: string; badge?: string }[] = [
+const features: { icon: React.ElementType; title: string; desc: string }[] = [
   { icon: ListChecks,    title: 'Today Dashboard',
     desc: 'Prioritized daily action list - overdue tasks, new leads, appointments, and follow-ups ranked by urgency.' },
   { icon: Car,           title: 'Lead Pipeline',
-    desc: 'Kanban board from New Lead → Contacted → Appointment → Sold. Drag to advance, filter by rep.' },
-  { icon: MessageSquare, title: 'Two-Way SMS',
-    desc: 'Text from the app with a dedicated business number. Inbound replies land in the customer thread automatically. STOP/START handled.' },
-  { icon: Mail,          title: 'Gmail & IMAP Lead Import',
-    desc: 'AutoTrader, CarGurus, and web form leads auto-import from Gmail or any IMAP account. No copy-pasting.' },
-  { icon: ScanLine,      title: 'AI Lead Scanner',
-    desc: 'Photograph a walk-in buyer card or PDF. AI extracts name, phone, email, and vehicle interest - pre-fills the lead form in seconds.' },
-  { icon: Paperclip,      title: 'Document Attachments',
-    desc: 'Attach photos, PDFs, and docs to vehicles or customer records. Vehicle docs get an AI-generated summary on upload.' },
+    desc: 'Kanban board from New Lead to Contacted to Appointment to Sold. Drag to advance, filter by rep.' },
+  { icon: MessageSquare, title: 'Two-Way SMS & Email',
+    desc: 'Text and email from one inbox with a dedicated business number. Replies land in the customer thread automatically.' },
+  { icon: Inbox,         title: 'Lead Import',
+    desc: 'Auto-import leads from Gmail, IMAP, AutoTrader, CarGurus, walk-in buyer cards, and uploaded screenshots - no manual entry.' },
   { icon: CalendarDays,  title: 'Calendar & Appointments',
-    desc: 'Schedule test drives, sync to Google Calendar, and get SMS reminders to customers - one tap.' },
-  { icon: Building2,     title: 'Google Business Reviews',
-    desc: 'Pull and reply to Google Business Profile reviews from inside the app. Never let a review go unanswered.' },
+    desc: 'Schedule test drives, sync to Google Calendar, and send automatic SMS reminders to customers.' },
   { icon: CreditCard,    title: 'BHPH Loan Tracking',
-    desc: 'Track in-house loans, payment schedules, and collections. Automated payment reminders via SMS.' },
-  { icon: FileImage,      title: 'Vehicle Documents',
-    desc: 'Store title photos, inspection reports, and repair records with each vehicle. Blocked on sold vehicles to preserve legal records.' },
-  { icon: BookOpen,      title: 'Receipts & Ledger',
-    desc: 'Upload receipt photos → AI extracts vendor, amount, and category → auto-posted to your ledger. CSV export.' },
-  { icon: Printer,       title: 'Fax',
-    desc: 'Send and receive faxes from the app. PDFs and images supported. Full history per customer.' },
+    desc: 'Track in-house loans, payment schedules, and collections. Automated overdue payment reminders via SMS.' },
+  { icon: BookOpen,      title: 'Receipt Import & Ledger',
+    desc: 'Upload a receipt photo - AI extracts vendor, amount, and category, then posts it to your ledger automatically.' },
   { icon: BarChart3,     title: 'Analytics & Reports',
-    desc: 'Lead funnel, SMS stats, response time, BHPH collection rate, revenue trends. Full XLSX export.' },
-  { icon: Wallet,         title: 'Prepaid Overage Credit',
-    desc: 'Add credit ($10–$100) to keep texting and calling past your plan limits. Deducts automatically - no surprise bills.' },
+    desc: 'Lead funnel, SMS stats, response time, BHPH collection rate, and revenue trends. Full XLSX export.' },
   { icon: Search,        title: 'Instant Search',
     desc: 'Find any customer by name, phone, email, VIN, or make/model in under a second. Mid-conversation fast.' },
   { icon: Users,         title: 'Team & Roles',
     desc: 'Invite staff with role-based access: admin, manager, finance, rep, or staff. Reps see only their assigned leads.' },
-  { icon: FileText,      title: 'Contacts & Business Cards',
-    desc: 'Scan a business card with your camera. AI fills the contact form. Export to CSV.' },
   { icon: Mic,           title: 'Voice Notes',
     desc: 'Record a 15-second note after a call. AI transcribes and attaches it to the customer timeline.' },
-  { icon: Phone,         title: 'AI Voice Agent',
-    desc: 'Retell AI answers calls, qualifies leads, and writes the full transcript to the customer record - even after hours.',
-    badge: 'Core + Voice' },
-  { icon: TrendingUp,    title: 'Smart Pricing Intelligence',
-    desc: 'Fast Sale, Fair Market, and Max Return price tiers with live comps, NHTSA reliability check, AI market analysis, and a public deal badge - all in one click.' },
+  { icon: TrendingUp,    title: 'AI Pricing Intelligence',
+    desc: 'Fast Sale, Fair Market, and Max Return price tiers with live comps, NHTSA reliability check, and an AI market analysis - one click.' },
 ]
 
 function FeaturesSection() {
@@ -773,9 +893,6 @@ function FeaturesSection() {
     <section id="features" className="py-20 lg:py-28" style={{ backgroundColor: '#F4F0EA' }}>
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="text-center mb-14">
-          <p className="text-xs font-black uppercase tracking-widest mb-3" style={{ color: ORANGE }}>
-            What You Get
-          </p>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black" style={{ color: NAVY }}>
             Everything a small dealer needs.
             <br className="hidden sm:block" />
@@ -787,30 +904,26 @@ function FeaturesSection() {
           </p>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StaggerGrid className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {features.map((f, i) => {
             const Icon = f.icon
             return (
-              <div key={i}
-                className="rounded-2xl p-5 transition-all duration-200 hover:-translate-y-1 group relative"
-                style={{ backgroundColor: '#fff', border: '1px solid #E8E2D8',
+              <motion.div key={i} variants={cardVariants}
+                className="rounded-2xl p-6 transition-all duration-200 hover:-translate-y-1 flex gap-4"
+                style={{ backgroundColor: '#FDFAF7', border: '1px solid #E8E2D8',
                   boxShadow: '0 1px 6px rgba(13,43,85,0.06)' }}>
-                {f.badge && (
-                  <span className="absolute top-3 right-3 text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full"
-                    style={{ backgroundColor: 'rgba(240,112,24,0.12)', color: ORANGE }}>
-                    {f.badge}
-                  </span>
-                )}
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-3"
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
                   style={{ backgroundColor: 'rgba(240,112,24,0.1)' }}>
-                  <Icon className="w-4 h-4" style={{ color: ORANGE }} />
+                  <Icon className="w-5 h-5" style={{ color: ORANGE }} />
                 </div>
-                <h3 className="font-black text-sm mb-1.5" style={{ color: NAVY }}>{f.title}</h3>
-                <p className="text-xs leading-relaxed" style={{ color: '#6B6355' }}>{f.desc}</p>
-              </div>
+                <div>
+                  <h3 className="font-black text-base mb-1.5" style={{ color: NAVY }}>{f.title}</h3>
+                  <p className="text-sm leading-relaxed" style={{ color: '#6B6355' }}>{f.desc}</p>
+                </div>
+              </motion.div>
             )
           })}
-        </div>
+        </StaggerGrid>
       </div>
     </section>
   )
@@ -855,7 +968,14 @@ const crmFeatures = [
   'Analytics & full XLSX export',
   'Contacts & business card scan',
   'Team members + role-based access',
+  '25 AI listing videos/month',
+  'Auto-post to Facebook, Instagram, TikTok, YouTube',
+  'Add 25 more videos for $10 anytime',
 ]
+
+const proFeatures = crmFeatures.map(f =>
+  f === '25 AI listing videos/month' ? '75 AI listing videos/month' : f
+)
 
 const voiceFeatures = [
   'Dedicated AI voice agent (Retell AI)',
@@ -879,9 +999,6 @@ function PricingSection() {
     <section id="pricing" className="bg-white py-20 lg:py-28">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="text-center mb-14">
-          <p className="text-xs font-black uppercase tracking-widest mb-3" style={{ color: ORANGE }}>
-            Pricing
-          </p>
           <h2 className="text-3xl sm:text-4xl font-black mb-3" style={{ color: NAVY }}>
             Start free today. No credit card needed.
           </h2>
@@ -893,7 +1010,7 @@ function PricingSection() {
         {/* Beta notice banner */}
         <div className="max-w-3xl mx-auto mb-10 rounded-2xl px-6 py-4 flex items-start gap-3"
           style={{ backgroundColor: '#FFF7ED', border: '1.5px solid #FDBA74' }}>
-          <span className="text-xl flex-shrink-0 mt-0.5">🧪</span>
+          <FlaskConical className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#9A3412' }} />
           <div>
             <p className="text-sm font-black" style={{ color: '#9A3412' }}>Beta Testing Phase</p>
             <p className="text-sm mt-0.5" style={{ color: '#7C2D12' }}>
@@ -996,7 +1113,7 @@ function PricingSection() {
             </p>
             <div className="mb-1">
               <div className="flex items-end gap-1">
-                <span className="text-4xl font-black" style={{ color: NAVY }}>${(crmMonthly + voiceAddon).toFixed(2)}</span>
+                <span className="text-4xl font-black" style={{ color: NAVY }}>${crmMonthly + voiceAddon}</span>
                 <span className="text-sm pb-1.5" style={{ color: '#6B6355' }}>/mo</span>
               </div>
               <p className="text-xs mt-1" style={{ color: '#6B6355' }}>
@@ -1007,7 +1124,7 @@ function PricingSection() {
               </p>
             </div>
             <ul className="space-y-2.5 mb-7 mt-4 flex-1">
-              {crmFeatures.map((feat, i) => (
+              {proFeatures.map((feat, i) => (
                 <li key={i} className="flex items-start gap-2.5 text-sm" style={{ color: '#3D3530' }}>
                   <Check className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#C4B8AC' }} />
                   {feat}
@@ -1046,6 +1163,18 @@ function PricingSection() {
 // ─── FAQ ──────────────────────────────────────────────────────────────────────
 
 const faqs = [
+  {
+    q: 'Does this work with Gmail or IMAP?',
+    a: 'Yes. DealerWyze connects directly to your Gmail or any IMAP inbox and automatically imports leads into customer records. No manual entry required.',
+  },
+  {
+    q: 'Can I connect AutoTrader and CarGurus lead emails?',
+    a: 'Yes. Lead notification emails from AutoTrader, CarGurus, and most major listing sites are automatically parsed and matched to the right vehicle and customer.',
+  },
+  {
+    q: 'Can I use DealerWyze by myself without a team?',
+    a: 'Absolutely. The Today list and single-screen workflow are built for one-person and small-team lots. No admin overhead, no complex setup, and no minimum seat count.',
+  },
   {
     q: 'Is there a contract?',
     a: 'No. DealerWyze is month-to-month. Cancel anytime from your billing settings - no phone calls, no cancellation fees.',
@@ -1095,9 +1224,6 @@ function FAQSection() {
     <section className="py-20 lg:py-28" style={{ backgroundColor: '#F4F0EA' }}>
       <div className="max-w-3xl mx-auto px-4 sm:px-6">
         <div className="text-center mb-12">
-          <p className="text-xs font-black uppercase tracking-widest mb-3" style={{ color: ORANGE }}>
-            FAQ
-          </p>
           <h2 className="text-3xl sm:text-4xl font-black" style={{ color: NAVY }}>
             Common questions.
           </h2>
@@ -1105,7 +1231,7 @@ function FAQSection() {
         <div className="space-y-3">
           {faqs.map((faq, i) => (
             <div key={i} className="rounded-2xl overflow-hidden transition-all"
-              style={{ backgroundColor: '#fff', border: '1px solid #E8E2D8',
+              style={{ backgroundColor: '#FDFAF7', border: '1px solid #E8E2D8',
                 boxShadow: '0 1px 6px rgba(13,43,85,0.05)' }}>
               <button
                 className="w-full text-left px-6 py-4 flex items-center justify-between gap-4 hover:bg-gray-50 transition-colors"
@@ -1144,23 +1270,30 @@ function FinalCTASection() {
     <section className="relative overflow-hidden py-24 lg:py-32" style={{ backgroundColor: NAVY }}>
       <div className="absolute inset-0 pointer-events-none"
         style={{ background: 'radial-gradient(ellipse 70% 60% at 50% 110%,rgba(240,112,24,0.2) 0%,transparent 70%)' }} />
-      <div className="relative max-w-3xl mx-auto px-4 sm:px-6 text-center">
+      <FadeUp><div className="relative max-w-3xl mx-auto px-4 sm:px-6 text-center">
         <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white mb-4">
           Your competitors already have a system.
         </h2>
         <p className="text-lg mb-10" style={{ color: 'rgba(255,255,255,0.65)' }}>
           Every day without one is a lead you might not get back.
         </p>
-        <Link href="/signup"
-          className="inline-flex items-center gap-2 px-8 py-4 rounded-xl font-bold text-base text-white transition-all hover:opacity-90 active:scale-95 shadow-xl"
-          style={{ backgroundColor: ORANGE, boxShadow: '0 6px 24px rgba(240,112,24,0.45)' }}>
-          Start Free Today - No Card Needed
-          <ChevronRight className="w-4 h-4" />
-        </Link>
+        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <Link href="/signup"
+            className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl font-bold text-base text-white transition-all hover:opacity-90 active:scale-95 shadow-xl"
+            style={{ backgroundColor: ORANGE, boxShadow: '0 6px 24px rgba(240,112,24,0.45)' }}>
+            Get Beta Access - Free
+            <ChevronRight className="w-4 h-4" />
+          </Link>
+          <a href="mailto:support@dealerwyze.com?subject=15-Minute%20Dealer%20Workflow%20Review"
+            className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl font-semibold text-base transition-all hover:bg-white/10 border"
+            style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.35)' }}>
+            Book a 15-Minute Workflow Review
+          </a>
+        </div>
         <p className="mt-5 text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>
-          14-day free trial · No credit card · Cancel anytime
+          No credit card · No commitment · Free during beta
         </p>
-      </div>
+      </div></FadeUp>
     </section>
   )
 }
@@ -1230,7 +1363,7 @@ export default function LandingPage() {
       `}</style>
 
       <Nav />
-      <main>
+      <main className="landing">
         <HeroSection />
         <ElevatorPitchSection />
         <PainSection />
@@ -1239,6 +1372,7 @@ export default function LandingPage() {
         <AISection />
         <SmartPricingSection />
         <FounderSection />
+        <WhyDealersSwitchSection />
         <ReviewsSection />
         <IntegrationsSection />
         <FeaturesSection />

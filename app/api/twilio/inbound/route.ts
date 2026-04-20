@@ -332,7 +332,7 @@ export async function POST(req: NextRequest) {
   // Find customer by phone number, scoped to org
   const { data: allCustomers } = await supabase
     .from('customers')
-    .select('id, name, user_id, primary_phone, secondary_phone, sms_opt_out, unsubscribe_sms')
+    .select('id, name, user_id, primary_phone, secondary_phone, sms_opt_out, unsubscribe_sms, sms_consent_status')
     .eq('user_id', orgId)
 
   const customer = allCustomers?.find(c => {
@@ -389,12 +389,21 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // ── TCPA opt-in (re-subscribe) ────────────────────────────────────────────
+  // ── TCPA opt-in / consent confirmation ───────────────────────────────────
   if (isOptIn) {
+    const isPendingConsent = customer?.sms_consent_status === 'pending'
     if (customer) {
+      const now = new Date().toISOString()
       await supabase
         .from('customers')
-        .update({ sms_opt_out: false, sms_opt_out_at: null })
+        .update({
+          sms_opt_out:  false,
+          sms_opt_out_at: null,
+          ...(isPendingConsent ? {
+            sms_consent_status:       'confirmed',
+            sms_consent_confirmed_at: now,
+          } : {}),
+        })
         .eq('id', customer.id)
 
       await supabase.from('activities').insert({
@@ -404,13 +413,26 @@ export async function POST(req: NextRequest) {
         direction: 'inbound',
         outcome: 'opted_in',
         body,
-        priority: 'normal',
+        priority: isPendingConsent ? 'high' : 'normal',
         external_id: messageSid || null,
-        completed_at: new Date().toISOString(),
+        completed_at: now,
       })
+
+      // Notify dealer when a consent request is confirmed
+      if (isPendingConsent) {
+        sendLeadNotification({
+          title: `${customer.name} confirmed SMS`,
+          body:  'They replied YES — you can now text them.',
+          url:   `/customers/${customer.id}`,
+        }).catch(() => {})
+        sendTelegramMessage(
+          `<b>SMS consent confirmed</b>\n${customer.name} replied YES — ready to text.`
+        ).catch(() => {})
+      }
     }
-    const optInReply = tcpaOptInMsg
-      ?? `You have been re-subscribed to ${tcpaBizName} messages. Reply STOP at any time to unsubscribe.`
+    const optInReply = isPendingConsent
+      ? `Thanks! You're now subscribed to text updates from ${tcpaBizName}. Reply STOP at any time to unsubscribe.`
+      : (tcpaOptInMsg ?? `You have been re-subscribed to ${tcpaBizName} messages. Reply STOP at any time to unsubscribe.`)
     return new NextResponse(
       twimlMsg(optInReply),
       { status: 200, headers: { 'Content-Type': 'text/xml' } }

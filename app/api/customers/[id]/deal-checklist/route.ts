@@ -14,16 +14,24 @@ import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
 
 const STANDARD_ITEMS = [
-  { title: 'Collect signed bill of sale',         priority: 'must'   },
-  { title: 'Obtain title from seller / lender',   priority: 'must'   },
-  { title: 'Sign title over to buyer',            priority: 'must'   },
-  { title: 'Collect down payment / full payment', priority: 'must'   },
-  { title: 'Issue dealer temp tag',               priority: 'must'   },
-  { title: 'Submit DMV paperwork',                priority: 'must'   },
-  { title: 'Verify insurance on file',            priority: 'should' },
-  { title: 'Send post-sale thank you',            priority: 'should' },
-  { title: 'File deal jacket / scan docs',        priority: 'should' },
-  { title: 'Set BHPH payment schedule (if applicable)', priority: 'should' },
+  // Customer docs
+  { title: "Driver's license (copy on file)",                          priority: 'must'   },
+  { title: 'Proof of insurance',                                       priority: 'must'   },
+  { title: 'Proof of income (paystubs / bank statements)',             priority: 'must'   },
+  { title: 'Proof of residence (utility bill / lease agreement)',      priority: 'must'   },
+  { title: 'References collected (name + phone x2)',                   priority: 'should' },
+  { title: 'SSN or ITIN on file',                                      priority: 'should' },
+  // Deal paperwork
+  { title: 'Buyer order / bill of sale signed',                        priority: 'must'   },
+  { title: 'Retail installment contract signed (if financing)',        priority: 'must'   },
+  { title: 'Down payment collected',                                   priority: 'must'   },
+  { title: 'Title signed over to buyer',                               priority: 'must'   },
+  { title: 'Dealer temp tag issued',                                   priority: 'must'   },
+  { title: 'DMV paperwork submitted',                                  priority: 'must'   },
+  // BHPH / post-sale
+  { title: 'BHPH payment schedule set up',                             priority: 'should' },
+  { title: 'Post-sale thank you sent',                                 priority: 'should' },
+  { title: 'Deal jacket filed / docs scanned',                         priority: 'should' },
 ]
 
 export async function GET(

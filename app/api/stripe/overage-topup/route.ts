@@ -63,6 +63,7 @@ export async function POST(req: Request) {
       topup_cents: String(amountCents),
       topup_type: 'overage_buffer',
     },
+    saved_payment_method_options: { payment_method_save: 'enabled' },
     payment_intent_data: {
       metadata: {
         org_id: profile.org_id,

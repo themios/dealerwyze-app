@@ -15,6 +15,7 @@ import { Plus, List, GitBranch, UserX, Archive, Layers } from 'lucide-react'
 import EmptyState from '@/components/ui/EmptyState'
 import { isDealerAdmin } from '@/types/index'
 import { isRepRestricted, canManageUsers } from '@/lib/auth/dealerRoles'
+import { DEFAULT_ORG_STAGES, OrgStage } from '@/lib/leads/states'
 
 export default async function CustomersPage({
   searchParams,
@@ -96,61 +97,80 @@ export default async function CustomersPage({
     agents = data ?? []
   }
 
-  const title = showArchived ? 'Archived' : `Leads (${customers?.length ?? 0})`
+  // Fetch org pipeline stages for pipeline board
+  const serviceForStages = createServiceClient()
+  const { data: orgStagesData } = await serviceForStages
+    .from('org_pipeline_stages')
+    .select('stage_key, label, color, position, is_hot, is_active')
+    .eq('org_id', profile.org_id)
+    .order('position', { ascending: true })
+  const orgStages: OrgStage[] = orgStagesData?.length ? orgStagesData : DEFAULT_ORG_STAGES
 
-  const viewToggle = !showArchived && (
-    <div className="flex items-center rounded-md overflow-hidden border border-white/20">
-      <Link
-        href="/customers"
-        className={`flex items-center gap-1 px-2 py-1 text-xs ${!showPipeline ? 'bg-white/20 text-white' : 'text-white/60'}`}
-      >
-        <List className="h-3.5 w-3.5" />
-        List
-      </Link>
-      <Link
-        href="/customers?view=pipeline"
-        className={`flex items-center gap-1 px-2 py-1 text-xs ${showPipeline ? 'bg-white/20 text-white' : 'text-white/60'}`}
-      >
-        <GitBranch className="h-3.5 w-3.5" />
-        Pipeline
-      </Link>
-      <Link
-        href="/customers/segments"
-        className="flex items-center gap-1 px-2 py-1 text-xs text-white/60 hover:text-white"
-      >
-        <Layers className="h-3.5 w-3.5" />
-        Segments
-      </Link>
-    </div>
-  )
+  const title = showArchived ? 'Archived Leads' : `Leads (${customers?.length ?? 0})`
 
   return (
     <div>
       <TopBar
         title={title}
         right={
-          !showArchived ? (
-            <div className="flex items-center gap-2">
-              {viewToggle}
-              {!showPipeline && (
-                <>
-                  <ScanLeadButton />
-                  <PasteLeadDialog />
-                  <ImportLeadsDialog />
-                  <Link href="/customers/new" title="Add lead">
-                    <Button size="sm" variant="ghost" title="Add lead">
-                      <Plus className="h-5 w-5" />
-                    </Button>
-                  </Link>
-                </>
-              )}
+          showArchived ? (
+            <Link href="/customers" title="Back to active leads">
+              <Button size="sm" variant="ghost" className="text-white/70 hover:text-white text-xs gap-1">
+                <List className="h-4 w-4" />
+                Active
+              </Button>
+            </Link>
+          ) : (
+            <div className="flex items-center gap-0.5">
+              <Link href="/customers/new" title="Add lead">
+                <Button size="sm" variant="ghost" title="Add lead" className="text-white/70 hover:text-white">
+                  <Plus className="h-5 w-5" />
+                </Button>
+              </Link>
+              <ScanLeadButton />
+              <PasteLeadDialog />
+              <ImportLeadsDialog />
+              <Link href="/customers?archived=1" title="View archived leads">
+                <Button size="sm" variant="ghost" className="text-white/70 hover:text-white">
+                  <Archive className="h-5 w-5" />
+                </Button>
+              </Link>
             </div>
-          ) : undefined
+          )
         }
       />
 
+      {/* Sub-nav: view tabs only */}
+      {!showArchived && (
+        <div className="sticky top-12 z-10 flex items-center px-3 py-2 bg-background border-b border-border">
+          <div className="flex items-center rounded-md overflow-hidden border border-border">
+            <Link
+              href="/customers"
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${!showPipeline ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
+            >
+              <List className="h-3.5 w-3.5" />
+              <span>List</span>
+            </Link>
+            <Link
+              href="/customers?view=pipeline"
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-l border-border transition-colors ${showPipeline ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
+            >
+              <GitBranch className="h-3.5 w-3.5" />
+              <span>Pipeline</span>
+            </Link>
+            <Link
+              href="/customers/segments"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-l border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              <Layers className="h-3.5 w-3.5" />
+              <span>Segments</span>
+            </Link>
+          </div>
+        </div>
+      )}
+
       {showPipeline ? (
-        <PipelineBoard customers={customers ?? []} lastActivityMap={lastActivityMap} />
+        <PipelineBoard customers={customers ?? []} lastActivityMap={lastActivityMap} orgStages={orgStages} />
       ) : !customers || customers.length === 0 ? (
         showArchived ? (
           <EmptyState

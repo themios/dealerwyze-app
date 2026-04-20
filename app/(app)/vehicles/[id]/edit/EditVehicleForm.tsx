@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { Vehicle } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,21 +15,22 @@ interface Props {
 
 export default function EditVehicleForm({ vehicle }: Props) {
   const router = useRouter()
-  const supabase = createClient()
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState({
-    stock_no: vehicle.stock_no,
-    year: vehicle.year.toString(),
-    make: vehicle.make,
-    model: vehicle.model,
-    trim: vehicle.trim || '',
-    color: vehicle.color || '',
-    mileage: vehicle.mileage?.toString() || '',
-    price: vehicle.price?.toString() || '',
-    vin: vehicle.vin || '',
-    status: vehicle.status,
-    notes: vehicle.notes || '',
-    listing_url: vehicle.listing_url || '',
+    stock_no:    vehicle.stock_no ?? '',
+    year:        vehicle.year?.toString() ?? '',
+    make:        vehicle.make ?? '',
+    model:       vehicle.model ?? '',
+    trim:        vehicle.trim ?? '',
+    color:       vehicle.color ?? '',
+    mileage:     vehicle.mileage?.toString() ?? '',
+    price:       vehicle.price?.toString() ?? '',
+    vin:         vehicle.vin ?? '',
+    status:      vehicle.status,
+    notes:       vehicle.notes ?? '',
+    listing_url: vehicle.listing_url ?? '',
+    body_style:  vehicle.body_style ?? '',
   })
 
   function update(field: string, value: string) {
@@ -40,28 +40,36 @@ export default function EditVehicleForm({ vehicle }: Props) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
-    const { error } = await supabase
-      .from('vehicles')
-      .update({
-        stock_no: form.stock_no,
-        year: parseInt(form.year),
-        make: form.make,
-        model: form.model,
-        trim: form.trim || null,
-        color: form.color || null,
-        mileage: form.mileage ? parseInt(form.mileage) : null,
-        price: form.price ? parseFloat(form.price) : null,
-        vin: form.vin || null,
-        status: form.status,
-        notes: form.notes || null,
-        listing_url: form.listing_url || null,
-      })
-      .eq('id', vehicle.id)
+    setError(null)
 
-    if (!error) {
-      router.push('/vehicles')
-    } else {
-      console.error(error)
+    const body: Record<string, unknown> = {
+      stock_no:    form.stock_no,
+      year:        parseInt(form.year),
+      make:        form.make,
+      model:       form.model,
+      trim:        form.trim || null,
+      color:       form.color || null,
+      mileage:     form.mileage ? parseInt(form.mileage) : null,
+      price:       form.price ? parseFloat(form.price) : null,
+      vin:         form.vin || null,
+      status:      form.status,
+      notes:       form.notes || null,
+      listing_url: form.listing_url || null,
+      body_style:  form.body_style || null,
+    }
+
+    try {
+      const res = await fetch(`/api/vehicles/${vehicle.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Save failed')
+      router.push(`/vehicles/${vehicle.id}`)
+      router.refresh()
+    } catch (e) {
+      setError(String(e))
       setSaving(false)
     }
   }
@@ -85,6 +93,7 @@ export default function EditVehicleForm({ vehicle }: Props) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="staging">Staging</SelectItem>
               <SelectItem value="available">Available</SelectItem>
               <SelectItem value="pending">Pending</SelectItem>
               <SelectItem value="sold">Sold</SelectItem>
@@ -168,13 +177,33 @@ export default function EditVehicleForm({ vehicle }: Props) {
           />
         </div>
         <div className="space-y-1.5">
-          <Label>VIN</Label>
-          <Input
-            value={form.vin}
-            onChange={e => update('vin', e.target.value)}
-            className="h-12 text-base font-mono"
-          />
+          <Label>Body Style</Label>
+          <Select value={form.body_style || 'none'} onValueChange={v => update('body_style', v === 'none' ? '' : v)}>
+            <SelectTrigger className="h-12">
+              <SelectValue placeholder="Select…" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">—</SelectItem>
+              <SelectItem value="sedan">Sedan</SelectItem>
+              <SelectItem value="suv">SUV</SelectItem>
+              <SelectItem value="truck">Truck</SelectItem>
+              <SelectItem value="coupe">Coupe</SelectItem>
+              <SelectItem value="hatchback">Hatchback</SelectItem>
+              <SelectItem value="van">Van</SelectItem>
+              <SelectItem value="wagon">Wagon</SelectItem>
+              <SelectItem value="convertible">Convertible</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>VIN</Label>
+        <Input
+          value={form.vin}
+          onChange={e => update('vin', e.target.value)}
+          className="h-12 text-base font-mono"
+        />
       </div>
 
       <div className="space-y-1.5">
@@ -197,6 +226,10 @@ export default function EditVehicleForm({ vehicle }: Props) {
           className="resize-none"
         />
       </div>
+
+      {error && (
+        <p className="text-sm text-destructive text-center">{error}</p>
+      )}
 
       <Button
         type="submit"

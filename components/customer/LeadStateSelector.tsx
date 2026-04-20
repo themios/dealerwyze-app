@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { LEAD_STATES, LEAD_STATE_CONFIG, type LeadState } from '@/lib/leads/states'
+import { OrgStage, DEFAULT_ORG_STAGES } from '@/lib/leads/states'
 import { ChevronDown, Loader2 } from 'lucide-react'
 
 interface Props {
@@ -14,9 +14,15 @@ export default function LeadStateSelector({ customerId, currentState, onStateCha
   const [open,   setOpen]   = useState(false)
   const [saving, setSaving] = useState(false)
   const [state,  setState]  = useState<string>(currentState)
+  const [stages, setStages] = useState<OrgStage[]>(DEFAULT_ORG_STAGES)
   const ref = useRef<HTMLDivElement>(null)
 
-  const cfg = LEAD_STATE_CONFIG[state as LeadState] ?? { label: state, color: 'bg-gray-100 text-gray-500' }
+  useEffect(() => {
+    fetch('/api/pipeline-stages')
+      .then(r => r.ok ? r.json() : null)
+      .then((d: OrgStage[] | null) => { if (d?.length) setStages(d) })
+      .catch(() => {})
+  }, [])
 
   // Close on outside click
   useEffect(() => {
@@ -26,6 +32,9 @@ export default function LeadStateSelector({ customerId, currentState, onStateCha
     if (open) document.addEventListener('mousedown', handle)
     return () => document.removeEventListener('mousedown', handle)
   }, [open])
+
+  const activeStages = stages.filter(s => s.is_active).sort((a, b) => a.position - b.position)
+  const current = activeStages.find(s => s.stage_key === state) ?? { label: state, color: 'bg-gray-100 text-gray-700' }
 
   async function select(newState: string) {
     if (newState === state) { setOpen(false); return }
@@ -40,38 +49,32 @@ export default function LeadStateSelector({ customerId, currentState, onStateCha
     if (res.ok) {
       setState(newState)
       onStateChange?.(newState)
-    } else if (res.status === 409) {
-      // Backward transition blocked — state stays unchanged, no UI desync
     }
-    // Other errors: state stays unchanged (DB not modified)
   }
 
   return (
     <div ref={ref} className="relative inline-block">
       <button
         onClick={() => setOpen(o => !o)}
-        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-opacity ${cfg.color} ${saving ? 'opacity-50' : ''}`}
+        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-opacity ${current.color} ${saving ? 'opacity-50' : ''}`}
         disabled={saving}
       >
-        {saving
-          ? <Loader2 className="h-3 w-3 animate-spin" />
-          : cfg.label
-        }
+        {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : current.label}
         <ChevronDown className="h-3 w-3" />
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full mt-1 z-50 bg-popover border rounded-xl shadow-lg py-1 w-44">
-          {LEAD_STATES.map(s => {
-            const c = LEAD_STATE_CONFIG[s]
+        <div className="absolute left-0 top-full mt-1 z-50 bg-popover border rounded-xl shadow-lg py-1 w-48">
+          {activeStages.map(s => {
+            const dotBg = s.color.split(' ')[0].replace('100', '400')
             return (
               <button
-                key={s}
-                onClick={() => select(s)}
-                className={`w-full text-left px-3 py-2 text-xs hover:bg-muted flex items-center gap-2 ${s === state ? 'font-semibold' : ''}`}
+                key={s.stage_key}
+                onClick={() => select(s.stage_key)}
+                className={`w-full text-left px-3 py-2 text-xs hover:bg-muted flex items-center gap-2 ${s.stage_key === state ? 'font-semibold' : ''}`}
               >
-                <span className={`inline-block w-2 h-2 rounded-full ${c.color.split(' ')[0]}`} />
-                {c.label}
+                <span className={`inline-block w-2 h-2 rounded-full ${dotBg}`} />
+                {s.label}
               </button>
             )
           })}

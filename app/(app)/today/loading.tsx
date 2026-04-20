@@ -23,7 +23,7 @@ export default function TodayLoading() {
       <div className="px-4 py-4 space-y-3">
         <div className="h-4 w-32 bg-muted rounded animate-pulse" />
         {Array.from({ length: 3 }).map((_, i) => (
-          <SkeletonCard key={i} />
+          <SkeletonCard key={i} delay={i * 80} />
         ))}
       </div>
     </div>

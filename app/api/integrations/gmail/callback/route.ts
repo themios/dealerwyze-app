@@ -8,12 +8,23 @@ import { registerGmailWatch } from '@/lib/gmail/watch'
  * Google redirects here after consent. Stores OAuth token in email_accounts.
  */
 export async function GET(req: NextRequest) {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL!
-  const code   = req.nextUrl.searchParams.get('code')
-  const orgId  = req.nextUrl.searchParams.get('state')
+  const appUrl    = process.env.NEXT_PUBLIC_APP_URL!
+  const code      = req.nextUrl.searchParams.get('code')
+  const rawState  = req.nextUrl.searchParams.get('state') ?? ''
+
+  // State format: "<org_id>" or "<org_id>|<from>"
+  const [orgId, from] = rawState.split('|')
+
+  const successUrl = from === 'onboarding'
+    ? `${appUrl}/onboarding?gmail_connected=1`
+    : `${appUrl}/settings/organization?email=connected`
+
+  const errorUrl = from === 'onboarding'
+    ? `${appUrl}/onboarding?gmail_error=1`
+    : `${appUrl}/settings/organization?email=error`
 
   if (!code || !orgId) {
-    return NextResponse.redirect(`${appUrl}/settings/organization?email=error`)
+    return NextResponse.redirect(errorUrl)
   }
 
   const oauth2Client = new google.auth.OAuth2(
@@ -76,8 +87,8 @@ export async function GET(req: NextRequest) {
     }
   } catch (e) {
     console.error('Gmail OAuth callback error:', e)
-    return NextResponse.redirect(`${appUrl}/settings/organization?email=error`)
+    return NextResponse.redirect(errorUrl)
   }
 
-  return NextResponse.redirect(`${appUrl}/settings/organization?email=connected`)
+  return NextResponse.redirect(successUrl)
 }

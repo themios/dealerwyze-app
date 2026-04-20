@@ -796,6 +796,27 @@ function StepComplete({ businessName, onFinish, finishing }: {
                 Explore Voice Assistant settings &rarr;
               </a>
             </div>
+
+            <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-3">
+              <p className="text-[11px] font-semibold tracking-[0.16em] text-orange-800 uppercase">
+                7. Video &amp; Social
+              </p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">
+                Get more eyes on your inventory, automatically
+              </p>
+              <p className="mt-1 text-xs text-slate-600 leading-relaxed">
+                Connect your Facebook, Instagram, TikTok, and YouTube accounts. When you list a car, DealerWyze
+                creates a branded narrated video and posts it to all your social accounts without you lifting a finger.
+              </p>
+              <ul className="mt-2 text-[11px] text-slate-600 list-disc list-inside space-y-0.5">
+                <li>AI-narrated video with your dealer branding and phone number</li>
+                <li>Posts to all connected platforms automatically</li>
+                <li>50 free listing videos per month included</li>
+              </ul>
+              <a href="/settings/social" className="mt-2 inline-flex text-[11px] font-semibold text-[#F07018] hover:underline">
+                Connect your social accounts &rarr;
+              </a>
+            </div>
           </div>
 
           <div className="pt-3 mt-1 border-t border-slate-200 text-[11px] text-slate-500">

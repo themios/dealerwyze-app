@@ -52,7 +52,7 @@ export default function SyncGmailButton({ compact = false }: { compact?: boolean
       const all = (data.results ?? []) as any[]
       const newLeads = all.filter((r: any) => r.status === 'created')
       const dupes = all.filter((r: any) => r.status === 'duplicate').length
-      const errors = all.filter((r: any) => r.status !== 'created' && r.status !== 'duplicate')
+      const errors = all.filter((r: any) => r.status === 'error')
 
       if (dry) {
         const parsed = all.filter((r: any) => r.status === 'dry-run')
