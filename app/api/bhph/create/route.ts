@@ -10,6 +10,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { requireProfile } from '@/lib/auth/profile'
 import { CONSENT_DISCLOSURE } from '@/lib/bhph/schedule'
 import { canAccessBhph } from '@/lib/auth/dealerRoles'
+import { deliverPulseSurvey } from '@/lib/pulse/deliver'
 import type { UserRole } from '@/types/index'
 
 export async function POST(req: NextRequest) {
@@ -123,6 +124,15 @@ export async function POST(req: NextRequest) {
       due_at: new Date(first_due_date + 'T09:00:00').toISOString(),
       priority: 'high',
     })
+  }
+
+  // Trigger pulse survey for the buyer (non-blocking)
+  if (customer_id) {
+    deliverPulseSurvey({
+      orgId:       orgId,
+      customerId:  customer_id,
+      triggerType: 'sold',
+    }).catch(() => {})
   }
 
   // Find other customers who expressed interest in this vehicle
