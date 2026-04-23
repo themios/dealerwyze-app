@@ -13,6 +13,7 @@ export interface Profile {
   platform_role?: 'platform_staff' | null
   deactivated_at?: string | null
   created_at: string
+  pulse_score?: number | null
 }
 
 function normalizeOwnerRole(profile: Profile): Profile {

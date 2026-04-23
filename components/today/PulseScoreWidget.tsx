@@ -12,10 +12,11 @@ interface AnonFeedback {
 }
 
 interface Props {
-  pulseScore: number
+  pulseScore: number | null
 }
 
-function scoreColor(s: number) {
+function scoreColor(s: number | null) {
+  if (s === null) return 'text-muted-foreground bg-muted border-border'
   if (s >= 4.5) return 'text-green-600 bg-green-50 border-green-200'
   if (s >= 3.5) return 'text-yellow-600 bg-yellow-50 border-yellow-200'
   return 'text-red-600 bg-red-50 border-red-200'
@@ -45,7 +46,7 @@ export default function PulseScoreWidget({ pulseScore }: Props) {
         )}
       >
         <span>My Pulse</span>
-        <span className="text-lg font-bold">{pulseScore.toFixed(1)}</span>
+        <span className="text-lg font-bold">{pulseScore !== null ? pulseScore.toFixed(1) : '--'}</span>
       </button>
 
       <Sheet open={open} onOpenChange={setOpen}>

@@ -295,11 +295,9 @@ export default async function TodayPage() {
 
         {/* Center column: Lead activity feed */}
         <div className="lg:border-r lg:border-border lg:overflow-y-auto lg:h-full">
-          {typeof profile.pulse_score === 'number' && profile.pulse_score !== null && (
-            <div className="px-4 pt-3">
-              <PulseScoreWidget pulseScore={profile.pulse_score} />
-            </div>
-          )}
+          <div className="px-4 pt-3">
+            <PulseScoreWidget pulseScore={profile.pulse_score ?? null} />
+          </div>
           <TodayContent
             initialNewLeads={safeNewLeads}
             initialTasks={tasks || []}
