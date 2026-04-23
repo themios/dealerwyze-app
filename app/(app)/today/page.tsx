@@ -12,6 +12,7 @@ import TodoSection from '@/components/today/TodoSection'
 import DealerBriefClient from '@/components/today/DealerBriefClient'
 import OnboardingChecklist from '@/components/today/OnboardingChecklist'
 import ReviewsSection from '@/components/today/ReviewsSection'
+import PulseScoreWidget from '@/components/today/PulseScoreWidget'
 
 export default async function TodayPage() {
   const profile = await requireProfile()
@@ -33,7 +34,7 @@ export default async function TodayPage() {
     .eq('direction', 'inbound')
     .eq('outcome', 'pending')
     .is('completed_at', null)
-
+    .is('addressed_at', null)
     .or(`snoozed_until.is.null,snoozed_until.lt.${now}`)
     .order('created_at', { ascending: false })
 
@@ -210,7 +211,7 @@ export default async function TodayPage() {
     .eq('direction', 'inbound')
     .eq('outcome', 'pending')
     .is('completed_at', null)
-
+    .is('addressed_at', null)
     .or(`snoozed_until.is.null,snoozed_until.lt.${now}`)
     .order('created_at', { ascending: false })
   const vehicleMatches = (vehicleMatchesRaw || []).filter(
@@ -226,7 +227,7 @@ export default async function TodayPage() {
     .eq('direction', 'inbound')
     .eq('outcome', 'pending')
     .is('completed_at', null)
-
+    .is('addressed_at', null)
     .or(`snoozed_until.is.null,snoozed_until.lt.${now}`)
     .order('created_at', { ascending: false })
 
@@ -294,6 +295,11 @@ export default async function TodayPage() {
 
         {/* Center column: Lead activity feed */}
         <div className="lg:border-r lg:border-border lg:overflow-y-auto lg:h-full">
+          {typeof profile.pulse_score === 'number' && profile.pulse_score !== null && (
+            <div className="px-4 pt-3">
+              <PulseScoreWidget pulseScore={profile.pulse_score} />
+            </div>
+          )}
           <TodayContent
             initialNewLeads={safeNewLeads}
             initialTasks={tasks || []}
