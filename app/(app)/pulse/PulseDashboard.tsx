@@ -31,23 +31,69 @@ interface RecentItem  { id: string; overall_score: number | null; completed_at: 
 interface ScoresData  { overall_score: number | null; response_count: number; by_category: CategoryRow[]; recent: RecentItem[] }
 
 export default function PulseDashboard() {
-  const [data, setData]       = useState<ScoresData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [days, setDays]       = useState(90)
+  const [data, setData]         = useState<ScoresData | null>(null)
+  const [loading, setLoading]   = useState(true)
+  const [days, setDays]         = useState(90)
+  const [enabled, setEnabled]   = useState<boolean | null>(null)
+  const [toggling, setToggling] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
-    const res = await fetch(`/api/pulse/scores?days=${days}`)
-    if (res.ok) setData(await res.json())
+    const [scoresRes, settingsRes] = await Promise.all([
+      fetch(`/api/pulse/scores?days=${days}`),
+      fetch('/api/settings/pulse'),
+    ])
+    if (scoresRes.ok)   setData(await scoresRes.json())
+    if (settingsRes.ok) { const s = await settingsRes.json(); setEnabled(!!s.pulse_enabled) }
     setLoading(false)
   }, [days])
 
   useEffect(() => { load() }, [load])
 
+  async function toggleEnabled() {
+    if (enabled === null) return
+    setToggling(true)
+    const next = !enabled
+    setEnabled(next)
+    await fetch('/api/settings/pulse', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pulse_enabled: next }),
+    })
+    setToggling(false)
+  }
+
   if (loading) return <div className="p-8 text-center text-sm text-muted-foreground">Loading...</div>
 
   return (
     <div className="px-4 py-4 space-y-5 max-w-2xl mx-auto">
+      {/* Enable / disable banner */}
+      <div className={cn(
+        'flex items-center justify-between px-4 py-3 rounded-xl border',
+        enabled ? 'bg-green-50 border-green-200' : 'bg-muted border-border'
+      )}>
+        <div>
+          <p className={cn('text-sm font-semibold', enabled ? 'text-green-700' : 'text-foreground')}>
+            Customer Pulse is {enabled ? 'active' : 'disabled'}
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {enabled ? 'Surveys will auto-send after sales.' : 'No surveys are being sent.'}
+          </p>
+        </div>
+        <button
+          onClick={toggleEnabled}
+          disabled={toggling}
+          className={cn(
+            'px-4 py-1.5 rounded-lg text-sm font-semibold border transition-colors disabled:opacity-50',
+            enabled
+              ? 'bg-white border-red-200 text-red-600 hover:bg-red-50'
+              : 'bg-green-600 border-green-600 text-white hover:bg-green-700'
+          )}
+        >
+          {toggling ? '...' : enabled ? 'Disable' : 'Enable'}
+        </button>
+      </div>
+
       {/* Period toggle */}
       <div className="flex gap-2">
         {[30, 90, 180].map(d => (
@@ -120,7 +166,7 @@ export default function PulseDashboard() {
         <div className="text-center py-12 text-muted-foreground">
           <p className="text-3xl mb-3">📊</p>
           <p className="text-sm">No survey responses yet.</p>
-          <p className="text-xs mt-1">Enable Customer Pulse in Settings, then send your first survey.</p>
+          <p className="text-xs mt-1">{enabled ? 'Surveys will appear here once customers respond.' : 'Enable Customer Pulse above to start sending surveys.'}</p>
         </div>
       )}
     </div>
