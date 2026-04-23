@@ -2,7 +2,7 @@ import { createClientForRequest } from '@/lib/supabase/forRequest'
 import { requireProfile } from '@/lib/auth/profile'
 import TopBar from '@/components/layout/TopBar'
 import Link from 'next/link'
-import { BarChart2, Users, ChevronRight, ExternalLink, CreditCard, Building2, Target, BookOpen, Zap, MessageSquare, ClipboardList, ListOrdered, Webhook, DollarSign, Layers, Star, GitBranch, Video, Share2 } from 'lucide-react'
+import { BarChart2, Users, ChevronRight, ExternalLink, CreditCard, Building2, Target, BookOpen, Zap, MessageSquare, ClipboardList, ListOrdered, Webhook, DollarSign, Layers, Star, GitBranch, Video, Share2, Palette, Heart } from 'lucide-react'
 import FontSizeSetting from '@/components/settings/FontSizeSetting'
 import SignOutButton from '@/components/settings/SignOutButton'
 import ProfileEditForm from '@/components/settings/ProfileEditForm'
@@ -42,6 +42,24 @@ export default async function SettingsPage() {
                       <div>
                         <p className="font-medium text-sm">Plan &amp; Billing</p>
                         <p className="text-xs text-muted-foreground mt-0.5">Manage your subscription and payment method</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </Link>
+              </div>
+            </section>
+
+            <section>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Appearance</p>
+              <div className="rounded-lg border bg-card overflow-hidden">
+                <Link href="/settings/appearance">
+                  <div className="flex items-center justify-between p-4 hover:bg-accent transition-colors">
+                    <div className="flex items-center gap-3">
+                      <Palette className="h-5 w-5 text-primary" />
+                      <div>
+                        <p className="font-medium text-sm">Theme &amp; Colors</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Personalize your dealership colors and font style</p>
                       </div>
                     </div>
                     <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -168,6 +186,18 @@ export default async function SettingsPage() {
                       <div>
                         <p className="font-medium text-sm">Google Reviews</p>
                         <p className="text-xs text-muted-foreground mt-0.5">Auto-send review requests after a sale - immediately or on a delay</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </Link>
+                <Link href="/settings/pulse">
+                  <div className="flex items-center justify-between p-4 border-t border-border hover:bg-accent transition-colors">
+                    <div className="flex items-center gap-3">
+                      <Heart className="h-5 w-5 text-primary" />
+                      <div>
+                        <p className="font-medium text-sm">Customer Pulse</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Send post-sale satisfaction surveys and track your team scores</p>
                       </div>
                     </div>
                     <ChevronRight className="h-4 w-4 text-muted-foreground" />

@@ -11,7 +11,7 @@ import {
   ShieldCheck, Settings, Printer, Globe,
   LayoutDashboard, Bell, Building2, TrendingDown,
   LineChart, GitBranch, UserCog, TicketCheck, ScrollText,
-  LogOut, Briefcase, Contact,
+  LogOut, Briefcase, Contact, Heart,
 } from 'lucide-react'
 
 interface MeResponse {
@@ -50,6 +50,7 @@ const BASE_NAV = [
 const ROLE_NAV = [
   { href: '/bhph',      label: 'BHPH',      icon: CreditCard,     requiresRole: (r: string) => r !== 'dealer_rep' },
   { href: '/analytics', label: 'Analytics', icon: BarChart2,      requiresRole: (r: string) => ['dealer_admin', 'dealer_manager', 'admin'].includes(r) },
+  { href: '/pulse',     label: 'Pulse',     icon: Heart,          requiresRole: (r: string) => ['dealer_admin', 'dealer_manager', 'admin'].includes(r) },
   { href: '/fax',               label: 'Fax',      icon: Printer,        requiresRole: () => true },
   { href: '/support',           label: 'Support',  icon: HeadphonesIcon, requiresRole: () => true },
   { href: '/settings/website',  label: 'Website',  icon: Globe,          requiresRole: (r: string) => r === 'dealer_admin' || r === 'admin' },
