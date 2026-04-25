@@ -58,22 +58,30 @@ export async function POST(req: NextRequest) {
   const params = Object.fromEntries(new URLSearchParams(text))
 
   // Validate Twilio HMAC-SHA1 signature (stronger than query-param secret)
-  // Falls back to legacy ?secret= check so existing Twilio config keeps working
-  // during the transition period. Remove the fallback once Twilio webhook URL is updated.
+  // Falls back to legacy Authorization header secret so existing Twilio config keeps working
+  // during the transition period. Remove the fallback once HMAC is confirmed working in production.
   const authToken   = process.env.TWILIO_AUTH_TOKEN ?? ''
   const signature   = req.headers.get('x-twilio-signature') ?? ''
   const webhookUrl  = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://dealerwyze.com'}/api/twilio/inbound`
-  const legacySecret = req.nextUrl.searchParams.get('secret')
+
+  // Legacy fallback reads secret from Authorization: Bearer header (not URL query param)
+  const legacyAuthHeader = req.headers.get('authorization')
+  const legacySecret = legacyAuthHeader?.startsWith('Bearer ') ? legacyAuthHeader.slice(7) : null
 
   const hmacValid   = authToken && signature
     ? validateTwilioSignature(authToken, signature, webhookUrl, params)
     : false
 
-  // Legacy ?secret= fallback — only active when TWILIO_LEGACY_FALLBACK_ENABLED=true.
-  // Remove this flag (and the legacySecret block below) once Twilio webhook URL no
-  // longer includes ?secret= and HMAC is confirmed working in production.
+  // Legacy Authorization-header fallback — only active when TWILIO_LEGACY_FALLBACK_ENABLED=true.
+  // Remove this flag (and the legacySecret block below) once Twilio HMAC is confirmed working in production.
   const legacyEnabled = process.env.TWILIO_LEGACY_FALLBACK_ENABLED === 'true'
-  const legacyValid   = legacyEnabled && legacySecret === process.env.LEADS_POLL_SECRET
+  const legacyExpected = Buffer.from(process.env.LEADS_POLL_SECRET ?? '')
+  const legacyProvided = Buffer.from(legacySecret ?? '')
+  const legacyValid =
+    legacyEnabled &&
+    legacyExpected.length > 0 &&
+    legacyExpected.length === legacyProvided.length &&
+    crypto.timingSafeEqual(legacyExpected, legacyProvided)
 
   if (!hmacValid && !legacyValid) {
     return new NextResponse('Forbidden', { status: 403 })
