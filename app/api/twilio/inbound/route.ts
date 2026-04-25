@@ -12,6 +12,7 @@ import { createCalendarEvent } from '@/lib/google/calendar'
 import { stopSequenceOnReply, cancelSequenceOnUnsubscribe } from '@/lib/sequences/stopSequenceOnReply'
 import { dispatchWebhook } from '@/lib/webhooks/dispatch'
 import crypto from 'crypto'
+import { normalizePhone } from '@/lib/utils/phone'
 
 // Twilio sends form-encoded POST to this endpoint when a customer texts your number.
 // Webhook URL to set in Twilio console (no ?secret= needed — we use HMAC-SHA1 now):
@@ -49,13 +50,6 @@ const OPT_IN_KEYWORDS   = new Set(['START', 'UNSTOP', 'YES'])
 
 function twimlMsg(text: string) {
   return `<Response><Message>${text}</Message></Response>`
-}
-
-/** Strip non-digits, normalise to 10-digit US number */
-function normalizePhone(phone: string): string {
-  const digits = phone.replace(/\D/g, '')
-  if (digits.length === 11 && digits.startsWith('1')) return digits.slice(1)
-  return digits
 }
 
 export async function POST(req: NextRequest) {

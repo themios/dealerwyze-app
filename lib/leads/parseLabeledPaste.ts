@@ -1,3 +1,5 @@
+import { normalizePhone as normalizePhoneDigits } from '@/lib/utils/phone'
+
 /**
  * Parser for pasted lead text in "labeled field" format, e.g. from a CRM or
  * dealer lead view (Carsforsale.com, CarGurus, or generic):
@@ -36,14 +38,6 @@ function takeAfterLabel(text: string, label: string): string | null {
   return v
 }
 
-function normalizePhone(value: string | null): string | null {
-  if (!value) return null
-  const digits = value.replace(/\D/g, '')
-  if (digits.length === 10) return digits
-  if (digits.length === 11 && digits.startsWith('1')) return digits.slice(1)
-  return null
-}
-
 /** Returns true if the text looks like a labeled lead card (Email:/Phone: and Lead Source or Contact Type) */
 export function isLabeledLeadPaste(text: string): boolean {
   const t = text.trim()
@@ -58,7 +52,7 @@ export function parseLabeledLeadPaste(text: string): LabeledPasteLead | null {
   const email = rawEmail && /^[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}$/.test(rawEmail) ? rawEmail : null
 
   const rawPhone = takeAfterLabel(text, 'Phone')
-  const phone = rawPhone ? normalizePhone(rawPhone) : null
+  const phone = rawPhone ? (normalizePhoneDigits(rawPhone) || null) : null
 
   // Name: often the first non-empty line that isn't a label
   const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)

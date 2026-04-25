@@ -7,12 +7,7 @@ import { isAutoTraderLead, parseAutoTraderLead } from '@/lib/sms/parseAutoTrader
 import { isLabeledLeadPaste, parseLabeledLeadPaste } from '@/lib/leads/parseLabeledPaste'
 import { parseCarGurusDigest } from '@/lib/leads/parser'
 import { scanLeadText, scanResultToParsedLead } from '@/lib/leads/visionIngest'
-
-/** Normalize to 10-digit for comparison (strip non-digits; drop leading 1 if 11 digits). */
-function normalizePhone(p: string): string {
-  const d = (p ?? '').replace(/\D/g, '')
-  return d.length === 11 && d.startsWith('1') ? d.slice(1) : d
-}
+import { normalizePhone } from '@/lib/utils/phone'
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>
 

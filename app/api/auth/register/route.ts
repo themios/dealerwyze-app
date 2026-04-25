@@ -3,18 +3,13 @@ import { createServiceClient } from '@/lib/supabase/service'
 import crypto from 'crypto'
 import { sendNotificationEmail } from '@/lib/email/notify'
 import { buildWelcomeEmailHtml } from '@/lib/email/onboarding'
+import { normalizePhone } from '@/lib/utils/phone'
 
 function generateInviteCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
   let code = ''
   for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)]
   return code
-}
-
-/** Normalize phone: strip non-digits, keep last 10 digits */
-function normalizePhone(raw: string): string {
-  const digits = raw.replace(/\D/g, '')
-  return digits.length >= 10 ? digits.slice(-10) : digits
 }
 
 // Vector 1: known disposable / throwaway email domains — flag-only (non-blocking)

@@ -5,6 +5,7 @@
  */
 import type { ParsedLead } from './parser'
 import type { LeadSource } from './parser'
+import { normalizePhone } from '@/lib/utils/phone'
 
 export const TEMPLATE_HEADERS = [
   'Name',
@@ -77,12 +78,6 @@ export function buildColumnMap(headers: string[]): Record<number, Field> {
     if (field) map[i] = field
   })
   return map
-}
-
-function normalizePhone(val: string): string {
-  const digits = val.replace(/\D/g, '')
-  if (digits.length === 11 && digits.startsWith('1')) return digits.slice(1)
-  return digits.slice(0, 10)
 }
 
 function normalizeSource(val: string): LeadSource {

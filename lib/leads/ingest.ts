@@ -7,6 +7,7 @@ import { sendSmsConsentRequest } from '@/lib/sms/sendConsent'
 import { resolveLeadAssignee } from '@/lib/leads/assignLead'
 import { sendAutoResponseStep1 } from '@/lib/sequences/sendAutoResponseStep1'
 import { detectAppointmentIntent } from '@/lib/leads/detectAppointmentIntent'
+import { normalizePhone } from '@/lib/utils/phone'
 
 function parseVehicleName(name: string) {
   const parts = name.trim().split(/\s+/)
@@ -22,11 +23,6 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId?: 
   const userId = orgId!
 
   // 1. Upsert customer — match by email first, then normalized phone
-  function normalizePhone(p: string): string {
-    const d = p.replace(/\D/g, '')
-    return d.length === 11 && d.startsWith('1') ? d.slice(1) : d
-  }
-
   // Dedup check FIRST — before creating any customer record
   // Prevents orphaned customers when email/phone are blank (e.g. Facebook leads)
   const { data: earlyDup } = await supabase

@@ -3,13 +3,7 @@ import { sendLeadNotification } from '@/lib/push/send'
 import { createLeadResponseTask } from '@/lib/tasks/auto'
 import { generateVoiceSummary } from './summarize'
 import { createCalendarEvent } from '@/lib/google/calendar'
-
-/** Strip non-digits, normalise to 10-digit US number */
-function normalizePhone(phone: string): string {
-  const digits = phone.replace(/\D/g, '')
-  if (digits.length === 11 && digits.startsWith('1')) return digits.slice(1)
-  return digits
-}
+import { normalizePhone } from '@/lib/utils/phone'
 
 function formatPhone(raw: string): string {
   const ten = normalizePhone(raw)
