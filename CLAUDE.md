@@ -121,6 +121,7 @@ if (denied) return denied
 - **Retell webhook** (`retell-callback`): HMAC-SHA256 with timestamp replay protection — already implemented, do not change.
 - **Google Pub/Sub** (`gmail/webhook`): OIDC bearer token verification via `verifyGoogleOidc()`.
 - **VAPI webhook**: Use `crypto.timingSafeEqual()` — never `!==` string comparison for secrets.
+- **Cron routes**: Use `validateCronAuth(req)` from `lib/cron/validateCronAuth.ts` — timing-safe, supports both Bearer and legacy x-cron-secret header.
 - All secret comparisons must use `timingSafeEqual` from `crypto`.
 
 ### Staff Impersonation
@@ -161,6 +162,7 @@ if (denied) return denied
 - `SUPABASE_SERVICE_ROLE_KEY` — service client
 - `TWILIO_AUTH_TOKEN` — for webhook HMAC validation
 - `NEXT_PUBLIC_APP_URL` — used to build webhook URLs for Twilio HMAC (must match Twilio console exactly)
+- See `.env.example` for the full list of all ~60 env vars with descriptions
 
 ---
 
@@ -221,11 +223,15 @@ if (!validateTwilioSignature(authToken, signature, webhookUrl, paramObj)) {
 ---
 
 ## Cron Jobs
-- `/api/cron/check-tasks` — daily: receipt tasks, inventory aging, dormant, quota reset, reminders, alerts
+- `/api/cron/check-tasks` — daily: 16 jobs extracted to `lib/cron/jobs/` — receipt tasks, inventory aging, dormant, quota reset, appt reminders (V1+V2), response alerts, admin alerts, data retention, onboarding nudges, sequence delivery, full-auto sequences, review requests, Gmail watch renewal, Gmail token health, pulse surveys
 - `/api/cron/sync-leads` — every 15min: Gmail + IMAP lead poll
 - `/api/cron/poll-reviews` — every 4h: GBP review sync
+- `/api/cron/retention-triggers` — daily 9am PT: auto-enroll customers in retention sequences
+- `/api/cron/card-batch` — Mondays 6am PT: print card batches + PostGrid
+- `/api/cron/process-render-queue` — every minute: Remotion Lambda video renders
 - `/api/cron/data-retention` — daily: purge canceled orgs >90 days (uses `canceled_at`, not `updated_at`)
-- Auth: `Authorization: Bearer <CRON_SECRET>` header (legacy: `x-cron-secret: <LEADS_POLL_SECRET>`)
+- Auth: all routes use `validateCronAuth(req)` from `lib/cron/validateCronAuth.ts` (timing-safe; supports Bearer + legacy x-cron-secret)
+- Appointment reminders: V1 (`appointmentReminders.ts`) and V2 (`appointmentRemindersV2.ts`) both run — V2 is preferred; V1 deprecated, remove when V2 stable 30+ days
 
 ---
 
@@ -234,3 +240,85 @@ if (!validateTwilioSignature(authToken, signature, webhookUrl, paramObj)) {
 - Twilio webhook URLs in console must match `NEXT_PUBLIC_APP_URL` exactly (no trailing slash)
 - Toll-free verification deadline: 2026-03-13 — resubmit or messaging will be restricted
 - Pending migrations 049+050 must be applied in Supabase before features that depend on them
+
+## Best Practices — Lessons Learned
+
+These rules exist because a specific mistake was found and fixed. Follow them to avoid repeating.
+
+### Never create a new utility function without checking lib/ first
+Before writing any helper (phone formatting, date formatting, API response, etc.) check:
+- `lib/utils/phone.ts` — normalizePhone, formatPhone, formatPhoneForTel
+- `lib/utils/relativeTime.ts` — formatRelativeTime, formatRelative, formatRelativeWithTime
+- `lib/api/respond.ts` — apiError, apiOk
+- `lib/pulse/scoreColor.ts` — pulseScoreColor, pulseScoreWidgetClasses
+- `lib/cron/validateCronAuth.ts` — validateCronAuth
+Duplicating any of these across files caused a full audit+refactor session to clean up.
+
+### org_settings: always .update(), never .upsert()
+RLS blocks INSERT on org_settings — `.upsert()` silently fails on new rows. Always:
+```typescript
+await supabase.from('org_settings').update(payload).eq('org_id', profile.org_id)
+```
+This was found as a live bug in `app/api/settings/org/route.ts` (fixed 2026-04-24).
+
+### Cron route auth: use validateCronAuth(), never inline ===
+All cron routes must use `validateCronAuth(req)` from `lib/cron/validateCronAuth.ts`.
+Inline `=== \`Bearer ${process.env.CRON_SECRET}\`` is a timing attack vector. Found in all 10 cron routes (fixed 2026-04-24).
+
+### Check res.ok after every fetch() in client components
+102 places in the app call `await fetch(...)` without checking `res.ok`. Silent failures show as blank/stale UI. Pattern:
+```typescript
+const res = await fetch('/api/...')
+if (!res.ok) { setError('Something went wrong'); return }
+const data = await res.json()
+```
+
+### catch (err: any) loses type safety
+Use `unknown` for caught errors:
+```typescript
+catch (err) {
+  const message = err instanceof Error ? err.message : 'Unknown error'
+}
+```
+
+### File size limits — split when a file exceeds 400 lines
+Files over 400 lines make diffs hard to review and context hard to hold. When you find yourself adding to a large file, split it first:
+- Settings pages: extract each section to `sections/[Name]Section.tsx` (own state, own fetch)
+- Cron routes: extract job logic to `lib/cron/jobs/[name].ts`
+- Landing pages: extract each section component to `[component]/sections/[Name].tsx`
+- Never add a new cron job inline to `check-tasks/route.ts` — always create a job file
+
+### Role checks: use helpers, never raw strings
+```typescript
+// WRONG
+if (profile.role === 'admin' || profile.role === 'dealer_admin') { ... }
+
+// RIGHT
+import { isDealerAdmin } from '@/lib/auth/dealerRoles'
+if (isDealerAdmin(profile.role)) { ... }
+```
+Raw role strings were found in 3 section components during the 2026-04-24 audit.
+
+### Document V1/V2 or "experimental" files immediately
+Any time a parallel/replacement version of a file exists, add a JSDoc comment at the top of both files explaining:
+- What each version does
+- Which is preferred
+- When/why to remove the old one
+Found undocumented on `appointmentReminders.ts` + `appointmentRemindersV2.ts`.
+
+### README and .env.example must stay current
+When you add a new env var, add it to `.env.example` with a description.
+When you add a new cron job or major feature, update `README.md`.
+Found: README was still the create-next-app boilerplate; .env.example didn't exist.
+
+---
+
+## Shared Utility Locations (consolidated 2026-04-24)
+- Phone normalization: `lib/utils/phone.ts` → `normalizePhone()`, `formatPhone()`, `formatPhoneForTel()`
+- Relative time: `lib/utils/relativeTime.ts` → `formatRelativeTime()`, `formatRelative()`, `formatRelativeWithTime()`
+- Pulse score color: `lib/pulse/scoreColor.ts` → `pulseScoreColor()`, `pulseScoreWidgetClasses()`
+- API response helpers: `lib/api/respond.ts` → `apiError(message, status)`, `apiOk(data)`
+- Cron auth: `lib/cron/validateCronAuth.ts` → `validateCronAuth(req)` (timing-safe)
+- Cron jobs: `lib/cron/jobs/[name].ts` — one file per job, imported by `check-tasks/route.ts`
+- Lead parsers: `lib/leads/parseOfferUpSms.ts`, `lib/leads/parseAutoTraderSms.ts`
+- `lib/utils.ts` re-exports `formatPhone`, `formatPhoneForTel`, `formatRelativeTime` for backwards compat

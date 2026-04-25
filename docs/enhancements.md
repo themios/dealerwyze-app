@@ -4,26 +4,38 @@ Strategic ideas captured here. Promote to ROADMAP.md when ready to schedule.
 
 ---
 
-## Code Quality / Refactoring (from 2026-04-24 graphify audit)
+## Code Quality / Refactoring — COMPLETED 2026-04-24
 
-These are not features — they make the codebase easier for any programmer to read and edit.
+All 9 issues from the graphify audit resolved. All 16 readability audit issues resolved.
 
-### Quick Wins (low risk, do first)
-- **Delete dead duplicate:** `app/(app)/reports/ReportsClient.tsx` — byte-for-byte copy of analytics version; `/reports` already redirects to `/analytics`
-- **Delete superseded parsers:** `lib/sms/parseAutoTraderLead.ts` + `lib/sms/parseOfferUpLead.ts` — update 2 callers to use `lib/leads/parser.ts` instead
-- **Extract `scoreColor()`:** defined 4 separate times across Pulse files — create `lib/pulse/scoreColor.ts` with one canonical export
+### Completed (2026-04-24)
+- **Dead code deleted:** `app/(app)/reports/ReportsClient.tsx` ✅
+- **SMS parsers relocated:** `lib/sms/parse*.ts` → `lib/leads/parse*.ts` ✅
+- **`scoreColor()` consolidated:** `lib/pulse/scoreColor.ts` ✅
+- **`normalizePhone()` consolidated:** `lib/utils/phone.ts` (was 7 copies) ✅
+- **`formatPhone/formatPhoneForTel` consolidated:** `lib/utils/phone.ts` (moved from `lib/utils.ts`) ✅
+- **`formatRelativeTime` consolidated:** `lib/utils/relativeTime.ts` (moved from `lib/utils.ts`) ✅
+- **`apiError/apiOk` created:** `lib/api/respond.ts` ✅
+- **Cron jobs extracted:** 16 job files in `lib/cron/jobs/`; `check-tasks/route.ts` is now 70 lines ✅
+- **Cron auth timing-safe:** `lib/cron/validateCronAuth.ts` used by all 10 cron routes ✅
+- **Org settings page split:** 9 section components in `settings/organization/sections/` ✅
+- **LandingPage split:** 19 section files in `components/landing/sections/` ✅
+- **Vehicle route client comments:** 41 comments across 23 files explaining createServiceClient vs createClient ✅
+- **V1/V2 appointment reminders documented:** both files explain the relationship and deprecation plan ✅
+- **README rewritten:** real project README with setup, structure, architecture, cron table, deploy, gotchas ✅
+- **`.env.example` created:** all 60 env vars with descriptions ✅
+- **20 root planning docs moved:** to `docs/archive/` (preserved, not deleted) ✅
+- **`org_settings` upsert bug fixed:** `app/api/settings/org/route.ts` now uses `.update().eq()` ✅
 
-### Shared Helpers to Create
-- **`lib/utils/phone.ts`** — export `normalizeE164(phone: string): string`; delete 7 duplicate implementations scattered across `lib/leads/ingest.ts`, `lib/voice/ingest.ts`, `lib/leads/spreadsheetImport.ts`, `lib/leads/parseLabeledPaste.ts`, `app/api/leads/paste/route.ts`, `app/api/twilio/inbound/route.ts`, `app/api/auth/register/route.ts`
-- **`lib/api/respond.ts`** — export `apiError(message, status)` and `apiOk(data)`; replaces 677 inline `NextResponse.json({ error: ... })` patterns; also standardizes inconsistent error keys (`error` vs `message`)
-
-### Big File Splits (higher effort, do when touching those files)
-- **`app/api/cron/check-tasks/route.ts`** (1,108 lines, 15 jobs) — extract each job to `lib/cron/jobs/[jobName].ts`; route becomes a simple sequential runner
-- **`app/(app)/settings/organization/page.tsx`** (1,309 lines, 28 state vars, 9 sections) — split into `PhoneSettingsSection`, `EmailAccountsSection`, `VoiceAgentSection`, etc.; each manages its own state
-- **`components/landing/LandingPage.tsx`** (1,516 lines) — already uses named section components internally; move each to `components/landing/sections/[Name].tsx`
-
-### Consistency Fixes
-- **Supabase client choice in `app/api/vehicles/`** — some routes use `createServiceClient()` (bypasses RLS), some use `createClient()` with no explanation; add a one-line comment to each route explaining why
+### Remaining Known Debt (lower priority)
+- **102 client-side `fetch()` calls** without `res.ok` check — add an `apiFetch()` wrapper or ESLint rule to enforce going forward
+- **`catch (err: any)` in API routes** — replace with `err instanceof Error ? err.message : String(err)` pattern
+- **Raw role checks in 3 org settings sections** — `PhoneSection`, `VoiceAgentSection`, `DangerZoneSection` use `role === 'admin'` strings; should use `isDealerAdmin(role)`
+- **7 org settings sections each call `/api/settings/org` on mount** — future: shared `useOrgSettings` SWR hook
+- **Several settings sections show "Saved!" on API error** — need `res.ok` check before setting saved state
+- **`app/(onboarding)/onboarding/page.tsx`** — 926 lines; add orientation comment block at top
+- **`app/(app)/customers/[id]/CustomerDetailClient.tsx`** — 861 lines; add orientation comment block
+- **`app/(app)/admin/orgs/[id]/page.tsx`** — 813 lines; add orientation comment block
 
 ---
 
