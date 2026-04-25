@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ingestLead } from '@/lib/leads/ingest'
 import type { ParsedLead } from '@/lib/leads/parser'
+import { timingSafeEqual } from 'crypto'
 
 export async function POST(req: NextRequest) {
-  const secret = req.headers.get('x-leads-secret')
-  if (secret !== process.env.LEADS_POLL_SECRET) {
+  const provided = Buffer.from(req.headers.get('x-leads-secret') ?? '')
+  const expected = Buffer.from(process.env.LEADS_POLL_SECRET ?? '')
+  if (
+    expected.length === 0 ||
+    provided.length !== expected.length ||
+    !timingSafeEqual(provided, expected)
+  ) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

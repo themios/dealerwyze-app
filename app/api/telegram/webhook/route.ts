@@ -31,15 +31,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createServiceClient } from '@/lib/supabase/service'
 import { sendTelegramToOrg } from '@/lib/notifications/telegram'
+import { timingSafeEqual } from 'crypto'
 
 export const runtime   = 'nodejs'
 export const maxDuration = 30
 
 export async function POST(req: NextRequest) {
   // ── 1. Authenticate the request ─────────────────────────────────────────
-  const secret         = req.headers.get('x-telegram-bot-api-secret-token')
-  const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET
-  if (!expectedSecret || secret !== expectedSecret) {
+  const providedSecret = Buffer.from(req.headers.get('x-telegram-bot-api-secret-token') ?? '')
+  const expectedSecret = Buffer.from(process.env.TELEGRAM_WEBHOOK_SECRET ?? '')
+  if (
+    expectedSecret.length === 0 ||
+    providedSecret.length !== expectedSecret.length ||
+    !timingSafeEqual(providedSecret, expectedSecret)
+  ) {
     return new NextResponse('Forbidden', { status: 403 })
   }
 

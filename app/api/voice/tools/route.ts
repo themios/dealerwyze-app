@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getOrgIdByPhone } from '@/lib/orgs/lookup'
 import { searchInventory, getVehicleDetails } from '@/lib/voice/inventoryTools'
+import { timingSafeEqual } from 'crypto'
 
 export const runtime = 'nodejs'
 export const maxDuration = 15
@@ -19,9 +20,13 @@ export const maxDuration = 15
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
   // Auth check — secret must be in header, not URL (prevents secret appearing in logs)
-  const secret = req.headers.get('x-retell-tool-secret') ?? ''
-  const expected = process.env.RETELL_TOOL_SECRET ?? ''
-  if (!secret || secret !== expected) {
+  const provided = Buffer.from(req.headers.get('x-retell-tool-secret') ?? '')
+  const expected = Buffer.from(process.env.RETELL_TOOL_SECRET ?? '')
+  if (
+    expected.length === 0 ||
+    provided.length !== expected.length ||
+    !timingSafeEqual(provided, expected)
+  ) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
+import { timingSafeEqual } from 'crypto'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -13,8 +14,13 @@ export const maxDuration = 30
  *   Header: x-cron-secret: <LEADS_POLL_SECRET>
  */
 export async function GET(req: NextRequest) {
-  const secret = req.headers.get('x-cron-secret')
-  if (secret !== process.env.LEADS_POLL_SECRET) {
+  const provided = Buffer.from(req.headers.get('x-cron-secret') ?? '')
+  const expected = Buffer.from(process.env.LEADS_POLL_SECRET ?? '')
+  if (
+    expected.length === 0 ||
+    provided.length !== expected.length ||
+    !timingSafeEqual(provided, expected)
+  ) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
