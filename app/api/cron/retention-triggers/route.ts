@@ -30,6 +30,13 @@ export async function GET(req: NextRequest) {
   let enrolled = 0
   let skipped  = 0
 
+  // Fetch active/trialing org IDs to skip canceled/free orgs (avoids PostGrid + SMS spend)
+  const { data: activeOrgs } = await supabase
+    .from('organizations')
+    .select('id')
+    .in('subscription_status', ['active', 'trialing'])
+  const activeOrgIds = new Set((activeOrgs ?? []).map((o) => o.id))
+
   // Fetch all orgs that have at least one retention sequence configured
   const { data: settings } = await supabase
     .from('retention_settings')
@@ -43,6 +50,8 @@ export async function GET(req: NextRequest) {
     `)
 
   for (const s of settings ?? []) {
+    // Skip orgs that are not on an active or trialing subscription
+    if (!activeOrgIds.has(s.org_id)) { skipped++; continue }
     // ── BIRTHDAY trigger ────────────────────────────────────────────────────
     if (s.birthday_sequence_id) {
       const targetDate = new Date(now)

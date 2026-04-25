@@ -23,6 +23,17 @@ export async function deliverPulseSurvey(opts: DeliverPulseOptions): Promise<{ t
 
   if (!settings?.pulse_enabled) return null
 
+  // Gate on active subscription — do not burn Twilio credits for canceled/free orgs
+  const { data: org } = await supabase
+    .from('organizations')
+    .select('subscription_status')
+    .eq('id', orgId)
+    .single()
+
+  if (!org || !['active', 'trialing'].includes(org.subscription_status ?? '')) {
+    return null
+  }
+
   // Respect per-trigger-type settings
   if (triggerType === 'sold' && settings.pulse_auto_send_on_sold === false) return null
 

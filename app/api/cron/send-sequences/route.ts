@@ -183,6 +183,13 @@ export async function GET(req: NextRequest) {
   let errors     = 0
 
   try {
+    // Gate: only process enrollments for active/trialing orgs — avoids Twilio/email spend on canceled orgs
+    const { data: activeOrgs } = await supabase
+      .from('organizations')
+      .select('id')
+      .in('subscription_status', ['active', 'trialing'])
+    const activeOrgSet = new Set((activeOrgs ?? []).map((o) => o.id))
+
     // Fetch all due sequence activities across all orgs.
     // Only pick up activities tied to ACTIVE enrollments (joined via customer_sequences).
     const { data: dueActivities, error: fetchError } = await supabase
@@ -224,6 +231,12 @@ export async function GET(req: NextRequest) {
 
       // Guard: only fire for active enrollments
       if (enrollment.status !== 'active') {
+        skipped++
+        continue
+      }
+
+      // Guard: skip if the org is not on an active/trialing subscription
+      if (!activeOrgSet.has(act.user_id)) {
         skipped++
         continue
       }
