@@ -6,7 +6,6 @@ import { runReceiptTasks } from '@/lib/cron/jobs/receiptTasks'
 import { runInventoryAging } from '@/lib/cron/jobs/inventoryAging'
 import { runDormantCustomers } from '@/lib/cron/jobs/dormantCustomers'
 import { runQuotaReset } from '@/lib/cron/jobs/quotaReset'
-import { runAppointmentReminders } from '@/lib/cron/jobs/appointmentReminders'
 import { runResponseTimeAlerts } from '@/lib/cron/jobs/responseTimeAlerts'
 import { runAdminAlerts } from '@/lib/cron/jobs/adminAlerts'
 import { runDataRetention } from '@/lib/cron/jobs/dataRetention'
@@ -29,40 +28,70 @@ export async function GET(req: NextRequest) {
   const runId = await startCronRun('check-tasks')
   const supabase = createServiceClient()
 
-  const receipts     = await runReceiptTasks(supabase)
-  await runInventoryAging(supabase)
-  const dormant      = await runDormantCustomers(supabase)
-  const quotas       = await runQuotaReset(supabase)
-  const reminders    = await runAppointmentReminders(supabase)
-  const alerts       = await runResponseTimeAlerts(supabase)
-  const adminResult  = await runAdminAlerts(supabase)
-  await runDataRetention(supabase)
-  const nudges       = await runOnboardingNudges(supabase)
-  const seqDelivery  = await runSequenceDelivery(supabase)
-  const fullAuto     = await runFullAutoSequence(supabase)
-  const reviews      = await runReviewRequests(supabase)
-  const gmailWatch   = await runGmailWatchRenewal(supabase)
-  const gmailTokens  = await runGmailTokenHealth(supabase)
-  await runPulseSurveys(supabase)
-  const apptV2       = await runAppointmentRemindersV2(supabase)
+  // Per-job result tracking — each job records 'ok' or an error message.
+  // Jobs run independently so a failure in one does not skip the rest.
+  const jobResults: Record<string, string> = {}
 
-  await finishCronRun(runId, 'success', adminResult.allOrgsCount)
+  async function runJob<T>(name: string, fn: () => Promise<T>): Promise<T | undefined> {
+    try {
+      const result = await fn()
+      jobResults[name] = 'ok'
+      return result
+    } catch (err) {
+      console.error(`[check-tasks] job "${name}" failed:`, err)
+      jobResults[name] = err instanceof Error ? err.message : 'error'
+      return undefined
+    }
+  }
+
+  let receipts:    Awaited<ReturnType<typeof runReceiptTasks>>         | undefined
+  let dormant:     Awaited<ReturnType<typeof runDormantCustomers>>      | undefined
+  let quotas:      Awaited<ReturnType<typeof runQuotaReset>>            | undefined
+  let alerts:      Awaited<ReturnType<typeof runResponseTimeAlerts>>    | undefined
+  let adminResult: Awaited<ReturnType<typeof runAdminAlerts>>           | undefined
+  let nudges:      Awaited<ReturnType<typeof runOnboardingNudges>>      | undefined
+  let seqDelivery: Awaited<ReturnType<typeof runSequenceDelivery>>      | undefined
+  let fullAuto:    Awaited<ReturnType<typeof runFullAutoSequence>>       | undefined
+  let reviews:     Awaited<ReturnType<typeof runReviewRequests>>        | undefined
+  let gmailWatch:  Awaited<ReturnType<typeof runGmailWatchRenewal>>     | undefined
+  let gmailTokens: Awaited<ReturnType<typeof runGmailTokenHealth>>      | undefined
+  let apptV2:      Awaited<ReturnType<typeof runAppointmentRemindersV2>>| undefined
+
+  try {
+    receipts    = await runJob('receiptTasks',            () => runReceiptTasks(supabase))
+    await          runJob('inventoryAging',               () => runInventoryAging(supabase))
+    dormant     = await runJob('dormantCustomers',        () => runDormantCustomers(supabase))
+    quotas      = await runJob('quotaReset',              () => runQuotaReset(supabase))
+    alerts      = await runJob('responseTimeAlerts',      () => runResponseTimeAlerts(supabase))
+    adminResult = await runJob('adminAlerts',             () => runAdminAlerts(supabase))
+    await          runJob('dataRetention',                () => runDataRetention(supabase))
+    nudges      = await runJob('onboardingNudges',        () => runOnboardingNudges(supabase))
+    seqDelivery = await runJob('sequenceDelivery',        () => runSequenceDelivery(supabase))
+    fullAuto    = await runJob('fullAutoSequence',         () => runFullAutoSequence(supabase))
+    reviews     = await runJob('reviewRequests',          () => runReviewRequests(supabase))
+    gmailWatch  = await runJob('gmailWatchRenewal',       () => runGmailWatchRenewal(supabase))
+    gmailTokens = await runJob('gmailTokenHealth',        () => runGmailTokenHealth(supabase))
+    await          runJob('pulseSurveys',                 () => runPulseSurveys(supabase))
+    apptV2      = await runJob('appointmentRemindersV2',  () => runAppointmentRemindersV2(supabase))
+  } finally {
+    await finishCronRun(runId, 'success', adminResult?.allOrgsCount)
+  }
 
   return NextResponse.json({
-    receipts_tasked:             receipts.receiptsTasked,
-    dormant_marked:              dormant.dormantMarked,
-    quotas_reset:                quotas.quotasReset,
-    appointment_reminders_sent:  reminders.remindersent,
-    response_alerts:             alerts.responseAlerts,
-    admin_alerts:                adminResult.adminAlerts,
-    onboarding_nudges:           nudges.onboardingNudges,
-    sequence_sent:               seqDelivery.sequenceSent,
-    full_auto_fired:             fullAuto.fullAutoFired,
-    review_requests_sent:        reviews.reviewRequestsSent,
-    gmail_watches_renewed:       gmailWatch.gmailWatchesRenewed,
-    gmail_watches_failed:        gmailWatch.gmailWatchesFailed,
-    gmail_tokens_ok:             gmailTokens.gmailTokensOk,
-    gmail_tokens_revoked:        gmailTokens.gmailTokensRevoked,
-    reminders_queued:            apptV2.remindersQueued,
+    receipts_tasked:             receipts?.receiptsTasked,
+    dormant_marked:              dormant?.dormantMarked,
+    quotas_reset:                quotas?.quotasReset,
+    response_alerts:             alerts?.responseAlerts,
+    admin_alerts:                adminResult?.adminAlerts,
+    onboarding_nudges:           nudges?.onboardingNudges,
+    sequence_sent:               seqDelivery?.sequenceSent,
+    full_auto_fired:             fullAuto?.fullAutoFired,
+    review_requests_sent:        reviews?.reviewRequestsSent,
+    gmail_watches_renewed:       gmailWatch?.gmailWatchesRenewed,
+    gmail_watches_failed:        gmailWatch?.gmailWatchesFailed,
+    gmail_tokens_ok:             gmailTokens?.gmailTokensOk,
+    gmail_tokens_revoked:        gmailTokens?.gmailTokensRevoked,
+    reminders_queued:            apptV2?.remindersQueued,
+    job_results:                 jobResults,
   })
 }
