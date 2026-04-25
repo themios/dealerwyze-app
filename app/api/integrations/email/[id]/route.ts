@@ -72,7 +72,10 @@ export async function PATCH(
       .eq('org_id', profile.org_id)
       .select('id, label, email, provider, enabled, last_polled_at, last_error')
       .single()
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) {
+      console.error('[integrations/email PATCH oauth]', error)
+      return NextResponse.json({ error: 'Database error' }, { status: 500 })
+    }
     return NextResponse.json(data)
   }
 
@@ -108,7 +111,10 @@ export async function PATCH(
     .select('id, label, email, provider, enabled, last_polled_at, last_error')
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[integrations/email PATCH imap]', error)
+    return NextResponse.json({ error: 'Database error' }, { status: 500 })
+  }
   return NextResponse.json(data)
 }
 
@@ -130,6 +136,9 @@ export async function DELETE(
     .eq('id', id)
     .eq('org_id', profile.org_id)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[integrations/email DELETE]', error)
+    return NextResponse.json({ error: 'Database error' }, { status: 500 })
+  }
   return NextResponse.json({ ok: true })
 }

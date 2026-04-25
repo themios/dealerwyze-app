@@ -64,7 +64,10 @@ export async function PATCH(
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[tasks/[id] PATCH]', error)
+    return NextResponse.json({ error: 'Database error' }, { status: 500 })
+  }
 
   return NextResponse.json({ task })
 }
@@ -83,7 +86,10 @@ export async function DELETE(
     .eq('id', id)
     .eq('user_id', profile.org_id)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[tasks/[id] DELETE]', error)
+    return NextResponse.json({ error: 'Database error' }, { status: 500 })
+  }
 
   return NextResponse.json({ success: true })
 }

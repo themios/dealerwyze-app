@@ -18,10 +18,13 @@ export async function GET() {
       .or(`due_at.is.null,due_at.lte.${now}`)
       .or(`snooze_until.is.null,snooze_until.lt.${now}`)
 
-    if (error) return NextResponse.json({ count: 0 })
+    if (error) {
+      console.error('[tasks/count]', error)
+      return NextResponse.json({ error: 'Failed to fetch count' }, { status: 500 })
+    }
 
     return NextResponse.json({ count: count ?? 0 })
   } catch {
-    return NextResponse.json({ count: 0 })
+    return NextResponse.json({ error: 'Failed to fetch count' }, { status: 500 })
   }
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
+import { requireProfile } from '@/lib/auth/profile'
 import { runLeadPollForOrg } from '@/lib/leads/poll'
 import { getSyncError } from '@/lib/syncErrors'
 
@@ -18,17 +18,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T
 
 // Authenticated proxy — browser calls this, secret never leaves the server
 export async function POST() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('org_id')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.org_id) return NextResponse.json({ error: 'No org' }, { status: 400 })
+  const profile = await requireProfile()
 
   type PollOut = Awaited<ReturnType<typeof runLeadPollForOrg>>
   const result = await withTimeout<PollOut | { _timeout: true }>(

@@ -16,7 +16,10 @@ export async function GET(req: NextRequest) {
       .from('admin_alerts')
       .select('id', { count: 'exact', head: true })
       .is('resolved_at', null)
-    if (error) return NextResponse.json({ unresolved: 0 })
+    if (error) {
+      console.error('[admin/alerts]', error)
+      return NextResponse.json({ error: 'Failed to fetch alerts' }, { status: 500 })
+    }
     return NextResponse.json({ unresolved: count ?? 0 })
   }
 
@@ -27,6 +30,9 @@ export async function GET(req: NextRequest) {
     .order('created_at', { ascending: false })
     .limit(100)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[admin/alerts] list', error)
+    return NextResponse.json({ error: 'Database error' }, { status: 500 })
+  }
   return NextResponse.json(data ?? [])
 }

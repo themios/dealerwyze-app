@@ -20,7 +20,10 @@ export async function PATCH(
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  if (error) {
+    console.error('[receipts/categories PATCH]', error)
+    return NextResponse.json({ error: 'Database error' }, { status: 400 })
+  }
   return NextResponse.json({ category })
 }
 
@@ -38,6 +41,9 @@ export async function DELETE(
     .eq('id', id)
     .eq('user_id', profile.org_id)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  if (error) {
+    console.error('[receipts/categories DELETE]', error)
+    return NextResponse.json({ error: 'Database error' }, { status: 400 })
+  }
   return NextResponse.json({ ok: true })
 }

@@ -42,7 +42,10 @@ export async function PATCH(
     .select(`*, receipt_categories(name), vehicles(stock_no, year, make, model)`)
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  if (error) {
+    console.error('[receipts/ledger PATCH]', error)
+    return NextResponse.json({ error: 'Database error' }, { status: 400 })
+  }
   return NextResponse.json({ transaction })
 }
 
@@ -66,6 +69,9 @@ export async function DELETE(
     .eq('id', id)
     .eq('user_id', profile.org_id)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  if (error) {
+    console.error('[receipts/ledger DELETE]', error)
+    return NextResponse.json({ error: 'Database error' }, { status: 400 })
+  }
   return NextResponse.json({ ok: true })
 }

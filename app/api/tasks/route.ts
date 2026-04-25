@@ -32,7 +32,10 @@ export async function GET(req: NextRequest) {
     .order('due_at', { ascending: true, nullsFirst: false })
     .limit(100)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[tasks GET]', error)
+    return NextResponse.json({ error: 'Database error' }, { status: 500 })
+  }
 
   // Sort: 'must' before 'should', then preserve due_at asc order within each group
   const sorted = (tasks ?? []).sort((a, b) => {
@@ -94,7 +97,10 @@ export async function POST(req: NextRequest) {
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[tasks POST]', error)
+    return NextResponse.json({ error: 'Database error' }, { status: 500 })
+  }
 
   return NextResponse.json({ task }, { status: 201 })
 }
