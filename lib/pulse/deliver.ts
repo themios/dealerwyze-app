@@ -75,21 +75,26 @@ export async function deliverPulseSurvey(opts: DeliverPulseOptions): Promise<{ t
   const firstName = name.split(' ')[0] || 'there'
   const bizName   = settings.business_name || 'the dealership'
 
-  // Send SMS via Twilio (non-blocking — survey already created above)
-  if (
-    phone &&
-    settings.twilio_phone_number &&
-    process.env.TWILIO_ACCOUNT_SID &&
-    process.env.TWILIO_AUTH_TOKEN
-  ) {
-    const twilio = (await import('twilio')).default
+  // Send SMS via Twilio REST API (non-blocking — survey already created above)
+  const twilioSid   = process.env.TWILIO_ACCOUNT_SID
+  const twilioToken = process.env.TWILIO_AUTH_TOKEN
+  if (phone && settings.twilio_phone_number && twilioSid && twilioToken) {
     try {
-      const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
-      await client.messages.create({
-        to:   phone,
-        from: settings.twilio_phone_number,
-        body: `Hi ${firstName}! Thank you for your recent purchase at ${bizName}. Your experience matters to us. Please take a moment to share your feedback: ${surveyUrl}`,
-      })
+      await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`,
+        {
+          method:  'POST',
+          headers: {
+            'Content-Type':  'application/x-www-form-urlencoded',
+            'Authorization': `Basic ${Buffer.from(`${twilioSid}:${twilioToken}`).toString('base64')}`,
+          },
+          body: new URLSearchParams({
+            To:   phone,
+            From: settings.twilio_phone_number,
+            Body: `Hi ${firstName}! Thank you for your recent purchase at ${bizName}. Your experience matters to us. Please take a moment to share your feedback: ${surveyUrl}`,
+          }),
+        }
+      )
     } catch {
       // Non-blocking — do not propagate SMS errors
     }

@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
   // Group data by rep
   const repMap = new Map<string, { name: string; overallScores: number[]; catScores: Record<string, number[]> }>()
   for (const s of surveys) {
-    const rep = s.rep as { id: string; display_name: string } | null
+    const rep = s.rep as unknown as { id: string; display_name: string } | null
     if (!rep || !s.assigned_rep_id) continue
     if (!repMap.has(s.assigned_rep_id)) {
       repMap.set(s.assigned_rep_id, { name: rep.display_name, overallScores: [], catScores: {} })

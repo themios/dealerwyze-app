@@ -46,6 +46,7 @@ const nextConfig: NextConfig = {
     '@remotion/cli',
     '@aws-sdk/client-s3',
     'esbuild',
+    'twilio',
   ],
 }
 

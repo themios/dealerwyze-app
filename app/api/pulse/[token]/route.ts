@@ -31,8 +31,8 @@ export async function GET(
     .is('opened_at', null)
     .then(() => {})
 
-  const customer = survey.customer as { name: string } | null
-  const org      = survey.org      as { name: string } | null
+  const customer = survey.customer as unknown as { name: string } | null
+  const org      = survey.org      as unknown as { name: string } | null
 
   return NextResponse.json({
     survey_id:           survey.id,
