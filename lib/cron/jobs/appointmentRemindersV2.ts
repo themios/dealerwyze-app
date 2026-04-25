@@ -1,0 +1,58 @@
+/** Send appointment reminders for confirmed appointments due in 18-30 hours with no reminder sent yet. */
+
+import { sendAppointmentNotification } from '@/lib/calendar/sendAppointmentNotification'
+import type { createServiceClient } from '@/lib/supabase/service'
+
+export async function runAppointmentRemindersV2(
+  supabase: ReturnType<typeof createServiceClient>,
+): Promise<{ remindersQueued: number }> {
+  const apptReminderWindowStart = new Date(Date.now() + 18 * 60 * 60 * 1000).toISOString()
+  const apptReminderWindowEnd   = new Date(Date.now() + 30 * 60 * 60 * 1000).toISOString()
+
+  const { data: upcomingAppts2 } = await supabase
+    .from('activities')
+    .select('id, due_at, body, user_id, customer_id, customer:customers(name, primary_phone, email)')
+    .eq('type', 'appointment')
+    .is('direction', null)
+    .is('completed_at', null)
+    .is('appt_reminder_sent_at', null)
+    .gte('due_at', apptReminderWindowStart)
+    .lte('due_at', apptReminderWindowEnd)
+    .limit(100)
+
+  let remindersQueued = 0
+
+  for (const appt of upcomingAppts2 ?? []) {
+    const cust = Array.isArray(appt.customer) ? appt.customer[0] : appt.customer
+    if (!cust) continue
+
+    const { data: orgSettingsRow } = await supabase
+      .from('org_settings')
+      .select('business_name')
+      .eq('org_id', appt.user_id)
+      .maybeSingle()
+
+    await sendAppointmentNotification({
+      orgId:          appt.user_id,
+      customerId:     appt.customer_id,
+      customerName:   (cust as any).name ?? 'Customer',
+      customerPhone:  (cust as any).primary_phone ?? '',
+      customerEmail:  (cust as any).email ?? '',
+      appointmentIso: appt.due_at,
+      dealerName:     orgSettingsRow?.business_name ?? 'the dealership',
+      calendarUrl:    null,
+      type:           'reminder',
+    }).catch(err => console.error('[cron/reminders] notification failed:', err))
+
+    await supabase
+      .from('activities')
+      .update({ appt_reminder_sent_at: new Date().toISOString() })
+      .eq('id', appt.id)
+
+    remindersQueued++
+  }
+
+  console.log(`[check-tasks] appointment reminders queued: ${remindersQueued}`)
+
+  return { remindersQueued }
+}
