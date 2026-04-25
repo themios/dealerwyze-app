@@ -34,7 +34,8 @@ export async function checkQuota(orgId: string, isMms = false): Promise<QuotaSta
     .single()
 
   if (!org) {
-    return { allowed: true, warning_level: 'ok', is_mms_blocked: false, is_overage: false, current_count: 0, mms_count: 0, quota: 1500 }
+    console.error('[sms-quota] failed to fetch org quota, blocking send:', orgId)
+    return { allowed: false, warning_level: 'over', is_mms_blocked: false, is_overage: false, current_count: 0, mms_count: 0, quota: 0, reason: 'quota_check_failed' }
   }
 
   const count    = (org as Record<string, unknown>).monthly_message_count as number ?? 0
