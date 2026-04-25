@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { validateCronAuth } from '@/lib/cron/validateCronAuth'
 import { createServiceClient } from '@/lib/supabase/service'
 import { runLeadPollForOrg } from '@/lib/leads/poll'
 import { startCronRun, finishCronRun } from '@/lib/cron/runLogger'
@@ -22,10 +23,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T
  * Called by cron-job.org every 1 minute → dealerwyze.com/api/cron/sync-leads
  */
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const denied = validateCronAuth(req)
+  if (denied) return denied
 
   const runId = await startCronRun('sync-leads')
   const appUrl = process.env.NEXT_PUBLIC_APP_URL!

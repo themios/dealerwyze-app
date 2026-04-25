@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { validateCronAuth } from '@/lib/cron/validateCronAuth'
 import { createServiceClient } from '@/lib/supabase/service'
 
 export const runtime = 'nodejs'
@@ -13,11 +14,8 @@ export const maxDuration = 55
  * Schedule: daily via vercel.json cron
  */
 export async function GET(req: NextRequest) {
-  const bearerOk = req.headers.get('authorization') === `Bearer ${process.env.CRON_SECRET}`
-  const legacyOk = req.headers.get('x-cron-secret') === process.env.LEADS_POLL_SECRET
-  if (!bearerOk && !legacyOk) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const denied = validateCronAuth(req)
+  if (denied) return denied
 
   const supabase = createServiceClient()
   const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()

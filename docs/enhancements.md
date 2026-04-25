@@ -4,6 +4,29 @@ Strategic ideas captured here. Promote to ROADMAP.md when ready to schedule.
 
 ---
 
+## Code Quality / Refactoring (from 2026-04-24 graphify audit)
+
+These are not features — they make the codebase easier for any programmer to read and edit.
+
+### Quick Wins (low risk, do first)
+- **Delete dead duplicate:** `app/(app)/reports/ReportsClient.tsx` — byte-for-byte copy of analytics version; `/reports` already redirects to `/analytics`
+- **Delete superseded parsers:** `lib/sms/parseAutoTraderLead.ts` + `lib/sms/parseOfferUpLead.ts` — update 2 callers to use `lib/leads/parser.ts` instead
+- **Extract `scoreColor()`:** defined 4 separate times across Pulse files — create `lib/pulse/scoreColor.ts` with one canonical export
+
+### Shared Helpers to Create
+- **`lib/utils/phone.ts`** — export `normalizeE164(phone: string): string`; delete 7 duplicate implementations scattered across `lib/leads/ingest.ts`, `lib/voice/ingest.ts`, `lib/leads/spreadsheetImport.ts`, `lib/leads/parseLabeledPaste.ts`, `app/api/leads/paste/route.ts`, `app/api/twilio/inbound/route.ts`, `app/api/auth/register/route.ts`
+- **`lib/api/respond.ts`** — export `apiError(message, status)` and `apiOk(data)`; replaces 677 inline `NextResponse.json({ error: ... })` patterns; also standardizes inconsistent error keys (`error` vs `message`)
+
+### Big File Splits (higher effort, do when touching those files)
+- **`app/api/cron/check-tasks/route.ts`** (1,108 lines, 15 jobs) — extract each job to `lib/cron/jobs/[jobName].ts`; route becomes a simple sequential runner
+- **`app/(app)/settings/organization/page.tsx`** (1,309 lines, 28 state vars, 9 sections) — split into `PhoneSettingsSection`, `EmailAccountsSection`, `VoiceAgentSection`, etc.; each manages its own state
+- **`components/landing/LandingPage.tsx`** (1,516 lines) — already uses named section components internally; move each to `components/landing/sections/[Name].tsx`
+
+### Consistency Fixes
+- **Supabase client choice in `app/api/vehicles/`** — some routes use `createServiceClient()` (bypasses RLS), some use `createClient()` with no explanation; add a one-line comment to each route explaining why
+
+---
+
 ## Consumer-Side Growth (Marketplace / Pillar 1+3)
 
 ### SEO Strategy

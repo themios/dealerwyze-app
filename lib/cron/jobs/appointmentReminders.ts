@@ -1,4 +1,15 @@
-/** Send SMS reminders for appointments due in 23-25 hours where reminder_sent_at is null. */
+/**
+ * Appointment Reminders V1 — direct Twilio SMS via raw twilio-node client.
+ * Sends for appointments due in 23-25 hours where reminder_sent_at is null.
+ *
+ * V2 (appointmentRemindersV2.ts) is the preferred path — it uses
+ * sendAppointmentNotification() which supports both SMS and email, and uses
+ * a wider 18-30 hour window. Both jobs still run to ensure no appointments
+ * are missed during the transition period.
+ *
+ * TODO: Once V2 has been running reliably for 30+ days, remove this file
+ * and its call in check-tasks/route.ts.
+ */
 
 import type { createServiceClient } from '@/lib/supabase/service'
 

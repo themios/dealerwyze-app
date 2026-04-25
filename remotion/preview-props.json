@@ -1,0 +1,41 @@
+{
+  "dealerName": "APOLLO AUTO",
+  "dealerCity": "El Monte",
+  "dealerState": "CA",
+  "dealerPhone": "(805) 568-7462",
+  "dealerWebsite": "apolloautoca.com",
+  "year": 2011,
+  "make": "Acura",
+  "model": "RDX FWD",
+  "trim": "Sport",
+  "price": 7995,
+  "mileage": 129900,
+  "color": "Teal",
+  "interior": "Charcoal",
+  "engine": "240 hp 2.3L I4",
+  "mpgCity": 19,
+  "mpgHwy": 24,
+  "vin": "5J8TB2H51BA003247",
+  "isSalvage": true,
+  "photos": [
+    "https://static.cargurus.com/images/forsale/2026/02/12/15/50/2011_acura_rdx-pic-6930649633301142498-1024x768.jpeg",
+    "https://static.cargurus.com/images/forsale/2026/02/12/15/50/2011_acura_rdx-pic-7660542512209276422-1024x768.jpeg",
+    "https://static.cargurus.com/images/forsale/2026/02/12/15/50/2011_acura_rdx-pic-6307574161472094874-1024x768.jpeg",
+    "https://static.cargurus.com/images/forsale/2026/02/12/15/50/2011_acura_rdx-pic-7165406099361409160-1024x768.jpeg",
+    "https://static.cargurus.com/images/forsale/2026/02/12/15/50/2011_acura_rdx-pic-5482870431790082855-1024x768.jpeg",
+    "https://static.cargurus.com/images/forsale/2026/02/12/15/50/2011_acura_rdx-pic-7577341599865918032-1024x768.jpeg",
+    "https://static.cargurus.com/images/forsale/2026/02/12/15/50/2011_acura_rdx-pic-8368109967384742309-1024x768.jpeg",
+    "https://static.cargurus.com/images/forsale/2026/02/12/15/50/2011_acura_rdx-pic-2964166103103256124-1024x768.jpeg"
+  ],
+  "features": [
+    "Alloy Wheels",
+    "Backup Camera",
+    "Bluetooth",
+    "Heated Seats",
+    "Leather Seats",
+    "Multi Zone Climate Control"
+  ],
+  "showPrice": true,
+  "showPhone": true,
+  "showWatermark": true
+}

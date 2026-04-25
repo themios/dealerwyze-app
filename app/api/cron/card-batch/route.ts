@@ -14,6 +14,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { validateCronAuth } from '@/lib/cron/validateCronAuth'
 import { createServiceClient } from '@/lib/supabase/service'
 import { startCronRun, finishCronRun } from '@/lib/cron/runLogger'
 import { sendNotificationEmail } from '@/lib/email/notify'
@@ -38,11 +39,8 @@ function humanWeekLabel(d: Date): string {
 }
 
 export async function GET(req: NextRequest) {
-  const bearerOk = req.headers.get('authorization') === `Bearer ${process.env.CRON_SECRET}`
-  const legacyOk = req.headers.get('x-cron-secret') === process.env.LEADS_POLL_SECRET
-  if (!bearerOk && !legacyOk) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const denied = validateCronAuth(req)
+  if (denied) return denied
 
   const runId    = await startCronRun('card-batch')
   const supabase = createServiceClient()

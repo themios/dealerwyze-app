@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { validateCronAuth } from '@/lib/cron/validateCronAuth'
 import { createServiceClient } from '@/lib/supabase/service'
 import { renderMediaOnLambda, AwsRegion } from '@remotion/lambda-client'
 
@@ -11,11 +12,8 @@ const MAX_CONCURRENT_RENDERS = 5
 // Dispatches queued video renders to Remotion Lambda.
 // Runs every minute via Vercel cron (vercel.json).
 export async function GET(req: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET ?? ''
-  const auth = req.headers.get('authorization') ?? ''
-  if (!cronSecret || auth !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const denied = validateCronAuth(req)
+  if (denied) return denied
 
   const supabase = createServiceClient()
 

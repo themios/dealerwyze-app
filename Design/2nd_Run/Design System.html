@@ -1,0 +1,1129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DealerWyze — Design System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700;800&family=Archivo:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@0.453.0/dist/umd/lucide.min.js"></script>
+<style>
+  /* ---------- Tokens ---------- */
+  :root {
+    --radius: 0.625rem;
+    --background: #F8F4EE;
+    --foreground: #0A1628;
+    --card: #FFFFFF;
+    --card-foreground: #0A1628;
+    --primary: #0D2B55;
+    --primary-foreground: #FFFFFF;
+    --secondary: #EDE8E0;
+    --secondary-foreground: #0D2B55;
+    --muted: #EDE8E0;
+    --muted-foreground: #6B6355;
+    --accent: #FEF3E2;
+    --accent-foreground: #92560A;
+    --destructive: #E03A1E;
+    --border: #DDD8CF;
+    --input: #DDD8CF;
+    --ring: #0D2B55;
+    --brand-orange: #F07018;
+    --brand-amber: #F5A623;
+    --brand-green: #2A6B1A;
+    --brand-coral: #E03A1E;
+
+    --font-display: 'Barlow Semi Condensed', system-ui, sans-serif;
+    --font-body: 'Archivo', system-ui, sans-serif;
+    --font-mono: 'Geist Mono', ui-monospace, monospace;
+  }
+
+  .dark {
+    --background: #07131F;
+    --foreground: #F0EBE3;
+    --card: #0D1F33;
+    --card-foreground: #F0EBE3;
+    --primary: #F07018;
+    --primary-foreground: #FFFFFF;
+    --secondary: #122A44;
+    --secondary-foreground: #D6CFC5;
+    --muted: #122A44;
+    --muted-foreground: #8A8070;
+    --accent: #1C3A5C;
+    --accent-foreground: #F5A623;
+    --destructive: #FF5436;
+    --border: rgba(255, 255, 255, 0.10);
+    --input: rgba(255, 255, 255, 0.12);
+    --ring: #F07018;
+    --brand-orange: #F07018;
+    --brand-amber: #F5A623;
+    --brand-green: #3D9926;
+    --brand-coral: #FF5436;
+  }
+
+  /* ---------- Page chrome (outside themed panels) ---------- */
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: var(--font-body);
+    background: #E8E2D7;
+    color: #0A1628;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .page-header {
+    padding: 32px 40px 20px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .page-title {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 32px;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    margin: 0;
+    color: #0A1628;
+  }
+  .page-sub {
+    font-size: 13px;
+    color: #6B6355;
+    margin: 6px 0 0;
+  }
+  .page-meta {
+    display: flex;
+    gap: 10px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: #6B6355;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .page-meta span {
+    padding: 4px 8px;
+    border: 1px solid #DDD8CF;
+    border-radius: 999px;
+    background: #F8F4EE;
+  }
+
+  /* Two-panel split */
+  .split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    min-height: calc(100vh - 120px);
+  }
+  .panel {
+    background: var(--background);
+    color: var(--foreground);
+    padding: 32px 40px 64px;
+    border-top: 1px solid #D4CEC3;
+  }
+  .panel.light { border-right: 1px solid #D4CEC3; }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 28px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-dot {
+    width: 10px; height: 10px; border-radius: 999px;
+    background: var(--brand-orange);
+  }
+  .panel.light .panel-dot { background: var(--primary); }
+  .panel-title {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 20px;
+    letter-spacing: -0.005em;
+    color: var(--foreground);
+  }
+  .panel-badge {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted-foreground);
+  }
+
+  /* Section */
+  .section { margin-top: 36px; }
+  .section:first-of-type { margin-top: 0; }
+  .section-label {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .section-label h2 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--foreground);
+    margin: 0;
+  }
+  .section-label .hint {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    color: var(--muted-foreground);
+  }
+
+  /* Color swatches */
+  .color-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .swatch {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .swatch .chip {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    flex: none;
+  }
+  .swatch .meta { display: flex; flex-direction: column; min-width: 0; }
+  .swatch .name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--foreground);
+    font-family: var(--font-body);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .swatch .hex {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted-foreground);
+  }
+
+  /* Type scale */
+  .type-row {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    align-items: baseline;
+    gap: 16px;
+    padding: 14px 0;
+    border-bottom: 1px dashed var(--border);
+  }
+  .type-row:last-child { border-bottom: none; }
+  .type-meta {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted-foreground);
+    line-height: 1.4;
+  }
+  .type-meta b { display:block; color: var(--foreground); font-weight: 500; }
+  .t-h1 { font-family: var(--font-display); font-weight: 700; font-size: 30px; line-height: 1.1; letter-spacing: -0.01em; color: var(--foreground); }
+  .t-h2 { font-family: var(--font-display); font-weight: 600; font-size: 22px; line-height: 1.15; color: var(--foreground); }
+  .t-h3 { font-family: var(--font-body); font-weight: 600; font-size: 17px; color: var(--foreground); }
+  .t-body { font-family: var(--font-body); font-weight: 400; font-size: 15px; line-height: 1.5; color: var(--foreground); }
+  .t-label { font-family: var(--font-body); font-weight: 500; font-size: 12px; color: var(--muted-foreground); text-transform: none; }
+  .t-badge { font-family: var(--font-body); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--foreground); }
+  .t-mono { font-family: var(--font-mono); font-weight: 400; font-size: 13px; color: var(--foreground); }
+
+  /* Buttons */
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 36px;
+    padding: 0 16px;
+    border-radius: var(--radius);
+    font-family: var(--font-body);
+    font-size: 14px;
+    font-weight: 500;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+    line-height: 1;
+  }
+  .btn svg { width: 16px; height: 16px; }
+  .btn-primary { background: var(--primary); color: var(--primary-foreground); }
+  .btn-primary:hover { background: color-mix(in oklab, var(--primary) 92%, black); }
+  .btn-secondary { background: var(--secondary); color: var(--secondary-foreground); }
+  .btn-secondary:hover { background: color-mix(in oklab, var(--secondary) 90%, black); }
+  .btn-destructive { background: var(--destructive); color: #fff; }
+  .btn-destructive:hover { background: color-mix(in oklab, var(--destructive) 88%, black); }
+  .btn-ghost { background: transparent; color: var(--foreground); }
+  .btn-ghost:hover { background: var(--muted); }
+  .btn-outline { background: transparent; color: var(--foreground); border-color: var(--border); }
+  .btn-outline:hover { background: var(--muted); }
+  .btn-sm { height: 32px; padding: 0 12px; font-size: 13px; }
+  .btn-lg { height: 40px; padding: 0 20px; font-size: 15px; }
+  .btn-icon {
+    width: 36px; height: 36px; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+
+  /* Cards */
+  .card {
+    background: var(--card);
+    color: var(--card-foreground);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .panel.light .card { box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .card:hover { transform: translateY(-1px); }
+  .panel.light .card:hover { box-shadow: 0 4px 12px rgba(13, 43, 85, 0.12); }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .lead-card .top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .lead-card .name {
+    font-family: var(--font-body);
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--foreground);
+    line-height: 1.2;
+  }
+  .lead-card .vehicle {
+    font-size: 13px;
+    color: var(--muted-foreground);
+    margin-top: 2px;
+  }
+  .lead-card .meta {
+    display: flex;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--muted-foreground);
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--border);
+  }
+  .lead-card .meta svg { width: 13px; height: 13px; vertical-align: -2px; margin-right: 3px; }
+
+  .vehicle-card { display: flex; gap: 12px; align-items: center; }
+  .vehicle-thumb {
+    width: 64px; height: 64px; flex: none;
+    border-radius: 8px;
+    background: repeating-linear-gradient(
+      135deg,
+      var(--muted) 0 6px,
+      color-mix(in oklab, var(--muted) 85%, black) 6px 12px
+    );
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted-foreground);
+  }
+  .vehicle-info { min-width: 0; flex: 1; }
+  .vehicle-title { font-size: 15px; font-weight: 600; line-height: 1.2; color: var(--foreground); }
+  .vehicle-sub { font-size: 12px; color: var(--muted-foreground); margin-top: 3px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .vehicle-price { font-size: 15px; font-weight: 600; color: var(--brand-orange); }
+
+  /* Badges */
+  .badge-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: var(--font-body);
+    line-height: 1.4;
+    white-space: nowrap;
+  }
+  .badge svg { width: 11px; height: 11px; }
+  .b-new { background: var(--accent); color: var(--accent-foreground); }
+  .b-sold { background: color-mix(in oklab, var(--brand-green) 18%, var(--card)); color: var(--brand-green); }
+  .dark .b-sold { background: rgba(61,153,38,0.18); color: #8AD372; }
+  .b-hot { background: color-mix(in oklab, var(--brand-coral) 15%, var(--card)); color: var(--brand-coral); }
+  .b-pending { background: var(--secondary); color: var(--muted-foreground); }
+  .b-seq { background: color-mix(in oklab, #2563EB 12%, var(--card)); color: #1D4ED8; }
+  .dark .b-seq { background: rgba(59,130,246,0.18); color: #93C5FD; }
+
+  /* Inputs */
+  .stack { display: flex; flex-direction: column; gap: 12px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted-foreground);
+  }
+  .input, .select, .textarea {
+    height: 36px;
+    padding: 0 12px;
+    border-radius: var(--radius);
+    border: 1px solid var(--input);
+    background: var(--card);
+    color: var(--foreground);
+    font-family: var(--font-body);
+    font-size: 14px;
+    outline: none;
+    transition: box-shadow 0.15s ease, border-color 0.15s ease;
+  }
+  .dark .input, .dark .select, .dark .textarea { background: transparent; }
+  .textarea { height: 74px; padding: 8px 12px; resize: vertical; font-family: var(--font-body); }
+  .input:focus, .select:focus, .textarea:focus {
+    border-color: var(--ring);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 30%, transparent);
+  }
+  .input::placeholder, .textarea::placeholder { color: var(--muted-foreground); }
+
+  .input-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 36px;
+    padding: 0 12px;
+    border-radius: var(--radius);
+    border: 1px solid var(--input);
+    background: var(--card);
+  }
+  .dark .input-group { background: transparent; }
+  .input-group svg { width: 15px; height: 15px; color: var(--muted-foreground); flex: none; }
+  .input-group input {
+    flex: 1;
+    border: none; background: transparent; outline: none;
+    font-family: var(--font-body); font-size: 14px; color: var(--foreground);
+    min-width: 0;
+  }
+
+  .checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--foreground); }
+  .checkbox {
+    width: 16px; height: 16px;
+    border: 1px solid var(--input);
+    border-radius: 4px;
+    background: var(--card);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary-foreground);
+  }
+  .dark .checkbox { background: transparent; }
+  .checkbox.checked { background: var(--primary); border-color: var(--primary); }
+  .checkbox.checked svg { width: 11px; height: 11px; }
+  .checkbox:not(.checked) svg { display: none; }
+
+  /* Sidebar sample */
+  .sidebar-demo {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--card);
+    min-height: 320px;
+  }
+  .sidebar {
+    background: var(--card);
+    border-right: 1px solid var(--border);
+    padding: 14px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .sb-brand {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 10px 14px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 10px;
+  }
+  .sb-logo {
+    width: 28px; height: 28px; border-radius: 7px;
+    background: var(--brand-orange);
+    display: inline-flex; align-items: center; justify-content: center;
+    color: #fff; font-family: var(--font-display); font-weight: 800; font-size: 14px;
+  }
+  .sb-name { font-family: var(--font-display); font-weight: 700; font-size: 15px; color: var(--foreground); letter-spacing: 0.01em; }
+  .sb-group {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--muted-foreground); padding: 10px 10px 6px;
+    font-weight: 600;
+  }
+  .sb-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 13px; font-weight: 500;
+    color: var(--foreground);
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .sb-item svg { width: 18px; height: 18px; color: var(--muted-foreground); flex: none; }
+  .sb-item:hover { background: var(--muted); }
+  .sb-item.active {
+    background: var(--accent);
+    color: var(--accent-foreground);
+  }
+  .sb-item.active svg { color: var(--accent-foreground); }
+  .sb-count {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted-foreground);
+  }
+  .sb-item.active .sb-count { color: var(--accent-foreground); }
+
+  .sb-main {
+    background: var(--background);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .sb-main h3 {
+    font-family: var(--font-display); font-weight: 700; font-size: 22px; margin: 0;
+    color: var(--foreground);
+  }
+  .sb-main p { margin: 0; font-size: 13px; color: var(--muted-foreground); line-height: 1.5; }
+
+  /* Mobile sample */
+  .mobile-sample {
+    width: 320px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    overflow: hidden;
+    background: var(--background);
+    margin: 0 auto;
+  }
+  .mobile-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--card);
+  }
+  .mobile-bar .sb-logo { width: 22px; height: 22px; font-size: 11px; }
+  .mobile-bar .title { font-family: var(--font-display); font-weight: 700; font-size: 14px; color: var(--foreground); }
+  .mobile-bar .right { margin-left: auto; display: flex; gap: 8px; color: var(--muted-foreground); }
+  .mobile-bar .right svg { width: 18px; height: 18px; }
+  .mobile-body { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .mobile-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-top: 1px solid var(--border);
+    background: var(--card);
+  }
+  .mobile-tab {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 10px 0 12px;
+    font-size: 10px; color: var(--muted-foreground);
+    font-weight: 500;
+  }
+  .mobile-tab svg { width: 20px; height: 20px; }
+  .mobile-tab.active { color: var(--accent-foreground); }
+  .mobile-tab.active svg { color: var(--accent-foreground); }
+
+  /* Toasts */
+  .toast {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    border: 1px solid;
+    font-size: 13px;
+    line-height: 1.4;
+    background: var(--card);
+  }
+  .toast svg { width: 16px; height: 16px; flex: none; margin-top: 1px; }
+  .toast .t-title { font-weight: 600; color: var(--foreground); }
+  .toast .t-body { color: var(--muted-foreground); font-size: 12px; margin-top: 2px; }
+  .toast.success { background: color-mix(in oklab, var(--brand-green) 10%, var(--card)); border-color: color-mix(in oklab, var(--brand-green) 35%, var(--card)); }
+  .toast.success svg { color: var(--brand-green); }
+  .toast.error { background: color-mix(in oklab, var(--destructive) 10%, var(--card)); border-color: color-mix(in oklab, var(--destructive) 35%, var(--card)); }
+  .toast.error svg { color: var(--destructive); }
+  .toast.warning { background: color-mix(in oklab, var(--brand-amber) 14%, var(--card)); border-color: color-mix(in oklab, var(--brand-amber) 40%, var(--card)); }
+  .toast.warning svg { color: var(--brand-amber); }
+  .toast.info { background: color-mix(in oklab, #2563EB 10%, var(--card)); border-color: color-mix(in oklab, #2563EB 32%, var(--card)); }
+  .toast.info svg { color: #2563EB; }
+
+  /* Two-column within a panel */
+  .cols-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .cols-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+  }
+
+  /* Footer band */
+  .footer-band {
+    padding: 20px 40px;
+    color: #6B6355;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    display: flex; justify-content: space-between; gap: 12px;
+    border-top: 1px solid #D4CEC3;
+    background: #F8F4EE;
+  }
+
+  /* Responsive narrow: stack panels */
+  @media (max-width: 980px) {
+    .split { grid-template-columns: 1fr; }
+    .panel.light { border-right: none; border-bottom: 1px solid var(--border); }
+    .page-header { padding: 24px 20px 12px; }
+    .panel { padding: 24px 20px 48px; }
+    .footer-band { padding: 16px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="page-header">
+  <div>
+    <h1 class="page-title">DealerWyze — Design System</h1>
+    <p class="page-sub">Visual reference for tokens, type, and components. Light and dark side by side.</p>
+  </div>
+  <div class="page-meta">
+    <span>v0.1</span>
+    <span>Last synced · Apr 21</span>
+    <span>Warm · Navy · Orange</span>
+  </div>
+</header>
+
+<main class="split">
+  <!-- ======================== LIGHT PANEL ======================== -->
+  <section class="panel light" data-screen-label="01 Light">
+    <div class="panel-header">
+      <span class="panel-dot"></span>
+      <span class="panel-title">Light</span>
+      <span class="panel-badge">default · #F8F4EE</span>
+    </div>
+
+    <!-- Colors -->
+    <div class="section">
+      <div class="section-label"><h2>Color tokens</h2><span class="hint">role · hex</span></div>
+      <div class="color-grid" data-theme="light"></div>
+    </div>
+
+    <!-- Type -->
+    <div class="section">
+      <div class="section-label"><h2>Type scale</h2><span class="hint">Barlow Semi Condensed · Archivo · Geist Mono</span></div>
+      <div class="type-stack"></div>
+    </div>
+
+    <!-- Buttons -->
+    <div class="section">
+      <div class="section-label"><h2>Buttons</h2><span class="hint">36px default · 10px radius</span></div>
+      <div class="stack">
+        <div class="btn-row">
+          <button class="btn btn-primary"><i data-lucide="plus"></i>Add customer</button>
+          <button class="btn btn-secondary">Import list</button>
+          <button class="btn btn-destructive"><i data-lucide="trash-2"></i>Delete</button>
+          <button class="btn btn-ghost"><i data-lucide="more-horizontal"></i>More</button>
+          <button class="btn btn-outline">Export</button>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary btn-sm">Save</button>
+          <button class="btn btn-primary">Save</button>
+          <button class="btn btn-primary btn-lg">Save and continue</button>
+          <button class="btn btn-primary btn-icon"><i data-lucide="phone"></i></button>
+          <button class="btn btn-secondary btn-icon"><i data-lucide="message-square"></i></button>
+          <button class="btn btn-ghost btn-icon"><i data-lucide="more-vertical"></i></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Badges -->
+    <div class="section">
+      <div class="section-label"><h2>Status badges</h2><span class="hint">11px · uppercase optional</span></div>
+      <div class="badge-row">
+        <span class="badge b-new">New lead</span>
+        <span class="badge b-sold"><i data-lucide="check"></i>Sold</span>
+        <span class="badge b-hot"><i data-lucide="flame"></i>Hot lead</span>
+        <span class="badge b-pending">Pending</span>
+        <span class="badge b-seq"><i data-lucide="send"></i>Sequence · step 2</span>
+      </div>
+    </div>
+
+    <!-- Cards -->
+    <div class="section">
+      <div class="section-label"><h2>Cards</h2><span class="hint">lead · vehicle</span></div>
+      <div class="card-grid">
+        <div class="card lead-card">
+          <div class="top">
+            <div>
+              <div class="name">Marcus Reyes</div>
+              <div class="vehicle">'22 Silverado 1500 · LTZ</div>
+            </div>
+            <span class="badge b-hot"><i data-lucide="flame"></i>Hot</span>
+          </div>
+          <div class="meta">
+            <span><i data-lucide="phone"></i>(512) 555 0142</span>
+            <span><i data-lucide="clock"></i>12m ago</span>
+          </div>
+        </div>
+        <div class="card vehicle-card">
+          <div class="vehicle-thumb"><i data-lucide="car"></i></div>
+          <div class="vehicle-info">
+            <div class="vehicle-title">2021 Honda Accord EX-L</div>
+            <div class="vehicle-sub"><span>41,208 mi</span><span>VIN <span style="font-family:var(--font-mono);">…K4812</span></span></div>
+            <div class="vehicle-price">$22,450</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Inputs -->
+    <div class="section">
+      <div class="section-label"><h2>Inputs & forms</h2><span class="hint">36px · focus ring 30%</span></div>
+      <div class="cols-2">
+        <div class="stack">
+          <div class="field">
+            <label>Customer name</label>
+            <input class="input" type="text" placeholder="Full name" value="Marcus Reyes">
+          </div>
+          <div class="field">
+            <label>Phone</label>
+            <div class="input-group">
+              <i data-lucide="phone"></i>
+              <input type="tel" placeholder="(555) 555 0000" value="(512) 555 0142">
+            </div>
+          </div>
+          <div class="field">
+            <label>Source</label>
+            <select class="select">
+              <option>Walk-in</option><option>Website</option><option>Referral</option>
+            </select>
+          </div>
+        </div>
+        <div class="stack">
+          <div class="field">
+            <label>Search</label>
+            <div class="input-group">
+              <i data-lucide="search"></i>
+              <input type="search" placeholder="Search by name, VIN, or phone">
+            </div>
+          </div>
+          <div class="field">
+            <label>Notes</label>
+            <textarea class="textarea" placeholder="Add a note about the visit…">Stopped by to see the Silverado. Coming back Saturday with spouse.</textarea>
+          </div>
+          <label class="checkbox-row">
+            <span class="checkbox checked"><i data-lucide="check"></i></span>
+            Send confirmation text
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar sample (desktop) -->
+    <div class="section">
+      <div class="section-label"><h2>Sidebar nav (desktop)</h2><span class="hint">220px · active = accent</span></div>
+      <div class="sidebar-demo">
+        <aside class="sidebar">
+          <div class="sb-brand">
+            <span class="sb-logo">D</span>
+            <span class="sb-name">DealerWyze</span>
+          </div>
+          <div class="sb-group">Workspace</div>
+          <div class="sb-item active"><i data-lucide="inbox"></i>Today<span class="sb-count">12</span></div>
+          <div class="sb-item"><i data-lucide="users"></i>Customers<span class="sb-count">847</span></div>
+          <div class="sb-item"><i data-lucide="car"></i>Inventory<span class="sb-count">63</span></div>
+          <div class="sb-item"><i data-lucide="message-square"></i>Messages<span class="sb-count">3</span></div>
+          <div class="sb-group">Pipeline</div>
+          <div class="sb-item"><i data-lucide="git-branch"></i>Sequences</div>
+          <div class="sb-item"><i data-lucide="wallet"></i>BHPH / finance</div>
+          <div class="sb-item"><i data-lucide="bar-chart-3"></i>Reports</div>
+          <div class="sb-group" style="margin-top:auto;">Account</div>
+          <div class="sb-item"><i data-lucide="settings"></i>Settings</div>
+        </aside>
+        <div class="sb-main">
+          <h3>Today</h3>
+          <p>12 leads in your queue. 3 need a callback before 5pm.</p>
+          <div class="btn-row">
+            <button class="btn btn-primary"><i data-lucide="phone"></i>Start calling</button>
+            <button class="btn btn-secondary">Snooze queue</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile sample -->
+    <div class="section">
+      <div class="section-label"><h2>Mobile shell</h2><span class="hint">bottom tabs · 320px</span></div>
+      <div class="mobile-sample">
+        <div class="mobile-bar">
+          <span class="sb-logo">D</span>
+          <span class="title">Today</span>
+          <div class="right"><i data-lucide="bell"></i><i data-lucide="search"></i></div>
+        </div>
+        <div class="mobile-body">
+          <div class="card lead-card">
+            <div class="top">
+              <div>
+                <div class="name">Dana Whitfield</div>
+                <div class="vehicle">'19 Tacoma TRD Off-Road</div>
+              </div>
+              <span class="badge b-new">New</span>
+            </div>
+            <div class="btn-row" style="margin-top:8px;">
+              <button class="btn btn-primary btn-sm"><i data-lucide="phone"></i>Call</button>
+              <button class="btn btn-secondary btn-sm"><i data-lucide="message-square"></i>Text</button>
+              <button class="btn btn-ghost btn-sm">Dismiss</button>
+            </div>
+          </div>
+        </div>
+        <div class="mobile-tabs">
+          <div class="mobile-tab active"><i data-lucide="inbox"></i>Today</div>
+          <div class="mobile-tab"><i data-lucide="users"></i>People</div>
+          <div class="mobile-tab"><i data-lucide="car"></i>Inventory</div>
+          <div class="mobile-tab"><i data-lucide="more-horizontal"></i>More</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toasts -->
+    <div class="section">
+      <div class="section-label"><h2>Toasts</h2><span class="hint">state + next step</span></div>
+      <div class="stack">
+        <div class="toast success">
+          <i data-lucide="check-circle-2"></i>
+          <div><div class="t-title">Text sent to Marcus</div><div class="t-body">He'll get it in a moment. We'll notify you when he replies.</div></div>
+        </div>
+        <div class="toast error">
+          <i data-lucide="alert-triangle"></i>
+          <div><div class="t-title">Couldn't save customer</div><div class="t-body">Phone number looks off. Check it and try again.</div></div>
+        </div>
+        <div class="toast warning">
+          <i data-lucide="clock"></i>
+          <div><div class="t-title">Callback overdue</div><div class="t-body">Marcus was due for a callback 2 hours ago.</div></div>
+        </div>
+        <div class="toast info">
+          <i data-lucide="info"></i>
+          <div><div class="t-title">New lead from the website</div><div class="t-body">Route assigned to you based on your hours.</div></div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ======================== DARK PANEL ======================== -->
+  <section class="panel dark" data-screen-label="02 Dark">
+    <div class="panel-header">
+      <span class="panel-dot"></span>
+      <span class="panel-title">Dark</span>
+      <span class="panel-badge">inverse · #07131F</span>
+    </div>
+
+    <!-- Colors -->
+    <div class="section">
+      <div class="section-label"><h2>Color tokens</h2><span class="hint">role · hex</span></div>
+      <div class="color-grid" data-theme="dark"></div>
+    </div>
+
+    <!-- Type -->
+    <div class="section">
+      <div class="section-label"><h2>Type scale</h2><span class="hint">Barlow Semi Condensed · Archivo · Geist Mono</span></div>
+      <div class="type-stack"></div>
+    </div>
+
+    <!-- Buttons -->
+    <div class="section">
+      <div class="section-label"><h2>Buttons</h2><span class="hint">36px default · 10px radius</span></div>
+      <div class="stack">
+        <div class="btn-row">
+          <button class="btn btn-primary"><i data-lucide="plus"></i>Add customer</button>
+          <button class="btn btn-secondary">Import list</button>
+          <button class="btn btn-destructive"><i data-lucide="trash-2"></i>Delete</button>
+          <button class="btn btn-ghost"><i data-lucide="more-horizontal"></i>More</button>
+          <button class="btn btn-outline">Export</button>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary btn-sm">Save</button>
+          <button class="btn btn-primary">Save</button>
+          <button class="btn btn-primary btn-lg">Save and continue</button>
+          <button class="btn btn-primary btn-icon"><i data-lucide="phone"></i></button>
+          <button class="btn btn-secondary btn-icon"><i data-lucide="message-square"></i></button>
+          <button class="btn btn-ghost btn-icon"><i data-lucide="more-vertical"></i></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Badges -->
+    <div class="section">
+      <div class="section-label"><h2>Status badges</h2><span class="hint">11px · uppercase optional</span></div>
+      <div class="badge-row">
+        <span class="badge b-new">New lead</span>
+        <span class="badge b-sold"><i data-lucide="check"></i>Sold</span>
+        <span class="badge b-hot"><i data-lucide="flame"></i>Hot lead</span>
+        <span class="badge b-pending">Pending</span>
+        <span class="badge b-seq"><i data-lucide="send"></i>Sequence · step 2</span>
+      </div>
+    </div>
+
+    <!-- Cards -->
+    <div class="section">
+      <div class="section-label"><h2>Cards</h2><span class="hint">lead · vehicle</span></div>
+      <div class="card-grid">
+        <div class="card lead-card">
+          <div class="top">
+            <div>
+              <div class="name">Marcus Reyes</div>
+              <div class="vehicle">'22 Silverado 1500 · LTZ</div>
+            </div>
+            <span class="badge b-hot"><i data-lucide="flame"></i>Hot</span>
+          </div>
+          <div class="meta">
+            <span><i data-lucide="phone"></i>(512) 555 0142</span>
+            <span><i data-lucide="clock"></i>12m ago</span>
+          </div>
+        </div>
+        <div class="card vehicle-card">
+          <div class="vehicle-thumb"><i data-lucide="car"></i></div>
+          <div class="vehicle-info">
+            <div class="vehicle-title">2021 Honda Accord EX-L</div>
+            <div class="vehicle-sub"><span>41,208 mi</span><span>VIN <span style="font-family:var(--font-mono);">…K4812</span></span></div>
+            <div class="vehicle-price">$22,450</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Inputs -->
+    <div class="section">
+      <div class="section-label"><h2>Inputs & forms</h2><span class="hint">36px · focus ring 30%</span></div>
+      <div class="cols-2">
+        <div class="stack">
+          <div class="field">
+            <label>Customer name</label>
+            <input class="input" type="text" placeholder="Full name" value="Marcus Reyes">
+          </div>
+          <div class="field">
+            <label>Phone</label>
+            <div class="input-group">
+              <i data-lucide="phone"></i>
+              <input type="tel" placeholder="(555) 555 0000" value="(512) 555 0142">
+            </div>
+          </div>
+          <div class="field">
+            <label>Source</label>
+            <select class="select">
+              <option>Walk-in</option><option>Website</option><option>Referral</option>
+            </select>
+          </div>
+        </div>
+        <div class="stack">
+          <div class="field">
+            <label>Search</label>
+            <div class="input-group">
+              <i data-lucide="search"></i>
+              <input type="search" placeholder="Search by name, VIN, or phone">
+            </div>
+          </div>
+          <div class="field">
+            <label>Notes</label>
+            <textarea class="textarea" placeholder="Add a note about the visit…">Stopped by to see the Silverado. Coming back Saturday with spouse.</textarea>
+          </div>
+          <label class="checkbox-row">
+            <span class="checkbox checked"><i data-lucide="check"></i></span>
+            Send confirmation text
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar sample (desktop) -->
+    <div class="section">
+      <div class="section-label"><h2>Sidebar nav (desktop)</h2><span class="hint">220px · active = accent</span></div>
+      <div class="sidebar-demo">
+        <aside class="sidebar">
+          <div class="sb-brand">
+            <span class="sb-logo">D</span>
+            <span class="sb-name">DealerWyze</span>
+          </div>
+          <div class="sb-group">Workspace</div>
+          <div class="sb-item active"><i data-lucide="inbox"></i>Today<span class="sb-count">12</span></div>
+          <div class="sb-item"><i data-lucide="users"></i>Customers<span class="sb-count">847</span></div>
+          <div class="sb-item"><i data-lucide="car"></i>Inventory<span class="sb-count">63</span></div>
+          <div class="sb-item"><i data-lucide="message-square"></i>Messages<span class="sb-count">3</span></div>
+          <div class="sb-group">Pipeline</div>
+          <div class="sb-item"><i data-lucide="git-branch"></i>Sequences</div>
+          <div class="sb-item"><i data-lucide="wallet"></i>BHPH / finance</div>
+          <div class="sb-item"><i data-lucide="bar-chart-3"></i>Reports</div>
+          <div class="sb-group" style="margin-top:auto;">Account</div>
+          <div class="sb-item"><i data-lucide="settings"></i>Settings</div>
+        </aside>
+        <div class="sb-main">
+          <h3>Today</h3>
+          <p>12 leads in your queue. 3 need a callback before 5pm.</p>
+          <div class="btn-row">
+            <button class="btn btn-primary"><i data-lucide="phone"></i>Start calling</button>
+            <button class="btn btn-secondary">Snooze queue</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile sample -->
+    <div class="section">
+      <div class="section-label"><h2>Mobile shell</h2><span class="hint">bottom tabs · 320px</span></div>
+      <div class="mobile-sample">
+        <div class="mobile-bar">
+          <span class="sb-logo">D</span>
+          <span class="title">Today</span>
+          <div class="right"><i data-lucide="bell"></i><i data-lucide="search"></i></div>
+        </div>
+        <div class="mobile-body">
+          <div class="card lead-card">
+            <div class="top">
+              <div>
+                <div class="name">Dana Whitfield</div>
+                <div class="vehicle">'19 Tacoma TRD Off-Road</div>
+              </div>
+              <span class="badge b-new">New</span>
+            </div>
+            <div class="btn-row" style="margin-top:8px;">
+              <button class="btn btn-primary btn-sm"><i data-lucide="phone"></i>Call</button>
+              <button class="btn btn-secondary btn-sm"><i data-lucide="message-square"></i>Text</button>
+              <button class="btn btn-ghost btn-sm">Dismiss</button>
+            </div>
+          </div>
+        </div>
+        <div class="mobile-tabs">
+          <div class="mobile-tab active"><i data-lucide="inbox"></i>Today</div>
+          <div class="mobile-tab"><i data-lucide="users"></i>People</div>
+          <div class="mobile-tab"><i data-lucide="car"></i>Inventory</div>
+          <div class="mobile-tab"><i data-lucide="more-horizontal"></i>More</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toasts -->
+    <div class="section">
+      <div class="section-label"><h2>Toasts</h2><span class="hint">state + next step</span></div>
+      <div class="stack">
+        <div class="toast success">
+          <i data-lucide="check-circle-2"></i>
+          <div><div class="t-title">Text sent to Marcus</div><div class="t-body">He'll get it in a moment. We'll notify you when he replies.</div></div>
+        </div>
+        <div class="toast error">
+          <i data-lucide="alert-triangle"></i>
+          <div><div class="t-title">Couldn't save customer</div><div class="t-body">Phone number looks off. Check it and try again.</div></div>
+        </div>
+        <div class="toast warning">
+          <i data-lucide="clock"></i>
+          <div><div class="t-title">Callback overdue</div><div class="t-body">Marcus was due for a callback 2 hours ago.</div></div>
+        </div>
+        <div class="toast info">
+          <i data-lucide="info"></i>
+          <div><div class="t-title">New lead from the website</div><div class="t-body">Route assigned to you based on your hours.</div></div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+</main>
+
+<footer class="footer-band">
+  <span>DealerWyze · Design System v0.1</span>
+  <span>Barlow Semi Condensed · Archivo · Geist Mono</span>
+</footer>
+
+<script>
+  // ---- Color tokens data ----
+  const LIGHT_TOKENS = [
+    ['--background','#F8F4EE','Page background'],
+    ['--foreground','#0A1628','Body text'],
+    ['--card','#FFFFFF','Card surface'],
+    ['--primary','#0D2B55','Primary action'],
+    ['--secondary','#EDE8E0','Secondary surface'],
+    ['--muted','#EDE8E0','Muted surface'],
+    ['--muted-foreground','#6B6355','Metadata text'],
+    ['--accent','#FEF3E2','Accent surface'],
+    ['--accent-foreground','#92560A','Accent text'],
+    ['--destructive','#E03A1E','Destructive'],
+    ['--border','#DDD8CF','Borders'],
+    ['--ring','#0D2B55','Focus ring'],
+    ['--brand-orange','#F07018','Brand orange'],
+    ['--brand-amber','#F5A623','Brand amber'],
+    ['--brand-green','#2A6B1A','Brand green'],
+    ['--brand-coral','#E03A1E','Brand coral'],
+  ];
+  const DARK_TOKENS = [
+    ['--background','#07131F','Page background'],
+    ['--foreground','#F0EBE3','Body text'],
+    ['--card','#0D1F33','Card surface'],
+    ['--primary','#F07018','Primary action'],
+    ['--secondary','#122A44','Secondary surface'],
+    ['--muted','#122A44','Muted surface'],
+    ['--muted-foreground','#8A8070','Metadata text'],
+    ['--accent','#1C3A5C','Accent surface'],
+    ['--accent-foreground','#F5A623','Accent text'],
+    ['--destructive','#FF5436','Destructive'],
+    ['--border','rgba(255,255,255,.10)','Borders'],
+    ['--ring','#F07018','Focus ring'],
+    ['--brand-orange','#F07018','Brand orange'],
+    ['--brand-amber','#F5A623','Brand amber'],
+    ['--brand-green','#3D9926','Brand green'],
+    ['--brand-coral','#FF5436','Brand coral'],
+  ];
+
+  function renderSwatches(container, tokens) {
+    container.innerHTML = tokens.map(([name, hex, role]) => `
+      <div class="swatch">
+        <span class="chip" style="background:${hex}"></span>
+        <div class="meta">
+          <span class="name">${name}</span>
+          <span class="hex">${hex}</span>
+        </div>
+      </div>
+    `).join('');
+  }
+  renderSwatches(document.querySelector('[data-theme="light"]'), LIGHT_TOKENS);
+  renderSwatches(document.querySelector('[data-theme="dark"]'), DARK_TOKENS);
+
+  // ---- Type scale (same markup for both panels) ----
+  const TYPE_ROWS = [
+    ['h1 · Display 30/32','Barlow SC 700','<span class="t-h1">Today’s queue</span>'],
+    ['h2 · 22','Barlow SC 600','<span class="t-h2">12 leads waiting</span>'],
+    ['h3 · 17','Archivo 600','<span class="t-h3">Customer details</span>'],
+    ['Body · 15','Archivo 400','<span class="t-body">Stopped by to see the Silverado. Coming back Saturday with spouse.</span>'],
+    ['Label · 12','Archivo 500','<span class="t-label">Phone number</span>'],
+    ['Badge · 11','Archivo 600 UC','<span class="t-badge">New lead</span>'],
+    ['Mono · 13','Geist Mono 400','<span class="t-mono">VIN 1HGCM82633A004352</span>'],
+  ];
+  document.querySelectorAll('.type-stack').forEach(el => {
+    el.innerHTML = TYPE_ROWS.map(([tag, sub, html]) => `
+      <div class="type-row">
+        <div class="type-meta"><b>${tag}</b>${sub}</div>
+        <div>${html}</div>
+      </div>
+    `).join('');
+  });
+
+  // Render Lucide icons
+  if (window.lucide) lucide.createIcons();
+</script>
+
+</body>
+</html>

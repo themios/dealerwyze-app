@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DealerWyze — BHPH / Finance</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700;800&family=Archivo:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@0.453.0/dist/umd/lucide.min.js"></script>
+<style>
+  :root{--font-display:'Barlow Semi Condensed',system-ui,sans-serif;--font-body:'Archivo',system-ui,sans-serif;--font-mono:'Geist Mono',ui-monospace,monospace;--radius:0.625rem}
+  .theme-light{--background:#F8F4EE;--foreground:#0A1628;--card:#FFFFFF;--primary:#0D2B55;--primary-foreground:#FFFFFF;--secondary:#EDE8E0;--secondary-foreground:#0D2B55;--muted:#EDE8E0;--muted-foreground:#6B6355;--accent:#FEF3E2;--accent-foreground:#92560A;--destructive:#E03A1E;--border:#DDD8CF;--input:#DDD8CF;--brand-orange:#F07018;--brand-amber:#F5A623;--brand-green:#2A6B1A;--brand-coral:#E03A1E;--card-shadow:0 1px 3px rgba(0,0,0,.06)}
+  .theme-dark{--background:#07131F;--foreground:#F0EBE3;--card:#0D1F33;--primary:#F07018;--primary-foreground:#FFFFFF;--secondary:#122A44;--secondary-foreground:#D6CFC5;--muted:#122A44;--muted-foreground:#8A8070;--accent:#1C3A5C;--accent-foreground:#F5A623;--destructive:#FF5436;--border:rgba(255,255,255,.10);--input:rgba(255,255,255,.12);--brand-orange:#F07018;--brand-amber:#F5A623;--brand-green:#3D9926;--brand-coral:#FF5436;--card-shadow:none}
+  *{box-sizing:border-box}html,body{margin:0;padding:0}
+  body{background:#E8E2D7;font-family:var(--font-body);color:#0A1628}
+  .page-header{padding:28px 40px 16px;display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:20px}
+  .page-title{font-family:var(--font-display);font-weight:800;font-size:30px;margin:0;letter-spacing:-0.01em}
+  .page-sub{margin:4px 0 0;color:#6B6355;font-size:13px}
+  .page-meta{display:flex;gap:8px;font-family:var(--font-mono);font-size:11px;color:#6B6355;text-transform:uppercase;letter-spacing:.08em}
+  .page-meta span{padding:4px 8px;border:1px solid #DDD8CF;border-radius:999px;background:#F8F4EE}
+  .grid{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #D4CEC3}
+  .cell{padding:28px;border-right:1px solid #D4CEC3;border-bottom:1px solid #D4CEC3;display:flex;flex-direction:column;gap:14px;background:#EEE8DD}
+  .cell:nth-child(2n){border-right:none}
+  .cell-label{font-family:var(--font-mono);font-size:11px;color:#6B6355;text-transform:uppercase;letter-spacing:.08em;display:flex;gap:10px;align-items:center}
+  .cell-label .dot{width:8px;height:8px;border-radius:99px;background:#F07018}
+  .cell-label.light .dot{background:#0D2B55}
+  .cell-label b{color:#0A1628;font-weight:700}
+  .cell.dark-bg{background:#1C2430}
+  .cell.dark-bg .cell-label{color:#8A8070}
+  .cell.dark-bg .cell-label b{color:#F0EBE3}
+
+  .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;white-space:nowrap;line-height:1.4}
+  .badge svg{width:11px;height:11px}
+  .b-paid{background:color-mix(in oklab,var(--brand-green) 16%,var(--card));color:var(--brand-green)}
+  .theme-dark .b-paid{background:rgba(61,153,38,.2);color:#8AD372}
+  .b-due{background:color-mix(in oklab,var(--brand-orange) 16%,var(--card));color:var(--brand-orange)}
+  .b-upcoming{background:var(--secondary);color:var(--muted-foreground)}
+  .b-overdue{background:color-mix(in oklab,var(--brand-coral) 16%,var(--card));color:var(--brand-coral)}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:44px;border-radius:var(--radius);font-family:var(--font-body);font-weight:500;font-size:14px;border:1px solid transparent;cursor:pointer;line-height:1;padding:0 16px}
+  .btn svg{width:16px;height:16px}
+  .btn-primary{background:var(--primary);color:var(--primary-foreground)}
+  .btn-secondary{background:var(--secondary);color:var(--secondary-foreground)}
+  .btn-outline{background:transparent;color:var(--foreground);border:1px solid var(--border)}
+  .btn-ghost{background:transparent;color:var(--muted-foreground)}
+  .btn-ghost:hover{color:var(--foreground);background:var(--muted)}
+
+  .avatar{width:48px;height:48px;border-radius:99px;background:var(--secondary);color:var(--secondary-foreground);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:700;font-size:17px;border:1px solid var(--border);flex:none}
+
+  /* Loan summary */
+  .sumcard{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--card-shadow)}
+  .loan-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+  .loan-stat{padding:12px 14px;border-radius:var(--radius);background:var(--background);border:1px solid var(--border)}
+  .loan-stat .lbl{font-size:10.5px;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.1em;font-weight:600}
+  .loan-stat .val{font-family:var(--font-display);font-weight:700;font-size:22px;color:var(--foreground);margin-top:6px;letter-spacing:-0.005em;font-variant-numeric:tabular-nums}
+  .loan-stat.paid .val{color:var(--brand-green)}
+  .loan-stat.bal .val{color:var(--brand-orange)}
+  .progress{height:8px;border-radius:99px;background:var(--muted);overflow:hidden;margin-top:14px;display:flex}
+  .progress .bar{height:100%;background:var(--brand-green)}
+  .progress-meta{display:flex;justify-content:space-between;margin-top:8px;font-size:12px;color:var(--muted-foreground);font-variant-numeric:tabular-nums}
+  .progress-meta b{color:var(--foreground);font-weight:600}
+
+  /* Down payment */
+  .down{display:flex;align-items:center;gap:12px;padding:14px 16px;background:color-mix(in oklab,var(--brand-green) 10%,var(--card));border:1px solid color-mix(in oklab,var(--brand-green) 30%,var(--border));border-radius:var(--radius)}
+  .theme-dark .down{background:rgba(61,153,38,.1)}
+  .down .ic{width:36px;height:36px;border-radius:99px;background:color-mix(in oklab,var(--brand-green) 22%,var(--card));color:var(--brand-green);display:flex;align-items:center;justify-content:center;flex:none}
+  .down .ic svg{width:18px;height:18px}
+  .down .t{font-size:13px;color:var(--foreground);font-weight:600}
+  .down .s{font-size:11.5px;color:var(--muted-foreground);margin-top:2px}
+  .down .amt{margin-left:auto;font-family:var(--font-display);font-weight:700;font-size:22px;color:var(--brand-green);font-variant-numeric:tabular-nums}
+
+  /* Payment table */
+  .ptable{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--card-shadow)}
+  .ptable .h{display:grid;grid-template-columns:28px 1.6fr 1fr 1.2fr;padding:10px 14px 10px 0;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:var(--muted-foreground);background:var(--muted);border-bottom:1px solid var(--border)}
+  .ptable .h div{padding-left:14px}
+  .ptable .row{display:grid;grid-template-columns:28px 1.6fr 1fr 1.2fr;align-items:center;padding:0;border-bottom:1px solid var(--border);min-height:56px;position:relative}
+  .ptable .row:last-child{border-bottom:none}
+  .ptable .row .c{padding:12px 14px;font-size:14px;color:var(--foreground);font-variant-numeric:tabular-nums}
+  .ptable .row .accent{width:4px;align-self:stretch;background:transparent}
+  .ptable .row.due{background:color-mix(in oklab,var(--brand-orange) 9%,var(--card))}
+  .ptable .row.due .accent{background:var(--brand-orange)}
+  .ptable .row.due .amt{color:var(--brand-orange);font-weight:700}
+  .ptable .row.paid .amt{color:var(--brand-green);font-weight:600}
+  .ptable .row.up .amt{color:var(--muted-foreground)}
+  .ptable .row.over{background:color-mix(in oklab,var(--brand-coral) 10%,var(--card))}
+  .ptable .row.over .accent{background:var(--brand-coral)}
+  .ptable .row.over .amt{color:var(--brand-coral);font-weight:700}
+  .ptable .when{display:flex;flex-direction:column;gap:2px}
+  .ptable .when .mono{font-family:var(--font-mono);font-size:11px;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.06em}
+  .ptable .status{display:flex;align-items:center;gap:8px}
+
+  /* Alert banner */
+  .alert{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:var(--radius);background:color-mix(in oklab,var(--brand-coral) 10%,var(--card));border:1px solid color-mix(in oklab,var(--brand-coral) 30%,var(--border));color:var(--brand-coral);font-size:13px;font-weight:500}
+  .alert svg{width:16px;height:16px;flex:none}
+  .alert b{color:var(--foreground);font-weight:600;margin-right:4px}
+
+  /* ---------- Mobile ---------- */
+  .mobile{width:390px;height:860px;border-radius:34px;background:var(--background);color:var(--foreground);overflow:hidden;display:flex;flex-direction:column;border:1px solid var(--border);box-shadow:0 10px 30px rgba(10,22,40,.08);margin:0 auto;position:relative}
+  .mobile.theme-dark{box-shadow:0 10px 40px rgba(0,0,0,.35)}
+  .status-bar{display:flex;justify-content:space-between;align-items:center;padding:12px 22px 4px;font-size:13px;font-weight:600}
+  .status-bar .icons{display:flex;gap:5px}
+  .status-bar .icons svg{width:14px;height:14px}
+  .m-nav{display:flex;align-items:center;gap:8px;padding:4px 10px}
+  .m-nav .ic{width:36px;height:36px;border-radius:99px;display:flex;align-items:center;justify-content:center;color:var(--foreground)}
+  .m-nav .ic svg{width:20px;height:20px}
+  .m-nav .crumb{font-size:13px;color:var(--muted-foreground);font-weight:500}
+  .m-nav .spacer{flex:1}
+  .m-scroll{flex:1;overflow-y:auto;padding:6px 16px 160px;scrollbar-width:none;display:flex;flex-direction:column;gap:14px}
+  .m-scroll::-webkit-scrollbar{display:none}
+  .m-head{display:flex;gap:12px;align-items:center;padding:4px 0}
+  .m-head h1{font-family:var(--font-display);font-weight:700;font-size:22px;line-height:1.15;margin:0}
+  .m-head .veh{display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--muted-foreground);margin-top:3px}
+  .m-head .veh svg{width:13px;height:13px}
+  .sect-label{font-family:var(--font-display);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted-foreground);margin:2px 2px 0}
+
+  .m-actionbar{position:absolute;left:0;right:0;bottom:0;background:color-mix(in oklab,var(--card) 96%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid var(--border);padding:12px 16px 18px;display:flex;flex-direction:column;gap:8px}
+  .m-actionbar .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .m-actionbar .btn{width:100%}
+
+  /* ---------- Desktop ---------- */
+  .desktop{width:1280px;height:820px;background:var(--background);color:var(--foreground);border-radius:14px;overflow:hidden;display:grid;grid-template-columns:240px 1fr;border:1px solid var(--border);box-shadow:0 16px 40px rgba(10,22,40,.1)}
+  .desktop.theme-dark{box-shadow:0 16px 50px rgba(0,0,0,.4)}
+  .sidebar{background:var(--card);border-right:1px solid var(--border);padding:16px 12px;display:flex;flex-direction:column;gap:2px}
+  .sb-brand{display:flex;align-items:center;gap:10px;padding:4px 10px 14px;border-bottom:1px solid var(--border);margin-bottom:12px}
+  .sb-logo{width:30px;height:30px;border-radius:8px;background:var(--brand-orange);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:15px}
+  .sb-name{font-family:var(--font-display);font-weight:700;font-size:16px}
+  .sb-group{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:var(--muted-foreground);padding:10px 10px 6px}
+  .sb-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;font-size:13px;font-weight:500;color:var(--foreground);cursor:pointer}
+  .sb-item svg{width:18px;height:18px;color:var(--muted-foreground)}
+  .sb-item.active{background:var(--accent);color:var(--accent-foreground)}
+  .sb-item.active svg{color:var(--accent-foreground)}
+  .sb-count{margin-left:auto;font-family:var(--font-mono);font-size:11px;color:var(--muted-foreground)}
+  .sb-item.active .sb-count{color:var(--accent-foreground)}
+  .sb-footer{margin-top:auto;padding:10px;display:flex;align-items:center;gap:10px;border-top:1px solid var(--border)}
+  .sb-footer .avatar{width:32px;height:32px;font-size:12px}
+  .sb-footer .who-name{font-size:13px;font-weight:600;color:var(--foreground);line-height:1.2}
+  .sb-footer .who-role{font-size:11px;color:var(--muted-foreground)}
+
+  .main{display:flex;flex-direction:column;min-width:0;overflow:hidden}
+  .top-bar{display:flex;align-items:center;gap:16px;padding:16px 28px;border-bottom:1px solid var(--border)}
+  .breadcrumb{font-size:12.5px;color:var(--muted-foreground);display:flex;align-items:center;gap:6px}
+  .breadcrumb .here{color:var(--foreground);font-weight:500}
+  .top-bar .spacer{flex:1}
+  .top-bar .ic-btn{width:36px;height:36px;border-radius:var(--radius);border:1px solid var(--border);background:var(--card);display:inline-flex;align-items:center;justify-content:center;color:var(--muted-foreground)}
+  .top-bar .ic-btn svg{width:16px;height:16px}
+  .content{display:grid;grid-template-columns:1fr 320px;flex:1;min-height:0}
+  .center-col{padding:24px 32px 32px;overflow-y:auto;scrollbar-width:thin;display:flex;flex-direction:column;gap:16px}
+  .d-head{display:flex;gap:16px;align-items:center}
+  .d-head .avatar{width:56px;height:56px;font-size:20px}
+  .d-head h1{font-family:var(--font-display);font-weight:800;font-size:28px;margin:0;letter-spacing:-0.01em}
+  .d-head .sub{font-size:13px;color:var(--muted-foreground);margin-top:4px;display:flex;align-items:center;gap:8px}
+  .d-head .sub svg{width:14px;height:14px}
+  .d-head .sub .dot-sep{width:3px;height:3px;border-radius:99px;background:var(--muted-foreground);opacity:.45}
+  .d-head .badges{margin-left:auto;display:flex;gap:8px}
+  .side-col{border-left:1px solid var(--border);background:var(--card);padding:22px;display:flex;flex-direction:column;gap:18px;overflow-y:auto}
+  .side-col h4{font-family:var(--font-display);font-weight:700;font-size:12px;margin:0 0 10px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted-foreground)}
+  .action-stack{display:flex;flex-direction:column;gap:8px}
+  .side-info{display:flex;flex-direction:column;gap:10px}
+  .side-info .row{display:flex;align-items:flex-start;gap:10px;font-size:13px;color:var(--foreground)}
+  .side-info .row svg{width:15px;height:15px;color:var(--muted-foreground);margin-top:2px;flex:none}
+  .side-info .row b{font-weight:600}
+  .side-info .row .sub{display:block;font-size:11.5px;color:var(--muted-foreground);margin-top:1px;font-weight:400}
+
+  .footer-band{padding:20px 40px;color:#6B6355;font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.08em;display:flex;justify-content:space-between;background:#F8F4EE;border-top:1px solid #D4CEC3}
+  @media (max-width:1400px){.grid{grid-template-columns:1fr}.cell:nth-child(2n){border-right:1px solid #D4CEC3}.cell{border-right:none}}
+</style>
+</head>
+<body>
+
+<header class="page-header">
+  <div>
+    <h1 class="page-title">BHPH / Finance</h1>
+    <p class="page-sub">Customer loan with down payment, 6-row payment schedule, Due today highlighted, overdue alerting, action bar.</p>
+  </div>
+  <div class="page-meta"><span>BHPH · v0.1</span><span>Mobile 390 · Desktop 1280</span><span>Light + Dark</span></div>
+</header>
+
+<main class="grid">
+  <div class="cell" data-screen-label="01 Mobile · Light">
+    <div class="cell-label light"><span class="dot"></span><b>Mobile · Light</b> · 390×860</div>
+    <div class="mobile theme-light" id="m-light"></div>
+  </div>
+  <div class="cell dark-bg" data-screen-label="02 Mobile · Dark">
+    <div class="cell-label"><span class="dot"></span><b>Mobile · Dark</b> · 390×860</div>
+    <div class="mobile theme-dark" id="m-dark"></div>
+  </div>
+  <div class="cell" data-screen-label="03 Desktop · Light" style="grid-column:span 2">
+    <div class="cell-label light"><span class="dot"></span><b>Desktop · Light</b> · 1280×820</div>
+    <div class="desktop theme-light" id="d-light"></div>
+  </div>
+  <div class="cell dark-bg" data-screen-label="04 Desktop · Dark" style="grid-column:span 2">
+    <div class="cell-label"><span class="dot"></span><b>Desktop · Dark</b> · 1280×820</div>
+    <div class="desktop theme-dark" id="d-dark"></div>
+  </div>
+</main>
+
+<footer class="footer-band">
+  <span>DealerWyze · BHPH / Finance</span>
+  <span>Mobile 390 · Desktop 1280 · Light + Dark</span>
+</footer>
+
+<script>
+  const CUST = { initials:'DW', name:'Danielle Whitfield', vehicle:'2020 Kia Forte LXS', vin:'…2KF81', total:14400, paid:8200, balance:6200, down:2500 };
+
+  // 6-row schedule: 3 paid, 1 due today, 2 upcoming. Plus an overdue row for demo of overdue state.
+  const ROWS = [
+    {date:'Fri · Apr 24', num:'Payment 13 of 24', amt:'$300.00', status:'paid', sub:'Auto-pay · Visa •• 4412'},
+    {date:'Fri · Apr 17', num:'Payment 12 of 24', amt:'$300.00', status:'paid', sub:'Auto-pay · Visa •• 4412'},
+    {date:'Fri · Apr 10', num:'Payment 11 of 24', amt:'$300.00', status:'paid', sub:'Cash · in-person'},
+    {date:'Fri · Apr 03', num:'Payment 10 of 24', amt:'$300.00', status:'paid', sub:'Auto-pay · Visa •• 4412'},
+    {date:'Today · May 01', num:'Payment 14 of 24', amt:'$300.00', status:'due', sub:'Due today · auto-pay scheduled for 6 pm'},
+    {date:'Fri · May 08', num:'Payment 15 of 24', amt:'$300.00', status:'up', sub:'Upcoming'},
+    {date:'Fri · May 15', num:'Payment 16 of 24', amt:'$300.00', status:'up', sub:'Upcoming'},
+  ];
+
+  function statusBadge(s){
+    if (s==='paid') return `<span class="badge b-paid"><i data-lucide="check"></i>Paid</span>`;
+    if (s==='due') return `<span class="badge b-due"><i data-lucide="alarm-clock"></i>Due today</span>`;
+    if (s==='up') return `<span class="badge b-upcoming">Upcoming</span>`;
+    if (s==='over') return `<span class="badge b-overdue"><i data-lucide="alert-triangle"></i>Overdue</span>`;
+  }
+
+  function tableHTML(){
+    return `
+    <div class="ptable">
+      <div class="h"><div></div><div>When</div><div>Amount</div><div>Status</div></div>
+      ${ROWS.map(r => `
+        <div class="row ${r.status}">
+          <div class="accent"></div>
+          <div class="c when"><span>${r.date}</span><span class="mono">${r.num}</span></div>
+          <div class="c amt">${r.amt}</div>
+          <div class="c status">${statusBadge(r.status)}</div>
+        </div>
+      `).join('')}
+    </div>`;
+  }
+
+  function loanCard(){
+    const pct = Math.round(CUST.paid / CUST.total * 100);
+    return `
+    <div class="sumcard">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <div style="font-family:var(--font-display);font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted-foreground)">Loan summary</div>
+        <span class="badge b-paid"><i data-lucide="check"></i>On track</span>
+      </div>
+      <div class="loan-grid">
+        <div class="loan-stat"><div class="lbl">Total</div><div class="val">$${CUST.total.toLocaleString()}</div></div>
+        <div class="loan-stat paid"><div class="lbl">Paid</div><div class="val">$${CUST.paid.toLocaleString()}</div></div>
+        <div class="loan-stat bal"><div class="lbl">Balance</div><div class="val">$${CUST.balance.toLocaleString()}</div></div>
+      </div>
+      <div class="progress"><div class="bar" style="width:${pct}%"></div></div>
+      <div class="progress-meta"><span><b>${pct}%</b> paid</span><span>11 of 24 payments</span></div>
+    </div>`;
+  }
+
+  function downCard(){
+    return `
+    <div class="down">
+      <div class="ic"><i data-lucide="check"></i></div>
+      <div>
+        <div class="t">Down payment</div>
+        <div class="s">Paid Feb 03 · Cash · receipt #DW-00821</div>
+      </div>
+      <div class="amt">$${CUST.down.toLocaleString()}</div>
+    </div>`;
+  }
+
+  function alertBanner(){
+    return `<div class="alert"><i data-lucide="alert-triangle"></i><span><b>Heads up:</b> auto-pay fails twice in a row → move to manual collection.</span></div>`;
+  }
+
+  function mobileHTML(){
+    return `
+      <div class="status-bar"><span>9:41</span><div class="icons"><i data-lucide="signal"></i><i data-lucide="wifi"></i><i data-lucide="battery-full"></i></div></div>
+      <div class="m-nav"><div class="ic"><i data-lucide="arrow-left"></i></div><div class="crumb">BHPH</div><div class="spacer"></div><div class="ic"><i data-lucide="more-vertical"></i></div></div>
+      <div class="m-scroll">
+        <div class="m-head">
+          <div class="avatar">${CUST.initials}</div>
+          <div>
+            <h1>${CUST.name}</h1>
+            <div class="veh"><i data-lucide="car"></i>${CUST.vehicle} · VIN <span style="font-family:var(--font-mono);font-size:11px">${CUST.vin}</span></div>
+          </div>
+        </div>
+        ${loanCard()}
+        ${downCard()}
+        <div class="sect-label">Payment schedule</div>
+        ${tableHTML()}
+      </div>
+      <div class="m-actionbar">
+        <button class="btn btn-primary"><i data-lucide="dollar-sign"></i>Record payment</button>
+        <div class="row">
+          <button class="btn btn-secondary"><i data-lucide="send"></i>Send pay link</button>
+          <button class="btn btn-ghost"><i data-lucide="history"></i>History</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function desktopHTML(){
+    return `
+      <aside class="sidebar">
+        <div class="sb-brand"><span class="sb-logo">D</span><span class="sb-name">DealerWyze</span></div>
+        <div class="sb-group">Workspace</div>
+        <div class="sb-item"><i data-lucide="inbox"></i>Today<span class="sb-count">12</span></div>
+        <div class="sb-item"><i data-lucide="users"></i>Customers<span class="sb-count">847</span></div>
+        <div class="sb-item"><i data-lucide="car"></i>Inventory<span class="sb-count">63</span></div>
+        <div class="sb-item"><i data-lucide="message-square"></i>Messages<span class="sb-count">3</span></div>
+        <div class="sb-group">Pipeline</div>
+        <div class="sb-item"><i data-lucide="git-branch"></i>Sequences</div>
+        <div class="sb-item active"><i data-lucide="wallet"></i>BHPH / finance</div>
+        <div class="sb-item"><i data-lucide="bar-chart-3"></i>Reports</div>
+        <div class="sb-footer"><div class="avatar">RS</div><div><div class="who-name">Ray Sutton</div><div class="who-role">Owner · Sutton Auto</div></div></div>
+      </aside>
+      <div class="main">
+        <div class="top-bar">
+          <div class="breadcrumb">BHPH<i data-lucide="chevron-right" style="width:13px;height:13px"></i>Active loans<i data-lucide="chevron-right" style="width:13px;height:13px"></i><span class="here">${CUST.name}</span></div>
+          <div class="spacer"></div>
+          <button class="ic-btn"><i data-lucide="printer"></i></button>
+          <button class="ic-btn"><i data-lucide="more-horizontal"></i></button>
+        </div>
+        <div class="content">
+          <div class="center-col">
+            <div class="d-head">
+              <div class="avatar">${CUST.initials}</div>
+              <div style="flex:1">
+                <h1>${CUST.name}</h1>
+                <div class="sub"><i data-lucide="car"></i>${CUST.vehicle}<span class="dot-sep"></span>VIN <span style="font-family:var(--font-mono);font-size:12px">${CUST.vin}</span><span class="dot-sep"></span>24-mo contract · started Feb 03</span>
+              </div>
+              <div class="badges">
+                <span class="badge b-paid"><i data-lucide="check"></i>On track</span>
+                <span class="badge b-due"><i data-lucide="alarm-clock"></i>Due today</span>
+              </div>
+            </div>
+            ${loanCard()}
+            ${downCard()}
+            <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:4px">
+              <div style="font-family:var(--font-display);font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted-foreground)">Payment schedule</div>
+              <div style="font-size:12px;color:var(--muted-foreground)">Showing 7 of 24 payments</div>
+            </div>
+            ${tableHTML()}
+            ${alertBanner()}
+          </div>
+          <aside class="side-col">
+            <div>
+              <h4>Actions</h4>
+              <div class="action-stack">
+                <button class="btn btn-primary"><i data-lucide="dollar-sign"></i>Record payment</button>
+                <button class="btn btn-secondary"><i data-lucide="send"></i>Send pay link</button>
+                <button class="btn btn-outline"><i data-lucide="history"></i>Payment history</button>
+                <button class="btn btn-ghost"><i data-lucide="file-text"></i>View contract</button>
+              </div>
+            </div>
+            <div>
+              <h4>Due next</h4>
+              <div style="padding:14px;background:var(--background);border:1px solid var(--border);border-radius:var(--radius)">
+                <div style="font-family:var(--font-display);font-weight:700;font-size:24px;color:var(--brand-orange);font-variant-numeric:tabular-nums">$300.00</div>
+                <div style="font-size:12.5px;color:var(--muted-foreground);margin-top:3px">Today · May 1 · 6 pm</div>
+                <div style="font-size:11.5px;color:var(--muted-foreground);margin-top:6px">Auto-pay · Visa •• 4412</div>
+              </div>
+            </div>
+            <div>
+              <h4>Contact</h4>
+              <div class="side-info">
+                <div class="row"><i data-lucide="phone"></i><div><b>(512) 555 0781</b><span class="sub">Mobile</span></div></div>
+                <div class="row"><i data-lucide="mail"></i><div><b>d.whitfield@email.com</b><span class="sub">Personal</span></div></div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    `;
+  }
+
+  document.getElementById('m-light').innerHTML = mobileHTML();
+  document.getElementById('m-dark').innerHTML = mobileHTML();
+  document.getElementById('d-light').innerHTML = desktopHTML();
+  document.getElementById('d-dark').innerHTML = desktopHTML();
+  if (window.lucide) lucide.createIcons();
+</script>
+</body>
+</html>

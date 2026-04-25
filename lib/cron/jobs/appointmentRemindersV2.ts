@@ -1,4 +1,11 @@
-/** Send appointment reminders for confirmed appointments due in 18-30 hours with no reminder sent yet. */
+/**
+ * Appointment Reminders V2 — uses sendAppointmentNotification() which handles
+ * both SMS and email, and uses a wider 18-30 hour window vs V1's 23-25 hours.
+ * This is the preferred/current implementation.
+ *
+ * V1 (appointmentReminders.ts) still runs alongside this during transition.
+ * See V1 for context on when to remove it.
+ */
 
 import { sendAppointmentNotification } from '@/lib/calendar/sendAppointmentNotification'
 import type { createServiceClient } from '@/lib/supabase/service'
