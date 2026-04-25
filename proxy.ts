@@ -1,8 +1,9 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-// ── Rate limiting (formerly middleware.ts) ────────────────────────────────────
-// In-process sliding window — good enough for <10 dealers on Vercel.
+// ── POLICY 1: Rate Limiting ────────────────────────────────────────────────────
+// In-process sliding window per IP. Covers webhook endpoints + auth brute-force.
+// NOTE: Not shared across Vercel instances — replace with Upstash Redis before scaling.
 
 interface RateEntry { count: number; resetAt: number }
 const store = new Map<string, RateEntry>()
@@ -50,7 +51,10 @@ function maybePrune() {
   }
 }
 
-// ── Staff impersonation: block mutations (read-only mode only) ────────────────
+// ── POLICY 2: Staff Impersonation Guard ───────────────────────────────────────
+// Reads HMAC-signed cookie. Blocks all state-mutating methods (POST/PUT/PATCH/DELETE)
+// when the session is read-only (writeMode=0). Write-mode sessions (writeMode=1) pass through.
+// Cookie: dealerwyze_staff_org_id | Secret: STAFF_SESSION_SECRET
 
 import { createHmac, timingSafeEqual } from 'crypto'
 
@@ -95,10 +99,12 @@ function isImpersonationBlocked(request: NextRequest): boolean {
   return !writeMode
 }
 
-// ── Auth + subscription gating (original proxy.ts) ───────────────────────────
+// ── POLICY 3: Public Path Detection ──────────────────────────────────────────
+// Determines whether a path needs auth. Extend PUBLIC_PATHS / PUBLIC_PREFIXES as needed.
+// isDealerPublicPath() matches /{slug}/inventory/* — safe because no app route uses 'inventory' as segment[1].
 
 const PUBLIC_PATHS    = ['/', '/login', '/signup', '/privacy', '/terms', '/privacy.html', '/terms.html', '/forgot-password', '/reset-password', '/sms-opt-in']
-const PUBLIC_PREFIXES = ['/auth/', '/api/auth/', '/api/stripe/webhook', '/_next/', '/blog', '/robots.txt', '/sitemap.xml']
+const PUBLIC_PREFIXES = ['/auth/', '/api/auth/', '/api/stripe/webhook', '/_next/', '/blog', '/lp', '/robots.txt', '/sitemap.xml']
 const PUBLIC_FILES    = ['/favicon.ico', '/logo.jpg', '/manifest.json']
 const BILLING_EXEMPT  = ['/settings/billing', '/settings/users', '/pending', '/suspended', '/onboarding']
 
@@ -128,6 +134,14 @@ function isAppRoute(pathname: string): boolean {
     !PUBLIC_FILES.includes(pathname) &&
     !pathname.startsWith('/auth/')
   )
+}
+
+function isTrialExpired(subscriptionStatus: string, trialEndsAt: string | null): boolean {
+  return subscriptionStatus === 'trialing' && !!trialEndsAt && new Date(trialEndsAt) < new Date()
+}
+
+function isSuspended(suspendedAt: string | null | undefined): boolean {
+  return !!suspendedAt
 }
 
 export async function proxy(request: NextRequest) {
@@ -221,19 +235,15 @@ export async function proxy(request: NextRequest) {
 
       if (org) {
         const { subscription_status, trial_ends_at, suspended_at } = org as typeof org & { suspended_at?: string | null }
-        const trialExpired =
-          subscription_status === 'trialing' &&
-          trial_ends_at &&
-          new Date(trial_ends_at) < new Date()
 
         // Suspended accounts — redirect to suspension page (except the page itself)
-        if (suspended_at && !pathname.startsWith('/suspended')) {
+        if (isSuspended(suspended_at) && !pathname.startsWith('/suspended')) {
           const url = request.nextUrl.clone()
           url.pathname = '/suspended'
           return NextResponse.redirect(url)
         }
 
-        if (subscription_status === 'canceled' || trialExpired) {
+        if (subscription_status === 'canceled' || isTrialExpired(subscription_status, trial_ends_at ?? null)) {
           const url = request.nextUrl.clone()
           url.pathname = '/settings/billing'
           return NextResponse.redirect(url)
