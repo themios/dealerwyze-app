@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { Users, ChevronDown } from 'lucide-react'
+import { pulseScoreColor } from '@/lib/pulse/scoreColor'
 
 interface RepScore {
   rep_id: string
@@ -13,11 +14,9 @@ interface RepScore {
   by_category: { category: string; label: string; score: number }[]
 }
 
-function scoreColor(s: number | null) {
-  if (s === null) return 'text-muted-foreground'
-  if (s >= 4.5) return 'text-green-600'
-  if (s >= 3.5) return 'text-yellow-600'
-  return 'text-red-600'
+function scoreClass(s: number | null): string {
+  const c = pulseScoreColor(s)
+  return c === 'green' ? 'text-green-600' : c === 'yellow' ? 'text-yellow-600' : 'text-red-600'
 }
 
 function ScoreBadge({ score }: { score: number | null }) {
@@ -81,7 +80,7 @@ export default function TeamPulse() {
               {rep.by_category.map(c => (
                 <div key={c.category} className="flex justify-between text-xs">
                   <span className="text-muted-foreground">{c.label}</span>
-                  <span className={cn('font-semibold', scoreColor(c.score))}>{c.score.toFixed(1)}</span>
+                  <span className={cn('font-semibold', scoreClass(c.score))}>{c.score.toFixed(1)}</span>
                 </div>
               ))}
             </div>

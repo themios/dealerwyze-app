@@ -4,6 +4,7 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { pulseScoreWidgetClasses } from '@/lib/pulse/scoreColor'
 
 interface AnonFeedback {
   overall_score: number | null
@@ -13,13 +14,6 @@ interface AnonFeedback {
 
 interface Props {
   pulseScore: number | null
-}
-
-function scoreColor(s: number | null) {
-  if (s === null) return 'text-muted-foreground bg-muted border-border'
-  if (s >= 4.5) return 'text-green-600 bg-green-50 border-green-200'
-  if (s >= 3.5) return 'text-yellow-600 bg-yellow-50 border-yellow-200'
-  return 'text-red-600 bg-red-50 border-red-200'
 }
 
 export default function PulseScoreWidget({ pulseScore }: Props) {
@@ -42,7 +36,7 @@ export default function PulseScoreWidget({ pulseScore }: Props) {
         onClick={handleOpen}
         className={cn(
           'flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-semibold transition-colors hover:opacity-80',
-          scoreColor(pulseScore)
+          pulseScoreWidgetClasses(pulseScore)
         )}
       >
         <span>My Pulse</span>

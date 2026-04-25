@@ -6,16 +6,10 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { BarChart3 } from 'lucide-react'
 import type { Category } from '@/lib/pulse/questions'
-
-function scoreColor(s: number | null): 'green' | 'yellow' | 'red' {
-  if (s === null) return 'yellow'
-  if (s >= 4.5) return 'green'
-  if (s >= 3.5) return 'yellow'
-  return 'red'
-}
+import { pulseScoreColor } from '@/lib/pulse/scoreColor'
 
 function ScoreBadge({ score }: { score: number | null }) {
-  const c = scoreColor(score)
+  const c = pulseScoreColor(score)
   return (
     <span className={cn(
       'text-sm font-bold px-2 py-0.5 rounded-full',
@@ -123,9 +117,9 @@ export default function PulseDashboard() {
         <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Overall Pulse Score</p>
         <div className={cn(
           'text-5xl font-bold mb-1',
-          scoreColor(data?.overall_score ?? null) === 'green'  && 'text-green-600',
-          scoreColor(data?.overall_score ?? null) === 'yellow' && 'text-yellow-600',
-          scoreColor(data?.overall_score ?? null) === 'red'    && 'text-red-600',
+          pulseScoreColor(data?.overall_score ?? null) === 'green'  && 'text-green-600',
+          pulseScoreColor(data?.overall_score ?? null) === 'yellow' && 'text-yellow-600',
+          pulseScoreColor(data?.overall_score ?? null) === 'red'    && 'text-red-600',
         )}>
           {data?.overall_score?.toFixed(1) ?? '--'}
         </div>
