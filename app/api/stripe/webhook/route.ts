@@ -48,6 +48,12 @@ export async function POST(req: NextRequest) {
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session
+      console.info('[stripe-webhook] checkout.session.completed', {
+        sessionId: session.id,
+        mode: session.mode,
+        topupType: session.metadata?.topup_type ?? null,
+        orgId: session.metadata?.org_id ?? null,
+      })
 
       // ── One-time video render pack ───────────────────────────────────────────
       if (session.mode === 'payment' && session.metadata?.topup_type === 'video_pack') {
@@ -160,6 +166,11 @@ export async function POST(req: NextRequest) {
 
     case 'customer.subscription.updated': {
       const sub = event.data.object as Stripe.Subscription
+      console.info('[stripe-webhook] customer.subscription.updated', {
+        subscriptionId: sub.id,
+        status: sub.status,
+        orgId: sub.metadata?.org_id ?? null,
+      })
       const orgId = sub.metadata?.org_id
       if (!orgId) break
 
@@ -215,6 +226,10 @@ export async function POST(req: NextRequest) {
 
     case 'customer.subscription.deleted': {
       const sub = event.data.object as Stripe.Subscription
+      console.info('[stripe-webhook] customer.subscription.deleted', {
+        subscriptionId: sub.id,
+        orgId: sub.metadata?.org_id ?? null,
+      })
       const orgId = sub.metadata?.org_id
       if (!orgId) break
 
@@ -237,6 +252,11 @@ export async function POST(req: NextRequest) {
     case 'invoice.payment_succeeded': {
       // Recurring commission (month 2+) — advisor-type affiliates only
       const invoice = event.data.object as Stripe.Invoice & { billing_reason?: string; subscription?: string | null; period_start?: number; amount_paid?: number }
+      console.info('[stripe-webhook] invoice.payment_succeeded', {
+        invoiceId: invoice.id,
+        billingReason: invoice.billing_reason ?? null,
+        subscriptionId: typeof invoice.subscription === 'string' ? invoice.subscription : null,
+      })
       if (invoice.billing_reason !== 'subscription_cycle' || !invoice.subscription) break
 
       const recSub = await stripe.subscriptions.retrieve(invoice.subscription as string)
@@ -276,6 +296,10 @@ export async function POST(req: NextRequest) {
 
     case 'invoice.payment_failed': {
       const invoice = event.data.object as Stripe.Invoice & { subscription?: string | null }
+      console.info('[stripe-webhook] invoice.payment_failed', {
+        invoiceId: invoice.id,
+        subscriptionId: typeof invoice.subscription === 'string' ? invoice.subscription : null,
+      })
       if (!invoice.subscription) break
       const sub = await stripe.subscriptions.retrieve(invoice.subscription as string)
       const orgId = sub.metadata?.org_id
