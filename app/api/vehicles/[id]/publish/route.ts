@@ -26,6 +26,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'published must be boolean' }, { status: 400 })
   }
 
+  // Auth client: RLS enforces org isolation for vehicle read and publish update.
   const supabase = await createClient()
 
   // Fetch vehicle to generate slug if needed

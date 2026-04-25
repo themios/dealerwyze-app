@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
     ? `VIN-${String(vin).slice(-6)}`
     : `ONB-${Date.now().toString().slice(-6)}`
 
+  // Auth client: RLS enforces org isolation for the vehicles INSERT; get_org_id() scopes the new row automatically.
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('vehicles')

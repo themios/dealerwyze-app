@@ -14,6 +14,7 @@ export async function POST(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
   }
 
+  // Auth client: RLS enforces org isolation for vehicles and recon_checklist_items reads, and the status update.
   const supabase = await createClient()
 
   const { data: vehicle } = await supabase

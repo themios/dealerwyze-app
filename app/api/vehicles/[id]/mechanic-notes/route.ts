@@ -9,6 +9,7 @@ export async function GET(
 ) {
   const { id } = await params
   const profile = await requireProfile()
+  // Auth client: RLS enforces org isolation for the mechanic_notes read.
   const supabase = await createClient()
 
   const { data: vehicle } = await supabase
@@ -31,6 +32,7 @@ export async function PATCH(
   const profile = await requireProfile()
   if (!canAccessLedger(profile.role)) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
 
+  // Auth client: RLS enforces org isolation for vehicle ownership check and mechanic_notes update.
   const supabase = await createClient()
 
   const { data: vehicle } = await supabase

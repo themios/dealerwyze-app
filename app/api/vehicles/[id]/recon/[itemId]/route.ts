@@ -11,6 +11,7 @@ export async function PATCH(
   const profile = await requireProfile()
   if (!canAccessLedger(profile.role)) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
 
+  // Auth client: RLS enforces org isolation for recon_checklist_items read and update.
   const supabase = await createClient()
 
   const { data: item } = await supabase
@@ -68,6 +69,7 @@ export async function DELETE(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
   }
 
+  // Auth client: RLS enforces org isolation for the recon_checklist_items delete.
   const supabase = await createClient()
 
   const { data: item } = await supabase

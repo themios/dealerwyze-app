@@ -11,6 +11,7 @@ export async function PATCH(
   const profile = await requireProfile()
   if (!canAccessLedger(profile.role)) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
 
+  // Auth client: RLS enforces org isolation for the vehicle ownership check and carrying-cost fields update.
   const supabase = await createClient()
 
   const { data: vehicle } = await supabase

@@ -12,6 +12,7 @@ export async function POST(
   const profile = await requireProfile()
   if (!canAccessLedger(profile.role)) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
 
+  // Auth client: RLS enforces org isolation for vehicle check, org_settings read, and recon_checklist_items seed INSERT.
   const supabase = await createClient()
 
   const { data: vehicle } = await supabase

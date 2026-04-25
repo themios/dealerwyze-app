@@ -33,6 +33,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
   }
 
+  // Service client: vehicles use user_id (not org_id) for scoping, which RLS policies do not cover — explicit .eq('user_id') enforces isolation instead.
   const supabase = createServiceClient()
 
   const { data: vehicle, error } = await supabase

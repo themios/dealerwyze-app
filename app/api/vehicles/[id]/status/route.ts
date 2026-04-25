@@ -18,6 +18,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
   }
 
+  // Auth client: RLS enforces org isolation for all vehicle reads and the status update.
   const supabase = await createClient()
 
   // Fetch vehicle details before update (needed for match engine)

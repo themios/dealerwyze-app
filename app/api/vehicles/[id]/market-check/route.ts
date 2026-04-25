@@ -19,6 +19,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   try {
     const profile = await requireProfile()
+    // Auth client (forRequest): RLS enforces org isolation when reading the vehicle before external API calls.
     const supabase = await createClientForRequest()
 
     // Fetch vehicle — must belong to this org
@@ -42,7 +43,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       }
     }
 
-    // Fetch org zip for location-aware market queries
+    // Service client: reading org_settings and writing market_data_json back to vehicles; vehicle ownership already verified above.
     const svc = createServiceClient()
     const { data: orgSettings } = await svc
       .from('org_settings')

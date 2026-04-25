@@ -9,6 +9,7 @@ export async function GET(
 ) {
   const { id } = await params
   const profile = await requireProfile()
+  // Auth client: RLS enforces org isolation for recon_checklist_items, vehicles, and ledger_transactions reads.
   const supabase = await createClient()
 
   const [{ data: items }, { data: vehicle }, { data: ledger }] = await Promise.all([
@@ -68,6 +69,7 @@ export async function POST(
   const profile = await requireProfile()
   if (!canAccessLedger(profile.role)) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
 
+  // Auth client: RLS enforces org isolation for vehicle check and recon_checklist_items INSERT.
   const supabase = await createClient()
 
   const { data: vehicle } = await supabase

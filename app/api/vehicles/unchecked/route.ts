@@ -12,6 +12,7 @@ import { createClientForRequest } from '@/lib/supabase/forRequest'
 
 export async function GET() {
   const profile = await requireProfile()
+  // Auth client (forRequest): RLS enforces org isolation for both vehicle queries used to build the unchecked list.
   const supabase = await createClientForRequest()
 
   // Vehicles with no market data at all

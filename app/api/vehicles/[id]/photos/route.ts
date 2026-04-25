@@ -18,6 +18,7 @@ export async function GET(
 ) {
   const profile = await requireProfile()
   const { id } = await params
+  // Auth client: RLS enforces org isolation via get_org_id(); no cross-org access needed.
   const supabase = await createClient()
 
   const { data } = await supabase
@@ -36,7 +37,9 @@ export async function POST(
 ) {
   const profile = await requireProfile()
   const { id: vehicleId } = await params
+  // Auth client: RLS enforces org isolation for DB operations on vehicle_photos and vehicles.
   const supabase = await createClient()
+  // Service client: Supabase Storage does not respect session-level RLS — service key required for uploads.
   const service = createServiceClient()
 
   // Verify vehicle belongs to this org

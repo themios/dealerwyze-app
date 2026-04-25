@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function GET(req: NextRequest) {
   const profile = await requireProfile()
+  // Auth client: RLS enforces org isolation for duplicate-check queries on vehicles.
   const supabase = await createClient()
   const { searchParams } = new URL(req.url)
 

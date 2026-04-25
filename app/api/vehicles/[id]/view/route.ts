@@ -12,6 +12,7 @@ export async function POST(
 ) {
   const { id } = await params
 
+  // Service client: this route is unauthenticated (public VDP) so there is no session for createClient() to use.
   const supabase = createServiceClient()
   await supabase.rpc('increment_vehicle_views', { p_vehicle_id: id })
 

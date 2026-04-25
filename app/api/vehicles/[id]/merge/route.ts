@@ -16,6 +16,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
   }
 
+  // Auth client: RLS enforces org isolation for the vehicle read and field-merge update.
   const supabase = await createClient()
 
   // Verify vehicle belongs to this org

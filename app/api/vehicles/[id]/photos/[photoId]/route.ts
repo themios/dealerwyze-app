@@ -15,7 +15,9 @@ export async function DELETE(
 ) {
   const profile = await requireProfile()
   const { id: vehicleId, photoId } = await params
+  // Auth client: RLS enforces org isolation for DB queries on vehicle_photos and vehicles.
   const supabase = await createClient()
+  // Service client: Supabase Storage does not respect session-level RLS — service key required to delete objects.
   const service = createServiceClient()
 
   // Fetch photo, verify org ownership
@@ -67,6 +69,7 @@ export async function PATCH(
 ) {
   const profile = await requireProfile()
   const { id: vehicleId, photoId } = await params
+  // Auth client: RLS enforces org isolation; no storage operations in PATCH — service client not needed.
   const supabase = await createClient()
 
   // Verify photo belongs to this org+vehicle

@@ -13,7 +13,9 @@ export async function DELETE(
   try {
     const { id: vehicleId, docId } = await params
     const profile = await requireProfile()
+    // Auth client: RLS enforces org isolation for the vehicle_documents DB delete.
     const supabase = await createClient()
+    // Service client: Supabase Storage does not respect session-level RLS — service key required to remove objects.
     const storage = createServiceClient()
 
     // Fetch the document — must belong to caller's org

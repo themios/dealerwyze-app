@@ -17,6 +17,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   const { id: vehicleId } = await params
 
   // Verify vehicle belongs to this org
+  // Auth client (forRequest): RLS enforces org isolation for the ownership check on vehicles.
   const supabase = await createClientForRequest()
   const { data: vehicle } = await supabase
     .from('vehicles')
@@ -68,6 +69,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   const profile = await requireProfile()
   const { id: vehicleId } = await params
 
+  // Auth client (forRequest): RLS enforces org isolation for the vehicle ownership check.
   const supabase = await createClientForRequest()
   const { data: vehicle } = await supabase
     .from('vehicles')
@@ -87,6 +89,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
   }
 
+  // Service client: video_renders does not have RLS configured; explicit .eq('org_id') enforces isolation.
   const svcClient = createServiceClient()
 
   // Only allow cancelling queued/rendering renders belonging to this org
@@ -116,6 +119,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   const { id: vehicleId } = await params
 
   // Verify vehicle belongs to this org
+  // Auth client (forRequest): RLS enforces org isolation for the vehicle ownership check.
   const supabase = await createClientForRequest()
   const { data: vehicle } = await supabase
     .from('vehicles')
@@ -128,6 +132,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
+  // Service client: video_renders does not have RLS configured; explicit .eq('org_id') enforces isolation.
   const svcClient = createServiceClient()
   const { data: render } = await svcClient
     .from('video_renders')

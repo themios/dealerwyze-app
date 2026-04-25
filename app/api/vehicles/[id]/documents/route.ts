@@ -31,7 +31,9 @@ export async function GET(
 ): Promise<NextResponse> {
   const { id: vehicleId } = await params
   const profile = await requireProfile()
+  // Auth client: RLS enforces org isolation for the vehicle_documents DB query.
   const supabase = await createClient()
+  // Service client: Supabase Storage requires service key to generate signed URLs outside of RLS.
   const storage = createServiceClient()
 
   const { data: docs, error } = await supabase
@@ -66,7 +68,9 @@ export async function POST(
   try {
     const { id: vehicleId } = await params
     const profile = await requireProfile()
+    // Auth client: RLS enforces org isolation for all vehicle_documents and vehicles DB operations.
     const supabase = await createClient()
+    // Service client: Supabase Storage does not respect session-level RLS — service key required for uploads and signed URL generation.
     const storage = createServiceClient()
 
     let formData: FormData

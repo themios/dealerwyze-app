@@ -13,6 +13,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   const { id: vehicleId } = await params
 
   // Verify vehicle belongs to this org
+  // Auth client (forRequest): RLS enforces org isolation for all vehicle and video_renders ownership checks.
   const supabase = await createClientForRequest()
   const { data: vehicle } = await supabase
     .from('vehicles')

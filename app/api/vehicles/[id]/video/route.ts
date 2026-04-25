@@ -13,6 +13,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   const { id: vehicleId } = await params
 
   // Verify vehicle belongs to this org
+  // Auth client (forRequest): RLS enforces org isolation for the ownership check on vehicles.
   const supabase = await createClientForRequest()
   const { data: vehicle } = await supabase
     .from('vehicles')
@@ -25,6 +26,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
+  // Service client: video_renders and social_posts tables — RLS may not be configured; ownership already verified above.
   const svcClient = createServiceClient()
 
   const [{ data: renders }, { data: posts }] = await Promise.all([

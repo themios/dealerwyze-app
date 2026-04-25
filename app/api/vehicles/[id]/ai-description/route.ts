@@ -11,6 +11,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
 
   try {
     const profile = await requireProfile()
+    // Auth client (forRequest): RLS enforces org isolation when reading the vehicle for AI input.
     const supabase = await createClientForRequest()
 
     const { data: vehicle } = await supabase
@@ -77,7 +78,7 @@ Requirements:
       return NextResponse.json({ error: 'Generation failed' }, { status: 500 })
     }
 
-    // Persist to DB
+    // Persist to DB — service client: writing ai_description without re-checking ownership is safe here; vehicle was already verified above via the auth client.
     const svc = createServiceClient()
     await svc
       .from('vehicles')
