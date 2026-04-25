@@ -8,6 +8,7 @@ const THRESHOLDS = [21, 30, 45, 60]
 export async function runInventoryAging(
   supabase: ReturnType<typeof createServiceClient>,
 ): Promise<{ vehiclesTasked: number }> {
+  try {
   let vehiclesTasked = 0
 
   for (const days of THRESHOLDS) {
@@ -52,4 +53,8 @@ export async function runInventoryAging(
   }
 
   return { vehiclesTasked }
+  } catch (err) {
+    console.error('[inventoryAging] unhandled error:', err)
+    throw err
+  }
 }

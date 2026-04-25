@@ -6,6 +6,7 @@ import type { createServiceClient } from '@/lib/supabase/service'
 export async function runReceiptTasks(
   supabase: ReturnType<typeof createServiceClient>,
 ): Promise<{ receiptsTasked: number }> {
+  try {
   let receiptsTasked = 0
 
   const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()
@@ -37,4 +38,8 @@ export async function runReceiptTasks(
   }
 
   return { receiptsTasked }
+  } catch (err) {
+    console.error('[receiptTasks] unhandled error:', err)
+    throw err
+  }
 }

@@ -9,6 +9,7 @@ const EMAIL_LIMIT_MS  = 10 * 60 * 1000
 export async function runResponseTimeAlerts(
   supabase: ReturnType<typeof createServiceClient>,
 ): Promise<{ responseAlerts: number }> {
+  try {
   let responseAlerts = 0
 
   const nowMs = Date.now()
@@ -19,6 +20,11 @@ export async function runResponseTimeAlerts(
     .is('first_response_at', null)
     .not('thread_state', 'in', '("sold","lost","dormant")')
     .not('lead_source', 'is', null)
+    .limit(200)
+
+  if ((unresponded?.length ?? 0) >= 200) {
+    console.warn('[responseTimeAlerts] hit 200 row limit — consider cursor pagination for scale')
+  }
 
   for (const c of unresponded ?? []) {
     const ageMs   = nowMs - new Date(c.created_at).getTime()
@@ -59,4 +65,8 @@ export async function runResponseTimeAlerts(
   }
 
   return { responseAlerts }
+  } catch (err) {
+    console.error('[responseTimeAlerts] unhandled error:', err)
+    throw err
+  }
 }

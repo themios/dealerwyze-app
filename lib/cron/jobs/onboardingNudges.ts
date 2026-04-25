@@ -7,6 +7,7 @@ import type { createServiceClient } from '@/lib/supabase/service'
 export async function runOnboardingNudges(
   supabase: ReturnType<typeof createServiceClient>,
 ): Promise<{ onboardingNudges: number }> {
+  try {
   let onboardingNudges = 0
 
   const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()
@@ -127,4 +128,8 @@ export async function runOnboardingNudges(
   }
 
   return { onboardingNudges }
+  } catch (err) {
+    console.error('[onboardingNudges] unhandled error:', err)
+    throw err
+  }
 }

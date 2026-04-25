@@ -5,6 +5,7 @@ import type { createServiceClient } from '@/lib/supabase/service'
 export async function runQuotaReset(
   supabase: ReturnType<typeof createServiceClient>,
 ): Promise<{ quotasReset: number }> {
+  try {
   let quotasReset = 0
 
   const today = new Date().toISOString().slice(0, 10)
@@ -42,4 +43,8 @@ export async function runQuotaReset(
   }
 
   return { quotasReset }
+  } catch (err) {
+    console.error('[quotaReset] unhandled error:', err)
+    throw err
+  }
 }
