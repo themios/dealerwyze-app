@@ -4,6 +4,52 @@ Strategic ideas captured here. Promote to ROADMAP.md when ready to schedule.
 
 ---
 
+## Security, Reliability & Performance Sprint — COMPLETED 2026-04-25
+
+All 26 tasks from the 10-audit plan executed. 25 commits, build passing, 20 tests green.
+
+### Completed (2026-04-25)
+- **Critical CVEs fixed:** protobufjs (arbitrary code exec), loader-utils (prototype pollution), Next.js bumped 16.1.6→16.2.4 (CSRF bypass, request smuggling) ✅
+- **Unused packages removed:** `kokoro-js` (100MB, unused), `@remotion/player` (unused) ✅
+- **Pulse/Retention/Sequences gated** on active `subscription_status` — no more cost for canceled orgs ✅
+- **OAuth CSRF fixed:** Gmail and Calendar callbacks now verify `state` param with HMAC-signed nonce stored in DB ✅
+- **Secrets moved from URL to headers:** `gmail/watch`, `leads/poll` no longer log secrets in access logs ✅
+- **Twilio legacy fallback:** `timingSafeEqual` + Authorization header (was `===` + URL param) ✅
+- **4 routes fixed:** `leads/ingest`, `reset-billing-cycle`, `telegram/webhook`, `voice/tools` — all use `timingSafeEqual` ✅
+- **Read-only staff impersonation:** write blocking already implemented in `proxy.ts` (confirmed) ✅
+- **Registration rate limit:** 5 attempts/hour/IP ✅
+- **SMS quota blocks on DB error** instead of granting unlimited sends ✅
+- **DB migration 102:** 6 missing composite indexes, 3 CASCADE gap fixes, 2 CHECK constraints ✅
+- **DB migration 103:** OAuth CSRF columns on `org_settings` and `org_google_tokens` ✅
+- **DB migration 101:** `activities(user_id, created_at DESC)` index for reports query ✅
+- **API surface:** `requireProfile()` in `leads/sync` + `push/subscribe`; 500 on DB error in `tasks/count` + `admin/alerts`; top 5 raw error leaks sanitized ✅
+- **Billing page:** all Stripe fetch calls now check `res.ok` with user-facing error messages ✅
+- **cron_runs tracking** added to `data-retention` and `process-render-queue` ✅
+- **Stripe webhook logging:** structured `console.info` on all 5 event types ✅
+- **Per-job cron isolation:** all 16 jobs in `check-tasks` wrapped in `runJob()`; `finishCronRun` always called ✅
+- **Cron scan limits:** `.limit(500)` on `dormantCustomers`, `.limit(200)` on `responseTimeAlerts` ✅
+- **N+1 fixes:** `inventoryAging` (batch tasks lookup), `reviewRequests` (org-grouped with `.in()` queries) ✅
+- **Stripe null guard:** `user!.email` crash path fixed in `checkout`, `video-pack`, `overage-topup` ✅
+- **TypeScript any fixed:** `retell-callback` payload typed as `RetellCallbackPayload`; `appointmentRemindersV2` `CustRow` type ✅
+- **Audit log:** user deactivation now writes to `admin_audit_log`; impersonation end event includes `target_org_id` ✅
+- **V1 appointment reminders removed:** duplicate SMS eliminated, `appointmentReminders.ts` deleted ✅
+- **xlsx replaced with exceljs:** permanent CVE (prototype pollution + ReDoS, no upstream fix) ✅
+- **Font loading optimized:** Lora/Oswald only loaded for orgs that selected classic/bold theme preset ✅
+- **Public images compressed:** `DealerWyseLogoWithName.png` + `og.png` 456KB→122KB each (73% reduction) ✅
+- **Accessibility:** `aria-label` on icon buttons, `aria-pressed` on filter pills, `scope="col"` on table headers, `aria-hidden` on decorative icons, `aria-label` on unlabeled inputs ✅
+- **Vitest infrastructure added:** `vitest.config.ts`, `npm test` script, 20 unit tests for utils + validateCronAuth ✅
+
+### Remaining Known Debt (from this sprint — lower priority)
+- **Custom dropdown ARIA** in `NewLeadCard.tsx` and `LeadStateSelector.tsx` — need shadcn Select/Popover conversion (deferred, larger refactor)
+- **Focus management** for inline panels in `CustomerDetailClient.tsx` (appointment picker, snooze, archive) — needs `autoFocus` or shadcn Dialog
+- **`sequenceDelivery.ts` + `fullAutoSequence.ts` N+1** — complex refactor, deferred (timeout risk at scale)
+- **`process-render-queue` subscription_status check** — canceled org renders still dispatched to Lambda
+- **`lib/env.ts`** — consolidate env var validation at startup instead of scattered `process.env.VAR!` assertions
+- **Per-user SMS rate limit** — currently only org-level (20/min, 300/day); no per-rep limit
+- **In-memory rate limiters** (`leads/web`, `register`) not shared across Vercel instances — replace with Upstash Redis when scaling
+
+---
+
 ## Code Quality / Refactoring — COMPLETED 2026-04-24
 
 All 9 issues from the graphify audit resolved. All 16 readability audit issues resolved.

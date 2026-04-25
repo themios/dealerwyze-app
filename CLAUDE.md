@@ -231,7 +231,7 @@ if (!validateTwilioSignature(authToken, signature, webhookUrl, paramObj)) {
 - `/api/cron/process-render-queue` — every minute: Remotion Lambda video renders
 - `/api/cron/data-retention` — daily: purge canceled orgs >90 days (uses `canceled_at`, not `updated_at`)
 - Auth: all routes use `validateCronAuth(req)` from `lib/cron/validateCronAuth.ts` (timing-safe; supports Bearer + legacy x-cron-secret)
-- Appointment reminders: V1 (`appointmentReminders.ts`) and V2 (`appointmentRemindersV2.ts`) both run — V2 is preferred; V1 deprecated, remove when V2 stable 30+ days
+- Appointment reminders: V2 only (`appointmentRemindersV2.ts`) — V1 was deleted 2026-04-25 (was causing duplicate SMS)
 
 ---
 
@@ -240,6 +240,14 @@ if (!validateTwilioSignature(authToken, signature, webhookUrl, paramObj)) {
 - Twilio webhook URLs in console must match `NEXT_PUBLIC_APP_URL` exactly (no trailing slash)
 - Toll-free verification deadline: 2026-03-13 — resubmit or messaging will be restricted
 - Pending migrations 049+050 must be applied in Supabase before features that depend on them
+- Pending migrations 101, 102, 103 must be applied (indexes, CASCADE fixes, OAuth CSRF columns)
+- `xlsx` replaced with `exceljs` (2026-04-25) — no action needed, just awareness
+- Next.js upgraded to 16.2.4 (2026-04-25) — hard-pinned in package.json, update manually when new patches release
+
+## Testing
+- Run: `npm test` (Vitest, 20 tests)
+- Test files: `lib/utils/__tests__/utils.test.ts`, `lib/cron/__tests__/validateCronAuth.test.ts`
+- All tests must pass before deploying
 
 ## Best Practices — Lessons Learned
 
