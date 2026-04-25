@@ -2,29 +2,80 @@ import { NextRequest, NextResponse } from 'next/server'
 import { google } from 'googleapis'
 import { createServiceClient } from '@/lib/supabase/service'
 import { registerGmailWatch } from '@/lib/gmail/watch'
+import crypto from 'crypto'
 
 /**
  * GET /api/integrations/gmail/callback
- * Google redirects here after consent. Stores OAuth token in email_accounts.
+ * Google redirects here after consent. Verifies CSRF state token, then stores
+ * OAuth token in email_accounts.
  */
 export async function GET(req: NextRequest) {
   const appUrl    = process.env.NEXT_PUBLIC_APP_URL!
   const code      = req.nextUrl.searchParams.get('code')
   const rawState  = req.nextUrl.searchParams.get('state') ?? ''
 
-  // State format: "<org_id>" or "<org_id>|<from>"
-  const [orgId, from] = rawState.split('|')
+  // Default error destination — will be overridden once state is parsed
+  let errorUrl = `${appUrl}/settings/organization?email=error`
+  let successUrl = `${appUrl}/settings/organization?email=connected`
 
-  const successUrl = from === 'onboarding'
-    ? `${appUrl}/onboarding?gmail_connected=1`
-    : `${appUrl}/settings/organization?email=connected`
-
-  const errorUrl = from === 'onboarding'
-    ? `${appUrl}/onboarding?gmail_error=1`
-    : `${appUrl}/settings/organization?email=error`
-
-  if (!code || !orgId) {
+  if (!code || !rawState) {
     return NextResponse.redirect(errorUrl)
+  }
+
+  // Parse and verify CSRF state
+  let orgId = ''
+
+  try {
+    const parsed = JSON.parse(Buffer.from(rawState, 'base64url').toString()) as {
+      orgId: string
+      csrf: string
+      from: string | null
+    }
+    orgId = parsed.orgId
+    const from = parsed.from ?? null
+
+    if (!orgId || !parsed.csrf) {
+      return NextResponse.redirect(errorUrl)
+    }
+
+    // Update redirect URLs now that we know the return destination
+    if (from === 'onboarding') {
+      successUrl = `${appUrl}/onboarding?gmail_connected=1`
+      errorUrl   = `${appUrl}/onboarding?gmail_error=1`
+    }
+
+    // Verify the CSRF token against the one stored server-side
+    const supabase = createServiceClient()
+    const { data: settings } = await supabase
+      .from('org_settings')
+      .select('gmail_oauth_csrf, gmail_oauth_csrf_expires_at')
+      .eq('org_id', orgId)
+      .maybeSingle()
+
+    const storedCsrf    = settings?.gmail_oauth_csrf ?? ''
+    const expiresAt     = settings?.gmail_oauth_csrf_expires_at
+    const isExpired     = !expiresAt || new Date(expiresAt) < new Date()
+    const csrfExpected  = Buffer.from(storedCsrf)
+    const csrfProvided  = Buffer.from(parsed.csrf)
+
+    const csrfValid =
+      !isExpired &&
+      csrfExpected.length > 0 &&
+      csrfExpected.length === csrfProvided.length &&
+      crypto.timingSafeEqual(csrfExpected, csrfProvided)
+
+    if (!csrfValid) {
+      console.warn('[gmail/callback] CSRF verification failed for org:', orgId)
+      return NextResponse.redirect(`${errorUrl}&reason=invalid_state`)
+    }
+
+    // Clear the one-time CSRF token so it cannot be replayed
+    await supabase
+      .from('org_settings')
+      .update({ gmail_oauth_csrf: null, gmail_oauth_csrf_expires_at: null })
+      .eq('org_id', orgId)
+  } catch {
+    return NextResponse.redirect(`${errorUrl}&reason=invalid_state`)
   }
 
   const oauth2Client = new google.auth.OAuth2(
