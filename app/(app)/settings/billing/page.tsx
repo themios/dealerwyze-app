@@ -51,9 +51,16 @@ export default function BillingPage() {
   const [redirecting, setRedirecting] = useState(false)
   const [topupAmount, setTopupAmount] = useState<number | null>(null)
   const [topupBanner, setTopupBanner] = useState<'success' | 'canceled' | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   async function load() {
     const res = await fetch('/api/stripe/billing-status')
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      setError(data.error ?? 'Failed to load billing status. Please refresh.')
+      setLoading(false)
+      return
+    }
     const d = await res.json()
     setStatus(d)
     setLoading(false)
@@ -68,32 +75,52 @@ export default function BillingPage() {
   }, [])
 
   async function handleSubscribe(plan: PlanTier, smsTier?: SmsTier) {
+    setError(null)
     setRedirecting(true)
     const res = await fetch('/api/stripe/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ plan, ...(smsTier ? { smsTier } : {}) }),
     })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      setError(data.error ?? 'Something went wrong. Please try again.')
+      setRedirecting(false)
+      return
+    }
     const { url } = await res.json()
     window.location.href = url
   }
 
   async function handlePortal() {
+    setError(null)
     setRedirecting(true)
     const res = await fetch('/api/stripe/portal', { method: 'POST' })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      setError(data.error ?? 'Something went wrong. Please try again.')
+      setRedirecting(false)
+      return
+    }
     const { url } = await res.json()
     window.location.href = url
   }
 
   async function handleTopup(amount: number) {
+    setError(null)
     setTopupAmount(amount)
     const res = await fetch('/api/stripe/overage-topup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ amount }),
     })
-    const { url, error } = await res.json()
-    if (error) { setTopupAmount(null); return }
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      setError(data.error ?? 'Something went wrong. Please try again.')
+      setTopupAmount(null)
+      return
+    }
+    const { url } = await res.json()
     window.location.href = url
   }
 
@@ -134,6 +161,12 @@ export default function BillingPage() {
   return (
     <div className="p-4 space-y-4">
       <h2 className="text-base font-semibold">Billing & Plan</h2>
+
+      {error && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
 
       {/* Status card */}
       <div className={`rounded-xl border p-4 ${isPastDue ? 'border-destructive/50 bg-destructive/5' : 'border-border'}`}>
