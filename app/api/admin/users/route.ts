@@ -224,6 +224,14 @@ export async function DELETE(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // Audit log the deactivation
+  await service.from('admin_audit_log').insert({
+    action: 'user_deactivated',
+    admin_user_id: auth.user.id,
+    target_org_id: target.org_id,
+    details: { deactivated_user_id: id },
+  })
+
   // Invalidate all active sessions for this user
   await service.auth.admin.signOut(id, 'global').catch(() => {})
 

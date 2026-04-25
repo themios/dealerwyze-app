@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { canAccessAdminArea } from '@/lib/auth/platform'
-import { buildStaffOrgCookie, clearStaffOrgCookie } from '@/lib/auth/staffSession'
+import { buildStaffOrgCookie, clearStaffOrgCookie, getStaffSessionInfo } from '@/lib/auth/staffSession'
 
 /**
  * POST /api/admin/impersonate { org_id, write_mode? }
@@ -51,12 +52,16 @@ export async function DELETE(_req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  // Read the staff session cookie before clearing it so we can log the org that was impersonated
+  const cookieStore = await cookies()
+  const staffSession = getStaffSessionInfo(cookieStore)
+
   const service = createServiceClient()
   await service.from('admin_audit_log').insert({
     admin_user_id: user.id,
-    target_org_id: null,
+    target_org_id: staffSession?.orgId ?? null,
     action: 'staff_impersonate_end',
-    details: {},
+    details: { write_mode: staffSession?.writeMode ?? false },
   })
 
   const cookie = clearStaffOrgCookie()
