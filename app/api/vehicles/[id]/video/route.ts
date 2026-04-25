@@ -26,7 +26,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  // Service client: video_renders and social_posts tables — RLS may not be configured; ownership already verified above.
+  // Service client: video_renders and social_posts have RLS (migration 089); service client avoids a second session resolution since ownership is already verified above.
   const svcClient = createServiceClient()
 
   const [{ data: renders }, { data: posts }] = await Promise.all([
