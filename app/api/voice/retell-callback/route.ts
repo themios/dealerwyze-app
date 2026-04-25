@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
 
   // Structured data extracted by Retell agent (custom_analysis_data)
   const analysis  = call.call_analysis ?? {}
-  const custom    = analysis.custom_analysis_data ?? {}
+  const custom    = (analysis.custom_analysis_data ?? {}) as Record<string, string | undefined>
 
   const name     = custom.caller_name      ?? ''
   const vehicle  = custom.vehicle_interest ?? ''

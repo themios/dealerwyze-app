@@ -152,15 +152,35 @@ export function parseCsv(csv: string): { headers: string[]; rows: string[][] } {
 }
 
 /** Parse XLSX buffer: first sheet, first row = headers. */
-export function parseXlsx(buffer: ArrayBuffer): { headers: string[]; rows: string[][] } {
-  const XLSX = require('xlsx')
-  const wb = XLSX.read(buffer, { type: 'array' })
-  const sheet = wb.Sheets[wb.SheetNames[0]]
+export async function parseXlsx(buffer: ArrayBuffer): Promise<{ headers: string[]; rows: string[][] }> {
+  const ExcelJS = (await import('exceljs')).default
+  const workbook = new ExcelJS.Workbook()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await workbook.xlsx.load(Buffer.from(buffer) as any)
+  const sheet = workbook.worksheets[0]
   if (!sheet) return { headers: [], rows: [] }
-  const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as unknown[][]
-  if (data.length === 0) return { headers: [], rows: [] }
-  const headers = (data[0] || []).map((c: unknown) => String(c ?? ''))
-  const rows = data.slice(1).map((row: unknown[]) => (Array.isArray(row) ? row.map(c => String(c ?? '')) : []))
+
+  const headers: string[] = []
+  const rows: string[][] = []
+
+  sheet.eachRow((row, rowNumber) => {
+    // row.values is 1-indexed; index 0 is always null
+    const vals = row.values as (unknown[] & { length: number })
+    if (rowNumber === 1) {
+      for (let i = 1; i < vals.length; i++) {
+        headers[i - 1] = String(vals[i] ?? '')
+      }
+    } else {
+      const cells: string[] = []
+      for (let i = 1; i < vals.length; i++) {
+        cells[i - 1] = String(vals[i] ?? '')
+      }
+      // Pad to header length so column map indices stay aligned
+      while (cells.length < headers.length) cells.push('')
+      rows.push(cells)
+    }
+  })
+
   return { headers, rows }
 }
 

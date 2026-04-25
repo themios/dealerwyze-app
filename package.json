@@ -33,6 +33,7 @@
     "@zxing/library": "^0.21.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "exceljs": "^4.4.0",
     "framer-motion": "^12.38.0",
     "googleapis": "^171.4.0",
     "gray-matter": "^4.0.3",
@@ -52,8 +53,7 @@
     "server-only": "^0.0.1",
     "stripe": "^20.4.0",
     "tailwind-merge": "^3.5.0",
-    "web-push": "^3.6.7",
-    "xlsx": "^0.18.5"
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

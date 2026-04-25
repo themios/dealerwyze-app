@@ -46,7 +46,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     headers = parsed.headers
     rows = parsed.rows
   } else if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
-    const parsed = parseXlsx(buffer)
+    const parsed = await parseXlsx(buffer)
     headers = parsed.headers
     rows = parsed.rows
   } else {

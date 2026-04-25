@@ -212,7 +212,7 @@ export async function DELETE(req: NextRequest) {
   const service = createServiceClient()
 
   const { data: target } = await service.from('profiles').select('org_id').eq('id', id).single()
-  if (target?.org_id !== auth.profile.org_id) {
+  if (!target || target.org_id !== auth.profile.org_id) {
     return NextResponse.json({ error: 'Not in your org' }, { status: 403 })
   }
 
