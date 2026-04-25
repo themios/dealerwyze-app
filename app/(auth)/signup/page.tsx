@@ -59,7 +59,7 @@ export default function SignupPage() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-2">
-            <Image src="/logo.png" alt="DealerWyze" width={180} height={60} className="object-contain" />
+            <Image src="/logo.png" alt="DealerWyze" width={180} height={60} loading="eager" style={{ height: "auto" }} className="object-contain" />
           </div>
           <CardTitle className="text-2xl">Create Account</CardTitle>
           <CardDescription>Set up your dealership or join a team</CardDescription>
