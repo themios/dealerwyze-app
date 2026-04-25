@@ -1,0 +1,15 @@
+{
+  "search.exclude": {
+    "**/Ads/**": true,
+    "**/Marketing/**": true,
+    "**/Design/**": true,
+    "**/docs/archive/**": true,
+    "**/remotion/**": true,
+    "**/.next/**": true,
+    "**/node_modules/**": true
+  },
+  "files.exclude": {
+    "**/.next": true,
+    "**/node_modules": true
+  }
+}
