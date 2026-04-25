@@ -95,7 +95,7 @@ export const RATING_LABEL: Record<PricingRating, string> = {
 export const RATING_COLOR: Record<PricingRating, { bg: string; text: string }> = {
   overpriced:  { bg: 'bg-red-500/10',    text: 'text-red-600' },
   high:        { bg: 'bg-orange-500/10', text: 'text-orange-600' },
-  good:        { bg: 'bg-green-500/10',  text: 'text-green-700' },
-  underpriced: { bg: 'bg-blue-500/10',   text: 'text-blue-600' },
+  good:        { bg: 'bg-green-500/10',  text: 'text-green-600 dark:text-green-400' },
+  underpriced: { bg: 'bg-blue-500/10',   text: 'text-blue-600 dark:text-blue-400' },
   no_data:     { bg: 'bg-muted',         text: 'text-muted-foreground' },
 }

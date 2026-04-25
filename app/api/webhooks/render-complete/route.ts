@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
       : (videoSettings?.auto_post_platforms ?? [])
 
     if (shouldAutoPost && platforms.length > 0) {
-      autoPostVideo(body.renderId, platforms).catch(err => {
+      autoPostVideo(render.id, platforms).catch(err => {
         console.error('[render-complete] autoPost failed:', err)
       })
     }

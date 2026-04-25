@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 
 function NewVehicleForm() {
@@ -18,6 +18,8 @@ function NewVehicleForm() {
   const searchParams = useSearchParams()
   const supabase = createClient()
   const [saving, setSaving] = useState(false)
+  const [vinDecoding, setVinDecoding] = useState(false)
+  const [vinDecoded, setVinDecoded] = useState(false)
   const [form, setForm] = useState({
     stock_no: '',
     year: searchParams.get('year') || new Date().getFullYear().toString(),
@@ -37,6 +39,35 @@ function NewVehicleForm() {
 
   function update(field: string, value: string) {
     setForm(prev => ({ ...prev, [field]: value }))
+  }
+
+  async function decodeVin(vin: string) {
+    const clean = vin.trim().toUpperCase()
+    if (clean.length !== 17) return
+    setVinDecoding(true)
+    setVinDecoded(false)
+    try {
+      const res = await fetch('/api/vehicles/intake/vin-decode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vin: clean }),
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      setForm(prev => ({
+        ...prev,
+        vin: clean,
+        year:  data.year  ? String(data.year)  : prev.year,
+        make:  data.make  || prev.make,
+        model: data.model || prev.model,
+        trim:  data.trim  || prev.trim,
+      }))
+      setVinDecoded(true)
+    } catch {
+      // best-effort — leave fields as-is
+    } finally {
+      setVinDecoding(false)
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -198,12 +229,29 @@ function NewVehicleForm() {
         </div>
 
         <div className="space-y-1.5">
-          <Label>VIN</Label>
+          <div className="flex items-center justify-between">
+            <Label>VIN</Label>
+            {vinDecoding && (
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" /> Decoding...
+              </span>
+            )}
+            {vinDecoded && !vinDecoding && (
+              <span className="flex items-center gap-1 text-xs text-green-500">
+                <CheckCircle2 className="h-3 w-3" /> Year / make / model filled
+              </span>
+            )}
+          </div>
           <Input
             placeholder="1HGBH41JXMN109186"
             value={form.vin}
-            onChange={(e) => update('vin', e.target.value)}
+            onChange={(e) => {
+              update('vin', e.target.value)
+              setVinDecoded(false)
+            }}
+            onBlur={(e) => decodeVin(e.target.value)}
             className="h-12 text-base font-mono"
+            maxLength={17}
           />
         </div>
 

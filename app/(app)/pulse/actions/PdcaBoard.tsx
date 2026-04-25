@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import { CATEGORY_LABELS } from '@/lib/pulse/questions'
 import type { Category } from '@/lib/pulse/questions'
 
@@ -45,7 +46,14 @@ export default function PdcaBoard() {
     })
   }
 
-  if (loading) return <div className="p-8 text-center text-sm text-muted-foreground">Loading...</div>
+  const statusBorderColor: Record<ActionStatus, string> = {
+    plan:         'border-l-blue-400',
+    doing:        'border-l-orange-400',
+    checking:     'border-l-yellow-400',
+    standardized: 'border-l-green-500',
+  }
+
+  if (loading) return <div className="p-8 flex items-center justify-center"><div className="text-sm text-muted-foreground">Loading...</div></div>
 
   return (
     <div className="p-4">
@@ -60,7 +68,7 @@ export default function PdcaBoard() {
               </div>
               <div className="space-y-2">
                 {colActions.map(action => (
-                  <div key={action.id} className="bg-card rounded-lg p-3 border shadow-sm">
+                  <div key={action.id} className={cn('bg-card rounded-lg p-3 border-l-2 border border-border shadow-sm', statusBorderColor[action.status])}>
                     <p className="text-[10px] font-semibold text-orange-600 uppercase mb-1">
                       {CATEGORY_LABELS[action.category] ?? action.category}
                     </p>
@@ -73,19 +81,21 @@ export default function PdcaBoard() {
                     )}
                     <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t">
                       {COLUMNS.filter(c => c.status !== col.status).map(c => (
-                        <button
+                        <Button
                           key={c.status}
+                          variant="ghost"
+                          size="sm"
                           onClick={() => moveCard(action.id, c.status)}
-                          className="text-[10px] px-2 py-0.5 rounded border hover:bg-accent transition-colors"
+                          className="h-6 text-[11px] px-2"
                         >
                           {c.label}
-                        </button>
+                        </Button>
                       ))}
                     </div>
                   </div>
                 ))}
                 {colActions.length === 0 && (
-                  <p className="text-[10px] text-muted-foreground/50 text-center py-4">Empty</p>
+                  <p className="text-xs text-muted-foreground/40 text-center py-6 italic">No items</p>
                 )}
               </div>
             </div>

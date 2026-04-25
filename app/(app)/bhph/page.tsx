@@ -8,7 +8,7 @@ import type { UserRole } from '@/types/index'
 import TopBar from '@/components/layout/TopBar'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { MessageSquare, Mail } from 'lucide-react'
+import { MessageSquare, Mail, AlertCircle } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import BhphRecordPayment from './BhphRecordPayment'
 import type { PaymentFrequency } from '@/lib/bhph/schedule'
@@ -39,8 +39,8 @@ export default async function BhphPage() {
       {accounts && accounts.length > 0 && (
         <div className="px-4 py-3 border-b">
           <div className="grid grid-cols-3 gap-3">
-            <div className="bg-[#0D2B55]/5 rounded-xl p-3 text-center">
-              <p className="text-2xl font-bold text-[#0D2B55]">{accounts.length}</p>
+            <div className="bg-primary/5 rounded-xl p-3 text-center">
+              <p className="text-2xl font-bold text-primary">{accounts.length}</p>
               <p className="text-xs text-muted-foreground mt-0.5">Active</p>
             </div>
             <div className="bg-destructive/5 rounded-xl p-3 text-center">
@@ -53,8 +53,8 @@ export default async function BhphPage() {
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">Overdue</p>
             </div>
-            <div className="bg-[#F5A623]/10 rounded-xl p-3 text-center">
-              <p className="text-2xl font-bold text-[#92560A]">
+            <div className="bg-amber-500/10 rounded-xl p-3 text-center">
+              <p className="text-2xl font-bold text-amber-700 dark:text-amber-400">
                 {accounts.filter((a: any) => {
                   const d = new Date(a.next_due_date + 'T12:00:00')
                   const t = new Date(); t.setHours(0,0,0,0)
@@ -84,26 +84,40 @@ export default async function BhphPage() {
             const freqLabel = acct.payment_frequency === 'weekly' ? 'Weekly'
               : acct.payment_frequency === 'biweekly' ? 'Bi-weekly' : 'Monthly'
 
+            const paidPct = acct.loan_amount && acct.loan_amount > 0
+              ? Math.min(100, Math.round(((acct.total_paid ?? 0) / acct.loan_amount) * 100))
+              : 0
+            const balance = acct.loan_amount
+              ? Math.max(0, acct.loan_amount - (acct.total_paid ?? 0))
+              : null
+
             return (
-              <div key={acct.id} className="border rounded-xl p-4 bg-card space-y-3">
+              <div
+                key={acct.id}
+                className="bg-card border border-border rounded-[10px] p-4 space-y-3"
+              >
                 {/* Header */}
-                <div className="flex items-start justify-between">
-                  <div>
-                    <Link href={`/customers/${acct.customer?.id}`}>
-                      <p className="font-semibold text-primary">{acct.customer?.name}</p>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <Link href={`/bhph/${acct.id}`}>
+                      <p className="font-[family-name:var(--font-display)] text-[20px] font-bold leading-tight text-foreground hover:text-primary transition-colors">
+                        {acct.customer?.name}
+                      </p>
                     </Link>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-muted-foreground mt-0.5">
                       {acct.vehicle?.year} {acct.vehicle?.make} {acct.vehicle?.model}
-                      {acct.vehicle?.stock_no && <span className="ml-1 text-xs">#{acct.vehicle.stock_no}</span>}
+                      {acct.vehicle?.stock_no && <span className="ml-1">#{acct.vehicle.stock_no}</span>}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">{freqLabel} payments</p>
                   </div>
-                  <span className={`text-xs font-semibold px-2 py-1 rounded-full whitespace-nowrap ${
+                  <span className={`flex-shrink-0 text-xs font-semibold px-2 py-1 rounded-full whitespace-nowrap ${
                     isOverdue
-                      ? 'bg-destructive/10 text-destructive'
-                      : isDueSoon
-                        ? 'bg-yellow-500/10 text-yellow-600'
-                        : 'bg-green-500/10 text-green-600'
+                      ? 'bg-red-100 text-red-700'
+                      : daysUntil === 0
+                        ? 'bg-[#FEF3E2] text-[#92560A] font-bold'
+                        : isDueSoon
+                          ? 'bg-yellow-500/10 text-yellow-600'
+                          : 'bg-green-500/10 text-green-600'
                   }`}>
                     {isOverdue
                       ? `${Math.abs(daysUntil)}d overdue`
@@ -112,27 +126,37 @@ export default async function BhphPage() {
                   </span>
                 </div>
 
-                {/* Payment stats */}
+                {/* Loan summary stats */}
                 <div className="grid grid-cols-3 gap-2 text-center">
-                  <div className="bg-muted/50 rounded-lg p-2">
-                    <p className="text-xs text-muted-foreground">Payment</p>
-                    <p className="font-bold text-sm">{formatCurrency(acct.monthly_payment)}</p>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Total</p>
+                    <p className="text-lg font-bold text-foreground">
+                      {acct.loan_amount ? formatCurrency(acct.loan_amount) : '—'}
+                    </p>
                   </div>
-                  <div className="bg-muted/50 rounded-lg p-2">
-                    <p className="text-xs text-muted-foreground">Paid</p>
-                    <p className="font-bold text-sm">{formatCurrency(acct.total_paid)}</p>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Paid</p>
+                    <p className="text-lg font-bold text-green-600">{formatCurrency(acct.total_paid ?? 0)}</p>
                   </div>
-                  <div className="bg-muted/50 rounded-lg p-2">
-                    <p className="text-xs text-muted-foreground">Balance</p>
-                    <p className="font-bold text-sm">
-                      {acct.loan_amount
-                        ? formatCurrency(Math.max(0, acct.loan_amount - acct.total_paid))
-                        : '—'}
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Balance</p>
+                    <p className="text-lg font-bold text-[#F07018]">
+                      {balance !== null ? formatCurrency(balance) : '—'}
                     </p>
                   </div>
                 </div>
 
-                {/* Due date + contact */}
+                {/* Progress bar */}
+                {acct.loan_amount && (
+                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-green-500 rounded-full transition-all"
+                      style={{ width: `${paidPct}%` }}
+                    />
+                  </div>
+                )}
+
+                {/* Next due */}
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
                   <span>
                     Next due: {dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
@@ -175,6 +199,8 @@ export default async function BhphPage() {
                   currentDueDate={acct.next_due_date}
                   loanAmount={acct.loan_amount}
                   totalPaid={acct.total_paid ?? 0}
+                  customerId={acct.customer?.id}
+                  accountBalance={balance}
                 />
 
                 {acct.notes && (

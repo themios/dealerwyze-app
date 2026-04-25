@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
+import { Users, ChevronDown } from 'lucide-react'
 
 interface RepScore {
   rep_id: string
@@ -19,6 +20,18 @@ function scoreColor(s: number | null) {
   return 'text-red-600'
 }
 
+function ScoreBadge({ score }: { score: number | null }) {
+  const color = score === null ? 'bg-muted text-muted-foreground'
+    : score >= 4.5 ? 'bg-green-100 text-green-700'
+    : score >= 3.5 ? 'bg-yellow-100 text-yellow-700'
+    : 'bg-red-100 text-red-600'
+  return (
+    <span className={cn('text-sm font-bold px-2.5 py-1 rounded-full', color)}>
+      {score?.toFixed(1) ?? '--'}
+    </span>
+  )
+}
+
 export default function TeamPulse() {
   const [reps, setReps]         = useState<RepScore[]>([])
   const [expanded, setExpanded] = useState<string | null>(null)
@@ -31,12 +44,12 @@ export default function TeamPulse() {
       .catch(() => setLoading(false))
   }, [])
 
-  if (loading) return <div className="p-8 text-center text-sm text-muted-foreground">Loading...</div>
+  if (loading) return <div className="p-8 flex items-center justify-center"><div className="text-sm text-muted-foreground">Loading...</div></div>
 
   if (reps.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
-        <p className="text-3xl mb-3">👥</p>
+        <Users className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
         <p className="text-sm">No team scores yet.</p>
         <p className="text-xs mt-1">Scores appear here once surveys are completed.</p>
       </div>
@@ -55,9 +68,13 @@ export default function TeamPulse() {
               <p className="text-sm font-semibold">{rep.name}</p>
               <p className="text-xs text-muted-foreground">{rep.response_count} surveys</p>
             </div>
-            <span className={cn('text-2xl font-bold', scoreColor(rep.overall_score))}>
-              {rep.overall_score?.toFixed(1) ?? '--'}
-            </span>
+            <div className="flex items-center gap-2">
+              <ScoreBadge score={rep.overall_score} />
+              <ChevronDown className={cn(
+                'h-4 w-4 text-muted-foreground transition-transform duration-200',
+                expanded === rep.rep_id && 'rotate-180'
+              )} />
+            </div>
           </button>
           {expanded === rep.rep_id && (
             <div className="border-t px-4 py-3 space-y-2">

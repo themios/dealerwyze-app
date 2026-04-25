@@ -10,12 +10,16 @@ export async function GET() {
   const supabase = createServiceClient()
   const { data } = await supabase
     .from('org_settings')
-    .select('pulse_enabled, pulse_auto_send_on_sold, pulse_send_day30, pulse_send_day180')
+    .select(
+      'pulse_enabled, pulse_auto_send_on_sold, pulse_send_day30, pulse_send_day180,' +
+      'google_review_url, review_request_enabled, review_request_delay_days'
+    )
     .eq('org_id', profile.org_id)
     .maybeSingle()
   return NextResponse.json(data ?? {
     pulse_enabled: false, pulse_auto_send_on_sold: true,
     pulse_send_day30: true, pulse_send_day180: false,
+    google_review_url: '', review_request_enabled: false, review_request_delay_days: 0,
   })
 }
 
@@ -27,10 +31,28 @@ export async function PUT(req: NextRequest) {
 
   const body = await req.json()
   const update: Record<string, unknown> = {}
+
+  // Pulse fields
   if (typeof body.pulse_enabled           === 'boolean') update.pulse_enabled           = body.pulse_enabled
   if (typeof body.pulse_auto_send_on_sold === 'boolean') update.pulse_auto_send_on_sold = body.pulse_auto_send_on_sold
   if (typeof body.pulse_send_day30        === 'boolean') update.pulse_send_day30        = body.pulse_send_day30
   if (typeof body.pulse_send_day180       === 'boolean') update.pulse_send_day180       = body.pulse_send_day180
+
+  // Google review fields
+  if (typeof body.google_review_url === 'string') {
+    update.google_review_url = body.google_review_url.trim() || null
+  }
+  if (typeof body.review_request_enabled === 'boolean') {
+    update.review_request_enabled = body.review_request_enabled
+  }
+  if (typeof body.review_request_delay_days === 'number') {
+    const days = Math.round(body.review_request_delay_days)
+    if (days >= 0 && days <= 365) update.review_request_delay_days = days
+  }
+
+  if (Object.keys(update).length === 0) {
+    return NextResponse.json({ error: 'No valid fields provided' }, { status: 400 })
+  }
 
   const supabase = createServiceClient()
   const { error } = await supabase

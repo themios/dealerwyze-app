@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Activity } from '@/types'
 import { tomorrow8am, leadAgeBadge, leadIsStale } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
-import { Phone, Mail, MapPin, Car, Pause, X, ChevronDown, Zap, CalendarPlus, Check, Pencil } from 'lucide-react'
+import { Phone, Mail, MapPin, Car, Pause, X, ChevronDown, Zap, CalendarPlus, Check, Pencil, MessageSquare } from 'lucide-react'
 import { useOpenCustomer } from '@/components/today/useOpenCustomer'
 import UnsubscribeBadge from '@/components/sequences/UnsubscribeBadge'
 
@@ -105,7 +105,14 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
   const priceStr = vehicleParts[1] || ''
   const score = scoreLeadActivity(activity as any, lead)
 
-  const sourceLabel = SOURCE_LABELS[(activity as any).customer?.lead_source ?? ''] ?? 'Lead'
+  const sourceLabel = SOURCE_LABELS[(activity as any).customer?.lead_source ?? ''] ?? 'Web'
+  const rawSource = (activity as any).customer?.lead_source ?? ''
+  const sourceBadgeClass = (() => {
+    if (rawSource === 'sms' || rawSource === 'text') return 'bg-blue-50 text-blue-700'
+    if (rawSource === 'email') return 'bg-purple-50 text-purple-700'
+    if (rawSource === 'phone' || rawSource === 'call') return 'bg-green-50 text-green-700'
+    return 'bg-accent text-accent-foreground' // default: web/marketplace amber tint
+  })()
 
   const unsubEmail = customer.unsubscribe_email ?? false
   const unsubSms = customer.unsubscribe_sms ?? false
@@ -179,7 +186,7 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
 
   return (
     <>
-      <div className={`rounded-lg border-2 p-4 space-y-3 ${hasResponded ? 'border-green-500 bg-green-50/50' : hasActiveSeq || hasPausedSeq ? 'border-blue-400/60 bg-blue-50/30' : 'border-primary/20 bg-primary/5'}`}>
+      <div className={`card-hover rounded-[10px] border p-4 space-y-3 shadow-[0_1px_3px_rgba(0,0,0,0.06)] ${hasResponded ? 'border-green-500 bg-green-50/50 dark:bg-green-950/20' : hasActiveSeq || hasPausedSeq ? 'border-blue-400/60 bg-blue-50/30 dark:bg-blue-950/20' : 'bg-card border-border'}`}>
         {hasResponded && (
           <div className="flex items-center gap-2 px-3 py-2 bg-green-500 text-white rounded-lg text-xs font-semibold">
             <span>●</span>
@@ -187,68 +194,51 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
           </div>
         )}
 
-        {/* Autoresponder — status + controls in one section */}
-        {sequenceStatus && (
-          <div className="flex items-center gap-2 flex-wrap" onClick={e => e.stopPropagation()}>
-            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
-              hasActiveSeq ? 'bg-green-500/10 text-green-700' :
-              hasPausedSeq ? 'bg-yellow-500/10 text-yellow-700' :
-              'bg-muted text-muted-foreground'
-            }`}>
-              <Zap className={`h-3 w-3 ${hasActiveSeq ? 'fill-green-500 text-green-500' : hasPausedSeq ? 'text-yellow-500' : 'text-muted-foreground'}`} />
-              {hasActiveSeq ? 'Auto' : hasPausedSeq ? 'Paused' : sequenceStatus.status === 'completed' ? 'Done' : 'Stopped'}
-              {' · '}{sequenceStatus.sequence_name}
-              {sequenceStatus.next_step_due && hasActiveSeq ? ` · Next ${formatDate(sequenceStatus.next_step_due)}` : ''}
-            </span>
-            {hasActiveSeq && (
-              <>
+        {/* Autoresponder chip — compact single line with inline controls */}
+        <div className="flex items-center gap-1.5 flex-wrap" onClick={e => e.stopPropagation()}>
+          {sequenceStatus ? (
+            <>
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                hasActiveSeq ? 'bg-green-500/10 text-green-700 dark:text-green-400' :
+                hasPausedSeq ? 'bg-yellow-500/10 text-yellow-700' :
+                'bg-muted text-muted-foreground'
+              }`}>
+                <Zap className={`h-2.5 w-2.5 ${hasActiveSeq ? 'fill-green-500 text-green-500' : hasPausedSeq ? 'text-yellow-500' : 'text-muted-foreground'}`} />
+                {hasActiveSeq
+                  ? `Day ${sequenceStatus.step_number ?? 1} · ${sequenceStatus.sequence_name}`
+                  : hasPausedSeq ? `Paused · ${sequenceStatus.sequence_name}`
+                  : sequenceStatus.status === 'completed' ? 'Sequence done' : 'Sequence stopped'}
+              </span>
+              {hasActiveSeq && (
                 <button
-                  className="text-[11px] px-2 py-0.5 rounded-full border border-yellow-400/50 text-yellow-700 hover:bg-yellow-50 transition-colors"
+                  className="text-[11px] px-1.5 py-0.5 rounded text-yellow-700 hover:bg-yellow-500/10 transition-colors"
                   onClick={() => handleSequenceAction('pause')}
                   disabled={loading !== null}
-                >
-                  <Pause className="h-2.5 w-2.5 inline mr-0.5" />Pause
-                </button>
+                >Pause</button>
+              )}
+              {hasPausedSeq && (
                 <button
-                  className="text-[11px] px-2 py-0.5 rounded-full border border-red-300/50 text-red-600 hover:bg-red-50 transition-colors"
-                  onClick={() => handleSequenceAction('cancel')}
-                  disabled={loading !== null}
-                >
-                  <X className="h-2.5 w-2.5 inline mr-0.5" />Stop
-                </button>
-              </>
-            )}
-            {hasPausedSeq && (
-              <>
-                <button
-                  className="text-[11px] px-2 py-0.5 rounded-full border border-green-400/50 text-green-700 hover:bg-green-50 transition-colors"
+                  className="text-[11px] px-1.5 py-0.5 rounded text-green-700 hover:bg-green-500/10 transition-colors"
                   onClick={() => handleSequenceAction('resume')}
                   disabled={loading !== null}
-                >
-                  Resume
-                </button>
+                >Resume</button>
+              )}
+              {(hasActiveSeq || hasPausedSeq) && (
                 <button
-                  className="text-[11px] px-2 py-0.5 rounded-full border border-red-300/50 text-red-600 hover:bg-red-50 transition-colors"
+                  className="text-[11px] px-1.5 py-0.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                   onClick={() => handleSequenceAction('cancel')}
                   disabled={loading !== null}
-                >
-                  <X className="h-2.5 w-2.5 inline mr-0.5" />Stop
-                </button>
-              </>
-            )}
-            {seqDone && (
-              <span className="text-[11px] text-muted-foreground">Open to re-enroll</span>
-            )}
-          </div>
-        )}
-        {!sequenceStatus && (
-          <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                >Stop</button>
+              )}
+              {seqDone && <span className="text-[11px] text-muted-foreground">Open to re-enroll</span>}
+            </>
+          ) : (
             <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-              <Zap className="h-3 w-3 text-red-400" />
-              <span className="text-red-500">No autoresponder</span>
+              <Zap className="h-2.5 w-2.5 text-muted-foreground/50" />
+              No autoresponder
             </span>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Unsubscribe badges */}
         {(unsubEmail || unsubSms) && (
@@ -269,10 +259,10 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <Badge variant="default" className="text-xs">New Lead</Badge>
-              <span className="text-xs text-muted-foreground">{sourceLabel}</span>
+              <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${sourceBadgeClass}`}>{sourceLabel}</span>
               <ScoreBadge score={score} />
             </div>
-            <p className={`font-semibold text-sm ${stale ? 'text-red-600' : ''}`}>{customer.name}</p>
+            <p className={`font-[family-name:var(--font-display)] font-bold text-[17px] leading-tight ${stale ? 'text-red-600' : 'text-foreground'}`}>{customer.name}</p>
           </div>
           {(() => { const b = leadAgeBadge(activity.created_at); return (
             <span suppressHydrationWarning className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${b.cls}`}>
@@ -376,6 +366,29 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
           </div>
         )}
 
+        {/* Primary action row: Call + Text */}
+        <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+          {lead.phone && (
+            <a
+              href={`tel:${lead.phone}`}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 h-10 rounded-lg bg-primary text-primary-foreground text-sm font-semibold transition-colors hover:bg-primary/90"
+            >
+              <Phone className="h-3.5 w-3.5" />
+              Call
+            </a>
+          )}
+          {customer.primary_phone && (
+            <a
+              href={`sms:${customer.primary_phone}`}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 h-10 rounded-lg bg-secondary text-secondary-foreground text-sm font-semibold transition-colors hover:bg-secondary/80"
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              Text
+            </a>
+          )}
+        </div>
+
+        {/* Secondary actions: Schedule, Done, Archive, Follow up, Dismiss */}
         <div className="flex gap-2 items-center flex-wrap" onClick={e => e.stopPropagation()}>
           <button
             className={`text-xs font-medium py-1 px-2 rounded transition-colors flex items-center gap-1 ${apptSaved ? 'bg-blue-500/10 text-blue-700' : 'text-blue-700 bg-blue-500/10 hover:bg-blue-500/20'}`}
@@ -400,22 +413,6 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
             disabled={loading !== null}
           >
             {loading === 'done' ? 'Saving…' : 'Done'}
-          </button>
-          <button
-            className="text-xs text-muted-foreground hover:text-destructive py-1 px-2 rounded hover:bg-destructive/10 transition-colors"
-            onClick={async () => {
-              setLoading('archive')
-              await fetch(`/api/activities/${activity.id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ completed_at: new Date().toISOString(), outcome: 'no_response' }),
-              })
-              setLoading(null)
-              onUpdate()
-            }}
-            disabled={loading !== null}
-          >
-            {loading === 'archive' ? 'Archiving…' : 'Archive'}
           </button>
 
           <div className="relative ml-auto">
@@ -446,6 +443,23 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
               </div>
             )}
           </div>
+
+          <button
+            className="h-8 text-xs text-muted-foreground hover:text-destructive py-1 px-2 rounded hover:bg-destructive/10 transition-colors"
+            onClick={async () => {
+              setLoading('archive')
+              await fetch(`/api/activities/${activity.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ completed_at: new Date().toISOString(), outcome: 'no_response' }),
+              })
+              setLoading(null)
+              onUpdate()
+            }}
+            disabled={loading !== null}
+          >
+            {loading === 'archive' ? 'Archiving…' : 'Dismiss'}
+          </button>
         </div>
       </div>
 

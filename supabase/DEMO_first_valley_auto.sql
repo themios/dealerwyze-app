@@ -38,14 +38,18 @@ DECLARE
 BEGIN
 
   -- ── 1. Organization ─────────────────────────────────────────────────────────
-  INSERT INTO organizations (id, name, slug, created_at, updated_at)
-  VALUES (new_org, 'First Valley Auto Sales', 'first-valley-auto-sales', now(), now())
-  ON CONFLICT (id) DO NOTHING;
+  INSERT INTO organizations (id, name, slug, approved_at, subscription_status, created_at, updated_at)
+  VALUES (new_org, 'First Valley Auto Sales', 'first-valley-auto-sales', now(), 'active', now(), now())
+  ON CONFLICT (id) DO UPDATE SET
+    approved_at = COALESCE(organizations.approved_at, now()),
+    subscription_status = COALESCE(organizations.subscription_status, 'active');
 
   -- ── 2. Org Settings ─────────────────────────────────────────────────────────
-  INSERT INTO org_settings (org_id)
-  VALUES (new_org)
-  ON CONFLICT (org_id) DO NOTHING;
+  INSERT INTO org_settings (org_id, business_name, onboarding_completed_at)
+  VALUES (new_org, 'First Valley Auto Sales', NOW())
+  ON CONFLICT (org_id) DO UPDATE SET
+    business_name = 'First Valley Auto Sales',
+    onboarding_completed_at = COALESCE(org_settings.onboarding_completed_at, NOW());
 
   -- ── 3. Auth User ─────────────────────────────────────────────────────────────
   -- Safe to re-run: deletes existing before re-inserting
@@ -59,6 +63,8 @@ BEGIN
   INSERT INTO auth.users (
     instance_id, id, aud, role, email,
     encrypted_password, email_confirmed_at,
+    confirmation_token, recovery_token, email_change, email_change_token_new, email_change_token_current,
+    phone, phone_change, phone_change_token, reauthentication_token,
     raw_app_meta_data, raw_user_meta_data,
     is_super_admin, created_at, updated_at
   ) VALUES (
@@ -69,6 +75,8 @@ BEGIN
     'org@firstvalleyauto.internal',
     crypt(gen_random_uuid()::text, gen_salt('bf')),
     now(),
+    '', '', '', '', '',
+    '', '', '', '',
     '{"provider":"email","providers":["email"]}'::jsonb,
     '{}'::jsonb,
     false,
@@ -79,6 +87,8 @@ BEGIN
   INSERT INTO auth.users (
     instance_id, id, aud, role, email,
     encrypted_password, email_confirmed_at,
+    confirmation_token, recovery_token, email_change, email_change_token_new, email_change_token_current,
+    phone, phone_change, phone_change_token, reauthentication_token,
     raw_app_meta_data, raw_user_meta_data,
     is_super_admin, created_at, updated_at
   ) VALUES (
@@ -89,6 +99,8 @@ BEGIN
     'demo@firstvalleyauto.com',
     crypt('DemoDealer2026!', gen_salt('bf')),
     now(),
+    '', '', '', '', '',
+    '', '', '', '',
     '{"provider":"email","providers":["email"]}'::jsonb,
     '{}'::jsonb,
     false,

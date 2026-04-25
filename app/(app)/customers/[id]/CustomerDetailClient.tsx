@@ -28,7 +28,7 @@ import LeadStateSelector from '@/components/customer/LeadStateSelector'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Mail, Plus, FileText, Archive, X, MessageSquareOff, Trophy, Trash2, GitMerge, Clock, Pencil, ClipboardList } from 'lucide-react'
+import { Mail, Phone, MessageSquare, Plus, FileText, Archive, X, MessageSquareOff, Trophy, Trash2, GitMerge, Clock, Pencil, ClipboardList } from 'lucide-react'
 
 interface TaskItem {
   id: string
@@ -346,40 +346,81 @@ export default function CustomerDetailClient({ customer, activities: initialActi
 
   return (
     <div className="pb-36 lg:pb-6">
-      {/* Contact info */}
-      <div className="px-4 py-3 border-b">
-        <p className="text-lg font-semibold">{formatPhone(customer.primary_phone)}</p>
+      {/* Contact info header card */}
+      <div className="bg-card border-b border-border px-4 py-4">
+        {/* Phone — tappable */}
+        <a href={`tel:${customer.primary_phone}`} className="flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-primary">
+          <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          {formatPhone(customer.primary_phone)}
+        </a>
         {customer.secondary_phone && (
-          <p className="text-sm text-muted-foreground">{formatPhone(customer.secondary_phone)}</p>
+          <a href={`tel:${customer.secondary_phone}`} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary mt-0.5">
+            <Phone className="h-4 w-4 flex-shrink-0 opacity-0" />
+            {formatPhone(customer.secondary_phone)}
+          </a>
         )}
+        {/* Email — tappable */}
         {customer.email && (
-          <p className="text-sm text-muted-foreground flex items-center gap-1 mt-0.5">
-            <Mail className="h-3.5 w-3.5" />
+          <a href={`mailto:${customer.email}`} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary mt-0.5">
+            <Mail className="h-4 w-4 flex-shrink-0" />
             {customer.email}
-          </p>
+          </a>
         )}
-        {primaryVehicle ? (
-          <p className="text-sm font-semibold mt-1 flex items-center gap-1.5">
-            {primaryVehicle.year} {primaryVehicle.make} {primaryVehicle.model}
-            {primaryVehicle.price ? ` — $${primaryVehicle.price.toLocaleString()}` : ''}
+
+        {/* Vehicle interest */}
+        <div className="mt-2">
+          {primaryVehicle ? (
+            <p className="text-sm font-semibold flex items-center gap-1.5">
+              {primaryVehicle.year} {primaryVehicle.make} {primaryVehicle.model}
+              {primaryVehicle.price ? ` - $${primaryVehicle.price.toLocaleString()}` : ''}
+              <button
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => setLinkVehicleOpen(true)}
+                title="Add / change vehicle"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            </p>
+          ) : (
             <button
-              className="text-muted-foreground hover:text-foreground"
+              className="text-sm text-primary hover:underline flex items-center gap-1"
               onClick={() => setLinkVehicleOpen(true)}
-              title="Add / change vehicle"
             >
-              <Pencil className="h-3.5 w-3.5" />
+              + Add vehicle
             </button>
-          </p>
-        ) : (
-          <button
-            className="text-sm text-primary hover:underline mt-1 flex items-center gap-1"
-            onClick={() => setLinkVehicleOpen(true)}
-          >
-            + Add vehicle
-          </button>
-        )}
-        {/* Lead state + assignment — prominent, always visible */}
-        <div className="flex items-center gap-2 mt-2 flex-wrap">
+          )}
+        </div>
+
+        {/* Quick stats chips */}
+        <div className="flex gap-2 mt-3 overflow-x-auto pb-0.5 -mx-0.5 px-0.5">
+          {(customer as unknown as Record<string, unknown>).last_contact_at ? (
+            <div className="bg-secondary rounded-lg px-3 py-2 flex-shrink-0">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Last contact</p>
+              <p className="text-sm font-semibold mt-0.5">
+                {new Date((customer as unknown as Record<string, unknown>).last_contact_at as string).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </p>
+            </div>
+          ) : null}
+          {primaryVehicle && (
+            <div className="bg-secondary rounded-lg px-3 py-2 flex-shrink-0">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Vehicle interest</p>
+              <p className="text-sm font-semibold mt-0.5">{primaryVehicle.year} {primaryVehicle.make}</p>
+            </div>
+          )}
+          {(customer as unknown as Record<string, unknown>).lead_source ? (
+            <div className="bg-secondary rounded-lg px-3 py-2 flex-shrink-0">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Source</p>
+              <p className="text-sm font-semibold mt-0.5 capitalize">{String((customer as unknown as Record<string, unknown>).lead_source).replace(/_/g, ' ')}</p>
+            </div>
+          ) : null}
+          <div className="bg-secondary rounded-lg px-3 py-2 flex-shrink-0">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Status</p>
+            <p className="text-sm font-semibold mt-0.5 capitalize">{(customer.thread_state ?? 'new lead').replace(/_/g, ' ')}</p>
+          </div>
+        </div>
+
+        {/* Lead state + assignment */}
+        <div className="flex items-center gap-2 mt-3 flex-wrap">
           <LeadStateSelector
             customerId={customer.id}
             currentState={customer.thread_state ?? 'new_lead'}
@@ -705,7 +746,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
       {/* Tasks */}
       <div className="px-4 py-3 border-b">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide border-l-2 border-[#F07018] pl-2">Open Tasks</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground border-l-2 border-[#F07018] pl-2">Open tasks</h3>
           <button
             onClick={() => { setQuickTaskOpen(true); void loadTeamMembers() }}
             className="text-xs text-primary font-medium flex items-center gap-1"
@@ -782,15 +823,18 @@ export default function CustomerDetailClient({ customer, activities: initialActi
       </div>
 
       <div className="px-4 py-4">
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4 border-l-2 border-[#F07018] pl-2">Activity</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 border-l-2 border-[#F07018] pl-2">Activity</h2>
         <ActivityTimeline activities={activities} currentUserId={currentUserId} isAdmin={isAdmin} onNoteUpdated={refreshActivities} onEmailReply={setReplyContext} />
       </div>
 
-      {/* Pinned reply bar — mobile only, sits above BottomNav */}
-      <div className="lg:hidden fixed bottom-16 inset-x-0 z-30 bg-background border-t flex gap-2 px-4 py-2 safe-area-inset-bottom">
+      {/* Sticky bottom action bar — mobile only, sits above BottomNav */}
+      <div className="lg:hidden fixed bottom-16 inset-x-0 z-30 bg-card border-t border-border px-4 py-3 pb-safe flex gap-2">
         <CallButton customerId={customer.id} customerName={customer.name} phone={customer.primary_phone} className="flex-1" />
         <TemplatePicker customer={customer} vehicle={primaryVehicle} />
         <EmailButton customer={customer} vehicle={primaryVehicle} onSent={refreshActivities} replyContext={replyContext} onReplyComplete={() => setReplyContext(null)} />
+        <Button variant="ghost" size="sm" onClick={() => setNoteOpen(true)} className="flex-1 gap-1.5">
+          <FileText className="h-4 w-4" />Note
+        </Button>
       </div>
 
       <AddTaskModal open={taskOpen} onClose={() => setTaskOpen(false)} customerId={customer.id} customerName={customer.name} vehicleId={primaryVehicle?.id} orgName={orgSettings.dealerName} orgPhone={orgSettings.dealerPhone} orgAddress={orgSettings.dealerAddress} onSaved={refreshActivities} />

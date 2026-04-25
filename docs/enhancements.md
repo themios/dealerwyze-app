@@ -34,6 +34,16 @@ Strategic ideas captured here. Promote to ROADMAP.md when ready to schedule.
 
 ## Dealer-Side Growth (CRM / Pillar 1+2)
 
+### Per-Org Theme Customization — BUILT ✅ (2026-04-22)
+- Paid feature (growth/pro plans). Settings > Appearance.
+- 6 presets: DealerWyze, Midnight, American Red, Clean Green, Premium Black, Sky Blue.
+- Custom mode: free-pick primary + accent hex colors with live preview.
+- Font styles: Modern (Barlow + Archivo), Classic (Lora serif), Bold (Oswald uppercase).
+- Dark mode: HSL auto-soften (cap sat 65%, L 58-72%) so any color stays readable.
+- DealerWyze branding is always retained — no white-label. Colors/fonts only.
+- CSS vars injected server-side in app layout; public inventory pages also pick up the theme.
+- Clean-up SQL for existing JSON-body timeline artifacts: `UPDATE activities SET body = '__sequence_sent__' WHERE body LIKE '{"to":"%' AND body LIKE '%"sequence_day":%';`
+
 ### Vehicle Staging & Reconditioning (BUILT - 2026-03-11)
 - Pre-sale workflow for purchased cars not yet ready for the lot.
 - Reconditioning checklist (Detail, Oil, Brakes, Tires, Smog, etc.) with per-item cost + notes + completion tracking.
@@ -177,6 +187,19 @@ Dealers click "Generate Video" on any vehicle. The system creates a branded, nar
 - Today queue auto-refreshes on mount and on tab visibility change (fixes stale queue after replying from customer page).
 - Realtime UPDATE subscription on activities — addressed/completed leads drop off queue instantly without navigation.
 - **Phase B:** Intent score + ghost risk pipeline using last N customer/rep messages (AI-read history).
+
+### Today Queue Cross-Page Sync — BUILT ✅ (2026-04-20)
+- `addressed_at` column (migration 047) now applied — DB-level filter excludes acted-on leads from all Today queries.
+- Realtime INSERT handler extended: outbound activity created from any page triggers Today queue refresh.
+- `dismissedIds` useRef Set — optimistic local removal prevents refresh from restoring cards the rep just dismissed.
+- Day 1 sequence emails (type=email, sequence_day=1) now correctly routed to `EmailFollowUpItem` via queueSort.ts fix (was falling to `TaskItem` and rendering raw JSON).
+- `activities POST` route: when rep logs any outbound action, sets `addressed_at` on all pending inbound leads for that customer.
+
+### Todo Item Actionable Links — BUILT ✅ (2026-04-20)
+- Task detail sheet now shows all linked entities (customer + vehicle + receipt), not just one.
+- Customer card: Call (tel:) and Text (sms:) quick-action links + Open → /customers/[id].
+- Vehicle card: Open → /vehicles/[id].
+- Fixed else-if chain that silently dropped the customer card when a task had both customer and vehicle linked.
 
 ### Sold Vehicle Notifications — BUILT ✅ (2026-03-14)
 - When a vehicle is marked sold via MarkSoldSheet, buyer's pending inbound lead activities are auto-closed (`completed_at`).

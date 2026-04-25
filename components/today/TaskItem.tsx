@@ -56,7 +56,7 @@ export default function TaskItem({ activity, onUpdate }: TaskItemProps) {
   }
 
   return (
-    <div className="rounded-lg border bg-card p-4 space-y-3">
+    <div className="rounded-[10px] border border-border bg-card p-4 space-y-3 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
       <div
         className="flex items-start gap-3 cursor-pointer hover:opacity-90"
         onClick={handleCardClick}
@@ -103,7 +103,7 @@ export default function TaskItem({ activity, onUpdate }: TaskItemProps) {
         <Button
           size="sm"
           variant="default"
-          className="flex-1 h-9"
+          className="flex-1 h-10"
           onClick={markDone}
           disabled={loading !== null}
         >

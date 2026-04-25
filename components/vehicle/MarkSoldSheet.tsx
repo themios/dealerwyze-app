@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { CONSENT_DISCLOSURE } from '@/lib/bhph/schedule'
-import { FileText, ExternalLink, Trash2, X, ArrowRight, CheckCircle, MinusCircle } from 'lucide-react'
+import { FileText, ExternalLink, Trash2, X, ArrowRight, CheckCircle, MinusCircle, Star, Heart } from 'lucide-react'
 
 interface Props {
   vehicleId: string
@@ -36,7 +36,7 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
   const supabase = createClient()
 
   // Document cleanup step
-  const [step, setStep] = useState<'loading' | 'docs' | 'form' | 'notify'>('loading')
+  const [step, setStep] = useState<'loading' | 'docs' | 'form' | 'postsale' | 'notify'>('loading')
   const [docs, setDocs] = useState<DocEntry[]>([])
   const [deletingDoc, setDeletingDoc] = useState<string | null>(null)
   const [confirmDeleteDoc, setConfirmDeleteDoc] = useState<string | null>(null)
@@ -44,6 +44,10 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
   const [interestedCustomers, setInterestedCustomers] = useState<InterestedCustomer[]>([])
   const [notifyMessages, setNotifyMessages] = useState<Record<string, string>>({})
   const [notifyStatus, setNotifyStatus] = useState<Record<string, NotifyStatus>>({})
+
+  // Post-sale outreach step
+  const [postsaleChecks, setPostsaleChecks] = useState({ review: true, pulse: true })
+  const [postsaleSending, setPostsaleSending] = useState(false)
 
   function defaultNotifyMessage(name: string, isBuyer?: boolean) {
     if (isBuyer) {
@@ -84,6 +88,8 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
       setInterestedCustomers([])
       setNotifyMessages({})
       setNotifyStatus({})
+      setPostsaleChecks({ review: true, pulse: true })
+      setPostsaleSending(false)
       return
     }
     fetch(`/api/vehicles/${vehicleId}/documents`)
@@ -187,15 +193,6 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
       return
     }
 
-    // Trigger Google review request if configured
-    if (form.customer_id) {
-      fetch('/api/customers/review-request', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customer_id: form.customer_id }),
-      }).catch(() => {}) // fire-and-forget
-    }
-
     const interested: InterestedCustomer[] = data.interestedCustomers ?? []
     if (interested.length > 0) {
       const initialMessages: Record<string, string> = {}
@@ -205,6 +202,37 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
       setInterestedCustomers(interested)
       setNotifyMessages(initialMessages)
       setNotifyStatus({})
+    }
+    setStep('postsale')
+  }
+
+  async function sendPostsaleMessages() {
+    setPostsaleSending(true)
+    const customerId = form.customer_id
+    if (customerId) {
+      const sends: Promise<unknown>[] = []
+      if (postsaleChecks.review) {
+        sends.push(
+          fetch('/api/customers/review-request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ customer_id: customerId }),
+          }).catch(() => {})
+        )
+      }
+      if (postsaleChecks.pulse) {
+        sends.push(
+          fetch('/api/pulse/surveys', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ customer_id: customerId }),
+          }).catch(() => {})
+        )
+      }
+      await Promise.all(sends)
+    }
+    setPostsaleSending(false)
+    if (interestedCustomers.length > 0) {
       setStep('notify')
     } else {
       router.refresh()
@@ -466,7 +494,94 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
         </form>
         )}
 
-        {/* Step 3: Notify interested customers */}
+        {/* Step 3: Post-sale outreach */}
+        {step === 'postsale' && (
+          <div className="pb-8 space-y-4">
+            <div className="rounded-lg border bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800 p-3">
+              <p className="text-sm font-semibold text-green-800 dark:text-green-200">Sale saved!</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {form.customer_id
+                  ? 'Send post-sale messages to the buyer.'
+                  : 'No customer linked - outreach messages require a customer.'}
+              </p>
+            </div>
+
+            {form.customer_id && (
+              <div className="bg-card rounded-xl border p-4 space-y-4">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Post-Sale Messages</p>
+
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={postsaleChecks.review}
+                    onChange={e => setPostsaleChecks(p => ({ ...p, review: e.target.checked }))}
+                    className="mt-0.5 h-4 w-4 rounded"
+                  />
+                  <div className="flex items-center gap-2">
+                    <Star className="h-4 w-4 text-yellow-500 shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium">Google Review Request</p>
+                      <p className="text-xs text-muted-foreground">Ask the buyer to leave a Google review</p>
+                    </div>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={postsaleChecks.pulse}
+                    onChange={e => setPostsaleChecks(p => ({ ...p, pulse: e.target.checked }))}
+                    className="mt-0.5 h-4 w-4 rounded"
+                  />
+                  <div className="flex items-center gap-2">
+                    <Heart className="h-4 w-4 text-primary shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium">Customer Pulse Survey</p>
+                      <p className="text-xs text-muted-foreground">Anonymous satisfaction survey to track your score</p>
+                    </div>
+                  </div>
+                </label>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              {form.customer_id && (postsaleChecks.review || postsaleChecks.pulse) ? (
+                <Button
+                  className="flex-1 h-12"
+                  disabled={postsaleSending}
+                  onClick={sendPostsaleMessages}
+                >
+                  {postsaleSending ? 'Sending...' : 'Send Selected'}
+                </Button>
+              ) : (
+                <Button
+                  className="flex-1 h-12"
+                  onClick={() => {
+                    if (interestedCustomers.length > 0) setStep('notify')
+                    else { router.refresh(); onClose() }
+                  }}
+                >
+                  {interestedCustomers.length > 0 ? 'Next' : 'Done'}
+                </Button>
+              )}
+              {form.customer_id && (postsaleChecks.review || postsaleChecks.pulse) && (
+                <Button
+                  variant="ghost"
+                  className="h-12 px-4"
+                  disabled={postsaleSending}
+                  onClick={() => {
+                    if (interestedCustomers.length > 0) setStep('notify')
+                    else { router.refresh(); onClose() }
+                  }}
+                >
+                  Skip
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: Notify interested customers */}
         {step === 'notify' && (
           <div className="pb-8 space-y-4">
             <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 p-3">

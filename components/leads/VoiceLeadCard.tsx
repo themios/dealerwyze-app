@@ -62,7 +62,7 @@ export default function VoiceLeadCard({ call, onUpdate }: VoiceLeadCardProps) {
   }
 
   return (
-    <div className="rounded-lg border-2 border-orange-500/20 bg-orange-500/5 p-4 space-y-3">
+    <div className="card-hover rounded-[10px] border border-border bg-card p-4 space-y-3 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
       <div
         className="flex items-start gap-2 cursor-pointer hover:opacity-90"
         onClick={handleCardClick}
@@ -84,7 +84,7 @@ export default function VoiceLeadCard({ call, onUpdate }: VoiceLeadCardProps) {
             )}
           </div>
 
-          <p className="font-semibold text-sm">{callerName}</p>
+          <p className="font-semibold text-base">{callerName}</p>
 
           {vehicle && (
             <p className="text-sm text-muted-foreground flex items-center gap-1 mt-0.5">
@@ -118,14 +118,24 @@ export default function VoiceLeadCard({ call, onUpdate }: VoiceLeadCardProps) {
         </p>
       )}
 
-      <div className="flex justify-end">
-        <button
-          className="text-xs text-muted-foreground hover:text-foreground py-1"
-          onClick={handleDismiss}
-          disabled={loading !== null}
+      {/* Primary action row */}
+      <div className="flex gap-2 mb-1" onClick={e => e.stopPropagation()}>
+        <a
+          href={`tel:${call.from_number}`}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 h-10 rounded-lg bg-primary text-primary-foreground text-sm font-medium transition-colors hover:bg-primary/90"
         >
-          {loading === 'dismiss' ? 'Dismissing…' : 'Dismiss'}
-        </button>
+          <Phone className="h-3.5 w-3.5" />
+          Call back
+        </a>
+        <div className="flex justify-end flex-1">
+          <button
+            className="h-10 text-xs text-muted-foreground hover:text-foreground px-3 rounded-lg hover:bg-muted transition-colors border border-border"
+            onClick={handleDismiss}
+            disabled={loading !== null}
+          >
+            {loading === 'dismiss' ? 'Dismissing…' : 'Dismiss'}
+          </button>
+        </div>
       </div>
     </div>
   )

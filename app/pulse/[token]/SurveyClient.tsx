@@ -17,8 +17,9 @@ export default function SurveyClient({ token }: { token: string }) {
   const [meta, setMeta]           = useState<SurveyMeta | null>(null)
   const [errorType, setErrorType] = useState('')
   const [depth, setDepth]         = useState<Depth>('standard')
-  const [answers, setAnswers]     = useState<Record<string, number>>({})
-  const [comments, setComments]   = useState<Record<string, string>>({})
+  const [answers, setAnswers]         = useState<Record<string, number>>({})
+  const [comments, setComments]       = useState<Record<string, string>>({})
+  const [openComments, setOpenComments] = useState<Record<string, boolean>>({})
   const [wantsFollowup, setWants] = useState(false)
   const [submitting, setSubmit]   = useState(false)
 
@@ -183,6 +184,35 @@ export default function SurveyClient({ token }: { token: string }) {
                     </div>
                     <div className="flex justify-between text-[10px] text-gray-400 mt-1 px-1">
                       <span>Poor</span><span>Excellent</span>
+                    </div>
+                    <div className="mt-2">
+                      {!openComments[q.key] ? (
+                        <button
+                          onClick={() => setOpenComments(p => ({ ...p, [q.key]: true }))}
+                          className="text-[11px] text-gray-300 hover:text-gray-400 transition-colors"
+                        >
+                          + Add a comment
+                        </button>
+                      ) : (
+                        <div className="mt-1">
+                          <textarea
+                            autoFocus
+                            rows={2}
+                            placeholder="Optional — anything you'd like to add..."
+                            value={comments[q.key] ?? ''}
+                            onChange={e => setComments(p => ({ ...p, [q.key]: e.target.value }))}
+                            className="w-full border border-gray-200 rounded-lg p-2.5 text-xs resize-none focus:outline-none focus:border-orange-400 bg-gray-50 focus:bg-white transition-colors"
+                          />
+                          {!comments[q.key] && (
+                            <button
+                              onClick={() => setOpenComments(p => ({ ...p, [q.key]: false }))}
+                              className="text-[11px] text-gray-300 hover:text-gray-400 transition-colors mt-0.5"
+                            >
+                              - Hide
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

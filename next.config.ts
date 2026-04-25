@@ -1,5 +1,6 @@
 import type { NextConfig } from 'next'
 import path from 'path'
+import { withSentryConfig } from '@sentry/nextjs'
 
 const withPWA = require('next-pwa')({
   dest: 'public',
@@ -26,6 +27,15 @@ const nextConfig: NextConfig = {
     return config
   },
   // Keep AI SDKs server-only so they are never bundled for the client (avoids "apiKey nor authenticator" in browser)
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'arsdoonmqlilrqiqbbzh.supabase.co',
+        pathname: '/storage/v1/object/public/**',
+      },
+    ],
+  },
   serverExternalPackages: [
     'groq-sdk',
     '@anthropic-ai/sdk',
@@ -39,4 +49,13 @@ const nextConfig: NextConfig = {
   ],
 }
 
-module.exports = withPWA(nextConfig)
+const sentryConfig = {
+  // Suppresses Sentry CLI output during build
+  silent: !process.env.CI,
+  // Automatically instrument Next.js API routes and pages
+  widenClientFileUpload: true,
+  // Don't create a release if DSN is missing (dev without Sentry configured)
+  dryRun: !process.env.NEXT_PUBLIC_SENTRY_DSN,
+}
+
+module.exports = withSentryConfig(withPWA(nextConfig), sentryConfig)

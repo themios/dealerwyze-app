@@ -76,7 +76,7 @@ export default function AppointmentRequestCard({ activity, onUpdate }: Props) {
   }
 
   return (
-    <div className="rounded-lg border-2 border-blue-500/30 bg-blue-500/5 p-4 space-y-3">
+    <div className="rounded-[10px] border-2 border-blue-500/30 bg-blue-500/5 dark:bg-blue-500/10 p-4 space-y-3 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
       <div className="flex items-start justify-between gap-2">
         <div
           className="flex items-center gap-2 cursor-pointer hover:opacity-90 min-w-0 flex-1"
@@ -116,7 +116,7 @@ export default function AppointmentRequestCard({ activity, onUpdate }: Props) {
       </div>
 
       <Button
-        className="w-full h-9 gap-2"
+        className="w-full h-10 gap-2"
         onClick={handleSchedule}
         disabled={saving || !datetime}
       >

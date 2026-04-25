@@ -3,6 +3,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { BarChart3 } from 'lucide-react'
 import type { Category } from '@/lib/pulse/questions'
 
 function scoreColor(s: number | null): 'green' | 'yellow' | 'red' {
@@ -63,7 +65,7 @@ export default function PulseDashboard() {
     setToggling(false)
   }
 
-  if (loading) return <div className="p-8 text-center text-sm text-muted-foreground">Loading...</div>
+  if (loading) return <div className="p-8 flex items-center justify-center"><div className="text-sm text-muted-foreground">Loading...</div></div>
 
   return (
     <div className="px-4 py-4 space-y-5 max-w-2xl mx-auto">
@@ -80,35 +82,39 @@ export default function PulseDashboard() {
             {enabled ? 'Surveys will auto-send after sales.' : 'No surveys are being sent.'}
           </p>
         </div>
-        <button
+        <Button
           onClick={toggleEnabled}
           disabled={toggling}
+          variant="outline"
+          size="sm"
           className={cn(
-            'px-4 py-1.5 rounded-lg text-sm font-semibold border transition-colors disabled:opacity-50',
+            'transition-colors',
             enabled
-              ? 'bg-white border-red-200 text-red-600 hover:bg-red-50'
-              : 'bg-green-600 border-green-600 text-white hover:bg-green-700'
+              ? 'border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700'
+              : 'bg-green-600 border-green-600 text-white hover:bg-green-700 hover:text-white'
           )}
         >
           {toggling ? '...' : enabled ? 'Disable' : 'Enable'}
-        </button>
+        </Button>
       </div>
 
       {/* Period toggle */}
       <div className="flex gap-2">
         {[30, 90, 180].map(d => (
-          <button
+          <Button
             key={d}
+            variant="outline"
+            size="sm"
             onClick={() => setDays(d)}
             className={cn(
-              'px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
+              'text-xs font-semibold transition-colors',
               days === d
-                ? 'bg-primary text-primary-foreground border-primary'
-                : 'border-border text-muted-foreground hover:bg-accent'
+                ? 'bg-primary text-primary-foreground border-primary hover:bg-primary hover:text-primary-foreground'
+                : 'text-muted-foreground hover:bg-accent'
             )}
           >
             {d} days
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -164,7 +170,7 @@ export default function PulseDashboard() {
 
       {(!data || data.response_count === 0) && (
         <div className="text-center py-12 text-muted-foreground">
-          <p className="text-3xl mb-3">📊</p>
+          <BarChart3 className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
           <p className="text-sm">No survey responses yet.</p>
           <p className="text-xs mt-1">{enabled ? 'Surveys will appear here once customers respond.' : 'Enable Customer Pulse above to start sending surveys.'}</p>
         </div>

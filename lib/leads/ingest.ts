@@ -47,6 +47,7 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId?: 
     .select('id')
     .eq('user_id', userId)
     .eq('email', lead.email)
+    .is('merged_at', null)
     .maybeSingle()
 
   let isReInquiry = false
@@ -65,6 +66,7 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId?: 
         .from('customers')
         .select('id, primary_phone, secondary_phone')
         .eq('user_id', userId)
+        .is('merged_at', null)
 
       existingByPhone = phoneRows?.find(c => {
         const p = normalizePhone(c.primary_phone || '')

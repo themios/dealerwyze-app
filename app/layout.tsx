@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter, Barlow_Semi_Condensed, Archivo } from 'next/font/google'
+import { Inter, Barlow_Semi_Condensed, Archivo, Lora, Oswald } from 'next/font/google'
 import { ThemeProvider } from 'next-themes'
 import FontSizeProvider from '@/components/providers/FontSizeProvider'
 import './globals.css'
@@ -14,6 +14,16 @@ const archivo = Archivo({
   subsets: ['latin'],
   weight: ['400', '500', '600'],
   variable: '--font-body',
+})
+const lora = Lora({
+  subsets: ['latin'],
+  weight: ['400', '600', '700'],
+  variable: '--font-classic',
+})
+const oswald = Oswald({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-bold-style',
 })
 
 export const metadata: Metadata = {
@@ -53,7 +63,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <link rel="apple-touch-icon" href="/DealerWyseLogoWithName.png" />
       </head>
-      <body className={`${inter.className} ${barlow.variable} ${archivo.variable}`} suppressHydrationWarning>
+      <body className={`${inter.className} ${barlow.variable} ${archivo.variable} ${lora.variable} ${oswald.variable}`} suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <FontSizeProvider>{children}</FontSizeProvider>
         </ThemeProvider>

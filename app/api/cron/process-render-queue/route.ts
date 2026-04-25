@@ -3,15 +3,14 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { renderMediaOnLambda, AwsRegion } from '@remotion/lambda-client'
 
 // How many Lambda concurrent renders to allow at once.
-// Each render uses ~7 Lambda invocations (framesPerLambda: 200, 1200-frame video).
-// Current AWS account limit: 10 → max 1 concurrent render.
-// After quota increase (3000+): raise this to 5-10.
-const MAX_CONCURRENT_RENDERS = 1
+// Each render uses ~11 Lambda invocations (framesPerLambda: 120).
+// AWS Lambda concurrency raised to 1,000 — allow 5 concurrent renders.
+const MAX_CONCURRENT_RENDERS = 5
 
-// POST /api/cron/process-render-queue
+// GET /api/cron/process-render-queue
 // Dispatches queued video renders to Remotion Lambda.
-// Run every 60 seconds from cron-job.org.
-export async function POST(req: NextRequest) {
+// Runs every minute via Vercel cron (vercel.json).
+export async function GET(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET ?? ''
   const auth = req.headers.get('authorization') ?? ''
   if (!cronSecret || auth !== `Bearer ${cronSecret}`) {

@@ -34,8 +34,8 @@ export default function WaitingItem({ activity, onUpdate, hasResponded = false }
   }
 
   return (
-    <div className={`rounded-lg border p-4 space-y-3 transition-colors ${
-      hasResponded ? 'border-green-500 bg-green-50/60 dark:bg-green-950/20' : 'bg-card'
+    <div className={`rounded-[10px] border p-4 space-y-3 transition-colors shadow-[0_1px_3px_rgba(0,0,0,0.06)] ${
+      hasResponded ? 'border-green-500 bg-green-50/60 dark:bg-green-950/20' : 'bg-card border-border'
     }`}>
       {hasResponded && (
         <div className="flex items-center gap-1.5 text-green-600 dark:text-green-400">
@@ -77,7 +77,7 @@ export default function WaitingItem({ activity, onUpdate, hasResponded = false }
             <Button
               size="sm"
               variant="outline"
-              className="flex-1 h-9 lg:flex-none lg:px-3"
+              className="flex-1 h-10 lg:flex-none lg:px-3"
               title="Call"
               onClick={() => {
                 window.location.href = `tel:${formatPhoneForTel(customer.primary_phone)}`
@@ -89,7 +89,7 @@ export default function WaitingItem({ activity, onUpdate, hasResponded = false }
             <Button
               size="sm"
               variant="outline"
-              className="flex-1 h-9 lg:flex-none lg:px-3"
+              className="flex-1 h-10 lg:flex-none lg:px-3"
               title="Text"
               onClick={() => {
                 window.location.href = `sms:${formatPhoneForTel(customer.primary_phone)}`
@@ -103,7 +103,7 @@ export default function WaitingItem({ activity, onUpdate, hasResponded = false }
         <Button
           size="sm"
           variant="default"
-          className="flex-1 h-9 lg:flex-none lg:px-3"
+          className="flex-1 h-10 lg:flex-none lg:px-3"
           title="Mark done"
           onClick={markDone}
           disabled={loading !== null}

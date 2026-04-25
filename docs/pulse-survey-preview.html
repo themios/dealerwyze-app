@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Customer Pulse Survey — Preview</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #F3F4F6;
+      min-height: 100vh;
+      color: #111827;
+    }
+
+    /* ── Screen wrapper ── */
+    .screen {
+      display: none;
+      min-height: 100vh;
+    }
+    .screen.active { display: flex; flex-direction: column; }
+
+    /* ── Loading ── */
+    #screen-loading {
+      align-items: center;
+      justify-content: center;
+    }
+    .loading-dot {
+      width: 8px; height: 8px;
+      background: #D1D5DB;
+      border-radius: 50%;
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+    .loading-dot:nth-child(2) { animation-delay: .2s; }
+    .loading-dot:nth-child(3) { animation-delay: .4s; }
+    @keyframes pulse { 0%,80%,100%{transform:scale(0.8);opacity:.5} 40%{transform:scale(1.1);opacity:1} }
+
+    /* ── Welcome ── */
+    #screen-welcome {
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+    .welcome-card {
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.09);
+      padding: 36px 28px;
+      max-width: 440px;
+      width: 100%;
+    }
+    .dealer-tag {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: #F07018;
+      margin-bottom: 10px;
+    }
+    .welcome-card h1 {
+      font-size: 22px;
+      font-weight: 800;
+      line-height: 1.3;
+      color: #111827;
+      margin-bottom: 14px;
+    }
+    .welcome-card p {
+      font-size: 14px;
+      line-height: 1.65;
+      color: #6B7280;
+      margin-bottom: 24px;
+    }
+    .depth-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: #374151;
+      margin-bottom: 12px;
+    }
+    .depth-options { display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; }
+    .depth-btn {
+      text-align: left;
+      padding: 14px 16px;
+      border-radius: 14px;
+      border: 2px solid #E5E7EB;
+      background: #fff;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+    }
+    .depth-btn.selected {
+      border-color: #F07018;
+      background: #FFF7F0;
+    }
+    .depth-btn .d-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: #111827;
+    }
+    .depth-btn .d-sub {
+      font-size: 12px;
+      color: #9CA3AF;
+      margin-top: 2px;
+    }
+
+    /* ── Questions ── */
+    #screen-questions {
+      padding: 0;
+      background: #F3F4F6;
+    }
+    .q-header {
+      background: #fff;
+      padding: 16px 20px 14px;
+      border-bottom: 1px solid #E5E7EB;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .q-header .dealer-tag { margin-bottom: 2px; }
+    .progress-bar-wrap {
+      height: 4px;
+      background: #E5E7EB;
+      border-radius: 2px;
+      margin-top: 10px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: #F07018;
+      border-radius: 2px;
+      transition: width .3s ease;
+    }
+    .progress-text {
+      font-size: 11px;
+      color: #9CA3AF;
+      margin-top: 4px;
+    }
+    .q-scroll { padding: 16px; max-width: 520px; margin: 0 auto; }
+
+    .cat-card {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 1px 6px rgba(0,0,0,.05);
+      padding: 20px;
+      margin-bottom: 14px;
+    }
+    .cat-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: #9CA3AF;
+      margin-bottom: 18px;
+    }
+    .question-block { margin-bottom: 22px; }
+    .question-block:last-child { margin-bottom: 0; }
+    .q-text {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1F2937;
+      margin-bottom: 12px;
+      line-height: 1.45;
+    }
+    .score-row { display: flex; gap: 7px; }
+    .score-btn {
+      flex: 1;
+      height: 42px;
+      border-radius: 10px;
+      border: 2px solid #E5E7EB;
+      background: #F9FAFB;
+      font-size: 14px;
+      font-weight: 700;
+      color: #9CA3AF;
+      cursor: pointer;
+      transition: all .12s ease;
+    }
+    .score-btn:hover { border-color: #D1D5DB; }
+    .score-btn.sel-1, .score-btn.sel-2 {
+      border-color: #EF4444; background: #FEF2F2; color: #B91C1C;
+    }
+    .score-btn.sel-3 {
+      border-color: #EAB308; background: #FEFCE8; color: #A16207;
+    }
+    .score-btn.sel-4, .score-btn.sel-5 {
+      border-color: #22C55E; background: #F0FDF4; color: #15803D;
+    }
+    .score-labels {
+      display: flex;
+      justify-content: space-between;
+      padding: 3px 2px 0;
+      font-size: 10px;
+      color: #D1D5DB;
+    }
+    .comment-wrap { margin-top: 10px; }
+    .comment-toggle {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 11px;
+      color: #D1D5DB;
+      cursor: pointer;
+      font-family: inherit;
+      transition: color .12s;
+    }
+    .comment-toggle:hover { color: #9CA3AF; }
+    .comment-toggle.open { color: #9CA3AF; }
+    .comment-box {
+      display: none;
+      margin-top: 6px;
+    }
+    .comment-box.open { display: block; }
+    .comment-box textarea {
+      width: 100%;
+      border: 1px solid #E5E7EB;
+      border-radius: 10px;
+      padding: 9px 12px;
+      font-size: 12px;
+      resize: none;
+      color: #374151;
+      font-family: inherit;
+      outline: none;
+      transition: border-color .15s;
+      background: #FAFAFA;
+    }
+    .comment-box textarea:focus {
+      border-color: #F07018;
+      background: #fff;
+    }
+
+    .followup-card {
+      background: #FFFBF5;
+      border: 1px solid #FDBA74;
+      border-radius: 16px;
+      padding: 18px 20px;
+      margin-bottom: 14px;
+    }
+    .followup-card .cat-title { color: #C2410C; }
+    .followup-q { margin-bottom: 14px; }
+    .followup-q:last-child { margin-bottom: 0; }
+    .followup-q .q-text { color: #374151; }
+    .followup-q textarea {
+      width: 100%;
+      border: 1px solid #E5E7EB;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 13px;
+      resize: none;
+      color: #374151;
+      font-family: inherit;
+      outline: none;
+      transition: border-color .15s;
+    }
+    .followup-q textarea:focus { border-color: #F07018; }
+
+    .followup-note {
+      font-size: 11px;
+      color: #C2410C;
+      margin-top: 6px;
+      font-style: italic;
+    }
+
+    .contact-card {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 1px 6px rgba(0,0,0,.05);
+      padding: 20px;
+      margin-bottom: 14px;
+    }
+    .contact-card .q-text { margin-bottom: 14px; }
+    .yesno-row { display: flex; gap: 10px; }
+    .yesno-btn {
+      flex: 1;
+      padding: 12px;
+      border-radius: 12px;
+      border: 2px solid #E5E7EB;
+      background: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      color: #6B7280;
+      cursor: pointer;
+      transition: all .12s ease;
+    }
+    .yesno-btn.selected {
+      border-color: #F07018;
+      background: #FFF7F0;
+      color: #C2410C;
+    }
+
+    /* ── Submit button ── */
+    .btn-primary {
+      width: 100%;
+      padding: 15px;
+      background: #F07018;
+      color: #fff;
+      border: none;
+      border-radius: 14px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background .15s, transform .1s, opacity .15s;
+      margin-bottom: 24px;
+    }
+    .btn-primary:hover { background: #D96010; }
+    .btn-primary:active { transform: scale(.98); }
+    .btn-primary:disabled { opacity: .45; cursor: not-allowed; }
+
+    /* ── Thank you ── */
+    #screen-thankyou {
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+    }
+    .thankyou-inner { max-width: 360px; text-align: center; }
+    .ty-emoji { font-size: 52px; margin-bottom: 20px; }
+    .thankyou-inner h1 {
+      font-size: 24px;
+      font-weight: 800;
+      color: #111827;
+      margin-bottom: 14px;
+    }
+    .thankyou-inner p {
+      font-size: 14px;
+      line-height: 1.65;
+      color: #6B7280;
+    }
+    .ty-followup {
+      margin-top: 18px;
+      padding: 14px 18px;
+      background: #FFF7F0;
+      border: 1px solid #FDBA74;
+      border-radius: 12px;
+      font-size: 13px;
+      color: #C2410C;
+      font-weight: 600;
+    }
+
+    /* ── Preview nav bar (not part of the real survey) ── */
+    .preview-bar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: #0D2B55;
+      color: #fff;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      z-index: 999;
+    }
+    .preview-bar span { opacity: .6; }
+    .preview-jump {
+      padding: 5px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,.3);
+      background: transparent;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .12s;
+    }
+    .preview-jump:hover { background: rgba(255,255,255,.12); }
+    .preview-jump.active { background: #F07018; border-color: #F07018; }
+  </style>
+</head>
+<body>
+
+<!-- ───────────────────────────── LOADING ───────────────────────────── -->
+<div id="screen-loading" class="screen active">
+  <div style="display:flex;gap:8px;">
+    <div class="loading-dot"></div>
+    <div class="loading-dot"></div>
+    <div class="loading-dot"></div>
+  </div>
+</div>
+
+<!-- ───────────────────────────── WELCOME ───────────────────────────── -->
+<div id="screen-welcome" class="screen">
+  <div class="welcome-card">
+    <p class="dealer-tag">Apollo Auto — El Monte, CA</p>
+    <h1>Hi Marcus, your feedback means everything.</h1>
+    <p>
+      A few minutes of your time helps us serve every customer better.
+      Your responses go directly to management and are never shared publicly.
+      Please be honest — it is the most helpful thing you can do for us.
+    </p>
+    <p class="depth-label">How much time do you have?</p>
+    <div class="depth-options">
+      <button class="depth-btn" onclick="selectDepth('quick',this)">
+        <div class="d-name">Quick</div>
+        <div class="d-sub">5 questions &mdash; about 60 seconds</div>
+      </button>
+      <button class="depth-btn selected" onclick="selectDepth('standard',this)">
+        <div class="d-name">Standard</div>
+        <div class="d-sub">All areas &mdash; about 2&ndash;3 minutes</div>
+      </button>
+      <button class="depth-btn" onclick="selectDepth('full',this)">
+        <div class="d-name">Full</div>
+        <div class="d-sub">All areas + comments &mdash; 4&ndash;5 minutes</div>
+      </button>
+    </div>
+    <button class="btn-primary" onclick="startSurvey()" style="margin-bottom:0">Start Survey</button>
+  </div>
+</div>
+
+<!-- ───────────────────────────── QUESTIONS ───────────────────────────── -->
+<div id="screen-questions" class="screen">
+  <div class="q-header">
+    <div class="dealer-tag">Apollo Auto</div>
+    <div class="progress-text" id="progress-text">0 of 0 answered</div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-fill" id="progress-bar" style="width:0%"></div>
+    </div>
+  </div>
+  <div class="q-scroll" id="questions-body">
+    <!-- populated by JS -->
+  </div>
+</div>
+
+<!-- ───────────────────────────── THANK YOU ───────────────────────────── -->
+<div id="screen-thankyou" class="screen">
+  <div class="thankyou-inner">
+    <div class="ty-emoji">🙏</div>
+    <h1>Thank you so much.</h1>
+    <p>
+      Your feedback has been received and goes directly to management.
+      We take every word seriously — it helps us improve for every customer who comes after you.
+    </p>
+    <div class="ty-followup" id="ty-followup" style="display:none">
+      Someone from our team will be in touch with you shortly.
+    </div>
+  </div>
+</div>
+
+<!-- ───────────────────────────── PREVIEW NAV ───────────────────────────── -->
+<div class="preview-bar">
+  <span>Preview:</span>
+  <button class="preview-jump" onclick="showScreen('loading')">Loading</button>
+  <button class="preview-jump active" onclick="showScreen('welcome')">Welcome</button>
+  <button class="preview-jump" onclick="showScreen('questions')">Questions</button>
+  <button class="preview-jump" onclick="showScreen('thankyou')">Thank You</button>
+  <span style="margin-left:auto;opacity:.4">dealerwyze.com/pulse/aB3xK9mQ</span>
+</div>
+
+<script>
+// ── Data ──────────────────────────────────────────────────────────────────────
+
+const QUESTIONS = {
+  quick: [
+    { key:'fc_welcome',  cat:'First Contact', text:'How welcomed did you feel from your very first interaction with us?' },
+    { key:'rep_comm',    cat:'Your Rep',       text:'How well did your rep communicate throughout the entire process?' },
+    { key:'veh_cond',    cat:'The Vehicle',    text:'How well did the vehicle match what was described or shown online?' },
+    { key:'proc_ease',   cat:'The Process',    text:'How easy and straightforward was the overall buying process?' },
+    { key:'ps_refer',    cat:'Post-Sale',      text:'How likely are you to refer friends or family to us?' },
+  ],
+  standard: [
+    { key:'fc_welcome',  cat:'First Contact', text:'How welcomed did you feel from your very first interaction with us?' },
+    { key:'fc_speed',    cat:'First Contact', text:'How quickly did we respond to your inquiry?' },
+    { key:'rep_comm',    cat:'Your Rep',       text:'How well did your rep communicate throughout the entire process?' },
+    { key:'rep_know',    cat:'Your Rep',       text:'How knowledgeable was your rep about the vehicle and the deal?' },
+    { key:'rep_press',   cat:'Your Rep',       text:'How comfortable and pressure-free was your experience with us?' },
+    { key:'veh_cond',    cat:'The Vehicle',    text:'How well did the vehicle match what was described or shown online?' },
+    { key:'veh_clean',   cat:'The Vehicle',    text:'How clean and well-prepared was the vehicle when you received it?' },
+    { key:'proc_ease',   cat:'The Process',    text:'How easy and straightforward was the overall buying process?' },
+    { key:'proc_paper',  cat:'The Process',    text:'How smooth and fast was the paperwork and signing?' },
+    { key:'proc_fin',    cat:'The Process',    text:'How clearly was financing or payment explained to you?' },
+    { key:'fac_clean',   cat:'The Facility',  text:'How clean and comfortable was our dealership?' },
+    { key:'ps_followup', cat:'Post-Sale',      text:'How satisfied are you with the follow-up you received after your purchase?' },
+    { key:'ps_refer',    cat:'Post-Sale',      text:'How likely are you to refer friends or family to us?' },
+    { key:'ps_return',   cat:'Post-Sale',      text:'How likely are you to buy from us again in the future?' },
+  ],
+  full: [
+    { key:'fc_welcome',  cat:'First Contact', text:'How welcomed did you feel from your very first interaction with us?' },
+    { key:'fc_speed',    cat:'First Contact', text:'How quickly did we respond to your inquiry?' },
+    { key:'rep_comm',    cat:'Your Rep',       text:'How well did your rep communicate throughout the entire process?' },
+    { key:'rep_know',    cat:'Your Rep',       text:'How knowledgeable was your rep about the vehicle and the deal?' },
+    { key:'rep_press',   cat:'Your Rep',       text:'How comfortable and pressure-free was your experience with us?' },
+    { key:'veh_cond',    cat:'The Vehicle',    text:'How well did the vehicle match what was described or shown online?' },
+    { key:'veh_clean',   cat:'The Vehicle',    text:'How clean and well-prepared was the vehicle when you received it?' },
+    { key:'proc_ease',   cat:'The Process',    text:'How easy and straightforward was the overall buying process?' },
+    { key:'proc_paper',  cat:'The Process',    text:'How smooth and fast was the paperwork and signing?' },
+    { key:'proc_fin',    cat:'The Process',    text:'How clearly was financing or payment explained to you?' },
+    { key:'fac_clean',   cat:'The Facility',  text:'How clean and comfortable was our dealership?' },
+    { key:'fac_wait',    cat:'The Facility',  text:'How would you rate your overall wait experience while here?' },
+    { key:'ps_followup', cat:'Post-Sale',      text:'How satisfied are you with the follow-up you received after your purchase?' },
+    { key:'ps_refer',    cat:'Post-Sale',      text:'How likely are you to refer friends or family to us?' },
+    { key:'ps_return',   cat:'Post-Sale',      text:'How likely are you to buy from us again in the future?' },
+  ],
+}
+
+const FOLLOW_UPS = {
+  'First Contact': { key:'fc_speed_fu',  text:'What would have made our response faster or better?' },
+  'Your Rep':      { key:'rep_fu',        text:'What could your rep have done differently to serve you better?' },
+  'The Vehicle':   { key:'veh_fu',        text:'What could we do better in how we present or prepare our vehicles?' },
+  'The Process':   { key:'proc_fu',       text:'What would have made the buying process smoother for you?' },
+  'The Facility':  { key:'fac_fu',        text:'How could we improve our space or your visit experience?' },
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+
+let currentDepth = 'standard'
+let answers = {}     // key -> 1-5
+let comments = {}    // key -> string
+let wantsFollowup = false
+
+// ── Screen management ─────────────────────────────────────────────────────────
+
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'))
+  document.getElementById('screen-' + name).classList.add('active')
+  document.querySelectorAll('.preview-jump').forEach(b => {
+    b.classList.toggle('active', b.textContent.toLowerCase().replace(' ','') === name)
+  })
+  window.scrollTo(0, 0)
+}
+
+// ── Depth picker ──────────────────────────────────────────────────────────────
+
+function selectDepth(depth, btn) {
+  currentDepth = depth
+  document.querySelectorAll('.depth-btn').forEach(b => b.classList.remove('selected'))
+  btn.classList.add('selected')
+}
+
+// ── Build questions screen ────────────────────────────────────────────────────
+
+function startSurvey() {
+  answers = {}
+  comments = {}
+  wantsFollowup = false
+  buildQuestions()
+  showScreen('questions')
+}
+
+function groupByCategory(qs) {
+  const groups = {}
+  for (const q of qs) {
+    if (!groups[q.cat]) groups[q.cat] = []
+    groups[q.cat].push(q)
+  }
+  return groups
+}
+
+function buildQuestions() {
+  const qs = QUESTIONS[currentDepth]
+  const groups = groupByCategory(qs)
+  const body = document.getElementById('questions-body')
+  body.innerHTML = ''
+
+  for (const [cat, catQs] of Object.entries(groups)) {
+    const card = document.createElement('div')
+    card.className = 'cat-card'
+    card.id = 'cat-' + cat.replace(/\s+/g,'_')
+
+    let html = `<div class="cat-title">${cat}</div>`
+    for (const q of catQs) {
+      html += `
+        <div class="question-block" id="qb-${q.key}">
+          <p class="q-text">${q.text}</p>
+          <div class="score-row">
+            ${[1,2,3,4,5].map(n => `<button class="score-btn" id="sb-${q.key}-${n}" onclick="selectScore('${q.key}',${n})">${n}</button>`).join('')}
+          </div>
+          <div class="score-labels"><span>Poor</span><span>Excellent</span></div>
+          <div class="comment-wrap">
+            <button class="comment-toggle" id="ct-${q.key}" onclick="toggleComment('${q.key}')">+ Add a comment</button>
+            <div class="comment-box" id="cb-${q.key}">
+              <textarea rows="2" placeholder="Optional — anything you'd like to add..."
+                oninput="comments['${q.key}'] = this.value"></textarea>
+            </div>
+          </div>
+        </div>`
+    }
+    card.innerHTML = html
+    body.appendChild(card)
+  }
+
+  // Follow-up text area section (only in full depth — shown after scoring)
+  if (currentDepth === 'full') {
+    const fuCard = document.createElement('div')
+    fuCard.className = 'followup-card'
+    fuCard.id = 'followup-section'
+    fuCard.style.display = 'none'
+    fuCard.innerHTML = `
+      <div class="cat-title" style="color:#C2410C">Help Us Understand</div>
+      <p style="font-size:12px;color:#9A3412;margin-bottom:14px;">
+        These questions only appear for areas where you scored us 3 or below.
+      </p>
+      <div id="followup-questions"></div>`
+    body.appendChild(fuCard)
+  }
+
+  // Contact preference
+  const contactCard = document.createElement('div')
+  contactCard.className = 'contact-card'
+  contactCard.innerHTML = `
+    <p class="q-text">Would you like someone from our team to follow up with you?</p>
+    <div class="yesno-row">
+      <button class="yesno-btn" id="yn-yes" onclick="setFollowup(true)">Yes please</button>
+      <button class="yesno-btn selected" id="yn-no"  onclick="setFollowup(false)">No thanks</button>
+    </div>`
+  body.appendChild(contactCard)
+
+  // Submit
+  const submitWrap = document.createElement('div')
+  submitWrap.innerHTML = `<button class="btn-primary" id="submit-btn" onclick="submitSurvey()" disabled>Submit Feedback</button>`
+  body.appendChild(submitWrap)
+
+  updateProgress()
+}
+
+// ── Comment toggle ────────────────────────────────────────────────────────────
+
+function toggleComment(key) {
+  const box = document.getElementById('cb-' + key)
+  const btn = document.getElementById('ct-' + key)
+  const isOpen = box.classList.toggle('open')
+  btn.classList.toggle('open', isOpen)
+  btn.textContent = isOpen ? '- Hide comment' : '+ Add a comment'
+  if (isOpen) box.querySelector('textarea').focus()
+}
+
+// ── Score selection ───────────────────────────────────────────────────────────
+
+function selectScore(key, score) {
+  answers[key] = score
+
+  // Update button styles
+  for (let n = 1; n <= 5; n++) {
+    const btn = document.getElementById(`sb-${key}-${n}`)
+    if (!btn) continue
+    btn.className = 'score-btn' + (n === score ? ` sel-${n}` : '')
+  }
+
+  updateProgress()
+
+  if (currentDepth === 'full') updateFollowUps()
+}
+
+// ── Adaptive follow-ups (full depth only) ─────────────────────────────────────
+
+function updateFollowUps() {
+  const qs = QUESTIONS['full']
+  const groups = groupByCategory(qs)
+  const fuContainer = document.getElementById('followup-questions')
+  const fuSection   = document.getElementById('followup-section')
+  if (!fuContainer || !fuSection) return
+
+  let anyShown = false
+  fuContainer.innerHTML = ''
+
+  for (const [cat, catQs] of Object.entries(groups)) {
+    const fu = FOLLOW_UPS[cat]
+    if (!fu) continue
+
+    // Calculate average for this category
+    const catAnswers = catQs.map(q => answers[q.key]).filter(v => v !== undefined)
+    if (catAnswers.length === 0) continue
+    const avg = catAnswers.reduce((a, b) => a + b, 0) / catAnswers.length
+    if (avg > 3) continue
+
+    // Show the follow-up text question
+    anyShown = true
+    const div = document.createElement('div')
+    div.className = 'followup-q'
+    div.innerHTML = `
+      <p class="q-text">${fu.text}</p>
+      <p class="followup-note">You scored "${cat}" below average — your answer here is very helpful.</p>
+      <textarea rows="3" placeholder="Optional — any details help us improve..."
+        oninput="comments['${fu.key}'] = this.value">${comments[fu.key] || ''}</textarea>`
+    fuContainer.appendChild(div)
+  }
+
+  fuSection.style.display = anyShown ? 'block' : 'none'
+}
+
+// ── Follow-up preference ──────────────────────────────────────────────────────
+
+function setFollowup(val) {
+  wantsFollowup = val
+  document.getElementById('yn-yes').classList.toggle('selected', val)
+  document.getElementById('yn-no').classList.toggle('selected', !val)
+}
+
+// ── Progress ──────────────────────────────────────────────────────────────────
+
+function updateProgress() {
+  const qs = QUESTIONS[currentDepth]
+  const total = qs.length
+  const answered = qs.filter(q => answers[q.key] !== undefined).length
+  const pct = total ? Math.round(answered / total * 100) : 0
+
+  document.getElementById('progress-text').textContent = `${answered} of ${total} answered`
+  document.getElementById('progress-bar').style.width = pct + '%'
+
+  const submitBtn = document.getElementById('submit-btn')
+  if (submitBtn) submitBtn.disabled = answered < total
+}
+
+// ── Submit ────────────────────────────────────────────────────────────────────
+
+function submitSurvey() {
+  const btn = document.getElementById('submit-btn')
+  if (btn) { btn.disabled = true; btn.textContent = 'Submitting...' }
+
+  // Simulate network delay
+  setTimeout(() => {
+    document.getElementById('ty-followup').style.display = wantsFollowup ? 'block' : 'none'
+    showScreen('thankyou')
+  }, 900)
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+
+// Simulate the brief loading state before "token validation" succeeds
+setTimeout(() => showScreen('welcome'), 800)
+</script>
+</body>
+</html>

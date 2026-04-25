@@ -14,6 +14,7 @@ import BetaBanner from '@/components/layout/BetaBanner'
 import FeedbackButton from '@/components/layout/FeedbackButton'
 import { isDealerAdmin } from '@/types/index'
 import { getStaffSessionInfo } from '@/lib/auth/staffSession'
+import { getOrgTheme, buildThemeStyleTag } from '@/lib/theme/getOrgTheme'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -71,6 +72,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     }
   }
 
+  // Fetch org theme for CSS var injection
+  const effectiveOrgId = profile.org_id
+  const orgTheme = await getOrgTheme(effectiveOrgId)
+  const themeStyle = buildThemeStyleTag(orgTheme.vars)
+
   // Check for platform staff impersonation session
   let impersonationOrgName: string | null = null
   let impersonationWriteMode = false
@@ -106,7 +112,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     // Mobile: single-column, max-w-md centered
     // Desktop (lg+): full-width flex row — sidebar + content
-    <div className="flex h-dvh w-full lg:max-w-none max-w-md mx-auto relative">
+    <>
+      {themeStyle && (
+        <style dangerouslySetInnerHTML={{ __html: themeStyle }} />
+      )}
+    <div className={`flex h-dvh w-full lg:max-w-none max-w-md mx-auto relative font-style-${orgTheme.fontStyle}`}>
       {/* Desktop sidebar — hidden on mobile */}
       <DesktopSidebar orgName={orgName} />
 
@@ -127,5 +137,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <FeedbackButton />
       </div>
     </div>
+    </>
   )
 }

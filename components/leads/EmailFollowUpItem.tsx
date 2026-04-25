@@ -110,7 +110,7 @@ export default function EmailFollowUpItem({ activity, onUpdate, hasResponded }: 
 
   return (
     <>
-      <div className={`rounded-lg border bg-card p-4 space-y-3 ${hasResponded ? 'border-green-500 bg-green-50/50' : isOverdue ? 'border-destructive/40' : ''}`}>
+      <div className={`card-hover rounded-[10px] border p-4 space-y-3 shadow-[0_1px_3px_rgba(0,0,0,0.06)] ${hasResponded ? 'border-green-500 bg-green-50/60 dark:bg-green-950/20' : isOverdue ? 'border-destructive/40 bg-card' : 'border-border bg-card'}`}>
         {hasResponded && (
           <div className="flex items-center gap-2 px-3 py-2 bg-green-500 text-white rounded-lg text-xs font-semibold">
             <span>●</span>
@@ -133,8 +133,8 @@ export default function EmailFollowUpItem({ activity, onUpdate, hasResponded }: 
             </div>
             <p className="text-xs text-muted-foreground">{data.customer_name}</p>
             {activity.due_at && (
-              <p className={`text-xs mt-1 ${isOverdue ? 'text-destructive font-medium' : 'text-muted-foreground'}`} suppressHydrationWarning>
-                {isOverdue ? 'Overdue · ' : 'Due · '}
+              <p className={`text-xs mt-1 ${isOverdue ? 'text-[#F07018] font-semibold' : 'text-muted-foreground'}`} suppressHydrationWarning>
+                {isOverdue ? 'Due now · ' : 'Due · '}
                 {new Date(activity.due_at).toLocaleDateString('en-US', {
                   month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
                 })}
@@ -145,9 +145,9 @@ export default function EmailFollowUpItem({ activity, onUpdate, hasResponded }: 
 
         <div className="flex gap-2" onClick={e => e.stopPropagation()}>
           {!isSmsFollowup && (
-            <Button size="sm" className="flex-1 h-9" onClick={openSheet} disabled={loading !== null}>
+            <Button size="sm" className="flex-1 h-10" onClick={openSheet} disabled={loading !== null}>
               <Mail className="h-3.5 w-3.5 mr-1.5" />
-              Send Follow-up
+              Send follow-up
             </Button>
           )}
           {isSmsFollowup && (
@@ -158,7 +158,7 @@ export default function EmailFollowUpItem({ activity, onUpdate, hasResponded }: 
           <Button
             size="sm"
             variant="outline"
-            className="flex-1 h-9 text-xs"
+            className="flex-1 h-10 text-xs"
             onClick={handleReplied}
             disabled={loading !== null}
           >

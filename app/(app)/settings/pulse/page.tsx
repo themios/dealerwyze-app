@@ -11,7 +11,7 @@ export default async function PulseSettingsPage() {
   if (!canManageUsers(profile.role as UserRole)) redirect('/settings')
   return (
     <div>
-      <TopBar title="Customer Pulse" />
+      <TopBar title="Post-Sale Outreach" />
       <PulseSettingsClient />
     </div>
   )

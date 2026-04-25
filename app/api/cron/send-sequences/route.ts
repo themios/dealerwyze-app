@@ -143,10 +143,10 @@ async function sendSequenceSms(opts: {
   const now    = new Date().toISOString()
   const prefix = stepLabel ? `[Auto: ${stepLabel}]\n` : `[Auto: ${sequenceName}]\n`
 
-  // Mark the scheduled activity as completed
+  // Mark the scheduled activity as completed — clear JSON body so it doesn't show in timeline
   await supabase
     .from('activities')
-    .update({ completed_at: now, external_id: twilioData.sid ?? null })
+    .update({ completed_at: now, external_id: twilioData.sid ?? null, body: '__sequence_sent__' })
     .eq('id', activityId)
 
   // Log a visible sent record in the timeline

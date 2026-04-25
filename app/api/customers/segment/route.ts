@@ -60,6 +60,7 @@ export async function POST(req: NextRequest) {
     .select('id, name, primary_phone, lead_state, lead_source, created_at')
     .eq('user_id', profile.org_id)
     .or('archived.is.null,archived.eq.false')
+    .is('merged_at', null)
     .limit(200)
 
   // lead_state filter

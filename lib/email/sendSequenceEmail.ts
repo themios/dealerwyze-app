@@ -235,13 +235,14 @@ export async function sendSequenceEmail(
     return { ok: false, error: 'no_account' }
   }
 
-  // Mark activity as sent
+  // Mark placeholder activity as sent — clear JSON body so it doesn't show in timeline
   await supabase
     .from('activities')
     .update({
       completed_at:     new Date().toISOString(),
       gmail_message_id: messageId,
       gmail_thread_id:  threadId,
+      body:             '__sequence_sent__',
     })
     .eq('id', activityId)
 

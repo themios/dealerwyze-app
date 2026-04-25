@@ -58,11 +58,13 @@ export default async function CustomerDetailPage({ params }: PageProps) {
     <div>
       <TopBar
         left={
-          <h1 className="text-lg font-semibold flex items-center gap-1.5">
-            {(customer as { lead_rating?: string | null }).lead_rating === 'hot' && (
-              <Flame className="h-4 w-4 text-orange-400 flex-shrink-0" />
-            )}
+          <h1 className="flex items-center gap-2" style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 700, lineHeight: 1.15 }}>
             {customer.name}
+            {(customer as { lead_rating?: string | null }).lead_rating === 'hot' && (
+              <span className="inline-flex items-center gap-1 bg-red-50 text-red-700 rounded-full px-2 py-0.5 text-[11px] font-semibold">
+                <Flame className="h-3 w-3 flex-shrink-0" />hot
+              </span>
+            )}
           </h1>
         }
         right={

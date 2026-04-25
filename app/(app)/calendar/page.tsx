@@ -98,6 +98,18 @@ export default function CalendarPage() {
 
   useEffect(() => { loadEvents() }, [loadEvents])
 
+  // Reload when tab regains focus — catches appointments added from another screen
+  useEffect(() => {
+    const handleFocus = () => loadEvents()
+    const handleVisibility = () => { if (document.visibilityState === 'visible') loadEvents() }
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [loadEvents])
+
   function navigate(dir: -1 | 1) {
     const d = new Date(current)
     if (view === 'month') d.setMonth(d.getMonth() + dir)

@@ -10,16 +10,19 @@ import { Textarea } from '@/components/ui/textarea'
 import { Phone, MessageSquare, Mail, FileText, CheckSquare, Calendar, Check, Pencil, Bot, CornerUpLeft } from 'lucide-react'
 import { ReplyContext } from '@/components/customer/EmailButton'
 
-const ICONS: Record<string, React.ReactNode> = {
-  call:          <Phone className="h-3.5 w-3.5" />,
-  sms:           <MessageSquare className="h-3.5 w-3.5" />,
-  sms_followup:  <Bot className="h-3.5 w-3.5" />,
-  email:         <Mail className="h-3.5 w-3.5" />,
-  email_followup:<Bot className="h-3.5 w-3.5" />,
-  note:          <FileText className="h-3.5 w-3.5" />,
-  task:          <CheckSquare className="h-3.5 w-3.5" />,
-  appointment:   <Calendar className="h-3.5 w-3.5" />,
+// Icon + color by activity type (design spec)
+const TYPE_META: Record<string, { icon: React.ReactNode; color: string }> = {
+  call:           { icon: <Phone className="h-[18px] w-[18px]" />,          color: 'text-green-600' },
+  sms:            { icon: <MessageSquare className="h-[18px] w-[18px]" />,   color: 'text-blue-500' },
+  sms_followup:   { icon: <Bot className="h-[18px] w-[18px]" />,             color: 'text-blue-400' },
+  email:          { icon: <Mail className="h-[18px] w-[18px]" />,            color: 'text-purple-500' },
+  email_followup: { icon: <Bot className="h-[18px] w-[18px]" />,             color: 'text-purple-400' },
+  note:           { icon: <FileText className="h-[18px] w-[18px]" />,        color: 'text-[#6B6355]' },
+  task:           { icon: <CheckSquare className="h-[18px] w-[18px]" />,     color: 'text-muted-foreground' },
+  appointment:    { icon: <Calendar className="h-[18px] w-[18px]" />,        color: 'text-muted-foreground' },
+  lead:           { icon: <Phone className="h-[18px] w-[18px]" />,           color: 'text-[#F07018]' },
 }
+
 
 /** Parse the step_label and message body from an automated sequence activity body */
 function parseAutoBody(raw: string): { stepLabel: string; subject: string; text: string } | null {
@@ -108,25 +111,24 @@ export default function ActivityTimeline({ activities, currentUserId, isAdmin, o
   return (
     <>
       <div className="relative">
-        {/* Timeline line */}
-        <div className="absolute left-4 top-0 bottom-0 w-px bg-border" />
+        {/* Timeline spine */}
+        <div className="absolute left-[9px] top-0 bottom-0 border-l-2 border-[#DDD8CF]" />
 
-        <div className="space-y-4 pl-10">
-          {activities.map((activity) => {
-            const label       = outcomeLabel(activity)
-            const showEdit    = canEditNote(activity)
-            const autoBody    = activity.body ? parseAutoBody(activity.body) : null
-            const isAuto      = !!autoBody || activity.type === 'email_followup' || activity.type === 'sms_followup'
+        <div className="space-y-0 pl-8">
+          {activities.filter(a => a.body !== '__sequence_sent__').map((activity) => {
+            const label          = outcomeLabel(activity)
+            const showEdit       = canEditNote(activity)
+            const autoBody       = activity.body ? parseAutoBody(activity.body) : null
+            const isAuto         = !!autoBody || activity.type === 'email_followup' || activity.type === 'sms_followup'
             const isSequenceType = activity.type === 'email_followup' || activity.type === 'sms_followup'
-            const typeName    = activity.type === 'sms' || activity.type === 'sms_followup' ? 'Text'
-                              : activity.type === 'email' || activity.type === 'email_followup' ? 'Email'
-                              : activity.type
-
+            const typeName       = activity.type === 'sms' || activity.type === 'sms_followup' ? 'Text'
+                                 : activity.type === 'email' || activity.type === 'email_followup' ? 'Email'
+                                 : activity.type
+            const typeMeta       = TYPE_META[activity.type] ?? TYPE_META['note']
             const isInboundEmail = activity.type === 'email' && activity.direction === 'inbound'
 
             function handleReply() {
               if (!onEmailReply) return
-              // Parse subject from body format "Subject: ...\n\n..."
               const subjectMatch = activity.body?.match(/^Subject:\s*(.+)\n/)
               const rawSubject = subjectMatch?.[1]?.trim() ?? '(no subject)'
               onEmailReply({
@@ -137,17 +139,17 @@ export default function ActivityTimeline({ activities, currentUserId, isAdmin, o
             }
 
             return (
-              <div key={activity.id} className="relative">
-                {/* Dot */}
-                <div className={`absolute -left-[26px] top-1 h-5 w-5 rounded-full bg-background border-2 flex items-center justify-center ${
-                  isSentEmail(activity) ? 'border-green-500 text-green-600'
-                  : isAuto ? 'border-blue-400 text-blue-600'
-                  : 'border-border text-muted-foreground'
+              <div key={activity.id} className="relative flex gap-3 py-3">
+                {/* Icon dot — 20px, colored by type */}
+                <div className={`absolute -left-[29px] top-[14px] flex-shrink-0 ${
+                  isSentEmail(activity) ? 'text-green-600'
+                  : isAuto ? (activity.type.startsWith('email') ? 'text-purple-400' : 'text-blue-400')
+                  : typeMeta.color
                 }`}>
-                  {isSentEmail(activity) ? <Check className="h-3.5 w-3.5" /> : (ICONS[activity.type] ?? ICONS['note'])}
+                  {isSentEmail(activity) ? <Check className="h-[18px] w-[18px]" /> : typeMeta.icon}
                 </div>
 
-                <div className="pb-2">
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-medium capitalize">
                       {typeName}
@@ -207,7 +209,7 @@ export default function ActivityTimeline({ activities, currentUserId, isAdmin, o
                       {autoBody.subject && (
                         <p className="text-sm font-medium">{autoBody.subject}</p>
                       )}
-                      <p className="text-xs text-muted-foreground line-clamp-2 whitespace-pre-wrap">{autoBody.text}</p>
+                      <p className="text-sm text-muted-foreground line-clamp-2 whitespace-pre-wrap">{autoBody.text}</p>
                     </div>
                   ) : activity.body && !isSequenceType ? (
                     <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{activity.body}</p>

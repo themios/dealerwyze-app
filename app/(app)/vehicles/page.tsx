@@ -154,7 +154,7 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
 
       <SyncRemovedSection vehicles={syncRemoved ?? []} />
 
-      <div className="divide-y divide-border bg-card border rounded-xl mx-3 my-2 overflow-hidden">
+      <div className="py-1">
         {!vehicles || vehicles.length === 0 ? (
           <EmptyState
             icon={Car}

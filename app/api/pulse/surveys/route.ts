@@ -2,14 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
 import { deliverPulseSurvey } from '@/lib/pulse/deliver'
-import { isDealerAdmin } from '@/lib/auth/dealerRoles'
-import type { UserRole } from '@/types/index'
 
 export async function POST(req: NextRequest) {
   const profile = await requireProfile()
-  if (!isDealerAdmin(profile.role as UserRole)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
 
   const body = await req.json()
   const { customer_id } = body

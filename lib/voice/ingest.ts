@@ -56,6 +56,7 @@ export async function processVoiceCall(params: VoiceCallParams): Promise<void> {
     .from('customers')
     .select('id, primary_phone, secondary_phone')
     .eq('user_id', userId)
+    .is('merged_at', null)
 
   const existing = allCustomers?.find(c => {
     const p  = normalizePhone(c.primary_phone || '')

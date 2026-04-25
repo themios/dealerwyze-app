@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { CheckCircle } from 'lucide-react'
+import { CheckCircle, History } from 'lucide-react'
 import { nextDueDate } from '@/lib/bhph/schedule'
 import type { PaymentFrequency } from '@/lib/bhph/schedule'
+import Link from 'next/link'
 
 interface Props {
   accountId: string
@@ -17,11 +18,13 @@ interface Props {
   currentDueDate: string
   loanAmount?: number | null
   totalPaid: number
+  customerId?: string
+  accountBalance?: number | null
 }
 
 export default function BhphRecordPayment({
   accountId, monthlyPayment, paymentFrequency, paymentDayAnchor,
-  currentDueDate, loanAmount, totalPaid,
+  currentDueDate, loanAmount, totalPaid, customerId, accountBalance,
 }: Props) {
   const [amount, setAmount] = useState(monthlyPayment.toString())
   const [showForm, setShowForm] = useState(false)
@@ -73,10 +76,15 @@ export default function BhphRecordPayment({
           onChange={e => setAmount(e.target.value)}
           className="h-9 text-sm"
         />
-        <Button size="sm" onClick={recordPayment} disabled={isPending} className="flex-shrink-0">
+        <Button
+          size="sm"
+          onClick={recordPayment}
+          disabled={isPending}
+          className="flex-shrink-0 bg-[#0D2B55] text-white hover:bg-[#0D2B55]/90"
+        >
           {isPending ? '…' : 'Record'}
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => setShowForm(false)} className="flex-shrink-0">
+        <Button size="sm" variant="ghost" onClick={() => setShowForm(false)} className="flex-shrink-0 text-muted-foreground">
           Cancel
         </Button>
       </div>
@@ -84,9 +92,39 @@ export default function BhphRecordPayment({
   }
 
   return (
-    <Button size="sm" variant="outline" className="w-full border-[#F07018] text-[#F07018] hover:bg-[#F07018]/10" onClick={() => setShowForm(true)}>
-      <CheckCircle className="h-4 w-4 mr-1.5" />
-      Record Payment
-    </Button>
+    <div className="space-y-2 pt-1">
+      {/* Primary: Record Payment */}
+      <Button
+        size="sm"
+        className="w-full bg-[#0D2B55] text-white hover:bg-[#0D2B55]/90"
+        onClick={() => setShowForm(true)}
+      >
+        <CheckCircle className="h-4 w-4 mr-1.5" />
+        Record Payment
+      </Button>
+
+      {/* Secondary: Send Pay Link */}
+      {customerId && (
+        <Link href={`/customers/${customerId}?action=send-pay-link`} className="block w-full">
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full bg-[#EDE8E0] text-[#0D2B55] border-[#DDD8CF] hover:bg-[#DDD8CF]"
+          >
+            Send Pay Link
+          </Button>
+        </Link>
+      )}
+
+      {/* Ghost: Payment History */}
+      {customerId && (
+        <Link href={`/customers/${customerId}`} className="block w-full">
+          <Button size="sm" variant="ghost" className="w-full text-muted-foreground text-xs">
+            <History className="h-3.5 w-3.5 mr-1.5" />
+            Payment History
+          </Button>
+        </Link>
+      )}
+    </div>
   )
 }

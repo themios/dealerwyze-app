@@ -57,6 +57,7 @@ export async function GET(req: NextRequest) {
         .select('id, name, email, primary_phone, unsubscribe_email, unsubscribe_sms, birthday')
         .eq('user_id', s.org_id)
         .filter('birthday', 'not.is', null)
+        .is('merged_at', null)
 
       for (const c of bdayCustomers ?? []) {
         if (!c.birthday) continue
@@ -127,6 +128,7 @@ export async function GET(req: NextRequest) {
         .eq('user_id', s.org_id)
         .not('last_service_date', 'is', null)
         .lte('last_service_date', dueDaysAgo.toISOString().slice(0, 10))
+        .is('merged_at', null)
 
       for (const c of serviceCustomers ?? []) {
         const { data: existing } = await supabase
@@ -189,6 +191,7 @@ export async function GET(req: NextRequest) {
         .eq('user_id', s.org_id)
         .not('referred_by', 'is', null)
         .gte('created_at', yesterday.toISOString())
+        .is('merged_at', null)
 
       for (const ref of newReferrals ?? []) {
         if (!ref.referred_by) continue

@@ -84,7 +84,7 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
   const [motivationalMsg, setMotivationalMsg] = useState('')
   useEffect(() => {
     const now = new Date()
-    setDateLabel(now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }))
+    setDateLabel(now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }))
     const dayOfYear = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000)
     setMotivationalMsg(MOTIVATIONAL_MESSAGES[dayOfYear % MOTIVATIONAL_MESSAGES.length])
   }, [])
@@ -136,6 +136,7 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
         .eq('direction', 'inbound')
         .eq('outcome', 'pending')
         .is('completed_at', null)
+        .is('addressed_at', null)
         .or(`snoozed_until.is.null,snoozed_until.lt.${now}`)
         .order('created_at', { ascending: false }),
       supabase
@@ -189,6 +190,7 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
       .eq('direction', 'inbound')
       .eq('outcome', 'pending')
       .is('completed_at', null)
+      .is('addressed_at', null)
       .or(`snoozed_until.is.null,snoozed_until.lt.${now}`)
       .order('created_at', { ascending: false })
 
@@ -229,6 +231,7 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
       .eq('direction', 'inbound')
       .eq('outcome', 'pending')
       .is('completed_at', null)
+      .is('addressed_at', null)
       .or(`snoozed_until.is.null,snoozed_until.lt.${now}`)
       .order('created_at', { ascending: false })
     setVehicleMatches((vMatches || []).filter(
@@ -316,82 +319,50 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
     tierGroups.get(item.tier)!.push(item)
   }
 
-  // KPI counts from queue
-  const newLeadCount = queue.filter(i => i.type === 'new_lead').length
-  const overdueCount = queue.filter(i => i.tier === 3).length
-  const todayCount   = queue.filter(i => i.tier === 4).length
-  const waitingCount = queue.filter(i => i.tier === 5).length
-  const missedCount  = queue.filter(i => i.type === 'voice_lead').length
-
-  // Tier label colors
-  const tierColor: Record<number, string> = {
-    1: 'text-primary',
-    2: 'text-orange-500',
-    3: 'text-destructive',
-    4: 'text-blue-500',
-    5: 'text-muted-foreground',
+  // Tier header styles: { bar color, text color, badge bg }
+  const tierStyle: Record<number, { bar: string; text: string; badge: string }> = {
+    1: { bar: 'bg-primary',       text: 'text-primary',           badge: 'bg-primary/10 text-primary' },
+    2: { bar: 'bg-orange-500',    text: 'text-orange-600',        badge: 'bg-orange-500/10 text-orange-600' },
+    3: { bar: 'bg-destructive',   text: 'text-destructive',       badge: 'bg-destructive/10 text-destructive' },
+    4: { bar: 'bg-blue-500',      text: 'text-blue-600',          badge: 'bg-blue-500/10 text-blue-600' },
+    5: { bar: 'bg-muted-foreground', text: 'text-muted-foreground', badge: 'bg-muted text-muted-foreground' },
   }
 
   return (
     <div className="page-enter">
-      <div className="gradient-sunset px-4 py-2.5 text-white flex items-center gap-3">
-        <Image src="/logo-mark.png" alt="DealerWyze" width={32} height={32} className="rounded-md flex-shrink-0 opacity-90" />
-        <div className="min-w-0">
-          <h1 className="text-sm font-semibold leading-tight" suppressHydrationWarning style={{ fontFamily: 'var(--font-display)' }}>
-            {dateLabel || '…'}
-          </h1>
-        </div>
-      </div>
-
-      {/* KPI chips — display only, no filter */}
-      <div className="lg:hidden flex gap-2 px-4 pt-2 pb-1 overflow-x-auto no-scrollbar">
-        {newLeadCount > 0 && (
-          <div className="flex-shrink-0 flex flex-col items-center px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/20">
-            <span className="text-lg font-bold text-primary leading-none">{newLeadCount}</span>
-            <span className="text-[10px] text-primary/80 mt-0.5 whitespace-nowrap">New Leads</span>
-          </div>
-        )}
-        {missedCount > 0 && (
-          <div className="flex-shrink-0 flex flex-col items-center px-3 py-1.5 rounded-xl bg-orange-500/10 border border-orange-500/20">
-            <span className="text-lg font-bold text-orange-600 leading-none">{missedCount}</span>
-            <span className="text-[10px] text-orange-600/80 mt-0.5 whitespace-nowrap">Missed Calls</span>
-          </div>
-        )}
-        {overdueCount > 0 && (
-          <div className="flex-shrink-0 flex flex-col items-center px-3 py-1.5 rounded-xl bg-red-500/10 border border-red-500/20">
-            <span className="text-lg font-bold text-red-600 leading-none">{overdueCount}</span>
-            <span className="text-[10px] text-red-600/80 mt-0.5 whitespace-nowrap">Overdue</span>
-          </div>
-        )}
-        {todayCount > 0 && (
-          <div className="flex-shrink-0 flex flex-col items-center px-3 py-1.5 rounded-xl bg-blue-500/10 border border-blue-500/20">
-            <span className="text-lg font-bold text-blue-600 leading-none">{todayCount}</span>
-            <span className="text-[10px] text-blue-600/80 mt-0.5 whitespace-nowrap">Due Today</span>
-          </div>
-        )}
-        {waitingCount > 0 && (
-          <div className="flex-shrink-0 flex flex-col items-center px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20">
-            <span className="text-lg font-bold text-amber-600 leading-none">{waitingCount}</span>
-            <span className="text-[10px] text-amber-600/80 mt-0.5 whitespace-nowrap">Waiting</span>
-          </div>
+      <div className="gradient-sunset px-4 py-2 text-white flex items-center gap-2.5">
+        <Image src="/logo-mark.png" alt="DealerWyze" width={28} height={28} className="rounded-md flex-shrink-0 opacity-90" />
+        <span className="text-xs font-medium opacity-80 flex-1 min-w-0 truncate" suppressHydrationWarning>
+          {dateLabel || '…'}
+        </span>
+        {queue.length > 0 && (
+          <span className="bg-[#F07018] text-white rounded-full px-2 py-0.5 text-xs font-semibold flex-shrink-0">
+            {queue.length} in queue
+          </span>
         )}
       </div>
 
       <div className="px-4 py-2 space-y-6">
 
         {queue.length === 0 && (
-          <div className="text-center py-16 text-muted-foreground">
-            <p className="text-4xl mb-3">✅</p>
-            <p className="font-medium">All clear!</p>
-            <p className="text-sm mt-1">Nothing pending for today.</p>
+          <div className="text-center py-16 text-muted-foreground flex flex-col items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-30 mb-1"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <p className="font-semibold text-base text-foreground">You&apos;re all caught up</p>
+            <p className="text-sm">Nothing pending for today.</p>
           </div>
         )}
 
         {Array.from(tierGroups.entries()).map(([tier, items]) => (
           <section key={tier}>
-            <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${tierColor[tier]}`}>
-              {TIER_LABELS[tier]} ({items.length})
-            </p>
+            <div className="sticky top-0 z-10 flex items-center gap-2 py-1.5 mb-2 bg-background/95 backdrop-blur-sm">
+              <div className={`w-1 h-4 rounded-full flex-shrink-0 ${tierStyle[tier].bar}`} />
+              <span className={`text-xs font-semibold uppercase tracking-wide ${tierStyle[tier].text}`}>
+                {TIER_LABELS[tier]}
+              </span>
+              <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${tierStyle[tier].badge}`}>
+                {items.length}
+              </span>
+            </div>
             <motion.div
               className="space-y-2"
               initial="hidden"

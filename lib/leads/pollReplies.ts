@@ -38,6 +38,7 @@ export async function pollCustomerRepliesForOrg(
     .select('id, name, email, assigned_to')
     .eq('user_id', orgId)
     .not('email', 'is', null)
+    .is('merged_at', null)
 
   if (!customers?.length) return { processed: 0 }
 
@@ -140,6 +141,7 @@ export async function pollCustomerRepliesViaImap(
     .select('id, name, email, assigned_to')
     .eq('user_id', orgId)
     .not('email', 'is', null)
+    .is('merged_at', null)
 
   if (!customers?.length) return { processed: 0 }
 

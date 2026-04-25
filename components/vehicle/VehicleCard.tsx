@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Vehicle } from '@/types'
+import type { InterestLevel } from '@/types'
 import { formatCurrency } from '@/lib/utils'
-import { Paperclip, ChevronDown, ChevronUp } from 'lucide-react'
+import { Paperclip, ChevronDown, ChevronUp, ChevronRight, Flame } from 'lucide-react'
 import VehicleQuickUploadSheet from './VehicleQuickUploadSheet'
 import { assessPricing, RATING_COLOR } from '@/lib/pricing/pricingAssessment'
 
@@ -20,22 +21,22 @@ interface InvestmentSummary {
 }
 
 interface VehicleCardProps {
-  vehicle: Vehicle
+  vehicle: Vehicle & { lead_rating?: InterestLevel | null }
   reconStatus?: 'red' | 'amber' | 'green'
   investmentSummary?: InvestmentSummary
 }
 
 const statusColors: Record<string, string> = {
-  available: 'bg-[#2A6B1A]/10 text-[#2A6B1A]',
-  pending: 'bg-[#F5A623]/15 text-[#92560A]',
-  sold: 'bg-gray-100 text-gray-500',
-  staging: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+  available: 'bg-green-100 text-green-800',
+  pending: 'bg-amber-100 text-amber-800',
+  sold: 'bg-muted text-muted-foreground',
+  staging: 'bg-indigo-100 text-indigo-700',
 }
 
 const RECON_BG: Record<string, string> = {
-  red:   'bg-red-50 border-red-200',
-  amber: 'bg-amber-50 border-amber-200',
-  green: 'bg-green-50 border-green-200',
+  red:   'bg-red-500/10 border-red-500/30',
+  amber: 'bg-amber-500/10 border-amber-500/30',
+  green: 'bg-green-500/10 border-green-500/30',
 }
 
 const RECON_LABEL: Record<string, string> = {
@@ -87,69 +88,82 @@ export default function VehicleCard({ vehicle, reconStatus, investmentSummary }:
 
   return (
     <>
-      <div className={`hover:bg-accent/40 transition-colors border ${reconStatus ? RECON_BG[reconStatus] : 'border-transparent'}`}
+      <div
+        className={`bg-card border border-border rounded-[10px] mx-3 my-2 overflow-hidden transition-colors
+          ${reconStatus ? RECON_BG[reconStatus] : ''}
+          ${isSold ? 'opacity-65' : ''}
+        `}
         title={reconStatus ? RECON_LABEL[reconStatus] : undefined}
       >
         {/* Main row */}
-        <div className="flex items-center px-4 py-2.5">
-          <Link href={`/vehicles/${vehicle.id}`} className="flex-1 min-w-0 flex items-center justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold truncate leading-snug">
-                {vehicleLabel}
-                {vehicle.trim && <span className="font-normal text-muted-foreground"> {vehicle.trim}</span>}
-              </p>
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span className="text-[#F07018] font-mono">#{vehicle.stock_no}</span>
-                {vehicle.mileage && <span>· {vehicle.mileage.toLocaleString('en-US')} mi</span>}
-                {vehicle.color && <span>· {vehicle.color}</span>}
-              </div>
-            </div>
-            <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
-              <div className="flex items-center gap-2">
-                {vehicle.price && (
-                  <p className="font-bold text-sm text-[#0D2B55]">{formatCurrency(vehicle.price)}</p>
+        <div className="flex items-center p-4 gap-3 hover:bg-muted/50 transition-colors cursor-pointer">
+
+          {/* Info */}
+          <Link href={`/vehicles/${vehicle.id}`} className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-[15px] font-semibold truncate leading-snug">
+                  {vehicleLabel}
+                  {vehicle.trim && <span className="font-normal text-muted-foreground"> {vehicle.trim}</span>}
+                </p>
+                {/* Line 2: mileage · price · status badge */}
+                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                  {vehicle.mileage && <span className="text-sm text-muted-foreground">{vehicle.mileage.toLocaleString('en-US')} mi</span>}
+                  {vehicle.price && (
+                    <span className="text-sm font-semibold text-[#F07018]">{formatCurrency(vehicle.price)}</span>
+                  )}
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${statusColors[vehicle.status] ?? 'bg-gray-100 text-gray-600'}`}>
+                    {vehicle.status}
+                  </span>
+                  {vehicle.lead_rating === 'hot' && (
+                    <span className="flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-semibold bg-red-100 text-red-700">
+                      <Flame className="h-3 w-3" />Hot
+                    </span>
+                  )}
+                </div>
+                {showPricingBadge && pricing && (
+                  <span
+                    className={`inline-block mt-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${RATING_COLOR[pricing.rating].bg} ${RATING_COLOR[pricing.rating].text}`}
+                    title={
+                      pricing.rating === 'overpriced'  ? 'Action needed: more than 10% above fair market' :
+                      pricing.rating === 'high'        ? 'Watch it: 5-10% above fair market' :
+                      pricing.rating === 'good'        ? 'Well priced: within 5% of fair market' :
+                      pricing.rating === 'underpriced' ? 'You could charge more: more than 5% below fair market' : ''
+                    }
+                  >
+                    {pricing.pctDelta > 0 ? '+' : ''}{Math.abs(pricing.pctDelta).toFixed(1)}% {pricing.pctDelta > 0 ? 'above' : 'below'} market
+                  </span>
                 )}
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${statusColors[vehicle.status]}`}>
-                  {vehicle.status}
-                </span>
               </div>
-              {showPricingBadge && pricing && (
-                <span
-                  className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${RATING_COLOR[pricing.rating].bg} ${RATING_COLOR[pricing.rating].text}`}
-                  title={
-                    pricing.rating === 'overpriced'  ? 'Action needed: more than 10% above fair market' :
-                    pricing.rating === 'high'        ? 'Watch it: 5-10% above fair market' :
-                    pricing.rating === 'good'        ? 'Well priced: within 5% of fair market' :
-                    pricing.rating === 'underpriced' ? 'You could charge more: more than 5% below fair market' : ''
-                  }
-                >
-                  {pricing.pctDelta > 0 ? '+' : ''}{Math.abs(pricing.pctDelta).toFixed(1)}% {pricing.pctDelta > 0 ? 'above' : 'below'} market
-                </span>
-              )}
             </div>
           </Link>
 
-          {/* Cost toggle */}
-          {hasCostData && (
-            <button
-              onClick={() => setCostOpen(o => !o)}
-              className="ml-2 p-1.5 text-muted-foreground hover:text-primary transition-colors flex-shrink-0"
-              title="View cost breakdown"
-            >
-              {costOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </button>
-          )}
+          {/* Action buttons */}
+          <div className="flex items-center gap-0.5 flex-shrink-0">
+            {/* Cost toggle */}
+            {hasCostData && (
+              <button
+                onClick={() => setCostOpen(o => !o)}
+                className="p-1.5 text-muted-foreground hover:text-primary transition-colors"
+                title="View cost breakdown"
+              >
+                {costOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </button>
+            )}
 
-          {/* Quick-upload */}
-          {!isSold && (
-            <button
-              onClick={() => setUploadOpen(true)}
-              className="ml-1 p-1.5 text-muted-foreground hover:text-primary transition-colors flex-shrink-0"
-              title="Attach document"
-            >
-              <Paperclip className="h-4 w-4" />
-            </button>
-          )}
+            {/* Quick-upload */}
+            {!isSold && (
+              <button
+                onClick={() => setUploadOpen(true)}
+                className="p-1.5 text-muted-foreground hover:text-primary transition-colors"
+                title="Attach document"
+              >
+                <Paperclip className="h-4 w-4" />
+              </button>
+            )}
+
+            <ChevronRight className="h-4 w-4 text-muted-foreground ml-1" />
+          </div>
         </div>
 
         {/* Cost breakdown panel */}

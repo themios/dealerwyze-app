@@ -23,6 +23,7 @@
     "@remotion/lambda-client": "^4.0.441",
     "@remotion/player": "^4.0.441",
     "@remotion/renderer": "^4.0.441",
+    "@sentry/nextjs": "^10.49.0",
     "@stripe/react-stripe-js": "^5.6.1",
     "@stripe/stripe-js": "^8.11.0",
     "@supabase/ssr": "^0.8.0",

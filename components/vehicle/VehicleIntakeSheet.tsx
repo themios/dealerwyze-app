@@ -276,7 +276,7 @@ export default function VehicleIntakeSheet({ open, onClose }: Props) {
                 </div>
                 <div className="min-w-0">
                   <p className="font-semibold text-sm">Scan Photo or Document</p>
-                  <p className="text-xs text-muted-foreground">Window sticker, buyer&apos;s guide, auction sheet</p>
+                  <p className="text-xs text-muted-foreground">Window sticker, buyer&apos;s guide, auction sheet, or screenshot</p>
                 </div>
               </button>
 
@@ -296,17 +296,16 @@ export default function VehicleIntakeSheet({ open, onClose }: Props) {
             </div>
           )}
 
-          {/* Hidden file input — opens rear camera on mobile */}
+          {/* Hidden file input — no capture attr so OS shows camera + gallery picker */}
           <input
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            capture="environment"
             className="hidden"
             onChange={e => {
               const file = e.target.files?.[0]
               if (file) handleImageSelected(file)
-              e.target.value = '' // reset so same file can be re-selected
+              e.target.value = ''
             }}
           />
         </SheetContent>

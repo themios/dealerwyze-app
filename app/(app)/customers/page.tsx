@@ -42,6 +42,9 @@ export default async function CustomersPage({
     query = query.eq('assigned_to', profile.id)
   }
 
+  // Exclude customers that were merged into another record
+  query = query.is('merged_at', null)
+
   if (showArchived) {
     query = query.eq('archived', true)
   } else {

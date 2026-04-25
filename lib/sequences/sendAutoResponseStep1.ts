@@ -246,7 +246,7 @@ export async function sendAutoResponseStep1(args: AutoResponseArgs): Promise<voi
       await Promise.all([
         supabase
           .from('activities')
-          .update({ completed_at: nowIso, external_id: twilioData.sid ?? null })
+          .update({ completed_at: nowIso, external_id: twilioData.sid ?? null, body: '__sequence_sent__' })
           .eq('id', step1Activity.id),
 
         supabase.from('activities').insert({

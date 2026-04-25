@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
     .select('id, name, primary_phone')
     .eq('user_id', profile.org_id)
     .eq('archived', false)
+    .is('merged_at', null)
     .limit(limit)
     .order('name')
 
