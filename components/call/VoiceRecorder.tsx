@@ -151,11 +151,11 @@ export default function VoiceRecorder({ customerId, activityId, onSaved }: Voice
     return (
       <div className="space-y-2">
         <div className="flex items-center gap-2 p-3 rounded-lg border">
-          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={togglePlayback}>
+          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={togglePlayback} aria-label={playing ? 'Pause voice note' : 'Play voice note'}>
             {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
           </Button>
           <span className="text-sm text-muted-foreground flex-1">Voice note · {formatDur(duration)}</span>
-          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={discard}>
+          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={discard} aria-label="Discard voice note">
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
         </div>

@@ -345,6 +345,7 @@ export default function CustomersListClient({
               <button
                 key={opt}
                 onClick={() => setStatusFilter(opt)}
+                aria-pressed={statusFilter === opt}
                 className={`text-xs px-2.5 py-1 rounded-full flex-shrink-0 transition-colors flex items-center gap-1 ${
                   statusFilter === opt
                     ? 'bg-primary text-primary-foreground font-medium'

@@ -530,6 +530,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
           <p className="text-sm font-medium">Schedule appointment</p>
           <div className="flex gap-2">
             <input
+              aria-label="Appointment date"
               type="date"
               value={apptDate}
               onChange={e => setApptDate(e.target.value)}
@@ -537,6 +538,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
               className="flex-1 text-sm rounded border border-border bg-background px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
             />
             <input
+              aria-label="Appointment time"
               type="time"
               value={apptTime}
               onChange={e => setApptTime(e.target.value)}
@@ -607,6 +609,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
           </div>
           <div className="flex gap-2 items-center">
             <input
+              aria-label="Snooze until date"
               type="date"
               value={snoozeDate}
               min={new Date().toISOString().split('T')[0]}
@@ -707,6 +710,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
             This will remove this contact and related timeline/tasks from your CRM. Type <span className="font-semibold">DELETE</span> to confirm.
           </p>
           <Input
+            aria-label="Type DELETE to confirm"
             placeholder="Type DELETE to confirm"
             value={deleteConfirm}
             onChange={e => setDeleteConfirm(e.target.value)}
@@ -783,6 +787,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
           <div className="mt-2 space-y-2">
             <div className="flex gap-2">
               <input
+                aria-label="Task title"
                 autoFocus
                 type="text"
                 value={quickTaskTitle}

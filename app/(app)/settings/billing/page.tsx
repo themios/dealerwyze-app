@@ -172,8 +172,8 @@ export default function BillingPage() {
       <div className={`rounded-xl border p-4 ${isPastDue ? 'border-destructive/50 bg-destructive/5' : 'border-border'}`}>
         <div className="flex items-center gap-2 mb-3">
           {isActive && !isPastDue
-            ? <CheckCircle className="h-5 w-5 text-green-500" />
-            : <AlertCircle className="h-5 w-5 text-destructive" />}
+            ? <CheckCircle aria-hidden="true" className="h-5 w-5 text-green-500" />
+            : <AlertCircle aria-hidden="true" className="h-5 w-5 text-destructive" />}
           <span className="font-medium text-sm">
             {status?.subscription_status === 'free'
               ? 'Beta — Free Access'
@@ -426,7 +426,7 @@ export default function BillingPage() {
           const active = tag === 'CRM' || hasSms
           return (
             <div key={text} className={`flex items-center gap-2 text-sm ${!active ? 'opacity-40' : ''}`}>
-              <CheckCircle className={`h-4 w-4 flex-shrink-0 ${tag === 'SMS' ? 'text-blue-500' : 'text-green-500'}`} />
+              <CheckCircle aria-hidden="true" className={`h-4 w-4 flex-shrink-0 ${tag === 'SMS' ? 'text-blue-500' : 'text-green-500'}`} />
               <span>{text}</span>
               <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded font-medium ${tag === 'SMS' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'}`}>{tag}</span>
             </div>

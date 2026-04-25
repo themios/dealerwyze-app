@@ -512,9 +512,9 @@ export default function ReportsClient() {
             <div className="border rounded-xl overflow-hidden bg-card">
               <table className="w-full text-sm">
                 <thead><tr className="border-b bg-muted/40">
-                  <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Type</th>
-                  <th className="text-right px-4 py-2 text-xs font-medium text-muted-foreground">Count</th>
-                  <th className="text-right px-4 py-2 text-xs font-medium text-muted-foreground">Share</th>
+                  <th scope="col" className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Type</th>
+                  <th scope="col" className="text-right px-4 py-2 text-xs font-medium text-muted-foreground">Count</th>
+                  <th scope="col" className="text-right px-4 py-2 text-xs font-medium text-muted-foreground">Share</th>
                 </tr></thead>
                 <tbody>
                   {Object.entries(overview.byType)
@@ -558,9 +558,9 @@ export default function ReportsClient() {
               <div className="border rounded-xl overflow-hidden bg-card">
                 <table className="w-full text-sm">
                   <thead><tr className="border-b bg-muted/40">
-                    <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Source</th>
-                    <th className="text-right px-4 py-2 text-xs font-medium text-muted-foreground">Leads</th>
-                    <th className="text-right px-4 py-2 text-xs font-medium text-muted-foreground">Share</th>
+                    <th scope="col" className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Source</th>
+                    <th scope="col" className="text-right px-4 py-2 text-xs font-medium text-muted-foreground">Leads</th>
+                    <th scope="col" className="text-right px-4 py-2 text-xs font-medium text-muted-foreground">Share</th>
                   </tr></thead>
                   <tbody>
                     {Object.entries(overview.bySource)
@@ -588,8 +588,8 @@ export default function ReportsClient() {
             <div className="border rounded-xl overflow-hidden bg-card">
               <table className="w-full text-sm">
                 <thead><tr className="border-b bg-muted/40">
-                  <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Stage</th>
-                  <th className="text-right px-4 py-2 text-xs font-medium text-muted-foreground">Customers</th>
+                  <th scope="col" className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Stage</th>
+                  <th scope="col" className="text-right px-4 py-2 text-xs font-medium text-muted-foreground">Customers</th>
                 </tr></thead>
                 <tbody>
                   {Object.entries(overview.byStage)
@@ -637,7 +637,7 @@ export default function ReportsClient() {
             <table className="w-full text-sm whitespace-nowrap">
               <thead><tr className="border-b bg-muted/40">
                 {['Rep', 'Assigned', 'Outbound', 'Calls', 'Answered', 'Voicemail', 'SMS', 'Email', 'Avg Response', 'Auto'].map(h => (
-                  <th key={h} className="px-3 py-2 text-xs font-medium text-muted-foreground text-right first:text-left">{h}</th>
+                  <th key={h} scope="col" className="px-3 py-2 text-xs font-medium text-muted-foreground text-right first:text-left">{h}</th>
                 ))}
               </tr></thead>
               <tbody>
@@ -701,13 +701,13 @@ export default function ReportsClient() {
           <div className="border rounded-xl overflow-x-auto bg-card">
             <table className="w-full text-sm whitespace-nowrap">
               <thead><tr className="border-b bg-muted/40">
-                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Vehicle</th>
-                <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Stock</th>
-                <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Price</th>
-                <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Inquiries</th>
-                <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Customers</th>
-                <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Outbound</th>
-                <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Status</th>
+                <th scope="col" className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Vehicle</th>
+                <th scope="col" className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Stock</th>
+                <th scope="col" className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Price</th>
+                <th scope="col" className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Inquiries</th>
+                <th scope="col" className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Customers</th>
+                <th scope="col" className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Outbound</th>
+                <th scope="col" className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">Status</th>
               </tr></thead>
               <tbody>
                 {vehicles.map(v => (
