@@ -13,6 +13,37 @@ import { formatCurrency } from '@/lib/utils'
 import BhphRecordPayment from './BhphRecordPayment'
 import type { PaymentFrequency } from '@/lib/bhph/schedule'
 
+interface BhphAccount {
+  id: string
+  user_id: string
+  status: string
+  loan_amount: number | null
+  down_payment: number | null
+  total_paid: number | null
+  payment_frequency: PaymentFrequency
+  next_due_date: string
+  sms_consent: boolean
+  email_consent: boolean
+  monthly_payment: number
+  payment_day_anchor: number | null
+  payment_day_of_month: number | null
+  last_reminder_type: string | null
+  notes: string | null
+  vehicle: {
+    id: string
+    year: number | null
+    make: string | null
+    model: string | null
+    stock_no: string | null
+  } | null
+  customer: {
+    id: string
+    name: string
+    primary_phone: string | null
+    sms_opted_out: boolean
+  } | null
+}
+
 export default async function BhphPage() {
   const profile = await requireProfile()
   if (!canAccessBhph(profile.role as UserRole)) redirect('/today')
@@ -45,7 +76,7 @@ export default async function BhphPage() {
             </div>
             <div className="bg-destructive/5 rounded-xl p-3 text-center">
               <p className="text-2xl font-bold text-destructive">
-                {accounts.filter((a: any) => {
+                {accounts.filter((a: BhphAccount) => {
                   const d = new Date(a.next_due_date + 'T12:00:00')
                   const t = new Date(); t.setHours(0,0,0,0)
                   return Math.round((d.getTime() - t.getTime()) / (1000 * 60 * 60 * 24)) < 0
@@ -55,7 +86,7 @@ export default async function BhphPage() {
             </div>
             <div className="bg-amber-500/10 rounded-xl p-3 text-center">
               <p className="text-2xl font-bold text-amber-700 dark:text-amber-400">
-                {accounts.filter((a: any) => {
+                {accounts.filter((a: BhphAccount) => {
                   const d = new Date(a.next_due_date + 'T12:00:00')
                   const t = new Date(); t.setHours(0,0,0,0)
                   const days = Math.round((d.getTime() - t.getTime()) / (1000 * 60 * 60 * 24))
@@ -76,7 +107,7 @@ export default async function BhphPage() {
             <p className="text-sm mt-1">Mark a vehicle as sold with BHPH financing to track payments here.</p>
           </div>
         ) : (
-          accounts.map((acct: any) => {
+          accounts.map((acct: BhphAccount) => {
             const dueDate = new Date(acct.next_due_date + 'T12:00:00')
             const daysUntil = Math.round((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
             const isOverdue = daysUntil < 0
