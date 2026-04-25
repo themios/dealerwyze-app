@@ -10,6 +10,10 @@ const withPWA = require('next-pwa')({
 })
 
 const nextConfig: NextConfig = {
+  // Allow HMR WebSocket connections from the local network IP (for mobile/tablet testing).
+  // Safe for dev only — next-pwa disables in production anyway.
+  allowedDevOrigins: ['192.168.0.100'],
+
   // Anchor Turbopack to this project directory — prevents it from traversing up to stray
   // package-lock.json files at /home/tim and /home/tim/Applications levels.
   // Empty turbopack object also silences the "webpack config without turbopack config" error
