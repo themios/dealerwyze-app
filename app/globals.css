@@ -195,7 +195,14 @@ a, button, [role="button"] {
   animation: scan-line 2s ease-in-out infinite;
   position: absolute;
 }
-/* Font style themes — applied by org theme setting */
+/* Font style themes — applied by org theme setting.
+   --font-classic and --font-bold-style are NOT set by next/font globally.
+   They are injected via Google Fonts <link> tags in app/(app)/layout.tsx
+   only when the org's theme uses "classic" or "bold" font style. */
+:root {
+  --font-classic: 'Lora', Georgia, serif;
+  --font-bold-style: 'Oswald', Impact, sans-serif;
+}
 .font-style-classic h1, .font-style-classic h2, .font-style-classic h3, .font-style-classic h4,
 .font-style-classic .font-display {
   font-family: var(--font-classic) !important;

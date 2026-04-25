@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic'
 
+import React from 'react'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
@@ -77,6 +78,25 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const orgTheme = await getOrgTheme(effectiveOrgId)
   const themeStyle = buildThemeStyleTag(orgTheme.vars)
 
+  // Lora and Oswald are NOT loaded globally — inject only when the org uses that font style.
+  // This avoids ~200KB of font downloads for the majority of users on the default "modern" theme.
+  const orgFontLinks: React.ReactNode =
+    orgTheme.fontStyle === 'classic' ? (
+      <>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
+        <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&display=swap" rel="stylesheet" />
+      </>
+    ) : orgTheme.fontStyle === 'bold' ? (
+      <>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
+        <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet" />
+      </>
+    ) : null
+
   // Check for platform staff impersonation session
   let impersonationOrgName: string | null = null
   let impersonationWriteMode = false
@@ -113,6 +133,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     // Mobile: single-column, max-w-md centered
     // Desktop (lg+): full-width flex row — sidebar + content
     <>
+      {orgFontLinks}
       {themeStyle && (
         <style dangerouslySetInnerHTML={{ __html: themeStyle }} />
       )}
