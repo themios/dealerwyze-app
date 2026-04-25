@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
   const runId = await startCronRun('check-tasks')
   const supabase = createServiceClient()
 
-  const [receipts]   = await Promise.all([runReceiptTasks(supabase)])
+  const receipts     = await runReceiptTasks(supabase)
   await runInventoryAging(supabase)
   const dormant      = await runDormantCustomers(supabase)
   const quotas       = await runQuotaReset(supabase)
