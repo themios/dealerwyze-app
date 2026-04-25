@@ -1,17 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { google } from 'googleapis'
 import { createServiceClient } from '@/lib/supabase/service'
+import { timingSafeEqual } from 'crypto'
 
 export const runtime = 'nodejs'
 
 /**
  * Registers (or renews) Gmail push watches for all orgs with Gmail OAuth accounts.
- * Call POST /api/gmail/watch?secret=... once to register; renew every 6 days.
+ * Call POST /api/gmail/watch once to register; renew every 6 days.
+ * Auth: Authorization: Bearer <LEADS_POLL_SECRET>
  * Watches expire after 7 days — add a weekly Vercel cron to auto-renew.
  */
 export async function POST(req: NextRequest) {
-  const secret = req.nextUrl.searchParams.get('secret')
-  if (secret !== process.env.LEADS_POLL_SECRET) {
+  const authHeader = req.headers.get('authorization')
+  const secret = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
+  const expected = process.env.LEADS_POLL_SECRET ?? ''
+  const providedBuf = Buffer.from(secret ?? '')
+  const expectedBuf = Buffer.from(expected)
+  const authorized =
+    expected.length > 0 &&
+    providedBuf.length === expectedBuf.length &&
+    timingSafeEqual(providedBuf, expectedBuf)
+  if (!authorized) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

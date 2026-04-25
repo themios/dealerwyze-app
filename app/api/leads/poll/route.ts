@@ -1,18 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { runLeadPollForOrg } from '@/lib/leads/poll'
+import { timingSafeEqual } from 'crypto'
 
 export const runtime = 'nodejs'
 export const maxDuration = 55
 
 /**
  * Manual lead poll trigger. Polls all orgs with connected email accounts.
- * Used for debugging and manual sync. Auth: ?secret=LEADS_POLL_SECRET
- * Optional: ?org_id=<uuid> to poll a single org.
+ * Used for debugging and manual sync.
+ * Auth: Authorization: Bearer <LEADS_POLL_SECRET>
+ * Optional query param: ?org_id=<uuid> to poll a single org.
  */
 export async function GET(req: NextRequest) {
-  const secret = req.nextUrl.searchParams.get('secret')
-  if (secret !== process.env.LEADS_POLL_SECRET) {
+  const authHeader = req.headers.get('authorization')
+  const secret = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
+  const expected = process.env.LEADS_POLL_SECRET ?? ''
+  const providedBuf = Buffer.from(secret ?? '')
+  const expectedBuf = Buffer.from(expected)
+  const authorized =
+    expected.length > 0 &&
+    providedBuf.length === expectedBuf.length &&
+    timingSafeEqual(providedBuf, expectedBuf)
+  if (!authorized) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
