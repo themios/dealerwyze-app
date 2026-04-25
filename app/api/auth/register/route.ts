@@ -5,6 +5,23 @@ import { sendNotificationEmail } from '@/lib/email/notify'
 import { buildWelcomeEmailHtml } from '@/lib/email/onboarding'
 import { normalizePhone } from '@/lib/utils/phone'
 
+// In-process rate limiter: 5 registration attempts per IP per hour.
+// Note: not shared across Vercel instances — acceptable for this low-volume endpoint.
+// proxy.ts also enforces 3 signups / 10 min at the edge for additional coverage.
+const regAttempts = new Map<string, { count: number; resetAt: number }>()
+
+function checkRegLimit(ip: string): boolean {
+  const now = Date.now()
+  const entry = regAttempts.get(ip)
+  if (!entry || entry.resetAt < now) {
+    regAttempts.set(ip, { count: 1, resetAt: now + 3_600_000 })
+    return false // not limited
+  }
+  if (entry.count >= 5) return true // limited
+  entry.count++
+  return false
+}
+
 function generateInviteCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
   let code = ''
@@ -24,6 +41,14 @@ const DISPOSABLE_DOMAINS = new Set([
 ])
 
 export async function POST(req: NextRequest) {
+  const ip = (req.headers.get('x-forwarded-for') ?? 'unknown').split(',')[0].trim()
+  if (checkRegLimit(ip)) {
+    return NextResponse.json(
+      { error: 'Too many registration attempts. Please try again later.' },
+      { status: 429 }
+    )
+  }
+
   const {
     email, password, display_name, invite_code, phone,
     agreed_to_terms, agreed_to_terms_at,
