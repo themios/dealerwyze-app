@@ -44,4 +44,4 @@ ALTER TABLE activities ADD CONSTRAINT activities_type_check
 -- Add missing CHECK on organizations.plan
 ALTER TABLE organizations DROP CONSTRAINT IF EXISTS chk_organizations_plan;
 ALTER TABLE organizations ADD CONSTRAINT chk_organizations_plan
-  CHECK (plan IN ('trial','starter','growth','pro','active','canceled','paused'));
+  CHECK (plan IN ('platform','trial','starter','growth','pro','active','canceled','paused'));
