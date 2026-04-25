@@ -27,8 +27,9 @@ export async function POST(_req: NextRequest) {
   let customerId = org?.stripe_customer_id
   if (!customerId) {
     const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const customer = await stripe.customers.create({
-      email:    user!.email,
+      email:    user.email,
       name:     org?.name ?? undefined,
       metadata: { org_id: profile.org_id },
     })
