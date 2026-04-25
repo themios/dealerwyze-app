@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateCronAuth } from '@/lib/cron/validateCronAuth'
 import { createServiceClient } from '@/lib/supabase/service'
+import { startCronRun, finishCronRun } from '@/lib/cron/runLogger'
 
 export const runtime = 'nodejs'
 export const maxDuration = 55
@@ -17,6 +18,9 @@ export async function GET(req: NextRequest) {
   const denied = validateCronAuth(req)
   if (denied) return denied
 
+  const runId = await startCronRun('data-retention')
+
+  try {
   const supabase = createServiceClient()
   const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
 
@@ -156,6 +160,7 @@ export async function GET(req: NextRequest) {
     storageOrgsProcessed++
   }
 
+  await finishCronRun(runId, 'success', orgsProcessed + storageOrgsProcessed)
   return NextResponse.json({
     orgs_processed: orgsProcessed,
     activities_deleted: activitiesDeleted,
@@ -165,4 +170,8 @@ export async function GET(req: NextRequest) {
     storage_packs_expired: storageOrgsProcessed,
     storage_files_deleted: storageFilesDeleted,
   })
+  } catch (err) {
+    await finishCronRun(runId, 'error', undefined, String(err))
+    throw err
+  }
 }

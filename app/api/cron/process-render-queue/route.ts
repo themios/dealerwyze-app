@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateCronAuth } from '@/lib/cron/validateCronAuth'
 import { createServiceClient } from '@/lib/supabase/service'
 import { renderMediaOnLambda, AwsRegion } from '@remotion/lambda-client'
+import { startCronRun, finishCronRun } from '@/lib/cron/runLogger'
 
 // How many Lambda concurrent renders to allow at once.
 // Each render uses ~11 Lambda invocations (framesPerLambda: 120).
@@ -15,6 +16,9 @@ export async function GET(req: NextRequest) {
   const denied = validateCronAuth(req)
   if (denied) return denied
 
+  const runId = await startCronRun('process-render-queue')
+
+  try {
   const supabase = createServiceClient()
 
   // 1. Count how many renders are currently in progress
@@ -26,6 +30,7 @@ export async function GET(req: NextRequest) {
   const activeCount = renderingCount ?? 0
 
   if (activeCount >= MAX_CONCURRENT_RENDERS) {
+    await finishCronRun(runId, 'success', 0)
     return NextResponse.json({
       dispatched: 0,
       skipped: true,
@@ -45,6 +50,7 @@ export async function GET(req: NextRequest) {
     .limit(slotsAvailable)
 
   if (!queued || queued.length === 0) {
+    await finishCronRun(runId, 'success', 0)
     return NextResponse.json({ dispatched: 0, reason: 'No queued renders' })
   }
 
@@ -53,6 +59,7 @@ export async function GET(req: NextRequest) {
   const serveUrl           = process.env.REMOTION_SERVE_URL
 
   if (!lambdaFunctionName || !serveUrl) {
+    await finishCronRun(runId, 'error', undefined, 'Lambda not configured')
     return NextResponse.json({ error: 'Lambda not configured' }, { status: 500 })
   }
 
@@ -126,5 +133,10 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  await finishCronRun(runId, 'success', dispatched)
   return NextResponse.json({ dispatched, results })
+  } catch (err) {
+    await finishCronRun(runId, 'error', undefined, String(err))
+    throw err
+  }
 }
