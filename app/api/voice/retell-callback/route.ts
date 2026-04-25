@@ -76,9 +76,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let payload: any
-  try { payload = JSON.parse(rawBody) } catch {
+  interface RetellCallbackPayload {
+    event: string
+    call: {
+      call_id:         string
+      from_number:     string
+      to_number:       string
+      start_timestamp?: number
+      end_timestamp?:   number
+      transcript?:      string
+      call_analysis?: {
+        call_summary?:          string
+        user_sentiment?:        string
+        call_successful?:       boolean
+        custom_analysis_data?:  Record<string, unknown>
+      }
+    }
+  }
+
+  let payload: RetellCallbackPayload
+  try { payload = JSON.parse(rawBody) as RetellCallbackPayload } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
@@ -88,7 +105,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, skipped: event })
   }
 
-  const call = payload.call ?? {}
+  const call = payload.call ?? ({} as RetellCallbackPayload['call'])
 
   const callId     = call.call_id     ?? ''
   const fromNumber = call.from_number ?? ''

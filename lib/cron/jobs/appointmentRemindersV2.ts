@@ -29,8 +29,10 @@ export async function runAppointmentRemindersV2(
 
   let remindersQueued = 0
 
+  type CustRow = { name: string | null; primary_phone: string | null; email: string | null }
+
   for (const appt of upcomingAppts2 ?? []) {
-    const cust = Array.isArray(appt.customer) ? appt.customer[0] : appt.customer
+    const cust = (Array.isArray(appt.customer) ? appt.customer[0] : appt.customer) as CustRow | null
     if (!cust) continue
 
     const { data: orgSettingsRow } = await supabase
@@ -42,9 +44,9 @@ export async function runAppointmentRemindersV2(
     await sendAppointmentNotification({
       orgId:          appt.user_id,
       customerId:     appt.customer_id,
-      customerName:   (cust as any).name ?? 'Customer',
-      customerPhone:  (cust as any).primary_phone ?? '',
-      customerEmail:  (cust as any).email ?? '',
+      customerName:   cust.name ?? 'Customer',
+      customerPhone:  cust.primary_phone ?? '',
+      customerEmail:  cust.email ?? '',
       appointmentIso: appt.due_at,
       dealerName:     orgSettingsRow?.business_name ?? 'the dealership',
       calendarUrl:    null,
