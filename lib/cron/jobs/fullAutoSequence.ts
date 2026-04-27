@@ -23,8 +23,18 @@ export async function runFullAutoSequence(
 
     if (!dueActivities || dueActivities.length === 0) return { fullAutoFired }
 
+    // Gate: skip activities for free-tier orgs
+    const orgIds = [...new Set(dueActivities.map(a => a.user_id))]
+    const { data: orgRows } = await supabase
+      .from('organizations')
+      .select('id, plan')
+      .in('id', orgIds)
+    const freeOrgIds = new Set((orgRows ?? []).filter(o => o.plan === 'free').map(o => o.id))
+    const eligibleActivities = dueActivities.filter(a => !freeOrgIds.has(a.user_id))
+    if (eligibleActivities.length === 0) return { fullAutoFired }
+
     // Batch 1: all enrollments + sequence auto_mode (replaces 1 query per activity)
-    const enrollmentIds = [...new Set(dueActivities.map(a => a.customer_sequence_id).filter(Boolean))] as string[]
+    const enrollmentIds = [...new Set(eligibleActivities.map(a => a.customer_sequence_id).filter(Boolean))] as string[]
     const { data: enrollments } = await supabase
       .from('customer_sequences')
       .select('id, status, org_id, sequence:sequences(auto_mode)')
@@ -32,7 +42,7 @@ export async function runFullAutoSequence(
     const enrollmentMap = new Map((enrollments ?? []).map(e => [e.id, e]))
 
     // Batch 2: customer unsubscribe status (replaces 1 query per activity)
-    const customerIds = [...new Set(dueActivities.map(a => a.customer_id))]
+    const customerIds = [...new Set(eligibleActivities.map(a => a.customer_id))]
     const { data: customers } = await supabase
       .from('customers')
       .select('id, unsubscribe_email, email')
@@ -43,12 +53,12 @@ export async function runFullAutoSequence(
     const { data: allReplies } = await supabase
       .from('activities')
       .select('customer_id')
-      .in('customer_id', customerIds)
+      .in('customer_id', Array.from(new Set(customerIds)))
       .eq('direction', 'inbound')
       .in('type', ['email', 'sms'])
     const customersWithReplies = new Set((allReplies ?? []).map(r => r.customer_id as string))
 
-    for (const act of dueActivities) {
+    for (const act of eligibleActivities) {
       if (!act.customer_sequence_id) continue
 
       const enrollment = enrollmentMap.get(act.customer_sequence_id)

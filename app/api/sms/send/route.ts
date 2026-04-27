@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 import { requireProfile } from '@/lib/auth/profile'
 import { prefixWithAuthorName } from '@/lib/utils'
 import { checkQuota, incrementUsage } from '@/lib/sms/quota'
@@ -14,6 +15,16 @@ export async function POST(req: NextRequest) {
   const profile = await requireProfile()
   const supabase = await createClient()
   const orgId = profile.org_id
+
+  // Free tier: Twilio SMS is not included — direct users to "Open Messages" instead
+  const svc = createServiceClient()
+  const { data: orgRow } = await svc.from('organizations').select('plan').eq('id', orgId).maybeSingle()
+  if ((orgRow?.plan ?? 'free') === 'free') {
+    return NextResponse.json(
+      { error: 'Texting via DealerWyze requires a paid plan. Use "Open Messages" to send from your phone, or upgrade at Settings \u2192 Billing.' },
+      { status: 402 }
+    )
+  }
 
   const { to, body, customer_id, vehicle_id, is_mms = false, mediaUrls = [] } = await req.json() as {
     to: string; body: string; customer_id?: string; vehicle_id?: string; is_mms?: boolean; mediaUrls?: string[]

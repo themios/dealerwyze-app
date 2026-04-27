@@ -23,8 +23,18 @@ export async function runSequenceDelivery(
 
     if (!sequenceActivities || sequenceActivities.length === 0) return { sequenceSent }
 
+    // Gate: skip activities for free-tier orgs (sequences are a paid feature)
+    const orgIds = [...new Set(sequenceActivities.map(a => a.user_id))]
+    const { data: orgRows } = await supabase
+      .from('organizations')
+      .select('id, plan')
+      .in('id', orgIds)
+    const freeOrgIds = new Set((orgRows ?? []).filter(o => o.plan === 'free').map(o => o.id))
+    const eligible = sequenceActivities.filter(a => !freeOrgIds.has(a.user_id))
+    if (eligible.length === 0) return { sequenceSent }
+
     // Batch 1: all enrollments (replaces 1 query per activity)
-    const enrollmentIds = [...new Set(sequenceActivities.map(a => a.customer_sequence_id).filter(Boolean))] as string[]
+    const enrollmentIds = [...new Set(eligible.map(a => a.customer_sequence_id).filter(Boolean))] as string[]
     const { data: enrollments } = await supabase
       .from('customer_sequences')
       .select('id, enrolled_at')
@@ -32,7 +42,7 @@ export async function runSequenceDelivery(
     const enrollmentMap = new Map((enrollments ?? []).map(e => [e.id, e.enrolled_at as string]))
 
     // Batch 2: all inbound replies for the affected customers (replaces 1 query per activity)
-    const customerIds = [...new Set(sequenceActivities.map(a => a.customer_id))]
+    const customerIds = [...new Set(eligible.map(a => a.customer_id))]
     const { data: allReplies } = await supabase
       .from('activities')
       .select('customer_id, created_at')
@@ -55,7 +65,7 @@ export async function runSequenceDelivery(
 
     const { sendSequenceEmail } = await import('@/lib/email/sendSequenceEmail')
 
-    for (const act of sequenceActivities) {
+    for (const act of eligible) {
       const enrolledAt = enrollmentMap.get(act.customer_sequence_id) ?? '1970-01-01T00:00:00Z'
       const replyAt    = firstReplyAt.get(act.customer_id)
 

@@ -52,6 +52,7 @@ export default function TemplatePicker({ customer, vehicle }: TemplatePickerProp
   const [displayName, setDisplayName]         = useState<string | null>(null)
   const [dbTemplates, setDbTemplates]         = useState<Template[]>([])
   const [attachments, setAttachments]         = useState<Attachment[]>([])
+  const [orgPlan, setOrgPlan]                 = useState<string>('free')
 
   const supabase = createClient()
   const twilioEnabled = process.env.NEXT_PUBLIC_TWILIO_ENABLED === 'true'
@@ -61,7 +62,10 @@ export default function TemplatePicker({ customer, vehicle }: TemplatePickerProp
     if (!open) return
     fetch('/api/auth/me')
       .then(r => r.ok ? r.json() : null)
-      .then(d => setDisplayName(d?.display_name ?? null))
+      .then(d => {
+        setDisplayName(d?.display_name ?? null)
+        setOrgPlan(d?.org_plan ?? 'free')
+      })
       .catch(() => setDisplayName(null))
 
     supabase
@@ -365,14 +369,14 @@ export default function TemplatePicker({ customer, vehicle }: TemplatePickerProp
                   <MessageSquare className="h-4 w-4" />
                   Open Messages
                 </Button>
-                {twilioEnabled && (
+                {twilioEnabled && orgPlan !== 'free' && (
                   <Button variant="outline" className="flex-1 h-11 gap-2" onClick={handleSendTwilio} disabled={sending}>
                     <Zap className="h-4 w-4" />
                     {sending ? 'Sending…' : attachments.length > 0 ? `Send MMS (+${attachments.length})` : 'Send Now'}
                   </Button>
                 )}
               </div>
-              {twilioEnabled && (
+              {twilioEnabled && orgPlan !== 'free' && (
                 <p className="text-xs text-center text-muted-foreground flex-shrink-0">
                   {attachments.length > 0
                     ? 'Attached files will be sent as a picture message (MMS).'
