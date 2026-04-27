@@ -21,31 +21,46 @@ export async function runSequenceDelivery(
       .lte('due_at', nowIso)
       .limit(100)
 
+    if (!sequenceActivities || sequenceActivities.length === 0) return { sequenceSent }
+
+    // Batch 1: all enrollments (replaces 1 query per activity)
+    const enrollmentIds = [...new Set(sequenceActivities.map(a => a.customer_sequence_id).filter(Boolean))] as string[]
+    const { data: enrollments } = await supabase
+      .from('customer_sequences')
+      .select('id, enrolled_at')
+      .in('id', enrollmentIds)
+    const enrollmentMap = new Map((enrollments ?? []).map(e => [e.id, e.enrolled_at as string]))
+
+    // Batch 2: all inbound replies for the affected customers (replaces 1 query per activity)
+    const customerIds = [...new Set(sequenceActivities.map(a => a.customer_id))]
+    const { data: allReplies } = await supabase
+      .from('activities')
+      .select('customer_id, created_at')
+      .in('customer_id', customerIds)
+      .eq('direction', 'inbound')
+      .in('type', ['email', 'sms'])
+    // Map: customer_id -> earliest inbound reply timestamp
+    const firstReplyAt = new Map<string, string>()
+    for (const r of allReplies ?? []) {
+      const existing = firstReplyAt.get(r.customer_id)
+      if (!existing || r.created_at < existing) firstReplyAt.set(r.customer_id, r.created_at as string)
+    }
+
+    // Batch 3: customer names (only needed for stopSequenceOnReply, fetch all upfront)
+    const { data: customers } = await supabase
+      .from('customers')
+      .select('id, name, user_id')
+      .in('id', customerIds)
+    const customerMap = new Map((customers ?? []).map(c => [c.id, c as { id: string; name: string; user_id: string }]))
+
     const { sendSequenceEmail } = await import('@/lib/email/sendSequenceEmail')
 
-    for (const act of sequenceActivities ?? []) {
-      const { data: enrollment } = await supabase
-        .from('customer_sequences')
-        .select('enrolled_at')
-        .eq('id', act.customer_sequence_id)
-        .maybeSingle()
-      const enrolledAt = enrollment?.enrolled_at ?? '1970-01-01T00:00:00Z'
+    for (const act of sequenceActivities) {
+      const enrolledAt = enrollmentMap.get(act.customer_sequence_id) ?? '1970-01-01T00:00:00Z'
+      const replyAt    = firstReplyAt.get(act.customer_id)
 
-      const { data: replies } = await supabase
-        .from('activities')
-        .select('id')
-        .eq('customer_id', act.customer_id)
-        .eq('direction', 'inbound')
-        .in('type', ['email', 'sms'])
-        .gte('created_at', enrolledAt)
-        .limit(1)
-
-      if (replies && replies.length > 0) {
-        const { data: cData } = await supabase
-          .from('customers')
-          .select('name, user_id')
-          .eq('id', act.customer_id)
-          .maybeSingle()
+      if (replyAt && replyAt >= enrolledAt) {
+        const cData = customerMap.get(act.customer_id)
         await stopSequenceOnReply({
           supabase,
           orgId:        act.user_id,

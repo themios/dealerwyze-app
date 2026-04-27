@@ -21,24 +21,42 @@ export async function runFullAutoSequence(
       .not('customer_sequence_id', 'is', null)
       .limit(50)
 
-    for (const act of dueActivities ?? []) {
+    if (!dueActivities || dueActivities.length === 0) return { fullAutoFired }
+
+    // Batch 1: all enrollments + sequence auto_mode (replaces 1 query per activity)
+    const enrollmentIds = [...new Set(dueActivities.map(a => a.customer_sequence_id).filter(Boolean))] as string[]
+    const { data: enrollments } = await supabase
+      .from('customer_sequences')
+      .select('id, status, org_id, sequence:sequences(auto_mode)')
+      .in('id', enrollmentIds)
+    const enrollmentMap = new Map((enrollments ?? []).map(e => [e.id, e]))
+
+    // Batch 2: customer unsubscribe status (replaces 1 query per activity)
+    const customerIds = [...new Set(dueActivities.map(a => a.customer_id))]
+    const { data: customers } = await supabase
+      .from('customers')
+      .select('id, unsubscribe_email, email')
+      .in('id', customerIds)
+    const customerMap = new Map((customers ?? []).map(c => [c.id, c as { id: string; unsubscribe_email: boolean; email: string | null }]))
+
+    // Batch 3: any inbound reply for the affected customers (replaces 1 query per activity)
+    const { data: allReplies } = await supabase
+      .from('activities')
+      .select('customer_id')
+      .in('customer_id', customerIds)
+      .eq('direction', 'inbound')
+      .in('type', ['email', 'sms'])
+    const customersWithReplies = new Set((allReplies ?? []).map(r => r.customer_id as string))
+
+    for (const act of dueActivities) {
       if (!act.customer_sequence_id) continue
 
-      const { data: enrollment } = await supabase
-        .from('customer_sequences')
-        .select('id, status, org_id, sequence:sequences(auto_mode)')
-        .eq('id', act.customer_sequence_id)
-        .maybeSingle()
-
+      const enrollment = enrollmentMap.get(act.customer_sequence_id)
       if (!enrollment || enrollment.status !== 'active') continue
       const seqData = Array.isArray(enrollment.sequence) ? enrollment.sequence[0] : enrollment.sequence
       if ((seqData as { auto_mode?: string } | null)?.auto_mode !== 'full_auto') continue
 
-      const { data: cust } = await supabase
-        .from('customers')
-        .select('unsubscribe_email, email')
-        .eq('id', act.customer_id)
-        .maybeSingle()
+      const cust = customerMap.get(act.customer_id)
 
       if (cust?.unsubscribe_email) {
         await supabase
@@ -48,16 +66,7 @@ export async function runFullAutoSequence(
         continue
       }
 
-      const { data: reply } = await supabase
-        .from('activities')
-        .select('id')
-        .eq('customer_id', act.customer_id)
-        .eq('direction', 'inbound')
-        .in('type', ['email', 'sms'])
-        .limit(1)
-        .maybeSingle()
-
-      if (reply) {
+      if (customersWithReplies.has(act.customer_id)) {
         await supabase
           .from('activities')
           .update({ completed_at: nowIso, outcome: 'cancelled' })
@@ -76,14 +85,14 @@ export async function runFullAutoSequence(
       if (!parsed.to || !parsed.subject || !parsed.body) continue
 
       const result = await sendSeqEmail({
-        orgId: enrollment.org_id,
-        customerId: act.customer_id,
+        orgId:         enrollment.org_id,
+        customerId:    act.customer_id,
         customerEmail: parsed.to,
-        customerName: parsed.customer_name ?? '',
-        subject: parsed.subject,
-        body: parsed.body,
-        activityId: act.id,
-        sequenceDay: 0,
+        customerName:  parsed.customer_name ?? '',
+        subject:       parsed.subject,
+        body:          parsed.body,
+        activityId:    act.id,
+        sequenceDay:   0,
       })
 
       if (result.ok) {
@@ -95,6 +104,7 @@ export async function runFullAutoSequence(
           .eq('id', act.id)
       }
 
+      // Check if this enrollment is now complete (1 query per sent email, acceptable)
       const { count: remaining } = await supabase
         .from('activities')
         .select('id', { count: 'exact', head: true })
