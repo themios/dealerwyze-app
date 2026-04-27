@@ -17,6 +17,7 @@ import { runGmailWatchRenewal } from '@/lib/cron/jobs/gmailWatchRenewal'
 import { runGmailTokenHealth } from '@/lib/cron/jobs/gmailTokenHealth'
 import { runPulseSurveys } from '@/lib/cron/jobs/pulseSurveys'
 import { runAppointmentRemindersV2 } from '@/lib/cron/jobs/appointmentRemindersV2'
+import { runAbuseDetection } from '@/lib/cron/jobs/abuseDetection'
 
 export const runtime = 'nodejs'
 export const maxDuration = 55
@@ -56,6 +57,7 @@ export async function GET(req: NextRequest) {
   let gmailWatch:  Awaited<ReturnType<typeof runGmailWatchRenewal>>     | undefined
   let gmailTokens: Awaited<ReturnType<typeof runGmailTokenHealth>>      | undefined
   let apptV2:      Awaited<ReturnType<typeof runAppointmentRemindersV2>>| undefined
+  let abuse:       Awaited<ReturnType<typeof runAbuseDetection>>        | undefined
 
   try {
     receipts    = await runJob('receiptTasks',            () => runReceiptTasks(supabase))
@@ -73,6 +75,7 @@ export async function GET(req: NextRequest) {
     gmailTokens = await runJob('gmailTokenHealth',        () => runGmailTokenHealth(supabase))
     await          runJob('pulseSurveys',                 () => runPulseSurveys(supabase))
     apptV2      = await runJob('appointmentRemindersV2',  () => runAppointmentRemindersV2(supabase))
+    abuse       = await runJob('abuseDetection',           () => runAbuseDetection(supabase))
   } finally {
     await finishCronRun(runId, 'success', adminResult?.allOrgsCount)
   }
@@ -92,6 +95,7 @@ export async function GET(req: NextRequest) {
     gmail_tokens_ok:             gmailTokens?.gmailTokensOk,
     gmail_tokens_revoked:        gmailTokens?.gmailTokensRevoked,
     reminders_queued:            apptV2?.remindersQueued,
+    abuse_flags_created:         abuse?.flagsCreated,
     job_results:                 jobResults,
   })
 }
