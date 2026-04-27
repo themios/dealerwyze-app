@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { apiFetch, ApiError } from '@/lib/api/fetchClient'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -27,6 +28,7 @@ export default function VoiceAgentSection() {
   const [voiceError, setVoiceError]                   = useState<string | null>(null)
   const [saving, setSaving]                           = useState(false)
   const [saved, setSaved]                             = useState(false)
+  const [saveError, setSaveError]                     = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -52,17 +54,24 @@ export default function VoiceAgentSection() {
   async function handleSave() {
     setSaving(true)
     setSaved(false)
-    await fetch('/api/settings/org', {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        dealer_cell_number:         form.dealer_cell_number,
-        voice_business_hours_start: form.voice_business_hours_start,
-        voice_business_hours_end:   form.voice_business_hours_end,
-      }),
-    })
-    setSaving(false)
-    setSaved(true)
+    setSaveError(null)
+    try {
+      await apiFetch('/api/settings/org', {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          dealer_cell_number:         form.dealer_cell_number,
+          voice_business_hours_start: form.voice_business_hours_start,
+          voice_business_hours_end:   form.voice_business_hours_end,
+        }),
+      })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    } catch (err) {
+      setSaveError(err instanceof ApiError ? err.message : 'Save failed. Please try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function handleProvisionVoice() {
@@ -130,6 +139,7 @@ export default function VoiceAgentSection() {
         </div>
         <p className="text-xs text-muted-foreground -mt-2">After hours → voice agent answers immediately</p>
 
+        {saveError && <p className="text-sm text-destructive">{saveError}</p>}
         <Button size="sm" onClick={handleSave} disabled={saving}>
           {saving ? 'Saving…' : saved ? 'Saved!' : 'Save'}
         </Button>

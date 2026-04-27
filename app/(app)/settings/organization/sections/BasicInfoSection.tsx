@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { apiFetch, ApiError } from '@/lib/api/fetchClient'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -45,8 +46,9 @@ export default function BasicInfoSection() {
     dealer_website_url: '',
   })
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving]   = useState(false)
-  const [saved, setSaved]     = useState(false)
+  const [saving, setSaving]     = useState(false)
+  const [saved, setSaved]       = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/settings/org')
@@ -76,13 +78,20 @@ export default function BasicInfoSection() {
   async function handleSave() {
     setSaving(true)
     setSaved(false)
-    await fetch('/api/settings/org', {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(form),
-    })
-    setSaving(false)
-    setSaved(true)
+    setSaveError(null)
+    try {
+      await apiFetch('/api/settings/org', {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(form),
+      })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    } catch (err) {
+      setSaveError(err instanceof ApiError ? err.message : 'Save failed. Please try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (loading) {
@@ -157,6 +166,7 @@ export default function BasicInfoSection() {
             placeholder="https://www.yourdealer.com/cars-for-sale"
           />
         </div>
+        {saveError && <p className="text-sm text-destructive">{saveError}</p>}
         <Button type="button" size="sm" onClick={handleSave} disabled={saving} className="mt-2">
           {saving ? 'Saving…' : saved ? 'Saved!' : 'Save'}
         </Button>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { apiFetch, ApiError } from '@/lib/api/fetchClient'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Plus, MapPin, X, Pencil } from 'lucide-react'
@@ -21,6 +22,7 @@ export default function LocationsSection() {
   const [editLocDraft, setEditLocDraft]         = useState<DealerLocation | null>(null)
   const [saving, setSaving]                     = useState(false)
   const [saved, setSaved]                       = useState(false)
+  const [saveError, setSaveError]               = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/settings/org')
@@ -78,13 +80,20 @@ export default function LocationsSection() {
   async function handleSave() {
     setSaving(true)
     setSaved(false)
-    await fetch('/api/settings/org', {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ locations }),
-    })
-    setSaving(false)
-    setSaved(true)
+    setSaveError(null)
+    try {
+      await apiFetch('/api/settings/org', {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ locations }),
+      })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    } catch (err) {
+      setSaveError(err instanceof ApiError ? err.message : 'Save failed. Please try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -174,6 +183,7 @@ export default function LocationsSection() {
         )}
       </div>
 
+      {saveError && <p className="text-sm text-destructive">{saveError}</p>}
       <Button size="sm" className="mt-3" onClick={handleSave} disabled={saving}>
         {saving ? 'Saving…' : saved ? 'Saved!' : 'Save Locations'}
       </Button>

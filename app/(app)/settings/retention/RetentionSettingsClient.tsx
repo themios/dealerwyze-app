@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { apiFetch, ApiError } from '@/lib/api/fetchClient'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -78,14 +79,18 @@ export default function RetentionSettingsClient({ initialSettings, sequences, po
   const [pgKey, setPgKey] = useState(postgridApiKey ? '••••••••' : '')
   const [pgKeyEditing, setPgKeyEditing] = useState(false)
   const [pgKeySaving, setPgKeySaving] = useState(false)
+  const [pgKeyError, setPgKeyError]   = useState<string | null>(null)
 
   async function savePostgridKey() {
     if (!pgKeyEditing || pgKey === '••••••••') { setPgKeyEditing(true); return }
     setPgKeySaving(true)
+    setPgKeyError(null)
     try {
-      await fetch('/api/settings/org', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ postgrid_api_key: pgKey.trim() || null }) })
+      await apiFetch('/api/settings/org', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ postgrid_api_key: pgKey.trim() || null }) })
       setPgKeyEditing(false)
       setPgKey(pgKey.trim() ? '••••••••' : '')
+    } catch (err) {
+      setPgKeyError(err instanceof ApiError ? err.message : 'Save failed. Please try again.')
     } finally {
       setPgKeySaving(false)
     }
@@ -182,6 +187,7 @@ export default function RetentionSettingsClient({ initialSettings, sequences, po
                   {pgKeySaving ? 'Saving...' : pgKeyEditing ? 'Save Key' : 'Edit'}
                 </Button>
               </div>
+              {pgKeyError && <p className="text-sm text-destructive">{pgKeyError}</p>}
               <p className="text-xs text-muted-foreground">
                 Your PostGrid live secret key. Cards will be mailed automatically each Monday.
               </p>
