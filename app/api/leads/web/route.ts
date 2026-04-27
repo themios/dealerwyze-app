@@ -6,28 +6,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { notifyDealerNewLead } from '@/lib/vdp/notifyDealer'
-
-// Simple in-route rate limit: 10 submissions per IP per hour
-const ipStore = new Map<string, { count: number; resetAt: number }>()
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now()
-  const entry = ipStore.get(ip)
-  if (!entry || now > entry.resetAt) {
-    ipStore.set(ip, { count: 1, resetAt: now + 3_600_000 })
-    return false
-  }
-  entry.count++
-  return entry.count > 10
-}
-
-function getIp(req: NextRequest): string {
-  return req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'unknown'
-}
+import { webLeadLimiter } from '@/lib/rateLimit/upstash'
 
 export async function POST(req: NextRequest) {
-  const ip = getIp(req)
-  if (isRateLimited(ip)) {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'unknown'
+  const { allowed } = await webLeadLimiter(ip)
+  if (!allowed) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
   }
 

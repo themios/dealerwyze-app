@@ -4,23 +4,7 @@ import crypto from 'crypto'
 import { sendNotificationEmail } from '@/lib/email/notify'
 import { buildWelcomeEmailHtml } from '@/lib/email/onboarding'
 import { normalizePhone } from '@/lib/utils/phone'
-
-// In-process rate limiter: 5 registration attempts per IP per hour.
-// Note: not shared across Vercel instances — acceptable for this low-volume endpoint.
-// proxy.ts also enforces 3 signups / 10 min at the edge for additional coverage.
-const regAttempts = new Map<string, { count: number; resetAt: number }>()
-
-function checkRegLimit(ip: string): boolean {
-  const now = Date.now()
-  const entry = regAttempts.get(ip)
-  if (!entry || entry.resetAt < now) {
-    regAttempts.set(ip, { count: 1, resetAt: now + 3_600_000 })
-    return false // not limited
-  }
-  if (entry.count >= 5) return true // limited
-  entry.count++
-  return false
-}
+import { registrationLimiter } from '@/lib/rateLimit/upstash'
 
 function generateInviteCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -42,7 +26,8 @@ const DISPOSABLE_DOMAINS = new Set([
 
 export async function POST(req: NextRequest) {
   const ip = (req.headers.get('x-forwarded-for') ?? 'unknown').split(',')[0].trim()
-  if (checkRegLimit(ip)) {
+  const { allowed } = await registrationLimiter(ip)
+  if (!allowed) {
     return NextResponse.json(
       { error: 'Too many registration attempts. Please try again later.' },
       { status: 429 }
@@ -54,6 +39,8 @@ export async function POST(req: NextRequest) {
     agreed_to_terms, agreed_to_terms_at,
     ref_code,         // affiliate/flyer code from URL param ?ref=CODE
     referred_by_slug, // referral from existing dealer (?via=their-slug)
+    // UTM attribution — captured from the landing page visit via sessionStorage
+    utm_source, utm_medium, utm_campaign, utm_term, utm_content,
   } = await req.json()
 
   if (!email || !password || !display_name) {
@@ -171,6 +158,13 @@ export async function POST(req: NextRequest) {
       referredByOrgId = referrer?.id ?? null
     }
 
+    // Sanitize UTM values: max 200 chars each, strip non-printable characters
+    function sanitizeUtm(v: unknown): string | null {
+      if (typeof v !== 'string') return null
+      const clean = v.replace(/[^\x20-\x7E]/g, '').trim().slice(0, 200)
+      return clean || null
+    }
+
     const { error: orgErr } = await service.from('organizations').insert({
       id: orgId,
       name: `${display_name}'s Dealership`,
@@ -186,6 +180,12 @@ export async function POST(req: NextRequest) {
       // Affiliate / referral attribution
       affiliate_code:       validatedAffiliateCode,
       referred_by_org_id:   referredByOrgId,
+      // UTM attribution — first-touch from paid ads or organic source
+      utm_source:   sanitizeUtm(utm_source),
+      utm_medium:   sanitizeUtm(utm_medium),
+      utm_campaign: sanitizeUtm(utm_campaign),
+      utm_term:     sanitizeUtm(utm_term),
+      utm_content:  sanitizeUtm(utm_content),
     })
     if (orgErr && !orgErr.message.includes('duplicate') && !orgErr.code?.includes('23505')) {
       await service.auth.admin.deleteUser(userId)
