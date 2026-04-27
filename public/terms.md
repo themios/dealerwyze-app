@@ -2,7 +2,7 @@
 
 **DealerWyze**
 Operated by KMA Auto Inc
-**Effective Date: March 4, 2026**
+**Effective Date: April 27, 2026**
 
 ---
 
@@ -71,7 +71,7 @@ Fees are billed in advance on the same day of each monthly billing cycle.
 
 **4.2 Usage Overage.** Included usage (SMS, MMS, fax, scans) is subject to monthly caps. If you exceed included usage and have enabled Auto-Refill (see §4.6), additional usage is billed at the then-current overage rates. If Auto-Refill is not enabled, outbound communications are paused when caps are reached.
 
-**4.3 Free Trial.** New accounts may be eligible for a free trial period as described at signup. Trial availability and duration are at our discretion and may be modified or discontinued at any time. Trial eligibility is determined per business entity, not per individual. Re-registering with the same email domain, phone number, or business identity after a prior cancellation may result in immediate billing without a trial period.
+**4.3 Free Trial.** New accounts receive a thirty (30) day free trial of the Service with access to all features included in the subscribed plan. After the trial period ends, your account enters a seven (7) day grace period during which you may add a payment method to continue without interruption. If no payment method is added during the grace period, your account is automatically downgraded to the Free Tier (see Section 5). Trial availability and duration are at our discretion and may be modified or discontinued at any time. Trial eligibility is determined per business entity, not per individual. Re-registering with the same email domain, phone number, or business identity after a prior cancellation may result in immediate billing without a trial period.
 
 **4.4 Payment Processing.** All payments are processed by Stripe, Inc. By providing payment information, you authorize us to charge the payment method on file for all applicable fees. You agree to Stripe's terms of service at stripe.com/legal.
 
@@ -85,25 +85,53 @@ Fees are billed in advance on the same day of each monthly billing cycle.
 
 ---
 
-## 5. Free Trial Terms
+## 5. Free Trial and Free Tier
 
-**5.1** The free trial is available once per business entity. Creating multiple accounts to exploit multiple free trials is prohibited and may result in immediate suspension, account termination, and forfeiture of all trial benefits.
+**5.1 Trial Period.** The free trial is thirty (30) days and is available once per business entity. Creating multiple accounts to exploit multiple free trials is prohibited and may result in immediate suspension, account termination, and forfeiture of all trial benefits.
 
-**5.2** Trial accounts are subject to reduced usage limits. Phone number provisioning and bulk data export are not available during the trial period.
+**5.2 Grace Period.** When the trial ends, your account enters a seven (7) day grace period. During the grace period you retain full access to all trial features. We will send you reminder emails during the grace period. If you add a valid payment method before the grace period expires, your service continues uninterrupted.
 
-**5.3** We reserve the right to modify or discontinue the free trial at any time without notice.
+**5.3 Free Tier.** If no payment method is added by the end of the grace period, your account is automatically downgraded to the Free Tier. The Free Tier includes:
 
-**5.4 Re-Registration Restriction.** If we detect that a new account matches the email domain, phone number, or other identifying information of a previously canceled account ("churn re-registration"), the new account will be flagged for immediate billing upon approval, with no trial period. This information is collected at signup for fraud prevention purposes; see our Privacy Policy.
+- Full customer contact management and lead tracking
+- Email lead capture and email communications (sent from your connected email account)
+- Vehicle inventory management
+- BHPH ledger tracking
+- Basic analytics
+
+The Free Tier does not include:
+
+- Twilio-powered SMS/MMS messaging (you may still compose messages and open your phone's native messaging app using the "Open Messages" feature to send manually)
+- Voice AI Assistant
+- Video Auto-Poster
+- Automated sequences and follow-up cadences
+- PostGrid automated card mailings
+
+**5.4 Free Tier Duration and Suspension.** Free Tier accounts that remain on the Free Tier for ninety (90) consecutive days without adding a payment method may be automatically suspended. Suspended accounts remain accessible to download your data for thirty (30) additional days. After that period, the account may be permanently deleted. We reserve the right to review and hard-delete suspended accounts at any time after the suspension period.
+
+**5.5** We reserve the right to modify or discontinue the free trial or Free Tier at any time with fourteen (14) days notice by email.
+
+**5.6 Re-Registration Restriction.** If we detect that a new account matches the email domain, phone number, or other identifying information of a previously canceled account ("churn re-registration"), the new account will be flagged for immediate billing upon approval, with no trial period. This information is collected at signup for fraud prevention purposes; see our Privacy Policy.
 
 ---
 
-## 6. Cancellation
+## 6. Cancellation and Account Lifecycle
 
 **6.1 Cancellation by You.** You may cancel your subscription at any time through your account settings or by contacting us at support@dealerwyze.com. Cancellation takes effect at the end of the current billing cycle.
 
-**6.2 Effect of Cancellation.** Upon cancellation, your account will remain accessible until the end of the paid period. After that date, access will be disabled.
+**6.2 Effect of Cancellation.** Upon cancellation, your account will remain accessible until the end of the paid period. After that date, your account is downgraded to the Free Tier (see Section 5.3). Free Tier access continues for ninety (90) days, after which the account may be suspended and permanently deleted.
 
-**6.3 Data Retention After Cancellation.** Following the end of your subscription, your data will be retained in our systems for ninety (90) calendar days ("Retention Period"). During this period, you may contact us to request a data export. After the Retention Period expires, your data will be permanently deleted from our production systems, including customer records, messages, BHPH ledger entries, and uploaded documents. Residual copies in encrypted backups are purged on their natural rotation cycle, typically within sixty (60) additional days.
+**6.3 Account Lifecycle Summary.** The following progression applies to accounts that do not add a payment method:
+
+- Days 1-30: Full-feature free trial
+- Days 31-37: Grace period (full access, daily reminder emails)
+- Day 38 onward: Free Tier (limited features, see Section 5.3)
+- Day 128 onward (90 days after Free Tier entry): Account eligible for suspension
+- Post-suspension: 30-day window to export data, then permanent deletion
+
+**6.4 Data Retention After Cancellation.** Following the end of your paid subscription or upon permanent account deletion, your data will be retained in our systems for ninety (90) calendar days ("Retention Period"). During this period, you may use the data export tool in Settings to download your data as a ZIP file. After the Retention Period expires, your data will be permanently deleted from our production systems, including customer records, messages, BHPH ledger entries, and uploaded documents. Residual copies in encrypted backups are purged on their natural rotation cycle, typically within sixty (60) additional days.
+
+**6.5 Data Export.** An Export All Data tool is available in Settings at any time. We encourage you to export your data before canceling or before the end of any retention period.
 
 ---
 
@@ -199,19 +227,23 @@ DealerWyze's Buy Here Pay Here (BHPH) module is a **record-keeping and ledger tr
 
 ## 13. Suspension and Termination
 
-**13.1 Suspension for Non-Payment.** We may suspend your access if payment is overdue and not cured within seven (7) days of notice.
+**13.1 Suspension for Non-Payment.** We may suspend your access if payment is overdue and not cured within seven (7) days of notice. Prior to suspension, we will send reminder emails at multiple intervals during the grace period.
 
-**13.2 Suspension or Termination for Abuse.** We may immediately suspend or terminate your account, without prior notice, if we determine in our sole discretion that:
+**13.2 Automated Lifecycle Suspension.** Accounts that progress through the trial and grace period without adding a payment method are automatically transitioned to the Free Tier per Section 5. Accounts that remain on the Free Tier for ninety (90) consecutive days without upgrading may be automatically suspended by our system. We will send notice by email prior to suspension.
+
+**13.3 Suspension or Termination for Abuse.** We may immediately suspend or terminate your account, without prior notice, if we determine in our sole discretion that:
 
 - You have violated the Acceptable Use Policy or SMS Compliance provisions;
 - Your account is being used for illegal activity or poses risk of harm to others;
-- Your account exhibits patterns of abuse, fraud, or excessive usage designed to circumvent our cost controls;
+- Your account exhibits patterns of abuse, fraud, or excessive usage designed to circumvent our cost controls (including but not limited to SMS velocity spikes, repeated registration attempts, or account sharing);
 - You have provided false or misleading registration information (including false business identity or dealer licensing status);
 - Continued provision of the Service creates legal or reputational risk to KMA Auto Inc.
 
-**13.3 Termination by You.** You may terminate your account at any time as described in §6.
+**13.4 Hard Deletion.** Suspended accounts are reviewed by KMA Auto Inc personnel before permanent deletion. Permanent deletion removes all Dealer Data from our production systems. Once deletion is initiated, data cannot be recovered. You are responsible for exporting your data before suspension or deletion.
 
-**13.4 Effect of Termination.** Upon termination, your license to use the Service immediately ceases. Sections 8.3, 9.2, 10, 11, 12, 14, 15, 16, 17, and 18 survive termination.
+**13.5 Termination by You.** You may terminate your account at any time as described in Section 6.
+
+**13.6 Effect of Termination.** Upon termination, your license to use the Service immediately ceases. Sections 8.3, 9.2, 10, 11, 12, 14, 15, 16, 17, and 18 survive termination.
 
 ---
 
@@ -289,4 +321,4 @@ Website: dealerwyze.com
 
 ---
 
-*These Terms of Service were last updated on March 4, 2026.*
+*These Terms of Service were last updated on April 27, 2026.*
