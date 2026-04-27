@@ -5,46 +5,46 @@ import { Download } from 'lucide-react'
 
 export default function ExportDataButton() {
   const [loading, setLoading] = useState(false)
+  const [error, setError]     = useState<string | null>(null)
 
   async function handleExport() {
     setLoading(true)
+    setError(null)
     try {
-      const res = await fetch('/api/export')
+      const res = await fetch('/api/settings/data-export')
       if (!res.ok) {
-        const contentType = res.headers.get('content-type') ?? ''
-        if (contentType.includes('application/json')) {
-          const body = await res.json() as { error?: string }
-          alert(body.error ?? 'Export failed. Please try again.')
-        } else {
-          alert('Export failed. Please try again.')
-        }
+        const data = await res.json().catch(() => ({}))
+        setError((data as { error?: string }).error ?? 'Export failed. Please try again.')
         return
       }
       const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `dealerwyze-export-${new Date().toISOString().slice(0, 10)}.xlsx`
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = `dealerwyze-export-${new Date().toISOString().slice(0, 10)}.zip`
       a.click()
       URL.revokeObjectURL(url)
     } catch {
-      alert('Export failed. Please check your connection and try again.')
+      setError('Something went wrong. Please check your connection and try again.')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <button
-      onClick={handleExport}
-      disabled={loading}
-      className="flex items-center gap-3 w-full p-4 rounded-lg border bg-card hover:bg-accent transition-colors text-left disabled:opacity-50"
-    >
-      <Download className="h-5 w-5 text-primary flex-shrink-0" />
-      <div className="flex-1 min-w-0">
-        <p className="font-medium text-sm">{loading ? 'Preparing export…' : 'Export All Data'}</p>
-        <p className="text-xs text-muted-foreground mt-0.5">Download customers, vehicles, activities, BHPH, ledger, tasks, contacts as Excel</p>
-      </div>
-    </button>
+    <div>
+      <button
+        onClick={handleExport}
+        disabled={loading}
+        className="flex items-center gap-3 w-full p-4 rounded-lg border bg-card hover:bg-accent transition-colors text-left disabled:opacity-50"
+      >
+        <Download className="h-5 w-5 text-primary flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="font-medium text-sm">{loading ? 'Preparing export…' : 'Export All Data'}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Download customers, vehicles, activities, and templates as a ZIP file (once per day)</p>
+        </div>
+      </button>
+      {error && <p className="text-sm text-destructive mt-2 px-1">{error}</p>}
+    </div>
   )
 }
