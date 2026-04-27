@@ -54,6 +54,35 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ dispatched: 0, reason: 'No queued renders' })
   }
 
+  // 3. Skip renders for suspended, canceled, or free-tier orgs
+  const orgIds = [...new Set(queued.map(r => r.org_id))]
+  const { data: orgs } = await supabase
+    .from('organizations')
+    .select('id, plan, suspended_at, canceled_at')
+    .in('id', orgIds)
+
+  const blockedOrgIds = new Set(
+    (orgs ?? [])
+      .filter(o => o.suspended_at || o.canceled_at || o.plan === 'free')
+      .map(o => o.id)
+  )
+
+  const eligible = queued.filter(r => !blockedOrgIds.has(r.org_id))
+  const blocked  = queued.filter(r => blockedOrgIds.has(r.org_id))
+
+  // Mark blocked renders as failed so they don't re-queue indefinitely
+  if (blocked.length > 0) {
+    await supabase
+      .from('video_renders')
+      .update({ status: 'failed' })
+      .in('id', blocked.map(r => r.id))
+  }
+
+  if (eligible.length === 0) {
+    await finishCronRun(runId, 'success', 0)
+    return NextResponse.json({ dispatched: 0, reason: 'All queued renders belong to blocked orgs', blocked: blocked.length })
+  }
+
   const lambdaFunctionName = process.env.REMOTION_LAMBDA_FUNCTION_NAME
   const awsRegion          = (process.env.AWS_REGION ?? 'us-east-1') as AwsRegion
   const serveUrl           = process.env.REMOTION_SERVE_URL
@@ -66,7 +95,7 @@ export async function GET(req: NextRequest) {
   let dispatched = 0
   const results: Array<{ id: string; status: 'dispatched' | 'failed'; error?: string }> = []
 
-  for (const render of queued) {
+  for (const render of eligible) {
     // Atomically claim this render: set to 'rendering' only if still 'queued'
     const { data: claimed } = await supabase
       .from('video_renders')
