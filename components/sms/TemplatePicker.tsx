@@ -33,13 +33,20 @@ const FALLBACK_TEMPLATES: Template[] = [
 interface TemplatePickerProps {
   customer: Customer
   vehicle?: Vehicle
+  buttonClassName?: string
+  labelClassName?: string
 }
 
 interface SmsMessage { id: string; body: string; direction: string | null; created_at: string }
 
 type View = 'categories' | 'templates' | 'compose'
 
-export default function TemplatePicker({ customer, vehicle }: TemplatePickerProps) {
+export default function TemplatePicker({
+  customer,
+  vehicle,
+  buttonClassName,
+  labelClassName = 'lg:hidden',
+}: TemplatePickerProps) {
   const [open, setOpen]                       = useState(false)
   const [view, setView]                       = useState<View>('categories')
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
@@ -197,18 +204,30 @@ export default function TemplatePicker({ customer, vehicle }: TemplatePickerProp
 
   if (customer.sms_opt_out) {
     return (
-      <Button variant="outline" size="lg" disabled className="border-muted text-muted-foreground opacity-60 cursor-not-allowed lg:px-3" title="This customer opted out of texts">
-        <MessageSquareOff className="h-4 w-4 mr-2 lg:mr-0" />
-        <span className="lg:hidden">SMS Off</span>
+      <Button
+        variant="outline"
+        size="lg"
+        disabled
+        className={`border-muted text-muted-foreground opacity-60 cursor-not-allowed lg:px-3 ${buttonClassName ?? ''}`.trim()}
+        title="This customer opted out of texts"
+      >
+        <MessageSquareOff className={`h-4 w-4 ${labelClassName ? 'mr-2' : ''} ${labelClassName === 'lg:hidden' ? 'lg:mr-0' : ''}`.trim()} />
+        <span className={labelClassName}>SMS Off</span>
       </Button>
     )
   }
 
   return (
     <>
-      <Button variant="outline" size="lg" className="border-[#F07018] text-[#F07018] hover:bg-[#F07018]/10 lg:px-3" onClick={openSheet} title="Text">
-        <MessageSquare className="h-4 w-4 mr-2 lg:mr-0" />
-        <span className="lg:hidden">Text</span>
+      <Button
+        variant="outline"
+        size="lg"
+        className={`border-[#F07018] text-[#F07018] hover:bg-[#F07018]/10 lg:px-3 ${buttonClassName ?? ''}`.trim()}
+        onClick={openSheet}
+        title="Text"
+      >
+        <MessageSquare className={`h-4 w-4 ${labelClassName ? 'mr-2' : ''} ${labelClassName === 'lg:hidden' ? 'lg:mr-0' : ''}`.trim()} />
+        <span className={labelClassName}>Text</span>
       </Button>
 
       <Sheet open={open} onOpenChange={o => { if (!o) resetAndClose() }}>
@@ -369,18 +388,26 @@ export default function TemplatePicker({ customer, vehicle }: TemplatePickerProp
                   <MessageSquare className="h-4 w-4" />
                   Open Messages
                 </Button>
-                {twilioEnabled && orgPlan !== 'free' && (
-                  <Button variant="outline" className="flex-1 h-11 gap-2" onClick={handleSendTwilio} disabled={sending}>
+                {twilioEnabled && (
+                  <Button
+                    variant="outline"
+                    className="flex-1 h-11 gap-2"
+                    onClick={orgPlan !== 'free' ? handleSendTwilio : undefined}
+                    disabled={sending || orgPlan === 'free'}
+                    title={orgPlan === 'free' ? 'Upgrade to a paid plan to send texts directly from DealerWyze' : undefined}
+                  >
                     <Zap className="h-4 w-4" />
                     {sending ? 'Sending…' : attachments.length > 0 ? `Send MMS (+${attachments.length})` : 'Send Now'}
                   </Button>
                 )}
               </div>
-              {twilioEnabled && orgPlan !== 'free' && (
+              {twilioEnabled && (
                 <p className="text-xs text-center text-muted-foreground flex-shrink-0">
-                  {attachments.length > 0
-                    ? 'Attached files will be sent as a picture message (MMS).'
-                    : 'Send Now sends the text immediately to the customer\'s phone.'}
+                  {orgPlan === 'free'
+                    ? 'Upgrade to send texts directly. Use Open Messages to send from your phone for free.'
+                    : attachments.length > 0
+                      ? 'Attached files will be sent as a picture message (MMS).'
+                      : 'Send Now sends the text immediately to the customer\'s phone.'}
                 </p>
               )}
             </div>
