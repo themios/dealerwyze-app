@@ -19,6 +19,27 @@
 - Do not use raw role strings. Use helpers from `lib/auth/dealerRoles.ts` and `lib/auth/platform.ts`.
 - Admin routes use `createServiceClient()`. Regular org-scoped routes use `createClient()`.
 
+## Service-Role Policy (Enforced — v1.1 Hardening)
+`createServiceClient()` bypasses all Supabase RLS. It is ONLY permitted in:
+- **Platform admin routes** (`app/api/admin/`) — cross-org by design
+- **Cron jobs** (`app/api/cron/`, `lib/cron/`) — no user session
+- **Inbound webhooks** (Stripe, Twilio, Retell, Telegram, fax, render) — no user session
+- **Public/token routes** (pay, book, pulse survey, unsubscribe, transfer) — no user session
+- **OAuth callbacks** (Gmail, Google Calendar, social platforms) — session not reliable mid-redirect
+- **Storage signing** — Supabase Storage ignores session-level RLS; service key required for signed URLs
+- **Auth and onboarding flows** — no session yet at registration/onboarding
+- **`lib/auth/platform.ts`** — platform superadmin checks against platform tables
+- **`lib/admin/audit.ts`** — audit log (intentional: must write even when org client would be blocked)
+
+Any new use of `createServiceClient()` in an org-scoped authenticated route handler REQUIRES:
+1. A code comment explaining why service role is needed (not just "belt and suspenders")
+2. Explicit `.eq('org_id', ...)` or `.eq('user_id', ...)` filter on EVERY query that touches org data
+3. Review in the next PR that touches that file
+
+If `requireProfile()` is called in the same handler → use `createClient()` instead. RLS enforces org scoping automatically.
+
+See `.planning/service-role-triage.md` for the full classification of all 392 existing usages.
+
 ## Data Safety
 - Scope all DB access to the authenticated org.
 - Prefer `404` over `403` when ownership should not be disclosed.
