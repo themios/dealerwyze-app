@@ -35,7 +35,7 @@ export default async function ReferralsPage() {
   }
 
   const referrerIds = [...referrerMap.keys()]
-  let referrerNames: Record<string, string> = {}
+  const referrerNames: Record<string, string> = {}
   if (referrerIds.length > 0) {
     const { data: referrers } = await supabase
       .from('customers')

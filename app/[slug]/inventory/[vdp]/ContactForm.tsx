@@ -3,12 +3,12 @@
 import { useState } from 'react'
 
 interface Props {
-  orgId: string
-  vehicleId: string
+  slug: string
+  vdp: string
   vehicleName: string
 }
 
-export default function ContactForm({ orgId, vehicleId, vehicleName }: Props) {
+export default function ContactForm({ slug, vdp, vehicleName }: Props) {
   const [form, setForm] = useState({ name: '', phone: '', email: '', message: '' })
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
 
@@ -23,8 +23,8 @@ export default function ContactForm({ orgId, vehicleId, vehicleName }: Props) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          org_id: orgId,
-          vehicle_id: vehicleId,
+          slug,
+          vdp,
           name: form.name,
           phone: form.phone,
           email: form.email,

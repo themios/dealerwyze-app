@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
+import { isDealerAdmin } from '@/lib/auth/dealerRoles'
 
 export async function GET() {
   const profile = await requireProfile()
@@ -55,6 +56,9 @@ export async function GET() {
 
 export async function PATCH(req: NextRequest) {
   const profile = await requireProfile()
+  if (!isDealerAdmin(profile.role)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+  }
   const supabase = createServiceClient()
 
   const body: {

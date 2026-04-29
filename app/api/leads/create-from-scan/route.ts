@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { incrementScanCount } from '@/lib/leads/scanQuota'
 import { ingestLead } from '@/lib/leads/ingest'
 import type { LeadScanResult } from '@/lib/leads/visionIngestTypes'
+import { sendOutboundSms, SmsSendError } from '@/lib/sms/sendOutbound'
 
 export interface CreateFromScanBody {
   scan:             LeadScanResult
@@ -86,7 +87,7 @@ export async function POST(req: NextRequest) {
     await incrementScanCount(orgId, isPdf, customerId ?? null, scan.overall_confidence)
   })
 
-  // Optional intro SMS — use existing /api/sms/send logic via direct Twilio call
+  // Optional intro SMS — reuse the same quota / rate limit / opt-out enforcement as normal outbound SMS
   if (send_intro_sms && customerId) {
     const supabase = await createClient()
     const { data: customer } = await supabase
@@ -98,52 +99,29 @@ export async function POST(req: NextRequest) {
     const phone = customer?.primary_phone
     if (phone) {
       const firstName = (merged.first_name.value ?? customer?.name?.split(' ')[0] ?? 'there')
-
-      // Fetch org settings for dealer name
       const { data: orgSettings } = await supabase
         .from('org_settings')
-        .select('dealer_name, twilio_phone_number, tcpa_opt_out_msg')
+        .select('dealer_name')
         .eq('org_id', orgId)
         .maybeSingle()
 
-      const dealerName  = orgSettings?.dealer_name ?? 'your dealer'
-      const fromNumber  = orgSettings?.twilio_phone_number ?? process.env.TWILIO_FROM_NUMBER
-      const accountSid  = process.env.TWILIO_ACCOUNT_SID
-      const authToken   = process.env.TWILIO_AUTH_TOKEN
-      const msgSvcSid   = process.env.TWILIO_MESSAGING_SERVICE_SID
+      const dealerName = orgSettings?.dealer_name ?? 'your dealer'
+      const introBody = `Hi ${firstName}! Thanks for your interest. This is ${dealerName} — we'd love to help you find the right vehicle. Reply STOP to opt out.`
 
-      const body = `Hi ${firstName}! Thanks for your interest. This is ${dealerName} — we'd love to help you find the right vehicle. Reply STOP to opt out.`
-
-      if (accountSid && authToken && (fromNumber || msgSvcSid)) {
-        const params: Record<string, string> = { To: phone, Body: body }
-        if (msgSvcSid) params.MessagingServiceSid = msgSvcSid
-        else params.From = fromNumber!
-
-        try {
-          await fetch(
-            `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
-            {
-              method: 'POST',
-              headers: {
-                Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
-                'Content-Type': 'application/x-www-form-urlencoded',
-              },
-              body: new URLSearchParams(params),
-            }
-          )
-
-          // Log the intro SMS as an outbound activity
-          await supabase.from('activities').insert({
-            user_id:      orgId,
-            customer_id:  customerId,
-            type:         'sms',
-            direction:    'outbound',
-            outcome:      null,
-            body,
-          })
-        } catch {
-          // Non-fatal — lead already created
+      try {
+        await sendOutboundSms({
+          orgId,
+          to: phone,
+          body: introBody,
+          customerId,
+          senderDisplayName: profile.display_name,
+          markInboundAddressed: false,
+        })
+      } catch (err) {
+        if (!(err instanceof SmsSendError)) {
+          console.error('[leads/create-from-scan] intro SMS failed:', err)
         }
+        // Non-fatal — lead already created
       }
     }
   }

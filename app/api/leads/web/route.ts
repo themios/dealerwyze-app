@@ -23,8 +23,8 @@ export async function POST(req: NextRequest) {
   }
 
   const {
-    org_id,
-    vehicle_id,
+    slug,
+    vdp,
     name,
     email,
     phone,
@@ -38,17 +38,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true }) // silent reject
   }
 
-  if (!org_id || !name?.trim()) {
+  if (!slug?.trim() || !name?.trim()) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
   const supabase = createServiceClient()
 
-  // Verify org exists and has public inventory enabled
+  // Resolve org from public slug server-side. Public clients must not choose org IDs.
   const { data: org } = await supabase
     .from('organizations')
-    .select('id, name, public_inventory_enabled')
-    .eq('id', org_id)
+    .select('id, name, slug, public_inventory_enabled')
+    .eq('slug', slug.trim())
     .eq('public_inventory_enabled', true)
     .single()
 
@@ -56,22 +56,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  // Resolve vehicle name for notification (optional)
+  // Resolve the published vehicle from the public route slug.
+  let vehicleId: string | null = null
   let vehicleName: string | undefined
-  if (vehicle_id) {
+  if (vdp?.trim()) {
     const { data: v } = await supabase
       .from('vehicles')
-      .select('year, make, model')
-      .eq('id', vehicle_id)
-      .eq('user_id', org_id)
+      .select('id, year, make, model')
+      .eq('public_slug', vdp.trim())
+      .eq('user_id', org.id)
+      .eq('published', true)
       .single()
-    if (v) vehicleName = `${v.year} ${v.make} ${v.model}`
+    if (!v) {
+      return NextResponse.json({ error: 'Vehicle not found' }, { status: 404 })
+    }
+    vehicleId = v.id
+    vehicleName = `${v.year} ${v.make} ${v.model}`
   }
 
   // Insert into inventory_inquiries
   await supabase.from('inventory_inquiries').insert({
-    org_id,
-    vehicle_id: vehicle_id || null,
+    org_id: org.id,
+    vehicle_id: vehicleId,
     name: name.trim(),
     email: email?.trim() || null,
     phone: phone?.trim() || null,
@@ -91,18 +97,18 @@ export async function POST(req: NextRequest) {
     .join('\n')
 
   await supabase.from('activities').insert({
-    user_id: org_id,
+    user_id: org.id,
     type: 'web_lead',
     direction: 'inbound',
     body: activityBody,
     priority: 'high',
     completed_at: new Date().toISOString(),
-    ...(vehicle_id ? { vehicle_id } : {}),
+    ...(vehicleId ? { vehicle_id: vehicleId } : {}),
   })
 
   // Notify dealer via SMS (fire and forget)
   notifyDealerNewLead(
-    org_id,
+    org.id,
     name.trim(),
     phone?.trim(),
     message?.trim(),

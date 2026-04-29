@@ -1,8 +1,12 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter, Barlow_Semi_Condensed, Archivo } from 'next/font/google'
+import { Inter, Barlow_Semi_Condensed, Archivo, Lora, Oswald } from 'next/font/google'
 import { ThemeProvider } from 'next-themes'
 import FontSizeProvider from '@/components/providers/FontSizeProvider'
+import AnalyticsProvider from '@/components/providers/AnalyticsProvider'
+import Script from 'next/script'
 import './globals.css'
+
+const GTAG_ID = process.env.NEXT_PUBLIC_GOOGLE_ADS_ID ?? ''
 
 const inter = Inter({ subsets: ['latin'] })
 const barlow = Barlow_Semi_Condensed({
@@ -14,6 +18,16 @@ const archivo = Archivo({
   subsets: ['latin'],
   weight: ['400', '500', '600'],
   variable: '--font-body',
+})
+const lora = Lora({
+  subsets: ['latin'],
+  weight: ['400', '600', '700'],
+  variable: '--font-classic',
+})
+const oswald = Oswald({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-bold-style',
 })
 
 export const metadata: Metadata = {
@@ -52,9 +66,27 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="apple-touch-icon" href="/DealerWyseLogoWithName.png" />
+        {/* Google Ads global site tag — loads when NEXT_PUBLIC_GOOGLE_ADS_ID is set */}
+        {GTAG_ID && (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${GTAG_ID}`}
+              strategy="afterInteractive"
+            />
+            <Script id="gtag-init" strategy="afterInteractive">
+              {`
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', '${GTAG_ID}', { send_page_view: true });
+              `}
+            </Script>
+          </>
+        )}
       </head>
-      <body className={`${inter.className} ${barlow.variable} ${archivo.variable}`} suppressHydrationWarning>
+      <body className={`${inter.className} ${barlow.variable} ${archivo.variable} ${lora.variable} ${oswald.variable}`} suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          <AnalyticsProvider />
           <FontSizeProvider>{children}</FontSizeProvider>
         </ThemeProvider>
       </body>

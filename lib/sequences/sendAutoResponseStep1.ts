@@ -19,6 +19,7 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { enrollCustomer } from '@/lib/sequences/enrollCustomer'
 import { sendSequenceEmail } from '@/lib/email/sendSequenceEmail'
+import { checkQuota, incrementUsage } from '@/lib/sms/quota'
 
 interface AutoResponseArgs {
   orgId:      string
@@ -219,6 +220,13 @@ export async function sendAutoResponseStep1(args: AutoResponseArgs): Promise<voi
       const digits = phone.replace(/\D/g, '')
       const toE164 = digits.length === 10 ? `+1${digits}` : `+${digits}`
 
+      // Check monthly SMS quota before sending
+      const quota = await checkQuota(orgId, false)
+      if (!quota.allowed) {
+        console.warn('[autoRespond] SMS quota exhausted for org:', orgId, quota.reason)
+        return
+      }
+
       const twilioRes = await fetch(
         `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
         {
@@ -238,6 +246,11 @@ export async function sendAutoResponseStep1(args: AutoResponseArgs): Promise<voi
       }
 
       const twilioData = await twilioRes.json()
+
+      // Increment quota counter (fire-and-forget — failure only understates quota)
+      incrementUsage(orgId, false).catch(err =>
+        console.error('[autoRespond] incrementUsage failed:', err)
+      )
 
       // Mark step 1 activity as sent + log timeline entry
       const nowIso = new Date().toISOString()

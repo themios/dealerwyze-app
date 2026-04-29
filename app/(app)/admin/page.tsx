@@ -121,7 +121,7 @@ export default async function AdminPage() {
     if (!profileOrgMap.has(p.org_id)) profileOrgMap.set(p.org_id, [])
     profileOrgMap.get(p.org_id)!.push(p.id)
   }
-  let lastSignInMap = new Map<string, string>()
+  const lastSignInMap = new Map<string, string>()
   if (profileIds.length > 0) {
     const { data: { users } } = await service.auth.admin.listUsers({ perPage: 1000 })
     for (const u of users ?? []) {

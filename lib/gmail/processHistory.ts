@@ -1,7 +1,7 @@
 /**
  * processGmailHistory — Gmail History API processor for push notifications
  *
- * Called by /api/integrations/gmail/push when Google Pub/Sub delivers a
+ * Called by the Gmail Pub/Sub webhook when Google delivers a
  * notification that new messages arrived. Uses the History API to fetch only
  * the delta since the last known historyId — much more targeted than polling.
  *

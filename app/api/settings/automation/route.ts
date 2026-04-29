@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
+import { isDealerAdmin } from '@/lib/auth/dealerRoles'
+import { sanitizeEmailSignatureHtml } from '@/lib/security/html'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 
@@ -39,6 +41,9 @@ export async function GET() {
 
 export async function PATCH(req: NextRequest) {
   const profile = await requireProfile()
+  if (!isDealerAdmin(profile.role)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+  }
   const supabase = await createClient()
   // Service client used for UUID FK writes (auto_respond sequence IDs) which
   // need to bypass RLS to validate the FK against sequences table
@@ -55,6 +60,10 @@ export async function PATCH(req: NextRequest) {
   }
   for (const key of ALLOWED) {
     if (body[key] !== undefined) patch[key] = body[key] as string | number
+  }
+
+  if (typeof patch.email_signature === 'string') {
+    patch.email_signature = sanitizeEmailSignatureHtml(patch.email_signature)
   }
 
   // Validate and set auto-respond sequence IDs

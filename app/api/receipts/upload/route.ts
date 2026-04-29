@@ -3,11 +3,24 @@ import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { classifyReceipt } from '@/lib/receipts/vision'
+import { assertCanUseFeature, BillingError } from '@/lib/billing/assertFeature'
+import { orgReceiptScanLimiter } from '@/lib/rateLimit/upstash'
 
 export const maxDuration = 60
 
 export async function POST(req: NextRequest) {
+  try {
   const profile = await requireProfile()
+
+  await assertCanUseFeature(profile.org_id, 'ai_receipt')
+  const { allowed } = await orgReceiptScanLimiter(profile.org_id)
+  if (!allowed) {
+    return NextResponse.json(
+      { error: 'Receipt scan limit reached (25 per day). Try again tomorrow.' },
+      { status: 429 },
+    )
+  }
+
   const supabase = await createClient()
   const service = createServiceClient()
 
@@ -96,4 +109,10 @@ export async function POST(req: NextRequest) {
     .single()
 
   return NextResponse.json({ receipt: updated })
+  } catch (err) {
+    if (err instanceof BillingError) {
+      return NextResponse.json({ error: err.message }, { status: 402 })
+    }
+    throw err
+  }
 }

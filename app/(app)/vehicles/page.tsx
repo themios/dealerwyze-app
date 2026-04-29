@@ -56,9 +56,9 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
 
   // Fetch recon costs + ledger totals for all vehicles on this page
   const stagingIds = (vehicles ?? []).map(v => v.id)
-  let reconStatusMap: Record<string, 'red' | 'amber' | 'green'> = {}
-  let reconCostMap: Record<string, number> = {}
-  let ledgerTotalMap: Record<string, number> = {}
+  const reconStatusMap: Record<string, 'red' | 'amber' | 'green'> = {}
+  const reconCostMap: Record<string, number> = {}
+  const ledgerTotalMap: Record<string, number> = {}
 
   if (stagingIds.length > 0) {
     const [{ data: checklistRows }, { data: ledgerRows }] = await Promise.all([

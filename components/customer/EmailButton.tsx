@@ -25,9 +25,19 @@ interface EmailButtonProps {
   /** When set, sheet auto-opens in reply compose mode */
   replyContext?: ReplyContext | null
   onReplyComplete?: () => void
+  buttonClassName?: string
+  labelClassName?: string
 }
 
-export default function EmailButton({ customer, vehicle, onSent, replyContext, onReplyComplete }: EmailButtonProps) {
+export default function EmailButton({
+  customer,
+  vehicle,
+  onSent,
+  replyContext,
+  onReplyComplete,
+  buttonClassName,
+  labelClassName,
+}: EmailButtonProps) {
   const [open, setOpen] = useState(false)
   const [templates, setTemplates] = useState<Template[]>([])
   const [loadingTemplates, setLoadingTemplates] = useState(false)
@@ -59,7 +69,7 @@ export default function EmailButton({ customer, vehicle, onSent, replyContext, o
     setAttachments([])
     setSendError(null)
     setOpen(true)
-  }, [replyContext]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [replyContext])  
 
   useEffect(() => {
     if (!open) return
@@ -173,9 +183,14 @@ export default function EmailButton({ customer, vehicle, onSent, replyContext, o
 
   return (
     <>
-      <Button variant="outline" size="lg" className="border-[#0D2B55] text-[#0D2B55] hover:bg-[#0D2B55]/10" onClick={() => setOpen(true)}>
-        <Mail className="h-4 w-4 mr-2" />
-        Email
+      <Button
+        variant="outline"
+        size="lg"
+        className={`border-[#0D2B55] text-[#0D2B55] hover:bg-[#0D2B55]/10 ${buttonClassName ?? ''}`.trim()}
+        onClick={() => setOpen(true)}
+      >
+        <Mail className={`h-4 w-4 ${labelClassName ? 'mr-2' : ''}`.trim()} />
+        <span className={labelClassName}>Email</span>
       </Button>
 
       <Sheet open={open} onOpenChange={o => { if (!o) { setOpen(false); resetCompose(); onReplyComplete?.() } }}>

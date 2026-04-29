@@ -82,7 +82,7 @@ export default function BookingForm({ slug }: { slug: string }) {
       const res = await fetch(`/api/book/${slug}`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ name, phone, email, date, time, notes }),
+        body:    JSON.stringify({ name, phone, email, date, time, notes, website: '' }),
       })
       const data = await res.json()
       if (!res.ok || data.error) {
@@ -133,6 +133,9 @@ export default function BookingForm({ slug }: { slug: string }) {
 
   return (
     <form onSubmit={handleSubmit} className="p-6 space-y-5">
+      {/* Honeypot - hidden from real users, bots fill it */}
+      <input type="text" name="website" tabIndex={-1} aria-hidden="true" style={{ position: 'absolute', left: '-9999px' }} autoComplete="off" />
+
       {org.intro_text && (
         <p className="text-sm text-gray-600">{org.intro_text}</p>
       )}

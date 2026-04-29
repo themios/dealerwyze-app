@@ -188,7 +188,7 @@ function AdminSidebar({ platformRole, platformPermissions, isSuperAdmin }: {
     <aside className="hidden lg:flex flex-col w-60 shrink-0 h-dvh bg-[#0D2B55] border-r border-[#1B4A8A] overflow-y-auto">
       {/* Logo */}
       <div className="px-4 py-4 border-b border-[#1B4A8A]">
-        <Image src="/logo.png" alt="DealerWyze" width={160} height={53} className="object-contain rounded-sm" />
+        <Image src="/logo.png" alt="DealerWyze" width={240} height={160} loading="eager" style={{ width: '160px', height: 'auto' }} className="object-contain rounded-sm" />
         <p className="text-white/40 text-[10px] mt-1.5 font-semibold uppercase tracking-widest">{roleLabel}</p>
       </div>
 
@@ -267,7 +267,7 @@ function DealerSidebar({ orgName, role, isPlatformAdmin }: { orgName?: string | 
     <aside className="hidden lg:flex flex-col w-60 shrink-0 h-dvh bg-[#0D2B55] border-r border-[#1B4A8A] overflow-y-auto">
       {/* Logo / org name */}
       <div className="px-4 py-4 border-b border-[#1B4A8A]">
-        <Image src="/logo.png" alt="DealerWyze" width={160} height={53} className="object-contain rounded-sm" />
+        <Image src="/logo.png" alt="DealerWyze" width={240} height={160} loading="eager" style={{ width: '160px', height: 'auto' }} className="object-contain rounded-sm" />
         {orgName && (
           <p className="text-white/50 text-xs mt-2 truncate">{orgName}</p>
         )}

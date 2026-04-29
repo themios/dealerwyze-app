@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
+import { bookingLimiter } from '@/lib/rateLimit/upstash'
 
 interface BookingBody {
   name: string
@@ -10,6 +11,15 @@ interface BookingBody {
   notes?: string
 }
 
+async function resolveOrgId(supabase: ReturnType<typeof createServiceClient>, slug: string): Promise<string | null> {
+  const { data } = await supabase
+    .from('organizations')
+    .select('id')
+    .eq('slug', slug.toLowerCase().trim())
+    .maybeSingle()
+  return data?.id ?? null
+}
+
 // GET /api/book/[slug] — returns org booking info (public, no auth)
 export async function GET(
   _req: NextRequest,
@@ -18,10 +28,13 @@ export async function GET(
   const { slug } = await params
   const supabase = createServiceClient()
 
+  const orgId = await resolveOrgId(supabase, slug)
+  if (!orgId) return NextResponse.json({ error: 'Booking not available' }, { status: 404 })
+
   const { data: settings } = await supabase
     .from('org_settings')
     .select('business_name, business_phone, booking_enabled, booking_intro_text, timezone')
-    .eq('org_id', slug)
+    .eq('org_id', orgId)
     .maybeSingle()
 
   if (!settings || !settings.booking_enabled) {
@@ -41,26 +54,41 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> },
 ) {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+  const { allowed } = await bookingLimiter(ip)
+  if (!allowed) {
+    return NextResponse.json(
+      { error: 'Too many booking requests. Please wait a bit before trying again.' },
+      { status: 429 },
+    )
+  }
+
   const { slug } = await params
   const supabase = createServiceClient()
+
+  const orgId = await resolveOrgId(supabase, slug)
+  if (!orgId) return NextResponse.json({ error: 'Booking not available' }, { status: 404 })
 
   // Verify booking is enabled
   const { data: settings } = await supabase
     .from('org_settings')
     .select('business_name, booking_enabled')
-    .eq('org_id', slug)
+    .eq('org_id', orgId)
     .maybeSingle()
 
   if (!settings || !settings.booking_enabled) {
     return NextResponse.json({ error: 'Booking not available' }, { status: 404 })
   }
 
-  let body: BookingBody
+  let body: BookingBody & { website?: string }
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
   }
+
+  // Honeypot: bots fill hidden fields, real users don't
+  if (body.website) return NextResponse.json({ success: true })
 
   const { name, phone, email, date, time, notes } = body
 
@@ -89,11 +117,10 @@ export async function POST(
     ? `+${cleanPhone}`
     : `+1${cleanPhone}`
 
-  const orgFilter = `user_id.eq.${slug}`
   const { data: existing } = await supabase
     .from('customers')
     .select('id, name')
-    .or(orgFilter)
+    .eq('user_id', orgId)
     .ilike('phone', `%${cleanPhone.slice(-10)}%`)
     .limit(1)
     .maybeSingle()
@@ -106,7 +133,7 @@ export async function POST(
     const { data: newCustomer, error: insertErr } = await supabase
       .from('customers')
       .insert({
-        user_id: slug,
+        user_id: orgId,
         name:    cleanName,
         phone:   e164,
         email:   cleanEmail,
@@ -129,19 +156,19 @@ export async function POST(
   ].filter(Boolean).join('\n')
 
   await supabase.from('activities').insert({
-    user_id:      slug,
-    customer_id:  customerId,
-    type:         'appointment',
-    direction:    'inbound',
-    body:         bodyText,
-    priority:     'high',
-    completed_at: appointmentAt,
+    user_id:     orgId,
+    customer_id: customerId,
+    type:        'appointment',
+    direction:   'inbound',
+    body:        bodyText,
+    priority:    'high',
+    due_at:      appointmentAt,
   })
 
   // Create a follow-up task for the dealer
   const apptDate = new Date(`${date}T${time}:00`)
   await supabase.from('tasks').insert({
-    user_id:           slug,
+    user_id:           orgId,
     linked_customer_id: customerId,
     task_type:         'appointment_confirm',
     title:             `Appointment: ${cleanName} – test drive`,

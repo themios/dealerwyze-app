@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { requireProfile } from '@/lib/auth/profile'
+import { checkFreeTierAttachmentLimit } from '@/lib/storage/quota'
 
 const BUCKET = 'vehicle-photos'
 const MAX_SIZE_BYTES = 5 * 1024 * 1024  // 5MB (client compresses to ~800KB before sending)
@@ -63,6 +64,10 @@ export async function POST(
   if ((count ?? 0) >= MAX_PHOTOS) {
     return NextResponse.json({ error: `Maximum ${MAX_PHOTOS} photos per vehicle.` }, { status: 400 })
   }
+
+  // Free tier: only 2 vehicles may have attachments
+  const attachmentError = await checkFreeTierAttachmentLimit(supabase, profile.org_id, 'vehicle', vehicleId)
+  if (attachmentError) return NextResponse.json({ error: attachmentError }, { status: 403 })
 
   // Parse multipart
   const formData = await req.formData()

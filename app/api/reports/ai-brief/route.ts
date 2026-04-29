@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { canAccessReports } from '@/lib/auth/dealerRoles'
+import { assertCanUseFeature, BillingError } from '@/lib/billing/assertFeature'
+import { orgAiBriefLimiter } from '@/lib/rateLimit/upstash'
 import Groq from 'groq-sdk'
 
 export const dynamic = 'force-dynamic'
@@ -17,53 +19,63 @@ function fmtPct(rate: number): string {
 }
 
 export async function POST(req: Request) {
-  const profile = await requireProfile()
-  if (!canAccessReports(profile.role)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
-  }
-
-  const apiKey = process.env.GROQ_API_KEY
-  if (!apiKey) return NextResponse.json({ error: 'AI not configured' }, { status: 503 })
-
-  const body = await req.json() as {
-    stats: {
-      totals: Record<string, number>
-      responseRate: number
-      avgResponseTimeSeconds: number | null
-      byType: Record<string, number>
-      bySource: Record<string, number>
-      byStage: Record<string, number>
-      callOutcomes: Record<string, number>
-      hotLeads: number
+  try {
+    const profile = await requireProfile()
+    if (!canAccessReports(profile.role)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
-    reps: Array<{
-      name: string; role: string
-      outbound: number; inbound: number; calls: number; sms: number; emails: number
-      answered: number; noAnswer: number; leftVm: number
-      avgResponseTimeSeconds: number | null; assignedTotal: number
-    }>
-    period: { from: string; to: string }
-  }
 
-  const { stats, reps, period } = body
-  const fromLabel = new Date(period.from).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  const toLabel   = new Date(period.to).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    await assertCanUseFeature(profile.org_id, 'ai_brief')
+    const { allowed: withinLimit } = await orgAiBriefLimiter(profile.org_id)
+    if (!withinLimit) {
+      return NextResponse.json(
+        { error: 'AI Performance Brief limit reached (10 per day). Try again tomorrow.' },
+        { status: 429 },
+      )
+    }
 
-  const repLines = reps.map(r =>
-    `- ${r.name} (${r.role}): ${r.outbound} outbound, ${r.calls} calls (${r.answered} answered / ${r.noAnswer} no answer / ${r.leftVm} voicemail), ${r.sms} texts, ${r.emails} emails, avg response time: ${fmtTime(r.avgResponseTimeSeconds)}, assigned leads: ${r.assignedTotal}`
-  ).join('\n')
+    const apiKey = process.env.GROQ_API_KEY
+    if (!apiKey) return NextResponse.json({ error: 'AI not configured' }, { status: 503 })
 
-  const stageLines = Object.entries(stats.byStage)
-    .map(([s, n]) => `  ${s}: ${n}`)
-    .join('\n')
+    const body = await req.json() as {
+      stats: {
+        totals: Record<string, number>
+        responseRate: number
+        avgResponseTimeSeconds: number | null
+        byType: Record<string, number>
+        bySource: Record<string, number>
+        byStage: Record<string, number>
+        callOutcomes: Record<string, number>
+        hotLeads: number
+      }
+      reps: Array<{
+        name: string; role: string
+        outbound: number; inbound: number; calls: number; sms: number; emails: number
+        answered: number; noAnswer: number; leftVm: number
+        avgResponseTimeSeconds: number | null; assignedTotal: number
+      }>
+      period: { from: string; to: string }
+    }
 
-  const sourceLines = Object.entries(stats.bySource)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 8)
-    .map(([s, n]) => `  ${s}: ${n}`)
-    .join('\n')
+    const { stats, reps, period } = body
+    const fromLabel = new Date(period.from).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    const toLabel   = new Date(period.to).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
-  const prompt = `You are a dealership performance coach reviewing CRM data for a used-car dealership. Be direct, specific, and actionable. No generic advice.
+    const repLines = reps.map(r =>
+      `- ${r.name} (${r.role}): ${r.outbound} outbound, ${r.calls} calls (${r.answered} answered / ${r.noAnswer} no answer / ${r.leftVm} voicemail), ${r.sms} texts, ${r.emails} emails, avg response time: ${fmtTime(r.avgResponseTimeSeconds)}, assigned leads: ${r.assignedTotal}`
+    ).join('\n')
+
+    const stageLines = Object.entries(stats.byStage)
+      .map(([s, n]) => `  ${s}: ${n}`)
+      .join('\n')
+
+    const sourceLines = Object.entries(stats.bySource)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([s, n]) => `  ${s}: ${n}`)
+      .join('\n')
+
+    const prompt = `You are a dealership performance coach reviewing CRM data for a used-car dealership. Be direct, specific, and actionable. No generic advice.
 
 PERIOD: ${fromLabel} - ${toLabel}
 
@@ -105,30 +117,37 @@ Write a performance brief with exactly three sections:
 
 Keep total response under 350 words. No bullet padding, no platitudes.`
 
-  const groq = new Groq({ apiKey })
+    const groq = new Groq({ apiKey })
 
-  const stream = await groq.chat.completions.create({
-    model: 'llama-3.3-70b-versatile',
-    messages: [{ role: 'user', content: prompt }],
-    max_tokens: 600,
-    stream: true,
-  })
+    const stream = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 600,
+      stream: true,
+    })
 
-  const encoder = new TextEncoder()
-  const readable = new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const chunk of stream) {
-          const text = chunk.choices[0]?.delta?.content ?? ''
-          if (text) controller.enqueue(encoder.encode(text))
+    const encoder = new TextEncoder()
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of stream) {
+            const text = chunk.choices[0]?.delta?.content ?? ''
+            if (text) controller.enqueue(encoder.encode(text))
+          }
+        } finally {
+          controller.close()
         }
-      } finally {
-        controller.close()
-      }
-    },
-  })
+      },
+    })
 
-  return new Response(readable, {
-    headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-  })
+    return new Response(readable, {
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    })
+  } catch (err) {
+    if (err instanceof BillingError) {
+      return NextResponse.json({ error: err.message }, { status: 402 })
+    }
+    console.error('[reports/ai-brief] error:', err)
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 }

@@ -7,6 +7,7 @@
 
 import { google } from 'googleapis'
 import nodemailer from 'nodemailer'
+import { sanitizeEmailSignatureHtml, stripHtmlToText } from '@/lib/security/html'
 import { createServiceClient } from '@/lib/supabase/service'
 
 interface SendSequenceEmailArgs {
@@ -148,10 +149,10 @@ export async function sendSequenceEmail(
   const resolvedSubject = substituteVars(subject, vars)
   const resolvedBody    = substituteVars(body, vars)
 
-  const signature = orgSettings?.email_signature ?? null
+  const signature = sanitizeEmailSignatureHtml(orgSettings?.email_signature ?? null)
   const htmlBody  = buildEmailHtml(resolvedBody, signature)
   const plainText = signature
-    ? `${resolvedBody}\n\n--\n${signature.replace(/<[^>]+>/g, '')}`
+    ? `${resolvedBody}\n\n--\n${stripHtmlToText(signature)}`
     : resolvedBody
 
   const fromAddress = account.email ?? account.imap_user ?? ''

@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { Paperclip, X, File, Upload, ChevronDown, ChevronUp } from 'lucide-react'
+import { Paperclip, X, File, Upload, ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export interface Attachment {
@@ -10,7 +9,7 @@ export interface Attachment {
   contentType: string
   /** Supabase signed URL — server will fetch the bytes */
   signedUrl?: string
-  /** Base64-encoded content for local uploads */
+  /** Base64-encoded content for local uploads (email only) */
   base64?: string
   /** Display size string e.g. "1.2 MB" */
   sizeLabel?: string
@@ -20,6 +19,7 @@ interface VehicleDoc {
   id: string
   label: string
   file_name: string
+  file_key: string
   mime_type: string | null
   signed_url: string
   file_size: number | null
@@ -27,7 +27,7 @@ interface VehicleDoc {
 
 interface AttachmentPickerProps {
   vehicleId?: string | null
-  /** 'email' supports local files too; 'sms' only vehicle docs (needs public URL) */
+  /** 'email' attaches files as base64; 'sms' uploads to storage for a public URL (required by Twilio MMS) */
   mode?: 'email' | 'sms'
   selected: Attachment[]
   onChange: (next: Attachment[]) => void
@@ -39,39 +39,31 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
-const MAX_LOCAL_BYTES = 3 * 1024 * 1024 // 3 MB per file
+const EMAIL_MAX_BYTES = 3 * 1024 * 1024
+const SMS_MAX_BYTES   = 5 * 1024 * 1024
+
+// MMS-compatible types Twilio accepts (images, video, PDF)
+const SMS_ACCEPT = 'image/jpeg,image/png,image/gif,image/webp,video/mp4,application/pdf'
 
 export default function AttachmentPicker({ vehicleId, mode = 'email', selected, onChange }: AttachmentPickerProps) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen]               = useState(false)
   const [vehicleDocs, setVehicleDocs] = useState<VehicleDoc[]>([])
   const [loadingDocs, setLoadingDocs] = useState(false)
+  const [uploading, setUploading]     = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
-  const supabase = createClient()
 
   useEffect(() => {
     if (!open || !vehicleId) return
     setLoadingDocs(true)
-    supabase
-      .from('vehicle_documents')
-      .select('id, label, file_name, mime_type, file_size')
-      .eq('vehicle_id', vehicleId)
-      .order('created_at', { ascending: false })
-      .limit(20)
-      .then(async ({ data }) => {
-        if (!data?.length) { setVehicleDocs([]); setLoadingDocs(false); return }
-        // Get signed URLs
-        const withUrls = await Promise.all(
-          data.map(async (doc) => {
-            const { data: signed } = await supabase.storage
-              .from('vehicle-docs')
-              .createSignedUrl(`${vehicleId}/${doc.file_name}`, 3600)
-            return { ...doc, signed_url: signed?.signedUrl ?? '' }
-          })
-        )
-        setVehicleDocs(withUrls.filter(d => !!d.signed_url) as VehicleDoc[])
+    fetch(`/api/vehicles/${vehicleId}/documents`)
+      .then(r => r.ok ? r.json() : [])
+      .then((data: VehicleDoc[]) => {
+        setVehicleDocs((data ?? []).filter(d => !!d.signed_url))
         setLoadingDocs(false)
       })
-  }, [open, vehicleId]) // eslint-disable-line react-hooks/exhaustive-deps
+      .catch(() => { setVehicleDocs([]); setLoadingDocs(false) })
+  }, [open, vehicleId])  
 
   function isSelected(doc: VehicleDoc) {
     return selected.some(a => a.signedUrl === doc.signed_url || a.filename === doc.file_name)
@@ -92,21 +84,47 @@ export default function AttachmentPicker({ vehicleId, mode = 'email', selected, 
 
   async function handleLocalFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (!file) return
-    if (file.size > MAX_LOCAL_BYTES) {
-      alert('File too large (max 3 MB). Please choose a smaller file.')
-      e.target.value = ''
-      return
-    }
-    const ab = await file.arrayBuffer()
-    const base64 = Buffer.from(ab).toString('base64')
-    onChange([...selected, {
-      filename:    file.name,
-      contentType: file.type || 'application/octet-stream',
-      base64,
-      sizeLabel:   formatSize(file.size),
-    }])
     e.target.value = ''
+    if (!file) return
+    setUploadError(null)
+
+    if (mode === 'sms') {
+      if (file.size > SMS_MAX_BYTES) {
+        setUploadError('File too large (max 5 MB for MMS).')
+        return
+      }
+      setUploading(true)
+      try {
+        const form = new FormData()
+        form.append('file', file)
+        const res = await fetch('/api/media/upload', { method: 'POST', body: form })
+        const data = await res.json()
+        if (!res.ok) { setUploadError(data.error ?? 'Upload failed'); return }
+        onChange([...selected, {
+          filename:    file.name,
+          contentType: file.type || 'application/octet-stream',
+          signedUrl:   data.signed_url,
+          sizeLabel:   formatSize(file.size),
+        }])
+      } catch {
+        setUploadError('Upload failed. Check your connection and try again.')
+      } finally {
+        setUploading(false)
+      }
+    } else {
+      if (file.size > EMAIL_MAX_BYTES) {
+        setUploadError('File too large (max 3 MB).')
+        return
+      }
+      const ab = await file.arrayBuffer()
+      const base64 = Buffer.from(ab).toString('base64')
+      onChange([...selected, {
+        filename:    file.name,
+        contentType: file.type || 'application/octet-stream',
+        base64,
+        sizeLabel:   formatSize(file.size),
+      }])
+    }
   }
 
   function removeAttachment(idx: number) {
@@ -171,36 +189,36 @@ export default function AttachmentPicker({ vehicleId, mode = 'email', selected, 
                   ))}
                 </div>
               )}
+              <div className="border-t pt-2" />
             </>
           )}
 
-          {/* Local file picker — email only */}
-          {mode === 'email' && (
-            <>
-              {vehicleId && <div className="border-t pt-2" />}
-              <p className="text-xs font-medium text-muted-foreground">From your device</p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 text-xs gap-1.5"
-                onClick={() => fileRef.current?.click()}
-              >
-                <Upload className="h-3.5 w-3.5" />
-                Choose file (max 3 MB)
-              </Button>
-              <input
-                ref={fileRef}
-                type="file"
-                className="hidden"
-                onChange={handleLocalFile}
-              />
-            </>
+          {/* From device — both modes */}
+          <p className="text-xs font-medium text-muted-foreground">From your device</p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+          >
+            {uploading
+              ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Uploading…</>
+              : <><Upload className="h-3.5 w-3.5" />Choose file{mode === 'sms' ? ' (max 5 MB)' : ' (max 3 MB)'}</>
+            }
+          </Button>
+          {mode === 'sms' && (
+            <p className="text-xs text-muted-foreground">Images, GIF, MP4, PDF. Opens your files, photos, or cloud storage.</p>
           )}
-
-          {mode === 'sms' && !vehicleId && (
-            <p className="text-xs text-muted-foreground">Link a vehicle to this lead to attach documents.</p>
-          )}
+          {uploadError && <p className="text-xs text-destructive">{uploadError}</p>}
+          <input
+            ref={fileRef}
+            type="file"
+            accept={mode === 'sms' ? SMS_ACCEPT : undefined}
+            className="hidden"
+            onChange={handleLocalFile}
+          />
         </div>
       )}
     </div>

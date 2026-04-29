@@ -2,23 +2,37 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 // ── POLICY 1: Rate Limiting ────────────────────────────────────────────────────
-// In-process sliding window per IP. Covers webhook endpoints + auth brute-force.
-// NOTE: Not shared across Vercel instances — replace with Upstash Redis before scaling.
+// Upstash Redis sliding window per IP — shared across all Vercel instances.
+// Falls back to allowing all requests when UPSTASH_REDIS_REST_URL / _TOKEN are unset
+// so local dev works without an Upstash account.
 
-interface RateEntry { count: number; resetAt: number }
-const store = new Map<string, RateEntry>()
+import { Ratelimit } from '@upstash/ratelimit'
+import { Redis }     from '@upstash/redis'
 
-const RATE_ROUTES: Array<{ prefix: string; limit: number; windowMs: number }> = [
-  { prefix: '/api/twilio/inbound',          limit: 60,  windowMs:  60_000 },
-  { prefix: '/api/voice/retell-callback',   limit: 30,  windowMs:  60_000 },
-  { prefix: '/api/gmail/webhook',           limit: 60,  windowMs:  60_000 },
-  // Inventory feed endpoints deprecated 2026-03-04; now return 410 Gone (no rate limit needed)
-  // Vector 5: tighter per-IP limit on data-heavy read endpoints
-  { prefix: '/api/customers',               limit: 100, windowMs:  60_000 }, // 100/min max per IP
-  { prefix: '/api/vehicles',                limit: 100, windowMs:  60_000 },
-  // Vector 12: brute-force / credential stuffing protection
-  { prefix: '/api/auth/login',              limit:   8, windowMs: 300_000 }, // 8 attempts / 5 min per IP
-  { prefix: '/api/auth/register',           limit:   3, windowMs: 600_000 }, // 3 signups / 10 min per IP
+const _rlUrl   = process.env.UPSTASH_REDIS_REST_URL
+const _rlToken = process.env.UPSTASH_REDIS_REST_TOKEN
+const _redis   = _rlUrl && _rlToken ? new Redis({ url: _rlUrl, token: _rlToken }) : null
+
+function makeLimiter(requests: number, windowSeconds: number): Ratelimit | null {
+  if (!_redis) return null
+  return new Ratelimit({
+    redis: _redis,
+    limiter: Ratelimit.slidingWindow(requests, `${windowSeconds} s`),
+    analytics: false,
+  })
+}
+
+const RATE_ROUTES: Array<{ prefix: string; limiter: Ratelimit | null; retryAfter: number }> = [
+  { prefix: '/api/twilio/inbound',          limiter: makeLimiter(60,  60),  retryAfter: 60  },
+  { prefix: '/api/voice/retell-callback',   limiter: makeLimiter(30,  60),  retryAfter: 60  },
+  { prefix: '/api/gmail/webhook',           limiter: makeLimiter(60,  60),  retryAfter: 60  },
+  { prefix: '/api/integrations/gmail/push', limiter: makeLimiter(60,  60),  retryAfter: 60  },
+  // Data endpoints — secondary layer; routes also have per-org Upstash guards in handlers
+  { prefix: '/api/customers',               limiter: makeLimiter(100, 60),  retryAfter: 60  },
+  { prefix: '/api/vehicles',               limiter: makeLimiter(100, 60),  retryAfter: 60  },
+  // Brute-force / credential stuffing protection
+  { prefix: '/api/auth/login',              limiter: makeLimiter(8,   300), retryAfter: 300 },
+  { prefix: '/api/auth/register',           limiter: makeLimiter(3,   600), retryAfter: 600 },
 ]
 
 function getIp(req: NextRequest): string {
@@ -29,26 +43,10 @@ function getIp(req: NextRequest): string {
   )
 }
 
-function isRateLimited(ip: string, prefix: string, limit: number, windowMs: number): boolean {
-  const key   = `${ip}:${prefix}`
-  const now   = Date.now()
-  const entry = store.get(key)
-  if (!entry || now > entry.resetAt) {
-    store.set(key, { count: 1, resetAt: now + windowMs })
-    return false
-  }
-  entry.count++
-  return entry.count > limit
-}
-
-let lastPruned = Date.now()
-function maybePrune() {
-  const now = Date.now()
-  if (now - lastPruned < 60_000) return
-  lastPruned = now
-  for (const [key, entry] of store) {
-    if (now > entry.resetAt) store.delete(key)
-  }
+async function isRateLimited(limiter: Ratelimit | null, key: string): Promise<boolean> {
+  if (!limiter) return false
+  const result = await limiter.limit(key)
+  return !result.success
 }
 
 // ── POLICY 2: Staff Impersonation Guard ───────────────────────────────────────
@@ -155,11 +153,10 @@ export async function proxy(request: NextRequest) {
   // Rate limiting for public webhook/feed routes
   const rateRule = RATE_ROUTES.find(r => pathname.startsWith(r.prefix))
   if (rateRule) {
-    maybePrune()
-    if (isRateLimited(getIp(request), rateRule.prefix, rateRule.limit, rateRule.windowMs)) {
+    if (await isRateLimited(rateRule.limiter, `${getIp(request)}:${rateRule.prefix}`)) {
       return new NextResponse('Too Many Requests', {
         status: 429,
-        headers: { 'Retry-After': String(Math.ceil(rateRule.windowMs / 1000)) },
+        headers: { 'Retry-After': String(rateRule.retryAfter) },
       })
     }
     return NextResponse.next()
@@ -260,6 +257,8 @@ export const config = {
     // Rate-limited API routes
     '/api/twilio/inbound',
     '/api/voice/retell-callback',
+    '/api/gmail/webhook',
+    '/api/integrations/gmail/push',
     '/api/inventory/cargurus-feed',
     '/api/inventory/facebook-feed',
     // Auth + subscription gating for all app routes

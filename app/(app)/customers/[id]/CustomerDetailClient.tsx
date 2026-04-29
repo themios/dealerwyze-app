@@ -59,6 +59,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
   const [apptDate, setApptDate] = useState('')
   const [apptTime, setApptTime] = useState('10:00')
   const [apptSaving, setApptSaving] = useState(false)
+  const [apptError, setApptError] = useState<string | null>(null)
   const [vehicleRefreshKey, setVehicleRefreshKey] = useState(0)
   const [linkVehicleOpen, setLinkVehicleOpen] = useState(false)
   const [primaryVehicle, setPrimaryVehicle] = useState<Vehicle | undefined>(initialVehicle as Vehicle | undefined)
@@ -307,23 +308,31 @@ export default function CustomerDetailClient({ customer, activities: initialActi
   async function handleSaveAppt() {
     if (!apptDate) return
     setApptSaving(true)
+    setApptError(null)
     const dueAt = new Date(`${apptDate}T${apptTime}:00`).toISOString()
-    await fetch('/api/activities', {
+    const res = await fetch('/api/activities', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type: 'appointment',
         customer_id: customer.id,
         due_at: dueAt,
-        direction: 'outbound',
-        outcome: 'scheduled',
+        direction: null,
+        outcome: 'pending',
         priority: 'high',
         body: `Appointment${primaryVehicle ? ` re: ${primaryVehicle.year} ${primaryVehicle.make} ${primaryVehicle.model}` : ''}`,
       }),
     })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      setApptSaving(false)
+      setApptError(data.error ?? 'Failed to save appointment')
+      return
+    }
     setApptSaving(false)
     setApptOpen(false)
     setApptDate('')
+    setApptError(null)
     router.refresh()
   }
 
@@ -413,9 +422,18 @@ export default function CustomerDetailClient({ customer, activities: initialActi
               <p className="text-sm font-semibold mt-0.5 capitalize">{String((customer as unknown as Record<string, unknown>).lead_source).replace(/_/g, ' ')}</p>
             </div>
           ) : null}
-          <div className="bg-secondary rounded-lg px-3 py-2 flex-shrink-0">
+          <div className={`rounded-lg px-3 py-2 flex-shrink-0 ${(customer as any).archived ? 'bg-muted' : 'bg-secondary'}`}>
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Status</p>
-            <p className="text-sm font-semibold mt-0.5 capitalize">{(customer.thread_state ?? 'new lead').replace(/_/g, ' ')}</p>
+            {(customer as any).archived ? (
+              <div>
+                <p className="text-sm font-semibold mt-0.5 text-muted-foreground">Archived</p>
+                {(customer as any).archived_reason && (
+                  <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">{(customer as any).archived_reason}</p>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm font-semibold mt-0.5 capitalize">{(customer.thread_state ?? 'new lead').replace(/_/g, ' ')}</p>
+            )}
           </div>
         </div>
 
@@ -449,6 +467,20 @@ export default function CustomerDetailClient({ customer, activities: initialActi
         {customer.notes && (
           <p className="text-sm text-muted-foreground mt-2 italic">{customer.notes}</p>
         )}
+      </div>
+
+      <div className="hidden lg:flex px-4 py-3 gap-2 border-b bg-card">
+        <CallButton customerId={customer.id} customerName={customer.name} phone={customer.primary_phone} className="flex-1" />
+        <TemplatePicker customer={customer} vehicle={primaryVehicle} buttonClassName="flex-1" labelClassName="" />
+        <EmailButton
+          customer={customer}
+          vehicle={primaryVehicle}
+          onSent={refreshActivities}
+          replyContext={replyContext}
+          onReplyComplete={() => setReplyContext(null)}
+          buttonClassName="flex-1"
+          labelClassName=""
+        />
       </div>
 
 
@@ -545,11 +577,14 @@ export default function CustomerDetailClient({ customer, activities: initialActi
               className="w-28 text-sm rounded border border-border bg-background px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
+          {apptError && (
+            <p className="text-xs text-destructive">{apptError}</p>
+          )}
           <div className="flex gap-2">
             <Button size="sm" onClick={handleSaveAppt} disabled={!apptDate || apptSaving} className="flex-1">
               {apptSaving ? 'Saving…' : 'Confirm'}
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setApptOpen(false)}>Cancel</Button>
+            <Button size="sm" variant="outline" onClick={() => { setApptOpen(false); setApptError(null) }}>Cancel</Button>
           </div>
         </div>
       )}

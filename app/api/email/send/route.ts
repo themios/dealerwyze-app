@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server'
 import { google } from 'googleapis'
 import nodemailer from 'nodemailer'
-import crypto from 'crypto'
 import { requireProfile } from '@/lib/auth/profile'
+import { sanitizeEmailSignatureHtml, stripHtmlToText } from '@/lib/security/html'
 import { createServiceClient } from '@/lib/supabase/service'
+import { buildUnsubscribeToken } from '@/lib/security/unsubscribe'
 
 /** Derive SMTP host from IMAP host — covers Yahoo, Gmail app-pw, and most custom setups. */
 function smtpHostFrom(imapHost: string): string {
@@ -41,11 +42,6 @@ interface EmailAttachment {
   contentType: string
   signedUrl?: string
   base64?: string
-}
-
-interface ReplyContext {
-  reply_thread_id?: string | null
-  in_reply_to_id?: string | null
 }
 
 async function resolveAttachments(raw: EmailAttachment[]): Promise<{ filename: string; content: Buffer; contentType: string }[]> {
@@ -184,8 +180,15 @@ export async function POST(req: Request) {
   const unsubCid = customer_id_for_unsub ?? customer_id
   let emailBody = rawEmailBody
   if (include_unsubscribe_footer && unsubCid) {
-    const unsubSecret = process.env.UNSUBSCRIBE_SECRET ?? 'fallback-secret'
-    const token = crypto.createHmac('sha256', unsubSecret).update(unsubCid).digest('hex')
+    let token: string
+    try {
+      token = buildUnsubscribeToken(unsubCid)
+    } catch {
+      return NextResponse.json(
+        { error: 'Email unsubscribe links are not configured on this server.' },
+        { status: 503 },
+      )
+    }
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://dealerwyze.com'
     const unsubLink = `${appUrl}/api/unsubscribe?token=${token}&cid=${unsubCid}`
     emailBody = `${rawEmailBody}\n\n---\nTo stop receiving follow-up emails, click here: ${unsubLink}`
@@ -249,11 +252,11 @@ export async function POST(req: Request) {
     )
   }
 
-  const signature = orgSettings?.email_signature ?? null
+  const signature = sanitizeEmailSignatureHtml(orgSettings?.email_signature ?? null)
   const htmlBody  = buildEmailHtml(emailBody, signature)
   // Plain-text fallback: body + stripped signature (strip HTML tags)
   const plainText = signature
-    ? `${emailBody}\n\n--\n${signature.replace(/<[^>]+>/g, '')}`
+    ? `${emailBody}\n\n--\n${stripHtmlToText(signature)}`
     : emailBody
 
   // Get sender's display name

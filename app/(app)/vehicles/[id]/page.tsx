@@ -34,6 +34,27 @@ const statusColors: Record<string, string> = {
   staging: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
 }
 
+function formatMileage(value: number | null | undefined) {
+  if (typeof value !== 'number' || Number.isNaN(value)) return null
+  return `${new Intl.NumberFormat('en-US').format(value)} mi`
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return null
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'numeric',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'America/Los_Angeles',
+  }).format(new Date(value))
+}
+
+function formatVin(value: unknown) {
+  if (typeof value !== 'string') return '—'
+  const vin = value.trim()
+  return vin || '—'
+}
+
 export default async function VehicleDetailPage({ params }: PageProps) {
   const { id } = await params
   const profile = await requireProfile()
@@ -97,18 +118,19 @@ export default async function VehicleDetailPage({ params }: PageProps) {
         {/* Compact details + price */}
         {(() => {
           const details = [
-            vehicle.mileage ? `${vehicle.mileage.toLocaleString()} mi` : null,
+            formatMileage(vehicle.mileage),
             vehicle.color || null,
             vehicle.trim || null,
           ].filter(Boolean).join(' · ')
           // Stock numbers that look like URL slugs (web-year-make-model) are not real stock numbers
           const isSlug = vehicle.stock_no && /^web-\d{4}-/.test(vehicle.stock_no)
           const stockNo = !isSlug ? vehicle.stock_no : null
+          const vin = formatVin(vehicle.vin)
           // Always render the details block (VIN always shown)
           return (
             <div className="space-y-0.5">
               {details && <p className="text-xs text-muted-foreground">{details}</p>}
-              <p className="text-xs text-muted-foreground font-mono">VIN: {vehicle.vin || '—'}</p>
+              <p className="text-xs text-muted-foreground font-mono" suppressHydrationWarning>VIN: {vin}</p>
               {stockNo && <p className="text-xs text-muted-foreground truncate">Stock: {stockNo}</p>}
             </div>
           )
@@ -198,7 +220,7 @@ export default async function VehicleDetailPage({ params }: PageProps) {
               {vehicle.sold_at && (
                 <div>
                   <p className="text-xs text-muted-foreground">Sold Date</p>
-                  <p className="font-semibold">{new Date(vehicle.sold_at).toLocaleDateString()}</p>
+                  <p className="font-semibold">{formatDate(vehicle.sold_at)}</p>
                 </div>
               )}
             </div>

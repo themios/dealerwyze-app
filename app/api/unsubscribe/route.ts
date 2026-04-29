@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { createServiceClient } from '@/lib/supabase/service'
+import { buildUnsubscribeToken } from '@/lib/security/unsubscribe'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
@@ -14,8 +15,15 @@ export async function GET(req: NextRequest) {
     })
   }
 
-  const secret = process.env.UNSUBSCRIBE_SECRET ?? 'fallback-secret'
-  const expected = crypto.createHmac('sha256', secret).update(cid).digest('hex')
+  let expected = ''
+  try {
+    expected = buildUnsubscribeToken(cid)
+  } catch {
+    return new NextResponse(
+      '<html><body style="font-family:sans-serif;max-width:500px;margin:40px auto;padding:0 16px"><h2>Temporarily unavailable</h2><p>This unsubscribe link cannot be processed right now. Please contact us directly and we will update your preferences manually.</p></body></html>',
+      { headers: { 'Content-Type': 'text/html' }, status: 503 },
+    )
+  }
 
   let valid = false
   try {

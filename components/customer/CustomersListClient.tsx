@@ -485,7 +485,10 @@ export default function CustomersListClient({
               const contactBadge = lastContactBadge(lastActivityMap[customer.id] ?? null)
 
               const urgencyBg = activityUrgencyBg(lastActivityMap[customer.id])
-              const stateConfig = LEAD_STATE_CONFIG[(customer.thread_state ?? 'new_lead') as LeadState]
+              const isArchived = (customer as any).archived
+              const stateConfig = isArchived
+                ? { label: 'Archived', color: 'bg-muted text-muted-foreground' }
+                : LEAD_STATE_CONFIG[(customer.thread_state ?? 'new_lead') as LeadState]
 
               return (
                 <motion.div
@@ -513,9 +516,13 @@ export default function CustomersListClient({
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
                         <Phone className="h-3 w-3 flex-shrink-0" />
                         <span>{formatPhone(customer.primary_phone)}</span>
-                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${stateConfig?.color ?? 'bg-gray-100 text-gray-500'}`}>
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${stateConfig?.color ?? 'bg-gray-100 text-gray-500'}`}
+                          title={isArchived && (customer as any).archived_reason ? (customer as any).archived_reason : undefined}>
                           {stateConfig?.label ?? customer.thread_state}
                         </span>
+                        {isArchived && (customer as any).archived_reason && (
+                          <span className="text-[10px] text-muted-foreground truncate max-w-[100px]">· {(customer as any).archived_reason}</span>
+                        )}
                       </div>
                     </div>
 

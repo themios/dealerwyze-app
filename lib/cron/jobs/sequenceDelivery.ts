@@ -65,7 +65,16 @@ export async function runSequenceDelivery(
 
     const { sendSequenceEmail } = await import('@/lib/email/sendSequenceEmail')
 
+    // Per-org blast cap: max 50 outbound emails per org per cron run
+    const orgEmailCount = new Map<string, number>()
+
     for (const act of eligible) {
+      const orgCount = orgEmailCount.get(act.user_id) ?? 0
+      if (orgCount >= 50) {
+        console.warn(`[sequenceDelivery] org ${act.user_id} hit 50-email per-run cap, skipping remaining`)
+        continue
+      }
+
       const enrolledAt = enrollmentMap.get(act.customer_sequence_id) ?? '1970-01-01T00:00:00Z'
       const replyAt    = firstReplyAt.get(act.customer_id)
 
@@ -98,6 +107,7 @@ export async function runSequenceDelivery(
 
       if (result.ok) {
         sequenceSent++
+        orgEmailCount.set(act.user_id, (orgEmailCount.get(act.user_id) ?? 0) + 1)
       } else {
         await supabase
           .from('activities')

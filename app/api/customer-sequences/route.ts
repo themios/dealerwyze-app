@@ -114,6 +114,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Customer has opted out of SMS follow-ups.' }, { status: 422 })
   }
 
+  // Cap: max 500 active enrollments per org
+  const { count: activeCount } = await service
+    .from('customer_sequences')
+    .select('id', { count: 'exact', head: true })
+    .eq('org_id', profile.org_id)
+    .in('status', ['active', 'paused'])
+  if ((activeCount ?? 0) >= 500) {
+    return NextResponse.json(
+      { error: 'Too many active sequences. Your account has reached the 500 active sequence limit. Complete or cancel existing ones before enrolling more.' },
+      { status: 429 },
+    )
+  }
+
   // Fetch steps
   const { data: steps } = await service
     .from('sequence_steps')

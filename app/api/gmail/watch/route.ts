@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { google } from 'googleapis'
 import { createServiceClient } from '@/lib/supabase/service'
 import { timingSafeEqual } from 'crypto'
+import { registerGmailWatch } from '@/lib/gmail/watch'
 
 export const runtime = 'nodejs'
 
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   const supabase = createServiceClient()
   const { data: accounts } = await supabase
     .from('email_accounts')
-    .select('org_id, oauth_refresh_token, email')
+    .select('id, oauth_refresh_token, email')
     .eq('provider', 'gmail')
     .eq('enabled', true)
     .not('oauth_refresh_token', 'is', null)
@@ -41,21 +41,8 @@ export async function POST(req: NextRequest) {
 
   for (const account of accounts) {
     try {
-      const auth = new google.auth.OAuth2(
-        process.env.GMAIL_CLIENT_ID,
-        process.env.GMAIL_CLIENT_SECRET,
-      )
-      auth.setCredentials({ refresh_token: account.oauth_refresh_token })
-      const gmail = google.gmail({ version: 'v1', auth })
-
-      const res = await gmail.users.watch({
-        userId: 'me',
-        requestBody: {
-          topicName: process.env.PUBSUB_TOPIC!,
-          labelIds: ['INBOX'],
-        },
-      })
-      results[account.email] = { ok: true, expiration: res.data.expiration }
+      const result = await registerGmailWatch(account.id, account.oauth_refresh_token!)
+      results[account.email] = result
     } catch (err) {
       results[account.email] = { ok: false, error: String(err) }
     }

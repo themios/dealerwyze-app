@@ -1,9 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { CheckCircle, MessageSquare, Mail, Zap } from 'lucide-react'
+import { sanitizeEmailSignatureHtml } from '@/lib/security/html'
 
 type AutoMode = 'manual' | 'semi_auto' | 'full_auto'
 
@@ -103,9 +105,9 @@ function SequencePicker({
       {opts.length === 0 ? (
         <p className="text-xs text-muted-foreground rounded-lg border bg-muted/40 px-3 py-2.5">
           No {channel} sequences yet.{' '}
-          <a href="/settings/sequences" className="text-primary underline-offset-2 hover:underline">
+          <Link href="/settings/sequences" className="text-primary underline-offset-2 hover:underline">
             Create one in Sequences
-          </a>{' '}
+          </Link>{' '}
           first.
         </p>
       ) : (
@@ -197,6 +199,7 @@ export default function AutomationClient({ initial, sequences }: Props) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const sanitizedEmailSignature = sanitizeEmailSignatureHtml(settings.email_signature)
   const [tab, setTab] = useState<'sms' | 'email'>('sms')
 
   async function save() {
@@ -261,7 +264,7 @@ export default function AutomationClient({ initial, sequences }: Props) {
             <div className="space-y-4 rounded-xl border bg-card p-4">
               <div>
                 <label className="text-sm font-medium">Lead response SLA (minutes)</label>
-                <p className="text-xs text-muted-foreground mb-2">How soon a lead_response task becomes "Must Do"</p>
+                <p className="text-xs text-muted-foreground mb-2">How soon a lead_response task becomes &quot;Must Do&quot;</p>
                 <ChipRow options={[5, 10, 15, 30]} value={settings.lead_response_sla_minutes} suffix="m"
                   onChange={v => setSettings(s => ({ ...s, lead_response_sla_minutes: v }))} />
               </div>
@@ -383,12 +386,12 @@ export default function AutomationClient({ initial, sequences }: Props) {
                   placeholder={'<b>Tim — Apollo Auto</b><br>(805) 404-3873<br><a href="https://www.apolloauto-em.com">www.apolloauto-em.com</a>'}
                 />
               </div>
-              {settings.email_signature.trim() && (
+              {sanitizedEmailSignature && (
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Preview</p>
                   <div
                     className="rounded-lg border bg-background p-3 text-sm"
-                    dangerouslySetInnerHTML={{ __html: settings.email_signature }}
+                    dangerouslySetInnerHTML={{ __html: sanitizedEmailSignature }}
                   />
                 </div>
               )}

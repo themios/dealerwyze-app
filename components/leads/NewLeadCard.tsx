@@ -95,6 +95,7 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
   const [apptDate, setApptDate] = useState('')
   const [apptTime, setApptTime] = useState('10:00')
   const [apptSaved, setApptSaved] = useState(false)
+  const [apptError, setApptError] = useState<string | null>(null)
   const openCustomer = useOpenCustomer()
 
   const customer = activity.customer
@@ -155,23 +156,31 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
   async function handleSaveAppt() {
     if (!apptDate) return
     setLoading('appt')
+    setApptError(null)
     const dueAt = new Date(`${apptDate}T${apptTime}:00`).toISOString()
-    await fetch('/api/activities', {
+    const res = await fetch('/api/activities', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type: 'appointment',
         customer_id: customer.id,
         due_at: dueAt,
-        direction: 'outbound',
-        outcome: 'scheduled',
+        direction: null,
+        outcome: 'pending',
         priority: 'high',
         body: `Appointment${vehicleName ? ` re: ${vehicleName}` : ''}`,
       }),
     })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      setLoading(null)
+      setApptError(data.error ?? 'Failed to save appointment')
+      return
+    }
     setLoading(null)
     setApptOpen(false)
     setApptSaved(true)
+    setApptError(null)
     onUpdate()
   }
 
@@ -348,6 +357,9 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
                 className="w-24 text-xs rounded border border-border bg-background px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
+            {apptError && (
+              <p className="text-xs text-destructive">{apptError}</p>
+            )}
             <div className="flex gap-2">
               <button
                 onClick={handleSaveAppt}
@@ -357,7 +369,7 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
                 {loading === 'appt' ? 'Saving…' : 'Confirm'}
               </button>
               <button
-                onClick={() => setApptOpen(false)}
+                onClick={() => { setApptOpen(false); setApptError(null) }}
                 className="text-xs px-3 py-1.5 rounded border border-border hover:bg-muted transition-colors"
               >
                 Cancel

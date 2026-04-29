@@ -12,6 +12,7 @@
 
 import { NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
+import { canManageUsers } from '@/lib/auth/dealerRoles'
 import { createServiceClient } from '@/lib/supabase/service'
 import JSZip from 'jszip'
 
@@ -34,6 +35,9 @@ function toCSV(rows: Record<string, unknown>[]): string {
 
 export async function GET() {
   const profile = await requireProfile()
+  if (!canManageUsers(profile.role)) {
+    return NextResponse.json({ error: 'Only admins can export dealership data.' }, { status: 403 })
+  }
   const orgId   = profile.org_id
 
   // Cooldown: one export per org per 24 hours

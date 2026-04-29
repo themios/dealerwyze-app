@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { scanBusinessCard } from '@/lib/contacts/vision'
+import { assertCanUseFeature, BillingError } from '@/lib/billing/assertFeature'
+import { orgContactScanLimiter } from '@/lib/rateLimit/upstash'
 
 export const maxDuration = 30
 
@@ -12,10 +14,28 @@ const SUPPORTED = new Set(['image/jpeg', 'image/png', 'image/webp'])
  * Returns extracted card fields — does NOT save to DB (caller confirms first).
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  let profile
   try {
-    await requireProfile()
+    profile = await requireProfile()
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  try {
+    await assertCanUseFeature(profile.org_id, 'ai_scan')
+  } catch (err) {
+    if (err instanceof BillingError) {
+      return NextResponse.json({ error: err.message }, { status: 402 })
+    }
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const { allowed } = await orgContactScanLimiter(profile.org_id)
+  if (!allowed) {
+    return NextResponse.json(
+      { error: 'Card scan limit reached (20 per day). Try again tomorrow.' },
+      { status: 429 },
+    )
   }
 
   const body = await req.json() as { image_base64?: string; mime_type?: string }

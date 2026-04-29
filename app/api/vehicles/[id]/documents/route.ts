@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { requireProfile } from '@/lib/auth/profile'
-import { getOrgStorageQuota } from '@/lib/storage/quota'
+import { getOrgStorageQuota, checkFreeTierAttachmentLimit } from '@/lib/storage/quota'
 import { summarizeVehicleDoc } from '@/lib/voice/summarizeVehicleDoc'
+import { orgDocSummarizeLimiter } from '@/lib/rateLimit/upstash'
 import { VehicleDocument } from '@/types'
 
 export const maxDuration = 60 // allow time for AI summarization
@@ -109,7 +110,11 @@ export async function POST(
       return NextResponse.json({ error: 'Uploads are disabled for sold vehicles' }, { status: 403 })
     }
 
-    // Enforce 500 MB per-org storage cap
+    // Free tier: only 2 vehicles may have attachments
+    const attachmentError = await checkFreeTierAttachmentLimit(supabase, profile.org_id, 'vehicle', vehicleId)
+    if (attachmentError) return NextResponse.json({ error: attachmentError }, { status: 403 })
+
+    // Enforce per-org storage cap
     const { data: usage } = await supabase
       .from('vehicle_documents')
       .select('file_size')
@@ -139,8 +144,11 @@ export async function POST(
       return NextResponse.json({ error: 'Storage upload failed', detail: storageError.message }, { status: 500 })
     }
 
-    // AI summarize (best-effort — null is fine)
-    const ai_summary = await summarizeVehicleDoc(file_key, BUCKET, file.type)
+    // AI summarize (best-effort, rate-limited to 10/day per org)
+    const { allowed: canSummarize } = await orgDocSummarizeLimiter(profile.org_id)
+    const ai_summary = canSummarize
+      ? await summarizeVehicleDoc(file_key, BUCKET, file.type)
+      : null
 
     const { data: doc, error: dbError } = await supabase
       .from('vehicle_documents')

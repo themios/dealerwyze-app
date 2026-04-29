@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
@@ -9,6 +9,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import Image from 'next/image'
+import {
+  captureUtmParams,
+  readStoredUtmParams,
+  clearStoredUtmParams,
+  fireSignupConversion,
+} from '@/lib/analytics/gtag'
 
 export default function SignupPage() {
   const [form, setForm] = useState({ display_name: '', email: '', password: '', invite_code: '' })
@@ -16,6 +22,9 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
+
+  // Capture UTMs if user landed directly on /signup (e.g. from a branded ad)
+  useEffect(() => { captureUtmParams() }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -26,10 +35,18 @@ export default function SignupPage() {
     setLoading(true)
     setError('')
 
+    // Read any UTMs captured on the landing page (or directly on this page)
+    const utmParams = readStoredUtmParams()
+
     const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form, agreed_to_terms: true, agreed_to_terms_at: new Date().toISOString() }),
+      body: JSON.stringify({
+        ...form,
+        agreed_to_terms: true,
+        agreed_to_terms_at: new Date().toISOString(),
+        ...utmParams,
+      }),
     })
     const data = await res.json()
 
@@ -38,6 +55,11 @@ export default function SignupPage() {
       setLoading(false)
       return
     }
+
+    // Fire Google Ads conversion immediately after API confirms account creation —
+    // before the login redirect, so the event fires even if the redirect is slow.
+    fireSignupConversion()
+    clearStoredUtmParams()
 
     // Sign in immediately after account creation
     const supabase = createClient()
@@ -59,7 +81,7 @@ export default function SignupPage() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-2">
-            <Image src="/logo.png" alt="DealerWyze" width={180} height={60} loading="eager" style={{ height: "auto" }} className="object-contain" />
+            <Image src="/logo.png" alt="DealerWyze" width={240} height={160} loading="eager" style={{ width: '180px', height: 'auto' }} className="object-contain" />
           </div>
           <CardTitle className="text-2xl">Create Account</CardTitle>
           <CardDescription>Set up your dealership or join a team</CardDescription>

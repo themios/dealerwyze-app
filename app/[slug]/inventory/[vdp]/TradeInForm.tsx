@@ -10,12 +10,12 @@ const CONDITIONS = [
 ]
 
 interface Props {
-  orgId: string
-  vehicleId: string
+  slug: string
+  vdp: string
   vehicleName: string
 }
 
-export default function TradeInForm({ orgId, vehicleId, vehicleName }: Props) {
+export default function TradeInForm({ slug, vdp, vehicleName }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [form, setForm] = useState({
     year: '',
@@ -48,8 +48,8 @@ export default function TradeInForm({ orgId, vehicleId, vehicleName }: Props) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          org_id: orgId,
-          vehicle_id: vehicleId,
+          slug,
+          vdp,
           name: form.name,
           phone: form.phone,
           message,
@@ -72,7 +72,7 @@ export default function TradeInForm({ orgId, vehicleId, vehicleName }: Props) {
       <div className="bg-green-50 border border-green-200 rounded-xl p-5 text-center">
         <div className="text-3xl mb-2">✓</div>
         <p className="font-semibold text-green-800">Trade-in request received!</p>
-        <p className="text-sm text-green-700 mt-1">We'll contact you shortly with an estimated value.</p>
+        <p className="text-sm text-green-700 mt-1">We&apos;ll contact you shortly with an estimated value.</p>
       </div>
     )
   }

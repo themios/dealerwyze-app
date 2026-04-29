@@ -3,9 +3,9 @@
  * Falls back to allowing all requests if env vars are not configured,
  * so the app continues to work without Upstash (e.g. local dev without .env.local).
  *
- * Usage:
- *   const result = await registrationLimiter(ip)
- *   if (!result.allowed) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+ * Two categories:
+ *   IP-based  — public endpoints (no auth): book, pulse, pay, leads, registration
+ *   Org-based — authenticated actions that cost money: SMS sends, AI calls
  */
 
 import { Ratelimit } from '@upstash/ratelimit'
@@ -32,20 +32,67 @@ function makeLimiter(redis: Redis | null, config: { requests: number; windowSeco
 
 const redis = makeRedis()
 
-// 5 registration attempts per IP per hour
-const _registrationLimiter = makeLimiter(redis, { requests: 5, windowSeconds: 3600 })
+// ── IP-based limiters (public endpoints) ─────────────────────────────────────
 
-// 20 web lead submissions per IP per hour
-const _webLeadLimiter = makeLimiter(redis, { requests: 20, windowSeconds: 3600 })
+const _registrationLimiter      = makeLimiter(redis, { requests: 5,  windowSeconds: 3600 })
+const _webLeadLimiter            = makeLimiter(redis, { requests: 20, windowSeconds: 3600 })
+const _bookingLimiter            = makeLimiter(redis, { requests: 20, windowSeconds: 3600 })
+const _pulseSurveyResponseLimiter= makeLimiter(redis, { requests: 5,  windowSeconds: 3600 })
+const _pulseSurveyViewLimiter    = makeLimiter(redis, { requests: 30, windowSeconds: 3600 })
+const _paymentLimiter            = makeLimiter(redis, { requests: 10, windowSeconds: 3600 })
 
-export async function registrationLimiter(ip: string): Promise<{ allowed: boolean; remaining: number }> {
-  if (!_registrationLimiter) return { allowed: true, remaining: 99 }
-  const result = await _registrationLimiter.limit(ip)
+// ── Org-based limiters (authenticated, cost-generating actions) ───────────────
+
+// SMS: 20 sends per 5 minutes per org — burst protection layer on top of monthly quota
+const _orgSmsLimiter    = makeLimiter(redis, { requests: 20,  windowSeconds: 300  })
+
+// AI calls per org per day — prevents runaway cost from a single org
+const _orgMarketCheck   = makeLimiter(redis, { requests: 10,  windowSeconds: 86400 })  // Groq compound (expensive)
+const _orgAiBrief       = makeLimiter(redis, { requests: 10,  windowSeconds: 86400 })  // Groq summary/brief
+const _orgReceiptScan   = makeLimiter(redis, { requests: 25,  windowSeconds: 86400 })  // Anthropic receipt OCR
+const _orgDocSummarize  = makeLimiter(redis, { requests: 10,  windowSeconds: 86400 })  // Anthropic vehicle doc
+const _orgContactScan   = makeLimiter(redis, { requests: 20,  windowSeconds: 86400 })  // Anthropic contact card
+
+async function check(
+  limiter: Ratelimit | null,
+  key: string,
+): Promise<{ allowed: boolean; remaining: number }> {
+  if (!limiter) return { allowed: true, remaining: 99 }
+  const result = await limiter.limit(key)
   return { allowed: result.success, remaining: result.remaining }
 }
 
-export async function webLeadLimiter(ip: string): Promise<{ allowed: boolean; remaining: number }> {
-  if (!_webLeadLimiter) return { allowed: true, remaining: 99 }
-  const result = await _webLeadLimiter.limit(ip)
-  return { allowed: result.success, remaining: result.remaining }
-}
+// ── IP-based exports ──────────────────────────────────────────────────────────
+
+export const registrationLimiter       = (ip: string) => check(_registrationLimiter,       ip)
+export const webLeadLimiter            = (ip: string) => check(_webLeadLimiter,             ip)
+export const bookingLimiter            = (ip: string) => check(_bookingLimiter,             ip)
+export const pulseSurveyResponseLimiter= (ip: string) => check(_pulseSurveyResponseLimiter, ip)
+export const pulseSurveyViewLimiter    = (ip: string) => check(_pulseSurveyViewLimiter,     ip)
+export const paymentLimiter            = (ip: string) => check(_paymentLimiter,             ip)
+
+// ── Org-based exports ─────────────────────────────────────────────────────────
+
+/** Burst limiter: 20 SMS per 5 min per org. Checked BEFORE monthly quota. */
+export const orgSmsLimiter    = (orgId: string) => check(_orgSmsLimiter,   `org:${orgId}:sms`)
+
+/** 10 market-check (Groq compound) calls per org per day. */
+export const orgMarketCheckLimiter  = (orgId: string) => check(_orgMarketCheck,  `org:${orgId}:market`)
+
+/** 10 AI brief generations per org per day. */
+export const orgAiBriefLimiter      = (orgId: string) => check(_orgAiBrief,      `org:${orgId}:aibrief`)
+
+/** 25 receipt AI scans per org per day. */
+export const orgReceiptScanLimiter  = (orgId: string) => check(_orgReceiptScan,  `org:${orgId}:receipt`)
+
+/** 10 vehicle doc AI summarizations per org per day. */
+export const orgDocSummarizeLimiter = (orgId: string) => check(_orgDocSummarize, `org:${orgId}:docsumm`)
+
+/** 20 contact card AI scans per org per day. */
+export const orgContactScanLimiter  = (orgId: string) => check(_orgContactScan,  `org:${orgId}:contact`)
+
+// Temp media uploads (MMS attachments from device) — 20 per hour per org
+const _orgTempUploadLimiter = makeLimiter(redis, { requests: 20, windowSeconds: 3600 })
+
+/** 20 temp media uploads per org per hour (MMS attachments from device). */
+export const orgTempUploadLimiter = (orgId: string) => check(_orgTempUploadLimiter, `org:${orgId}:tmpupload`)

@@ -5,6 +5,7 @@ import type { createServiceClient } from '@/lib/supabase/service'
 export async function runAdminAlerts(
   supabase: ReturnType<typeof createServiceClient>,
 ): Promise<{ adminAlerts: number; allOrgsCount: number }> {
+  try {
   let adminAlerts = 0
 
   const nowIso           = new Date().toISOString()
@@ -71,4 +72,8 @@ export async function runAdminAlerts(
   }
 
   return { adminAlerts, allOrgsCount: (allOrgs ?? []).length }
+  } catch (err) {
+    console.error('[adminAlerts] unhandled error:', err)
+    throw err
+  }
 }

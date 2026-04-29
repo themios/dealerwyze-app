@@ -29,7 +29,7 @@ export async function createCalendarEvent(
   orgId?: string,
 ): Promise<string | null> {
   let refreshToken: string | null = null
-  let locationMap: Record<string, string> = {}
+  const locationMap: Record<string, string> = {}
 
   if (orgId) {
     const supabase = createServiceClient()

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { requireProfile } from '@/lib/auth/profile'
-import { getOrgStorageQuota } from '@/lib/storage/quota'
+import { getOrgStorageQuota, checkFreeTierAttachmentLimit } from '@/lib/storage/quota'
 import { CustomerDocument } from '@/types'
 
 // Raise Vercel function timeout for file uploads
@@ -92,6 +92,19 @@ export async function POST(
       return NextResponse.json({ error: `File exceeds 5 MB limit` }, { status: 400 })
     }
 
+    // Verify customer belongs to this org
+    const { data: customer } = await supabase
+      .from('customers')
+      .select('id')
+      .eq('id', customerId)
+      .eq('user_id', profile.org_id)
+      .maybeSingle()
+    if (!customer) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+    // Free tier: only 2 customers may have attachments
+    const attachmentError = await checkFreeTierAttachmentLimit(supabase, profile.org_id, 'customer', customerId)
+    if (attachmentError) return NextResponse.json({ error: attachmentError }, { status: 403 })
+
     // Check combined org storage cap (vehicle_documents + customer_documents)
     const [{ data: vUsage }, { data: cUsage }] = await Promise.all([
       supabase.from('vehicle_documents').select('file_size').eq('user_id', profile.org_id),
@@ -100,7 +113,10 @@ export async function POST(
     const usedBytes = [...(vUsage ?? []), ...(cUsage ?? [])].reduce((s, d) => s + (d.file_size ?? 0), 0)
     const quotaBytes = await getOrgStorageQuota(supabase, profile.org_id)
     if (usedBytes + file.size > quotaBytes) {
-      return NextResponse.json({ error: 'Storage limit reached. Delete unused documents or upgrade your storage plan in Settings.' }, { status: 413 })
+      return NextResponse.json(
+        { error: "You've used all your free storage (50 MB). Upgrade to a paid plan to upload more files." },
+        { status: 413 },
+      )
     }
 
     if (!ALLOWED_TYPES.has(file.type)) {

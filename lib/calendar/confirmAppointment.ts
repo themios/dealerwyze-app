@@ -66,6 +66,16 @@ export async function confirmAppointment(
     orgId
   )
 
+  if (calendarUrl) {
+    const eventId = calendarUrl.split('/').pop()?.split('?')[0]
+    if (eventId) {
+      await supabase
+        .from('activities')
+        .update({ google_calendar_event_id: eventId })
+        .eq('id', activityId)
+    }
+  }
+
   // 3. Fetch dealer name for notification
   const { data: settings } = await supabase
     .from('org_settings')

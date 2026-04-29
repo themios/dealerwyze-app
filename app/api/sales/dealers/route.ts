@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
   const service  = createServiceClient()
 
   let affiliateCode: string
-  let viewerProfileId = profile.id
+  const viewerProfileId = profile.id
 
   const previewCode = req.nextUrl.searchParams.get('code')
   if (previewCode && await isPlatformSuperAdmin(profile.id)) {

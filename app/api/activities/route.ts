@@ -36,6 +36,16 @@ export async function POST(req: NextRequest) {
     if (!cust) return NextResponse.json({ error: 'Customer not found' }, { status: 404 })
   }
 
+  if (body.vehicle_id) {
+    const { data: vehicle } = await supabase
+      .from('vehicles')
+      .select('id')
+      .eq('id', body.vehicle_id as string)
+      .eq('user_id', profile.org_id)
+      .maybeSingle()
+    if (!vehicle) return NextResponse.json({ error: 'Vehicle not found' }, { status: 404 })
+  }
+
   const insert: Record<string, unknown> = {
     user_id: profile.org_id,
     type,

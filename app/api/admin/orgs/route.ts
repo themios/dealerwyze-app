@@ -85,7 +85,7 @@ export async function GET() {
 
   // Fetch auth.users last_sign_in_at for all profile IDs in batch
   const allProfileIds = (authUsers ?? []).map(p => p.id)
-  let lastSignInMap = new Map<string, string>()
+  const lastSignInMap = new Map<string, string>()
 
   if (allProfileIds.length > 0) {
     try {

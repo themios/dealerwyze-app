@@ -10,11 +10,19 @@ export default async function BookingPage({ params }: Props) {
   const { slug } = await params
   const supabase = createServiceClient()
 
-  const { data: settings } = await supabase
-    .from('org_settings')
-    .select('business_name, booking_enabled')
-    .eq('org_id', slug)
+  const { data: org } = await supabase
+    .from('organizations')
+    .select('id')
+    .eq('slug', slug.toLowerCase().trim())
     .maybeSingle()
+
+  const { data: settings } = org
+    ? await supabase
+        .from('org_settings')
+        .select('business_name, booking_enabled')
+        .eq('org_id', org.id)
+        .maybeSingle()
+    : { data: null }
 
   const dealerName = settings?.business_name ?? 'Our Dealership'
   const enabled    = settings?.booking_enabled ?? false

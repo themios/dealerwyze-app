@@ -207,13 +207,13 @@ export default async function VdpPage({ params }: Props) {
         <div className="lg:col-span-1">
           <div className="sticky top-6 space-y-4">
             <ContactForm
-              orgId={org.id}
-              vehicleId={vehicle.id}
+              slug={slug}
+              vdp={vehicle.public_slug ?? vdp}
               vehicleName={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
             />
             <TradeInForm
-              orgId={org.id}
-              vehicleId={vehicle.id}
+              slug={slug}
+              vdp={vehicle.public_slug ?? vdp}
               vehicleName={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
             />
           </div>

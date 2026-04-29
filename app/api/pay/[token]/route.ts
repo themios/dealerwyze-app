@@ -7,11 +7,26 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
+import { paymentLimiter } from '@/lib/rateLimit/upstash'
+
+interface StripePaymentIntentResponse {
+  id: string
+  status: string
+  amount: number
+  currency: string
+  metadata?: Record<string, string>
+}
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+  const { allowed } = await paymentLimiter(ip)
+  if (!allowed) {
+    return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
+  }
+
   const { token } = await params
   const supabase  = createServiceClient()
 
@@ -56,6 +71,12 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+  const { allowed } = await paymentLimiter(ip)
+  if (!allowed) {
+    return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
+  }
+
   const { token } = await params
   const supabase  = createServiceClient()
 
@@ -93,7 +114,7 @@ export async function POST(
       body: new URLSearchParams({
         amount:   String(Math.round(pt.amount * 100)),
         currency: 'usd',
-        metadata: JSON.stringify({ bhph_payment_token: pt.id }),
+        'metadata[bhph_payment_token]': pt.id,
       }),
     })
 
@@ -107,7 +128,9 @@ export async function POST(
 
   // ── Confirm payment ───────────────────────────────────────────────────────
   if (action === 'confirm') {
-    // payment_intent_id already destructured from body above
+    if (!payment_intent_id) {
+      return NextResponse.json({ error: 'payment_intent_id is required' }, { status: 400 })
+    }
 
     const { data: pt } = await supabase
       .from('bhph_payment_tokens')
@@ -119,12 +142,72 @@ export async function POST(
       return NextResponse.json({ error: 'Token invalid' }, { status: 410 })
     }
 
-    // Mark token paid
-    await supabase.from('bhph_payment_tokens').update({
-      status:                 'paid',
-      paid_at:                new Date().toISOString(),
-      stripe_payment_intent_id: payment_intent_id ?? null,
-    }).eq('id', pt.id)
+    const { data: org } = await supabase
+      .from('org_settings')
+      .select('stripe_dealer_secret_key')
+      .eq('org_id', pt.org_id)
+      .maybeSingle()
+
+    if (!org?.stripe_dealer_secret_key) {
+      return NextResponse.json({ error: 'Online payments not configured for this dealer' }, { status: 422 })
+    }
+
+    const verifyRes = await fetch(
+      `https://api.stripe.com/v1/payment_intents/${encodeURIComponent(payment_intent_id)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${org.stripe_dealer_secret_key}`,
+        },
+      },
+    )
+
+    if (!verifyRes.ok) {
+      return NextResponse.json({ error: 'Payment verification failed' }, { status: 502 })
+    }
+
+    const paymentIntent = await verifyRes.json() as StripePaymentIntentResponse
+    const expectedAmount = Math.round(pt.amount * 100)
+
+    if (paymentIntent.status !== 'succeeded') {
+      return NextResponse.json({ error: 'Payment not completed' }, { status: 409 })
+    }
+    if (paymentIntent.amount !== expectedAmount || paymentIntent.currency.toLowerCase() !== 'usd') {
+      return NextResponse.json({ error: 'Payment details do not match token' }, { status: 409 })
+    }
+    if (paymentIntent.metadata?.bhph_payment_token !== pt.id) {
+      return NextResponse.json({ error: 'Payment does not belong to this token' }, { status: 409 })
+    }
+
+    const paidAt = new Date().toISOString()
+    const { data: updatedToken, error: updateTokenError } = await supabase
+      .from('bhph_payment_tokens')
+      .update({
+        status: 'paid',
+        paid_at: paidAt,
+        stripe_payment_intent_id: payment_intent_id,
+      })
+      .eq('id', pt.id)
+      .eq('status', 'pending')
+      .select('id')
+      .maybeSingle()
+
+    if (updateTokenError) {
+      return NextResponse.json({ error: 'Could not finalize payment' }, { status: 500 })
+    }
+
+    if (!updatedToken) {
+      const { data: latestToken } = await supabase
+        .from('bhph_payment_tokens')
+        .select('status, stripe_payment_intent_id')
+        .eq('id', pt.id)
+        .maybeSingle()
+
+      if (latestToken?.status === 'paid' && latestToken.stripe_payment_intent_id === payment_intent_id) {
+        return NextResponse.json({ ok: true, already_processed: true })
+      }
+
+      return NextResponse.json({ error: 'Token already processed' }, { status: 409 })
+    }
 
     // Log payment activity
     await supabase.from('activities').insert({
@@ -134,7 +217,7 @@ export async function POST(
       direction:   'inbound',
       body:        `BHPH payment of $${pt.amount} received via Stripe online payment.`,
       priority:    'normal',
-      completed_at: new Date().toISOString(),
+      completed_at: paidAt,
     })
 
     // Advance total_paid on the contract

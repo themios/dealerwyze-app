@@ -7,6 +7,8 @@ import { fetchNhtsaRecalls } from '@/lib/pricing/nhtsa'
 import { fetchCompoundMarketIntel } from '@/lib/pricing/groqCompound'
 import { fetchSerpapiPricing, parsePricingFromText } from '@/lib/pricing/serpapiPricing'
 import { buildMarketIntelligence } from '@/lib/pricing/pricingEngine'
+import { assertCanUseFeature, BillingError } from '@/lib/billing/assertFeature'
+import { orgMarketCheckLimiter } from '@/lib/rateLimit/upstash'
 
 export const maxDuration = 90
 
@@ -19,6 +21,17 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   try {
     const profile = await requireProfile()
+
+    // Billing guard + per-org daily AI call limit
+    await assertCanUseFeature(profile.org_id, 'ai_market')
+    const { allowed: withinLimit } = await orgMarketCheckLimiter(profile.org_id)
+    if (!withinLimit) {
+      return NextResponse.json(
+        { error: 'Market Intelligence limit reached (10 per day). Try again tomorrow.' },
+        { status: 429 },
+      )
+    }
+
     // Auth client (forRequest): RLS enforces org isolation when reading the vehicle before external API calls.
     const supabase = await createClientForRequest()
 
@@ -89,8 +102,11 @@ export async function GET(_req: NextRequest, { params }: Params) {
       .eq('id', id)
 
     return NextResponse.json({ data: intelligence, cached: false })
-  } catch (err: any) {
-    console.error('[market-check] error:', err?.message)
+  } catch (err) {
+    if (err instanceof BillingError) {
+      return NextResponse.json({ error: err.message }, { status: 402 })
+    }
+    console.error('[market-check] error:', err instanceof Error ? err.message : err)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 }

@@ -259,7 +259,7 @@ export default function ReportsClient() {
   // Convenience wrapper using current state dates
   const fetchData = useCallback(
     (section: string, params: Record<string, string> = {}) => doFetch(section, from, to, params),
-    [from, to] // eslint-disable-line react-hooks/exhaustive-deps
+    [from, to]  
   )
 
   async function loadTabWithDates(tab: typeof activeTab, f: string, t: string) {

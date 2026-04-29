@@ -2,7 +2,7 @@
  * Gmail Pub/Sub Watch Management
  *
  * Registers and renews Gmail push notification watches so Google delivers
- * new-message events to /api/integrations/gmail/push within seconds instead
+ * new-message events to /api/gmail/webhook within seconds instead
  * of waiting for the 15-minute polling cron.
  *
  * Each watch is valid for ~7 days. renewExpiredWatches() is called from the

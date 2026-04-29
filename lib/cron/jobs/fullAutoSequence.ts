@@ -58,8 +58,18 @@ export async function runFullAutoSequence(
       .in('type', ['email', 'sms'])
     const customersWithReplies = new Set((allReplies ?? []).map(r => r.customer_id as string))
 
+    // Per-org blast cap: max 50 outbound emails per org per cron run
+    const orgEmailCount = new Map<string, number>()
+
     for (const act of eligibleActivities) {
       if (!act.customer_sequence_id) continue
+
+      const orgId = act.user_id
+      const orgCount = orgEmailCount.get(orgId) ?? 0
+      if (orgCount >= 50) {
+        console.warn(`[fullAutoSequence] org ${orgId} hit 50-email per-run cap, skipping remaining`)
+        continue
+      }
 
       const enrollment = enrollmentMap.get(act.customer_sequence_id)
       if (!enrollment || enrollment.status !== 'active') continue
@@ -107,6 +117,7 @@ export async function runFullAutoSequence(
 
       if (result.ok) {
         fullAutoFired++
+        orgEmailCount.set(orgId, (orgEmailCount.get(orgId) ?? 0) + 1)
       } else if (result.error === 'no_account') {
         await supabase
           .from('activities')
