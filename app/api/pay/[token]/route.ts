@@ -179,68 +179,26 @@ export async function POST(
     }
 
     const paidAt = new Date().toISOString()
-    const { data: updatedToken, error: updateTokenError } = await supabase
-      .from('bhph_payment_tokens')
-      .update({
-        status: 'paid',
-        paid_at: paidAt,
-        stripe_payment_intent_id: payment_intent_id,
-      })
-      .eq('id', pt.id)
-      .eq('status', 'pending')
-      .select('id')
-      .maybeSingle()
 
-    if (updateTokenError) {
+    const { data: rpcResult, error: rpcError } = await supabase.rpc('finalize_bhph_payment', {
+      p_token_id:              pt.id,
+      p_stripe_payment_intent: payment_intent_id,
+      p_paid_at:               paidAt,
+    })
+
+    if (rpcError) {
+      console.error('[pay/confirm] finalize_bhph_payment rpc error:', rpcError.message)
       return NextResponse.json({ error: 'Could not finalize payment' }, { status: 500 })
     }
 
-    if (!updatedToken) {
-      const { data: latestToken } = await supabase
-        .from('bhph_payment_tokens')
-        .select('status, stripe_payment_intent_id')
-        .eq('id', pt.id)
-        .maybeSingle()
+    const result = rpcResult as { ok?: boolean; already_processed?: boolean; conflict?: boolean } | null
 
-      if (latestToken?.status === 'paid' && latestToken.stripe_payment_intent_id === payment_intent_id) {
-        return NextResponse.json({ ok: true, already_processed: true })
-      }
-
+    if (result?.conflict) {
       return NextResponse.json({ error: 'Token already processed' }, { status: 409 })
     }
 
-    // Log payment activity
-    await supabase.from('activities').insert({
-      user_id:     pt.org_id,
-      customer_id: pt.customer_id,
-      type:        'note',
-      direction:   'inbound',
-      body:        `BHPH payment of $${pt.amount} received via Stripe online payment.`,
-      priority:    'normal',
-      completed_at: paidAt,
-    })
-
-    // Advance total_paid on the contract
-    const { data: contract } = await supabase
-      .from('bhph_payments')
-      .select('total_paid, monthly_payment, next_due_date, payment_frequency')
-      .eq('id', pt.bhph_contract_id)
-      .maybeSingle()
-
-    if (contract) {
-      const newTotalPaid = (Number(contract.total_paid) || 0) + Number(pt.amount)
-      // Advance next_due_date by one payment period
-      const nextDue = new Date(contract.next_due_date + 'T12:00:00')
-      const freq    = contract.payment_frequency ?? 'monthly'
-      if (freq === 'weekly')        nextDue.setDate(nextDue.getDate() + 7)
-      else if (freq === 'biweekly') nextDue.setDate(nextDue.getDate() + 14)
-      else                          nextDue.setMonth(nextDue.getMonth() + 1)
-
-      await supabase.from('bhph_payments').update({
-        total_paid:    newTotalPaid,
-        next_due_date: nextDue.toISOString().slice(0, 10),
-        last_reminder_type: null, // reset so next cycle sends fresh
-      }).eq('id', pt.bhph_contract_id)
+    if (result?.already_processed) {
+      return NextResponse.json({ ok: true, already_processed: true })
     }
 
     return NextResponse.json({ ok: true })
