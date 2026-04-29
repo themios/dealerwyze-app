@@ -6,7 +6,7 @@ See: `.planning/PROJECT.md` (updated 2026-04-29)
 
 **Core value:** Every dealership's data stays completely isolated from every other dealership's data — a breach of tenant isolation is an existential failure.
 **Current milestone:** v1.1 Enterprise Hardening
-**Current focus:** Phase 0 — Baseline & Infrastructure (in progress — plan 02 complete)
+**Current focus:** Phase 1 — BHPH Payment Atomicity (complete — all 3 plans done)
 
 ---
 
@@ -21,7 +21,7 @@ See: `.planning/PROJECT.md` (updated 2026-04-29)
 | Phase | Status | Notes |
 |-------|--------|-------|
 | 0 — Baseline & Infrastructure | ◑ In progress | Plans 00-01 skipped, 00-02 complete |
-| 1 — BHPH Payment Atomicity | ○ Pending | Depends on Phase 0 |
+| 1 — BHPH Payment Atomicity | ● Complete | Plans 01-01, 01-02, 01-03 done |
 | 2 — Service-Role Narrowing | ○ Pending | Depends on Phase 0 triage |
 | 3 — Lint Correctness Cleanup | ○ Pending | Depends on Phase 0, 2 |
 | 4 — Distributed State & Schemas | ○ Pending | Depends on Phase 3 |
@@ -52,4 +52,14 @@ See: `.planning/PROJECT.md` (updated 2026-04-29)
 | 2026-04-28 | Pre-existing uncommitted work committed with lint fixes | Could not separate lint changes from already-modified files |
 
 ---
-*State updated: 2026-04-28 — Plan 00-02 complete (lint baseline + auto-fix)*
+---
+## Decisions Made (Phase 1)
+
+| Date | Decision | Rationale |
+|------|----------|-----------|
+| 2026-04-29 | finalize_bhph_payment RPC uses SECURITY DEFINER | Route has no user session; activities RLS requires auth.uid() — definer bypasses it |
+| 2026-04-29 | Optimistic-lock UPDATE (not SELECT FOR UPDATE) | Avoids deadlock risk; GET DIAGNOSTICS ROW_COUNT distinguishes idempotent vs conflict |
+| 2026-04-29 | COALESCE increment for total_paid | Eliminates read-then-write race on concurrent confirms |
+| 2026-04-29 | Paid-off logic NOT added to RPC | Online pay path never set paid_off; preserving pre-existing behavior, scope separately |
+
+*State updated: 2026-04-29 — Phase 1 complete (plans 01-01, 01-02, 01-03)*
