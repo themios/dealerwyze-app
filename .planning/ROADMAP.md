@@ -20,22 +20,19 @@
 - TEST-01: Test runner configured, `npm test` passes
 - TEST-02: Test helper with scoped auth client for test org
 
-**Tasks:**
-1. Run `grep -rn "createServiceClient\|createClientForRequest" app/ lib/ --include="*.ts"` and export full list
-2. Classify each usage: `legitimate` (storage signing, cron, admin), `reducible` (org-scoped handler that could use auth client), `wrong` (reads org data without org filter)
-3. Write triage output to `.planning/service-role-triage.md` with counts by category and top 20 reducible targets
-4. Run `npx eslint app components hooks lib --fix` for auto-fixable issues only
-5. Verify build still passes after lint auto-fix
-6. Install Vitest + `@supabase/supabase-js` test utilities; configure `vitest.config.ts`
-7. Create `lib/__tests__/helpers/testClient.ts` — returns Supabase client scoped to isolated test org
-8. Write one passing smoke test to confirm the test runner works
-9. Add CLAUDE.md entry: service-role policy (when it's permitted, requires documented exception)
+**Plans:** 3 plans
+
+Plans:
+- [ ] 00-01-PLAN.md — Service-role triage: classify all createServiceClient/createClientForRequest call sites, produce .planning/service-role-triage.md with top 20 reducible targets
+- [ ] 00-02-PLAN.md — Lint auto-fix: run eslint --fix (12 safe rewrites), verify build passes, record before/after baseline
+- [ ] 00-03-PLAN.md — Test helper + CLAUDE.md policy: create makeTestClient() helper, add smoke test, add service-role policy section to CLAUDE.md
 
 **Success criteria:**
-- `.planning/service-role-triage.md` exists with all 339 usages classified and top 20 reducible targets named
-- `npm run build` passes after lint auto-fix
-- `npm test` runs and at least 1 test passes
-- Test helper creates an isolated org-scoped client without hitting production data
+- `.planning/service-role-triage.md` exists with all usages classified and top 20 reducible targets named
+- `npx tsc --noEmit` passes after lint auto-fix
+- `npm test` passes with makeTestClient smoke tests included
+- Test helper creates an isolated mock client without hitting production data
+- CLAUDE.md has service-role policy section
 
 **Estimated effort:** 1–2 days
 
@@ -337,4 +334,4 @@
 
 ---
 *Roadmap created: 2026-04-29*
-*Last updated: 2026-04-29 — initial creation*
+*Last updated: 2026-04-28 — Phase 0 plans created (3 plans, 2 waves)*
