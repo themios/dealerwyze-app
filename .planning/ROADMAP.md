@@ -51,34 +51,23 @@ Plans:
 - PAY-04: Migration file created
 - PAY-05: Integration tests (happy path, double-confirm, failure rollback)
 
-**Tasks:**
-1. Read current BHPH confirm route (`app/api/bhph/[id]/confirm/route.ts` or equivalent) — map all writes
-2. Write Supabase SQL function `confirm_bhph_payment(p_token_id, p_payment_intent_id, p_org_id)` that:
-   - Checks token is not already paid (idempotency guard)
-   - Marks token paid
-   - Inserts activity record
-   - Updates contract `balance_remaining` and `next_due_at`
-   - All inside `BEGIN/COMMIT` — rolls back on any error
-3. Add `UNIQUE` constraint on `bhph_tokens.stripe_payment_intent_id` (or equivalent idempotency column) if not present
-4. Create migration file `supabase/migrations/[timestamp]_confirm_bhph_payment_rpc.sql`
-5. Refactor confirm route to call the RPC via `supabase.rpc('confirm_bhph_payment', {...})`
-6. Remove the three individual writes from the route
-7. Write integration tests in `lib/__tests__/bhph/confirm.test.ts`:
-   - Happy path: payment confirms, all three state changes applied
-   - Double-confirm: second call with same payment_intent_id is a no-op, returns success
-   - Simulated failure: if RPC throws, verify token is still unpaid and contract is unchanged
-8. Verify all PAY tests pass
+**Plans:** 3 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Write migration 107: finalize_bhph_payment RPC + partial UNIQUE index on stripe_payment_intent_id
+- [ ] 01-02-PLAN.md — Refactor app/api/pay/[token]/route.ts confirm branch to call RPC, remove three individual writes
+- [ ] 01-03-PLAN.md — Write integration tests (happy path, idempotency, RPC failure, conflict) in lib/__tests__/bhph/pay-confirm.test.ts
 
 **Success criteria:**
-- `confirm_bhph_payment` RPC exists in migration file
-- Confirm route calls only `supabase.rpc(...)` — no individual token/activity/contract writes
-- Double-confirm with the same payment_intent_id produces no duplicate state
-- All PAY integration tests pass
-- `npm run build` and `npm test` still pass
+- `supabase/migrations/107_finalize_bhph_payment_rpc.sql` exists with finalize_bhph_payment RPC
+- Confirm branch calls only `supabase.rpc('finalize_bhph_payment', {...})` — no individual token/activity/contract writes
+- Idempotent re-confirm with same payment_intent_id returns 200 `{ ok: true, already_processed: true }`
+- All PAY integration tests pass with 0 failures
+- `npm test` and `npx tsc --noEmit` still pass
 
 **Estimated effort:** 2–3 days
 
-**Dependencies:** Phase 0 (test runner must exist for TEST-05)
+**Dependencies:** Phase 0 (test runner must exist)
 
 ---
 
@@ -334,4 +323,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-04-29*
-*Last updated: 2026-04-28 — Phase 0 plans created (3 plans, 2 waves)*
+*Last updated: 2026-04-29 — Phase 1 plans created (3 plans, 3 waves)*
