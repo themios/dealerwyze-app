@@ -9,6 +9,7 @@ import { google } from 'googleapis'
 import nodemailer from 'nodemailer'
 import { sanitizeEmailSignatureHtml, stripHtmlToText } from '@/lib/security/html'
 import { createServiceClient } from '@/lib/supabase/service'
+import { sanitizeEmailHeaderText } from '@/lib/email/header'
 
 interface SendSequenceEmailArgs {
   orgId: string
@@ -146,7 +147,10 @@ export async function sendSequenceEmail(
     link:        '',  // placeholder — no public VDP link in scope yet
   }
 
-  const resolvedSubject = substituteVars(subject, vars)
+  const resolvedSubject = sanitizeEmailHeaderText(
+    substituteVars(subject, vars),
+    'Message from DealerWyze',
+  )
   const resolvedBody    = substituteVars(body, vars)
 
   const signature = sanitizeEmailSignatureHtml(orgSettings?.email_signature ?? null)
@@ -159,7 +163,7 @@ export async function sendSequenceEmail(
   if (!fromAddress) {
     return { ok: false, error: 'no_from_address' }
   }
-  const fromHeader  = `"Your Sales Team" <${fromAddress}>`
+  const fromHeader  = `"${sanitizeEmailHeaderText('Your Sales Team', 'Your Sales Team')}" <${fromAddress}>`
 
   let messageId: string | null = null
   let threadId: string | null  = null
@@ -175,7 +179,7 @@ export async function sendSequenceEmail(
 
     try {
       const rawMessage = await buildGmailRawMessage({
-        fromName: 'Your Sales Team',
+        fromName: sanitizeEmailHeaderText('Your Sales Team', 'Your Sales Team'),
         fromAddress,
         to: customerEmail,
         replyTo: fromAddress,

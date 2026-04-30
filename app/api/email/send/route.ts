@@ -3,8 +3,10 @@ import { google } from 'googleapis'
 import nodemailer from 'nodemailer'
 import { requireProfile } from '@/lib/auth/profile'
 import { sanitizeEmailSignatureHtml, stripHtmlToText } from '@/lib/security/html'
+import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { buildUnsubscribeToken } from '@/lib/security/unsubscribe'
+import { sanitizeEmailHeaderText } from '@/lib/email/header'
 
 /** Derive SMTP host from IMAP host — covers Yahoo, Gmail app-pw, and most custom setups. */
 function smtpHostFrom(imapHost: string): string {
@@ -162,7 +164,9 @@ function parseProviderError(err: unknown): { summary: string; detail: string; st
 
 export async function POST(req: Request) {
   const profile = await requireProfile()
-  const service  = createServiceClient()
+  const supabase = await createClient()
+  /** Service role required for `auth.admin.getUserById` only. */
+  const adminAuth = createServiceClient()
 
   const body = await req.json().catch(() => ({}) as Record<string, unknown>)
   const { customer_id, subject, emailBody: rawEmailBody, vehicle_id, include_unsubscribe_footer, customer_id_for_unsub, attachments: rawAttachments, reply_thread_id, in_reply_to_id } = body as {
@@ -199,7 +203,7 @@ export async function POST(req: Request) {
   }
 
   // Verify customer belongs to this org — customers table uses user_id for org scoping (no org_id column)
-  const { data: customer } = await service
+  const { data: customer } = await supabase
     .from('customers')
     .select('id, name, email, user_id')
     .eq('id', customer_id)
@@ -231,14 +235,14 @@ export async function POST(req: Request) {
 
   // Fetch email signature and connected email account in parallel
   const [{ data: accounts }, { data: orgSettings }] = await Promise.all([
-    service
+    supabase
       .from('email_accounts')
       .select('id, email, oauth_refresh_token, imap_host, imap_port, imap_user, imap_pass')
       .eq('org_id', profile.org_id)
       .eq('enabled', true)
       .order('created_at', { ascending: false })
       .limit(10),
-    service
+    supabase
       .from('org_settings')
       .select('email_signature')
       .eq('org_id', profile.org_id)
@@ -260,10 +264,12 @@ export async function POST(req: Request) {
     : emailBody
 
   // Get sender's display name
-  const { data: authUser } = await service.auth.admin.getUserById(profile.id)
-  const senderName = authUser?.user?.user_metadata?.full_name
+  const { data: authUser } = await adminAuth.auth.admin.getUserById(profile.id)
+  const senderNameRaw = authUser?.user?.user_metadata?.full_name
     ?? authUser?.user?.email?.split('@')[0]
     ?? 'Your Sales Team'
+  const senderName = sanitizeEmailHeaderText(senderNameRaw, 'Your Sales Team')
+  const safeSubject = sanitizeEmailHeaderText(subject, 'Message from DealerWyze')
 
   let messageId: string | null = null
   let threadId: string | null  = null
@@ -285,7 +291,7 @@ export async function POST(req: Request) {
   for (const account of orderedAccounts) {
     const fromAddress = account.email ?? account.imap_user ?? ''
     if (!fromAddress) {
-      await service
+      await supabase
         .from('email_accounts')
         .update({ last_error: '[send] missing sender address (email/imap_user)' })
         .eq('id', account.id)
@@ -307,7 +313,7 @@ export async function POST(req: Request) {
           fromAddress,
           to: toEmail,
           replyTo: fromAddress,
-          subject,
+          subject: safeSubject,
           text: plainText,
           html: htmlBody,
           attachments: resolvedAttachments,
@@ -324,7 +330,7 @@ export async function POST(req: Request) {
         messageId = gmailSend.data.id ?? null
         threadId  = gmailSend.data.threadId ?? null
         sent = true
-        await service
+        await supabase
           .from('email_accounts')
           .update({ last_error: null })
           .eq('id', account.id)
@@ -334,7 +340,7 @@ export async function POST(req: Request) {
         const parsed = parseProviderError(err)
         lastErrorMessage = `${parsed.summary} Reconnect Gmail in Settings → Integrations if needed.`
         lastErrorStatus = parsed.status ?? 502
-        await service
+        await supabase
           .from('email_accounts')
           .update({ last_error: `[gmail-send] ${parsed.summary} ${parsed.detail}`.slice(0, 1000) })
           .eq('id', account.id)
@@ -356,7 +362,7 @@ export async function POST(req: Request) {
           from:    fromHeader,
           to:      toEmail,
           replyTo: fromAddress,
-          subject,
+          subject: safeSubject,
           text:    plainText,
           html:    htmlBody,
           attachments: resolvedAttachments.map(a => ({
@@ -371,7 +377,7 @@ export async function POST(req: Request) {
         })
         messageId = info.messageId ?? null
         sent = true
-        await service
+        await supabase
           .from('email_accounts')
           .update({ last_error: null })
           .eq('id', account.id)
@@ -379,7 +385,7 @@ export async function POST(req: Request) {
       } catch {
         lastErrorMessage = 'Could not send email. Please check your email connection in Settings → Integrations.'
         lastErrorStatus = 502
-        await service
+        await supabase
           .from('email_accounts')
           .update({ last_error: '[smtp-send] SMTP provider rejected send request' })
           .eq('id', account.id)
@@ -396,7 +402,7 @@ export async function POST(req: Request) {
   }
 
   // Mark the customer's pending inbound lead as addressed so it leaves the Today screen
-  await service
+  await supabase
     .from('activities')
     .update({ addressed_at: new Date().toISOString() })
     .eq('user_id', profile.org_id)
@@ -407,13 +413,13 @@ export async function POST(req: Request) {
 
   // Log outbound activity (plain text only — no HTML in activity feed)
   // user_id must be org_id to satisfy RLS policy: user_id = get_org_id()
-  await service.from('activities').insert({
+  await supabase.from('activities').insert({
     user_id:          profile.org_id,
     customer_id,
     vehicle_id:       vehicle_id ?? null,
     type:             'email',
     direction:        'outbound',
-    body:             `Subject: ${subject}\n\n${emailBody}`,
+    body:             `Subject: ${safeSubject}\n\n${emailBody}`,
     completed_at:     new Date().toISOString(),
     priority:         'normal',
     gmail_message_id: messageId,
