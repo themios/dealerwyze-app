@@ -1,4 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js'
+import type { UpcomingAppointmentItem } from '@/components/appointments/UpcomingAppointmentsList'
 
 export interface DashboardStats {
   today: {
@@ -35,6 +36,7 @@ export interface DashboardStats {
     revenue_this_week: number
   }
   org_name: string
+  upcoming_appointments: UpcomingAppointmentItem[]
 }
 
 export async function computeDashboardStats(
@@ -70,6 +72,7 @@ export async function computeDashboardStats(
     { data: soldThisWeek },
     { data: inboundLast30d },
     { data: outboundLast30d },
+    { data: upcomingAppointments },
   ] = await Promise.all([
     // Urgent: inbound email leads, pending, not snoozed
     supabase.from('activities').select('id', { count: 'exact', head: true })
@@ -121,6 +124,10 @@ export async function computeDashboardStats(
     supabase.from('activities').select('created_at,customer_id')
       .eq('user_id', orgId).in('type', ['email', 'sms', 'call']).eq('direction', 'outbound')
       .gte('created_at', thirtyDaysAgo.toISOString()),
+    supabase.from('activities').select('id, due_at, body, customer:customers(id, name, primary_phone)')
+      .eq('user_id', orgId).eq('type', 'appointment').is('direction', null).is('completed_at', null)
+      .gte('due_at', todayStartIso).lte('due_at', next7d.toISOString())
+      .order('due_at', { ascending: true }).limit(6),
   ])
 
   // ── Inventory ────────────────────────────────────────────────────────────────
@@ -268,5 +275,23 @@ export async function computeDashboardStats(
       revenue_this_week:     revenueThisWeek,
     },
     org_name: orgName,
+    upcoming_appointments: (() => {
+      const items: UpcomingAppointmentItem[] = []
+      for (const a of upcomingAppointments ?? []) {
+        const rawCustomer = Array.isArray(a.customer) ? a.customer[0] : a.customer
+        if (!rawCustomer || !a.due_at) continue
+        items.push({
+          id: a.id,
+          due_at: a.due_at,
+          body: a.body,
+          customer: {
+            id: rawCustomer.id,
+            name: rawCustomer.name,
+            primary_phone: rawCustomer.primary_phone,
+          },
+        })
+      }
+      return items
+    })(),
   }
 }

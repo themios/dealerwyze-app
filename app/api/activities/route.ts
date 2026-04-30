@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
+import { createCalendarEvent } from '@/lib/google/calendar'
 import { dispatchWebhook } from '@/lib/webhooks/dispatch'
 
 const ALLOWED_TYPES = [
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid or missing type' }, { status: 400 })
   }
 
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   // If customer_id provided, verify it belongs to this org
   if (body.customer_id) {
@@ -68,6 +69,62 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: 'Failed to create activity' }, { status: 500 })
 
+  let calendarUrl: string | null = null
+  if (type === 'appointment' && insert.direction === null && typeof insert.due_at === 'string') {
+    const dueAt = new Date(insert.due_at)
+    if (!isNaN(dueAt.getTime())) {
+      const customerId = typeof body.customer_id === 'string' ? body.customer_id : null
+      const vehicleId = typeof body.vehicle_id === 'string' ? body.vehicle_id : null
+
+      const [{ data: customer }, { data: vehicle }] = await Promise.all([
+        customerId
+          ? supabase
+              .from('customers')
+              .select('name, primary_phone')
+              .eq('id', customerId)
+              .eq('user_id', profile.org_id)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+        vehicleId
+          ? supabase
+              .from('vehicles')
+              .select('year, make, model, trim')
+              .eq('id', vehicleId)
+              .eq('user_id', profile.org_id)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+      ])
+
+      const vehicleLabel = vehicle
+        ? [vehicle.year, vehicle.make, vehicle.model, vehicle.trim].filter(Boolean).join(' ')
+        : null
+      const details = [
+        customer?.name ? `Customer: ${customer.name}` : '',
+        customer?.primary_phone ? `Phone: ${customer.primary_phone}` : '',
+        vehicleLabel ? `Vehicle: ${vehicleLabel}` : '',
+        activity.body ? `Notes: ${activity.body}` : '',
+      ].filter(Boolean).join('\n')
+
+      const result = await createCalendarEvent(
+        {
+          summary: customer?.name ? `Appointment - ${customer.name}` : 'Appointment',
+          description: details,
+          startDateTimeIso: dueAt.toISOString(),
+          durationMin: 60,
+        },
+        profile.org_id,
+      )
+      calendarUrl = result.htmlLink
+
+      if (result.eventId) {
+        await supabase
+          .from('activities')
+          .update({ google_calendar_event_id: result.eventId })
+          .eq('id', activity.id)
+      }
+    }
+  }
+
   // When a rep logs any outbound action, mark the customer's pending inbound leads as addressed
   // so they leave the Today queue. Covers manual call logs, notes, emails, SMS logged via this route.
   const direction = typeof body.direction === 'string' ? body.direction : null
@@ -94,5 +151,5 @@ export async function POST(req: NextRequest) {
     }).catch(() => {})
   }
 
-  return NextResponse.json({ activity }, { status: 201 })
+  return NextResponse.json({ activity, calendar_url: calendarUrl }, { status: 201 })
 }

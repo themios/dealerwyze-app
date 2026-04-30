@@ -13,18 +13,24 @@ import DealerBriefClient from '@/components/today/DealerBriefClient'
 import OnboardingChecklist from '@/components/today/OnboardingChecklist'
 import ReviewsSection from '@/components/today/ReviewsSection'
 import PulseScoreWidget from '@/components/today/PulseScoreWidget'
+import type { UpcomingAppointmentItem } from '@/components/appointments/UpcomingAppointmentsList'
 
 export default async function TodayPage() {
   const profile = await requireProfile()
   const supabase = await createClientForRequest()
   const orgId = profile.org_id
 
-  const now = new Date().toISOString()
-  const todayEnd = new Date()
+  const renderNow = new Date()
+  const renderNowMs = renderNow.getTime()
+  const now = renderNow.toISOString()
+  const todayEnd = new Date(renderNow)
   todayEnd.setHours(23, 59, 59, 999)
-  const todayStart = new Date()
+  const todayStart = new Date(renderNow)
   todayStart.setHours(0, 0, 0, 0)
-  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+  const tomorrowEnd = new Date(renderNow)
+  tomorrowEnd.setDate(tomorrowEnd.getDate() + 1)
+  tomorrowEnd.setHours(23, 59, 59, 999)
+  const yesterday = new Date(renderNowMs - 24 * 60 * 60 * 1000).toISOString()
 
   const { data: newLeads } = await supabase
     .from('activities')
@@ -40,7 +46,7 @@ export default async function TodayPage() {
 
   // Filter out activities whose customer join returned null (orphaned activities)
   // Hide addressed cards until next day or follow-up due date
-  const todayRef = new Date()
+  const todayRef = new Date(renderNow)
   const safeNewLeads = (newLeads || []).filter(
     a => a.customer != null && !(a.customer as { archived?: boolean | null }).archived && shouldShowAddressedActivity(a, todayRef)
   )
@@ -75,7 +81,7 @@ export default async function TodayPage() {
     .is('completed_at', null)
     .order('created_at', { ascending: false })
 
-  const todosNow = new Date().toISOString()
+  const todosNow = now
   const { data: todos } = await supabase
     .from('tasks')
     .select(`
@@ -92,7 +98,7 @@ export default async function TodayPage() {
     .limit(50)
 
   // Customers who replied (inbound SMS or email) in the last 48h — used for green card indicator
-  const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
+  const fortyEightHoursAgo = new Date(renderNowMs - 48 * 60 * 60 * 1000).toISOString()
   const { data: inboundReplies } = await supabase
     .from('activities')
     .select('customer_id')
@@ -137,13 +143,16 @@ export default async function TodayPage() {
     step_number?: number | null
     step_total?: number | null
   }
+  type SequenceRow = { name?: string | null }
+  type SequenceInfo = SequenceRow | SequenceRow[] | null
   const sequenceStatusMap: Record<string, SeqStatusEntry> = {}
   for (const enr of seqEnrollments ?? []) {
-    const seq = Array.isArray(enr.sequences) ? enr.sequences[0] : enr.sequences
+    const seq = enr.sequences as SequenceInfo
+    const firstSequence = Array.isArray(seq) ? seq[0] : seq
     sequenceStatusMap[enr.customer_id] = {
       id: enr.id,
       status: enr.status as 'active' | 'paused',
-      sequence_name: (seq as any)?.name ?? '',
+      sequence_name: firstSequence?.name ?? '',
     }
   }
 
@@ -168,7 +177,7 @@ export default async function TodayPage() {
   }
 
   // GBP reviews: last 30 days, most recent first
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString()
+  const thirtyDaysAgo = new Date(renderNowMs - 30 * 86400000).toISOString()
   const { data: gbpReviews, error: gbpReviewsError } = await supabase
     .from('gbp_reviews')
     .select('id, author_name, rating, comment, create_time, reply_comment')
@@ -237,11 +246,39 @@ export default async function TodayPage() {
     a => a.customer != null && !(a.customer as { archived?: boolean | null }).archived && shouldShowAddressedActivity(a, todayRef)
   )
 
+  const { data: upcomingAppointmentsRaw } = await supabase
+    .from('activities')
+    .select('id, due_at, body, customer:customers(id, name, primary_phone, archived)')
+    .eq('user_id', orgId)
+    .eq('type', 'appointment')
+    .is('direction', null)
+    .is('completed_at', null)
+    .gte('due_at', todayStart.toISOString())
+    .lte('due_at', tomorrowEnd.toISOString())
+    .order('due_at', { ascending: true })
+    .limit(12)
+
+  const upcomingAppointments: UpcomingAppointmentItem[] = []
+  for (const a of upcomingAppointmentsRaw || []) {
+    const rawCustomer = Array.isArray(a.customer) ? a.customer[0] : a.customer
+    if (!rawCustomer || (rawCustomer as { archived?: boolean | null }).archived || !a.due_at) continue
+    upcomingAppointments.push({
+      id: a.id,
+      due_at: a.due_at,
+      body: a.body,
+      customer: {
+        id: rawCustomer.id,
+        name: rawCustomer.name,
+        primary_phone: rawCustomer.primary_phone,
+      },
+    })
+  }
+
   const newLeadCount    = safeNewLeads.length
   const apptCount       = safeApptRequests.length
   const voiceCount      = (voiceLeadsRaw ?? []).length
   const waitingCount    = waiting.length
-  const overdueCount    = tasks.filter(t => t.due_at && new Date(t.due_at) < new Date()).length
+  const overdueCount    = tasks.filter(t => t.due_at && new Date(t.due_at) < renderNow).length
 
   return (
     <div>
@@ -305,6 +342,7 @@ export default async function TodayPage() {
             initialApptRequests={safeApptRequests}
             initialVoiceLeads={voiceLeadsRaw || []}
             initialVehicleMatches={vehicleMatches}
+            upcomingAppointments={upcomingAppointments}
             businessName={orgSettings?.business_name ?? undefined}
             respondedCustomerIds={respondedCustomerIds}
             sequenceStatusMap={sequenceStatusMap}

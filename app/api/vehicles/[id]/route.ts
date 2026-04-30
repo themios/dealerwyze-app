@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import { canAccessLedger } from '@/lib/auth/dealerRoles'
 import type { UserRole } from '@/types/index'
 
@@ -8,8 +8,6 @@ const EDITABLE_FIELDS = [
   'stock_no', 'year', 'make', 'model', 'trim', 'color',
   'mileage', 'price', 'vin', 'status', 'notes', 'listing_url', 'body_style',
 ] as const
-
-type EditableField = typeof EDITABLE_FIELDS[number]
 
 export async function PATCH(
   req: NextRequest,
@@ -29,12 +27,19 @@ export async function PATCH(
     if (field in body) patch[field] = body[field]
   }
 
+  if (typeof patch.vin === 'string') {
+    const cleanVin = patch.vin.replace(/[^A-HJ-NPR-Z0-9]/gi, '').toUpperCase()
+    patch.vin = cleanVin || null
+    if (cleanVin.length >= 6) {
+      patch.stock_no = cleanVin.slice(-6)
+    }
+  }
+
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
   }
 
-  // Service client: RLS is in place (org_own_vehicles policy), but explicit .eq('user_id') belt-and-suspenders guard is added for destructive PATCH/DELETE operations.
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   const { data: vehicle, error } = await supabase
     .from('vehicles')

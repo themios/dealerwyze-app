@@ -13,6 +13,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 
+function deriveStockNo(vin: string): string {
+  const clean = vin.replace(/[^A-HJ-NPR-Z0-9]/gi, '').toUpperCase()
+  return clean.length >= 6 ? clean.slice(-6) : ''
+}
+
 function NewVehicleForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -21,21 +26,27 @@ function NewVehicleForm() {
   const [vinDecoding, setVinDecoding] = useState(false)
   const [vinDecoded, setVinDecoded] = useState(false)
   const [form, setForm] = useState({
-    stock_no: '',
+    stock_no: deriveStockNo(searchParams.get('vin') || ''),
     year: searchParams.get('year') || new Date().getFullYear().toString(),
     make: searchParams.get('make') || '',
     model: searchParams.get('model') || '',
     trim: searchParams.get('trim') || '',
-    color: '',
+    color: searchParams.get('color') || '',
     mileage: searchParams.get('mileage') || '',
     price: '',
     vin: searchParams.get('vin') || '',
     status: searchParams.get('status') || 'available',
-    notes: '',
-    purchase_price: '',
-    purchased_from: '',
-    purchased_at: '',
+    notes: searchParams.get('notes') || '',
+    purchase_price: searchParams.get('purchase_price') || '',
+    purchased_from: searchParams.get('purchased_from') || '',
+    purchased_at: searchParams.get('purchased_at') || '',
+    acquisition_source: searchParams.get('acquisition_source') || '',
+    auction_name: searchParams.get('auction_name') || '',
+    auction_lot: searchParams.get('auction_lot') || '',
+    acquisition_notes: searchParams.get('acquisition_notes') || '',
   })
+  const derivedStockNo = deriveStockNo(form.vin)
+  const finalStockNo = derivedStockNo || form.stock_no
 
   function update(field: string, value: string) {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -72,7 +83,7 @@ function NewVehicleForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.stock_no || !form.year || !form.make || !form.model) return
+    if (!finalStockNo || !form.year || !form.make || !form.model) return
     setSaving(true)
 
     // Free tier cap: 100 vehicles
@@ -86,7 +97,7 @@ function NewVehicleForm() {
     const { data, error } = await supabase
       .from('vehicles')
       .insert({
-        stock_no: form.stock_no,
+        stock_no: finalStockNo,
         year: parseInt(form.year),
         make: form.make,
         model: form.model,
@@ -100,6 +111,10 @@ function NewVehicleForm() {
         purchase_price: form.status === 'staging' && form.purchase_price ? parseFloat(form.purchase_price) : null,
         purchased_from: form.status === 'staging' && form.purchased_from ? form.purchased_from : null,
         purchased_at: form.status === 'staging' && form.purchased_at ? form.purchased_at : null,
+        acquisition_source: form.status === 'staging' && form.acquisition_source ? form.acquisition_source : null,
+        auction_name: form.status === 'staging' && form.auction_name ? form.auction_name : null,
+        auction_lot: form.status === 'staging' && form.auction_lot ? form.auction_lot : null,
+        acquisition_notes: form.status === 'staging' && form.acquisition_notes ? form.acquisition_notes : null,
       })
       .select('id')
       .single()
@@ -136,11 +151,12 @@ function NewVehicleForm() {
           <div className="space-y-1.5">
             <Label>Stock # *</Label>
             <Input
-              placeholder="A1001"
-              value={form.stock_no}
+              placeholder="Last 6 of VIN"
+              value={finalStockNo}
               onChange={(e) => update('stock_no', e.target.value)}
               required
               className="h-12 text-base"
+              disabled={!!derivedStockNo}
             />
           </div>
           <div className="space-y-1.5">
@@ -280,12 +296,60 @@ function NewVehicleForm() {
               </div>
             </div>
             <div className="space-y-1.5">
+              <Label>Acquisition Source</Label>
+              <Select value={form.acquisition_source || '__none__'} onValueChange={(v) => update('acquisition_source', v === '__none__' ? '' : v)}>
+                <SelectTrigger className="h-12">
+                  <SelectValue placeholder="Select source" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Unknown</SelectItem>
+                  <SelectItem value="auction">Auction</SelectItem>
+                  <SelectItem value="private">Private Seller</SelectItem>
+                  <SelectItem value="trade_in">Trade-In</SelectItem>
+                  <SelectItem value="dealer_trade">Dealer Trade</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
               <Label>Purchased From</Label>
               <Input
                 placeholder="Auction, private party, trade-in..."
                 value={form.purchased_from}
                 onChange={(e) => update('purchased_from', e.target.value)}
                 className="h-12 text-base"
+              />
+            </div>
+            {form.acquisition_source === 'auction' && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Auction Name</Label>
+                  <Input
+                    placeholder="OPENLANE, ACV, Manheim..."
+                    value={form.auction_name}
+                    onChange={(e) => update('auction_name', e.target.value)}
+                    className="h-12 text-base"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Auction ID / Lot</Label>
+                  <Input
+                    placeholder="15287526"
+                    value={form.auction_lot}
+                    onChange={(e) => update('auction_lot', e.target.value)}
+                    className="h-12 text-base"
+                  />
+                </div>
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label>Acquisition Notes</Label>
+              <Textarea
+                placeholder="Title status, condition flags, seller location, transport notes..."
+                value={form.acquisition_notes}
+                onChange={(e) => update('acquisition_notes', e.target.value)}
+                rows={4}
+                className="resize-none"
               />
             </div>
           </div>
@@ -305,7 +369,7 @@ function NewVehicleForm() {
         <Button
           type="submit"
           className="w-full h-12 text-base"
-          disabled={saving || !form.stock_no || !form.make || !form.model}
+          disabled={saving || !finalStockNo || !form.make || !form.model}
         >
           {saving ? 'Saving...' : 'Add Vehicle'}
         </Button>

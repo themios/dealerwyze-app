@@ -8,19 +8,20 @@ import { resolveLeadAssignee } from '@/lib/leads/assignLead'
 import { sendAutoResponseStep1 } from '@/lib/sequences/sendAutoResponseStep1'
 import { detectAppointmentIntent } from '@/lib/leads/detectAppointmentIntent'
 import { normalizePhone } from '@/lib/utils/phone'
+import { deriveLeadIntentFromLead, mergeLeadIntent } from '@/lib/leads/intent'
 
-function parseVehicleName(name: string) {
-  const parts = name.trim().split(/\s+/)
-  const year = parseInt(parts[0], 10)
-  const make = parts[1] || 'Unknown'
-  const model = parts[2] || 'Unknown'
-  const trim = parts.slice(3).join(' ') || null
-  return { year: isNaN(year) ? 0 : year, make, model, trim }
+function normalizeName(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 }
 
-export async function ingestLead(lead: ParsedLead, external_id: string, orgId?: string) {
+export async function ingestLead(lead: ParsedLead, external_id: string, orgId: string) {
+  // Explicit guard: orgId is REQUIRED. Passing undefined silently disables all org scoping.
+  if (!orgId || typeof orgId !== 'string' || orgId.trim() === '') {
+    throw new Error('[leads/ingest] orgId is required and must be a non-empty string — caller passed: ' + JSON.stringify(orgId))
+  }
+
   const supabase = createServiceClient()
-  const userId = orgId!
+  const userId = orgId
 
   // 1. Upsert customer — match by email first, then normalized phone
   // Dedup check FIRST — before creating any customer record
@@ -32,15 +33,20 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId?: 
     .maybeSingle()
   if (earlyDup) return { status: 'duplicate', activity_id: earlyDup.id }
 
-  // Skip any lead with no contact info — can't reach them regardless of source
-  if (!lead.email && !lead.phone) return { status: 'skipped', reason: 'no_contact_info' }
-
   let customerId: string
+  let existingIntent: {
+    lead_intent_tier?: string | null
+    lead_intent_score?: number | null
+    lead_intent_flags?: string[] | null
+    lead_intent_summary?: string | null
+    lead_intent_source?: string | null
+    lead_intent_manual_note?: string | null
+  } | null = null
 
   // Try email match — must be scoped to this org (critical for SAAS_MODE)
   const { data: existingByEmail } = await supabase
     .from('customers')
-    .select('id')
+    .select('id, lead_intent_tier, lead_intent_score, lead_intent_flags, lead_intent_summary, lead_intent_source, lead_intent_manual_note')
     .eq('user_id', userId)
     .eq('email', lead.email)
     .is('merged_at', null)
@@ -51,6 +57,7 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId?: 
   if (existingByEmail) {
     customerId = existingByEmail.id
     isReInquiry = true
+    existingIntent = existingByEmail
     // Backfill email if the record came in via voice (may have been blank)
     await supabase.from('customers').update({ email: lead.email }).eq('id', customerId).is('email', null)
   } else {
@@ -60,7 +67,7 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId?: 
       const normPhone = normalizePhone(lead.phone)
       const { data: phoneRows } = await supabase
         .from('customers')
-        .select('id, primary_phone, secondary_phone')
+        .select('id, primary_phone, secondary_phone, lead_intent_tier, lead_intent_score, lead_intent_flags, lead_intent_summary, lead_intent_source, lead_intent_manual_note')
         .eq('user_id', userId)
         .is('merged_at', null)
 
@@ -74,9 +81,35 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId?: 
     if (existingByPhone) {
       customerId = existingByPhone.id
       isReInquiry = true
+      existingIntent = existingByPhone
       // Backfill email on the matched record
       await supabase.from('customers').update({ email: lead.email }).eq('id', customerId).is('email', null)
     } else {
+      if (!lead.email && !lead.phone) {
+        const normalizedLeadName = normalizeName(lead.name)
+        const { data: nameCandidates } = await supabase
+          .from('customers')
+          .select('id, name, interested_in, lead_source, lead_intent_tier, lead_intent_score, lead_intent_flags, lead_intent_summary, lead_intent_source, lead_intent_manual_note')
+          .eq('user_id', userId)
+          .is('merged_at', null)
+          .limit(200)
+
+        const matches = (nameCandidates ?? []).filter(candidate => {
+          if (normalizeName(candidate.name ?? '') !== normalizedLeadName) return false
+          if (lead.vehicle && candidate.interested_in) {
+            return candidate.interested_in.toLowerCase().includes(lead.vehicle.toLowerCase())
+          }
+          return candidate.lead_source === 'cargurus' || candidate.lead_source === 'cargurus_digest'
+        })
+
+        if (matches.length === 1) {
+          customerId = matches[0].id
+          existingIntent = matches[0]
+          isReInquiry = true
+        } else {
+          return { status: 'skipped', reason: 'no_contact_info' }
+        }
+      } else {
       const assignedTo = await resolveLeadAssignee(userId)
       const { data: created, error } = await supabase
         .from('customers')
@@ -96,6 +129,7 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId?: 
         return { error: error?.message || 'Failed to create customer' }
       }
       customerId = created.id
+      existingIntent = null
 
       // Set initial lead state for brand-new customers (no-op if already set)
       await supabase.rpc('advance_lead_state', {
@@ -103,13 +137,35 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId?: 
         p_new_state:   'new_lead',
         p_reason:      `New lead from ${lead.source}`,
       })
+      }
     }
   }
 
   // Mark as hot if source declared it or customer is re-inquiring
   const shouldMarkHot = lead.is_hot || lead.is_reengaged || isReInquiry
+  const intentSnapshot = deriveLeadIntentFromLead(lead, isReInquiry)
+  const customerPatch: Record<string, unknown> = {}
   if (shouldMarkHot) {
-    await supabase.from('customers').update({ lead_rating: 'hot' }).eq('id', customerId)
+    customerPatch.lead_rating = 'hot'
+  }
+  if (intentSnapshot) {
+    const mergedIntent = mergeLeadIntent({
+      tier: existingIntent?.lead_intent_tier,
+      score: existingIntent?.lead_intent_score,
+      flags: existingIntent?.lead_intent_flags,
+      summary: existingIntent?.lead_intent_summary,
+      source: existingIntent?.lead_intent_source,
+      manualNote: existingIntent?.lead_intent_manual_note,
+    }, intentSnapshot)
+    customerPatch.lead_intent_score = mergedIntent.score
+    customerPatch.lead_intent_tier = mergedIntent.tier
+    customerPatch.lead_intent_flags = mergedIntent.flags
+    customerPatch.lead_intent_summary = mergedIntent.summary
+    customerPatch.lead_intent_source = mergedIntent.source
+    customerPatch.lead_intent_updated_at = mergedIntent.updatedAt
+  }
+  if (Object.keys(customerPatch).length > 0) {
+    await supabase.from('customers').update(customerPatch).eq('id', customerId)
   }
 
   // 2. Dedup: customer already has a recent inbound high-priority lead within 7 days
@@ -124,7 +180,7 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId?: 
     .gte('created_at', sevenDaysAgo.toISOString())
     .maybeSingle()
 
-  if (recentLead) return { status: 'duplicate', activity_id: recentLead.id }
+  if (recentLead && !intentSnapshot) return { status: 'duplicate', activity_id: recentLead.id }
 
   // 4. Match vehicle from existing inventory only — never create from a lead
   // The dealer adds vehicles to inventory manually; leads just express interest in a vehicle.
@@ -152,15 +208,23 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId?: 
   }
 
   // 5. Create inbound lead activity
-  const activityBody = [
-    `From: ${lead.name} <${lead.email}>`,
-    `Phone: ${lead.phone}`,
-    lead.zip ? `ZIP: ${lead.zip}` : '',
-    `Vehicle: ${lead.vehicle}${lead.listed_price ? ` — $${lead.listed_price.toLocaleString()}` : ''}`,
-    lead.vin ? `VIN: ${lead.vin}` : '',
-    '',
-    lead.comments ? `"${lead.comments}"` : '(No message)',
-  ].filter(Boolean).join('\n')
+  const isSignalOnlyUpdate = !lead.email && !lead.phone && !!intentSnapshot
+  const activityBody = isSignalOnlyUpdate
+    ? [
+        'Marketplace shopper signal received.',
+        lead.vehicle ? `Vehicle: ${lead.vehicle}` : '',
+        intentSnapshot?.summary ?? '',
+        lead.comments ? `"${lead.comments}"` : '',
+      ].filter(Boolean).join('\n')
+    : [
+        `From: ${lead.name} <${lead.email}>`,
+        `Phone: ${lead.phone}`,
+        lead.zip ? `ZIP: ${lead.zip}` : '',
+        `Vehicle: ${lead.vehicle}${lead.listed_price ? ` — $${lead.listed_price.toLocaleString()}` : ''}`,
+        lead.vin ? `VIN: ${lead.vin}` : '',
+        '',
+        lead.comments ? `"${lead.comments}"` : '(No message)',
+      ].filter(Boolean).join('\n')
 
   const { data: activity, error: actErr } = await supabase
     .from('activities')
@@ -168,9 +232,9 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId?: 
       user_id: userId,
       customer_id: customerId,
       vehicle_id: vehicleId,
-      type: 'email',
+      type: isSignalOnlyUpdate ? 'note' : 'email',
       direction: 'inbound',
-      outcome: 'pending',
+      outcome: isSignalOnlyUpdate ? 'answered' : 'pending',
       priority: 'high',
       body: activityBody,
       external_id,
@@ -186,7 +250,7 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId?: 
     title: `${shouldMarkHot ? '🔥 ' : ''}New Lead: ${lead.name}${hotLabel}`,
     body: lead.vehicle || lead.source,
     url: `/customers/${customerId}`,
-  }).catch(() => {})
+  }, userId).catch(() => {})
 
   sendTelegramMessage(
     `${shouldMarkHot ? '🔥 ' : ''}<b>New Lead</b> (${lead.source})${hotLabel}\n` +

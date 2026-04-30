@@ -4,12 +4,12 @@ import { useState } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { Button } from '@/components/ui/button'
-import { Sparkles, Flame, Trophy, ChevronRight, Search } from 'lucide-react'
+import { Sparkles, Flame, Trophy, ChevronRight } from 'lucide-react'
 import DealerScoreTile from '@/components/dashboard/DealerScoreTile'
 import StatTile from '@/components/dashboard/StatTile'
 import QuickActionGrid from '@/components/dashboard/QuickActionGrid'
 import type { DashboardStats } from '@/lib/dashboard/computeStats'
+import UpcomingAppointmentsList from '@/components/appointments/UpcomingAppointmentsList'
 
 const DealerBriefClient = dynamic(() => import('@/components/today/DealerBriefClient'), { ssr: false })
 
@@ -49,7 +49,7 @@ function formatRevenue(n: number): string {
 
 export default function DashboardClient({ stats }: Props) {
   const [briefOpen, setBriefOpen] = useState(false)
-  const { today, leads, inventory, bhph, gamification, org_name } = stats
+  const { today, leads, inventory, bhph, gamification, org_name, upcoming_appointments } = stats
   const totalUrgent = today.urgent_leads + today.appt_requests
 
   return (
@@ -195,6 +195,14 @@ export default function DashboardClient({ stats }: Props) {
             { label: 'Overdue', value: bhph.overdue, color: bhph.overdue > 0 ? 'red' : 'green' },
           ]}
           alert={bhph.overdue > 0 ? `$${bhph.overdue_amount.toLocaleString()} past due` : undefined}
+        />
+      </div>
+
+      <div className="px-4">
+        <UpcomingAppointmentsList
+          title="Upcoming Appointments"
+          appointments={upcoming_appointments}
+          compact
         />
       </div>
 

@@ -67,6 +67,7 @@ export default function AddAppointmentSheet({ open, onClose, defaultDate, orgNam
   const [selected, setSelected] = useState<CustomerOption | null>(null)
   const [saving, setSaving] = useState(false)
   const [savedGCalUrl, setSavedGCalUrl] = useState<string | null>(null)
+  const [savedGCalMode, setSavedGCalMode] = useState<'view' | 'add'>('add')
   const supabase = createClient()
 
   useEffect(() => {
@@ -78,20 +79,18 @@ export default function AddAppointmentSheet({ open, onClose, defaultDate, orgNam
       .then(({ data }) => setCustomers(data || []))
   }, [open, supabase])
 
-  // Reset when opened (round to 15 min so picker shows only :00, :15, :30, :45)
-  useEffect(() => {
-    if (open) {
-      const dt = roundTo15Min(defaultDate ?? (() => {
-        const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(10, 0, 0, 0); return d
-      })())
-      setDatetime(toLocalDatetimeValue(dt))
-      setNotes('')
-      setSearch('')
-      setSelected(null)
-      setSavedGCalUrl(null)
-      setSaving(false)
-    }
-  }, [open, defaultDate])
+  function resetForOpen() {
+    const dt = roundTo15Min(defaultDate ?? (() => {
+      const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(10, 0, 0, 0); return d
+    })())
+    setDatetime(toLocalDatetimeValue(dt))
+    setNotes('')
+    setSearch('')
+    setSelected(null)
+    setSavedGCalUrl(null)
+    setSavedGCalMode('add')
+    setSaving(false)
+  }
 
   const filtered = search.length > 1
     ? customers.filter(c => c.name.toLowerCase().includes(search.toLowerCase())).slice(0, 5)
@@ -103,7 +102,7 @@ export default function AddAppointmentSheet({ open, onClose, defaultDate, orgNam
 
     const startDate = new Date(datetime)
     const title = selected
-      ? `Test drive / appointment with ${selected.name}`
+      ? `Test drive / appointment with ${selected.name}${orgName ? ` at ${orgName}` : ''}`
       : notes || 'Appointment'
 
     const { data: { user } } = await supabase.auth.getUser()
@@ -120,7 +119,7 @@ export default function AddAppointmentSheet({ open, onClose, defaultDate, orgNam
       ? `name: ${profile.display_name}\n${rawBody}`
       : rawBody
 
-    await fetch('/api/activities', {
+    const res = await fetch('/api/activities', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -134,26 +133,30 @@ export default function AddAppointmentSheet({ open, onClose, defaultDate, orgNam
       }),
     })
 
-    const gcalUrl = googleCalendarUrl(
+    const data = await res.json().catch(() => ({})) as { calendar_url?: string | null }
+
+    const gcalUrl = data.calendar_url || googleCalendarUrl(
       title,
       startDate,
       parseInt(duration) || 60,
-      notes || ''
+      notes || '',
     )
 
     setSaving(false)
     setSavedGCalUrl(gcalUrl)
+    setSavedGCalMode(data.calendar_url ? 'view' : 'add')
     onSaved()
   }
 
   function handleClose() {
     setSavedGCalUrl(null)
+    setSavedGCalMode('add')
     onClose()
   }
 
   return (
     <Sheet open={open} onOpenChange={open => !open && handleClose()}>
-      <SheetContent side="bottom" className="h-[85vh] flex flex-col rounded-t-2xl">
+      <SheetContent side="bottom" className="h-[85vh] flex flex-col rounded-t-2xl" onOpenAutoFocus={resetForOpen}>
         <SheetHeader className="mb-3 flex-shrink-0">
           <SheetTitle>New Appointment</SheetTitle>
         </SheetHeader>
@@ -173,7 +176,7 @@ export default function AddAppointmentSheet({ open, onClose, defaultDate, orgNam
               className="flex items-center gap-2 text-sm text-primary underline"
             >
               <ExternalLink className="h-4 w-4" />
-              Add to Google Calendar
+              {savedGCalMode === 'view' ? 'View in Google Calendar' : 'Add to Google Calendar'}
             </a>
             <Button variant="outline" className="mt-2" onClick={handleClose}>Done</Button>
           </div>

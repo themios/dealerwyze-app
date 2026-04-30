@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import { Activity } from '@/types'
-import { tomorrow8am, leadAgeBadge, leadIsStale } from '@/lib/utils'
+import { leadAgeBadge, leadIsStale } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
-import { Phone, Mail, MapPin, Car, Pause, X, ChevronDown, Zap, CalendarPlus, Check, Pencil, MessageSquare } from 'lucide-react'
+import { Phone, Mail, MapPin, Car, ChevronDown, Zap, CalendarPlus, Check, Pencil, MessageSquare } from 'lucide-react'
 import { useOpenCustomer } from '@/components/today/useOpenCustomer'
 import UnsubscribeBadge from '@/components/sequences/UnsubscribeBadge'
 
@@ -28,9 +28,20 @@ export interface SequenceStatus {
   step_total?: number | null
 }
 
+type LeadCustomer = {
+  id: string
+  name: string
+  primary_phone: string
+  email?: string
+  sms_opt_out?: boolean
+  unsubscribe_email?: boolean
+  unsubscribe_sms?: boolean
+  lead_source?: string | null
+}
+
 interface NewLeadCardProps {
   activity: Activity & {
-    customer: { id: string; name: string; primary_phone: string; email?: string; sms_opt_out?: boolean; unsubscribe_email?: boolean; unsubscribe_sms?: boolean }
+    customer: LeadCustomer
   }
   onUpdate: () => void
   onAddressed?: () => void   // optimistic: called immediately when card is opened or marked done
@@ -50,17 +61,7 @@ function parseLead(body: string) {
   }
 }
 
-function parseYearMakeModel(vehicleLine: string): { year: number; make: string; model: string } | null {
-  const trimmed = vehicleLine.split(' — ')[0].trim()
-  const match = trimmed.match(/^((?:19|20)\d{2})\s+(\S+)\s+(.+)$/)
-  if (!match) return null
-  const year = parseInt(match[1], 10)
-  const make = match[2].trim()
-  const model = match[3].trim()
-  return year && make && model ? { year, make, model } : null
-}
-
-function scoreLeadActivity(activity: Activity & { customer: { email?: string; primary_phone: string } }, lead: ReturnType<typeof parseLead>): number {
+function scoreLeadActivity(activity: Activity & { customer: LeadCustomer }, lead: ReturnType<typeof parseLead>): number {
   let score = 0
   if (activity.customer.primary_phone) score += 2
   if (activity.customer.email) score += 2
@@ -82,15 +83,12 @@ function ScoreBadge({ score }: { score: number }) {
   )
 }
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
 export default function NewLeadCard({ activity, onUpdate, onAddressed, hasResponded, sequenceStatus }: NewLeadCardProps) {
   const lead = parseLead(activity.body || '')
 
   const [loading, setLoading] = useState<string | null>(null)
   const [snoozeExpanded, setSnoozeExpanded] = useState(false)
+  const [followupCalendar, setFollowupCalendar] = useState(false)
   const [apptOpen, setApptOpen] = useState(false)
   const [apptDate, setApptDate] = useState('')
   const [apptTime, setApptTime] = useState('10:00')
@@ -100,14 +98,13 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
 
   const customer = activity.customer
   const stale = leadIsStale(activity.created_at)
-  const firstName = customer.name.split(' ')[0]
   const vehicleParts = lead.vehicleLine.split(' — ')
   const vehicleName = vehicleParts[0]
   const priceStr = vehicleParts[1] || ''
-  const score = scoreLeadActivity(activity as any, lead)
+  const score = scoreLeadActivity(activity, lead)
 
-  const sourceLabel = SOURCE_LABELS[(activity as any).customer?.lead_source ?? ''] ?? 'Web'
-  const rawSource = (activity as any).customer?.lead_source ?? ''
+  const sourceLabel = SOURCE_LABELS[customer.lead_source ?? ''] ?? 'Web'
+  const rawSource = customer.lead_source ?? ''
   const sourceBadgeClass = (() => {
     if (rawSource === 'sms' || rawSource === 'text') return 'bg-blue-50 text-blue-700'
     if (rawSource === 'email') return 'bg-purple-50 text-purple-700'
@@ -138,8 +135,26 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ snoozed_until: isoDate }),
     })
+    if (followupCalendar) {
+      await fetch('/api/calendar/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: `Follow up with ${customer.name}`,
+          description: [
+            vehicleName ? `Vehicle: ${vehicleName}` : '',
+            lead.phone ? `Phone: ${lead.phone}` : '',
+            customer.email ? `Email: ${customer.email}` : '',
+            lead.comments ? `Lead notes: ${lead.comments}` : '',
+          ].filter(Boolean).join('\n'),
+          start_at: isoDate,
+          duration_min: 30,
+        }),
+      }).catch(() => {})
+    }
     setLoading(null)
     setSnoozeExpanded(false)
+    setFollowupCalendar(false)
     onUpdate()
   }
 
@@ -437,7 +452,7 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
               <ChevronDown className="h-3 w-3" />
             </button>
             {snoozeExpanded && (
-              <div className="absolute right-0 bottom-full mb-1 z-50 bg-popover border rounded-xl shadow-lg py-1 w-40">
+              <div className="absolute right-0 bottom-full mb-1 z-50 bg-popover border rounded-xl shadow-lg py-1 w-56">
                 {([
                   ['tomorrow', 'Tomorrow'],
                   ['3days', 'In 3 days'],
@@ -452,6 +467,15 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
                     {label}
                   </button>
                 ))}
+                <label className="flex items-center gap-2 px-3 py-2 text-[11px] text-muted-foreground border-t">
+                  <input
+                    type="checkbox"
+                    checked={followupCalendar}
+                    onChange={e => setFollowupCalendar(e.target.checked)}
+                    className="h-3.5 w-3.5 rounded"
+                  />
+                  Also add to Google Calendar
+                </label>
               </div>
             )}
           </div>

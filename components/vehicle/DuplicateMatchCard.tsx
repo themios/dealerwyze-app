@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle, GitMerge, Paperclip, Plus } from 'lucide-react'
+import { AlertTriangle, GitMerge, Loader2, Paperclip, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface MatchedVehicle {
@@ -23,8 +23,33 @@ interface ExtractedData {
   model?: string | null
   trim?: string | null
   mileage?: number | null
+  color?: string | null
+  purchase_price?: number | null
+  purchased_from?: string | null
+  purchased_at?: string | null
+  acquisition_source?: 'auction' | 'private' | 'trade_in' | 'dealer_trade' | 'other' | null
+  auction_name?: string | null
+  auction_lot?: string | null
+  acquisition_notes?: string | null
   imageBase64?: string | null
   mimeType?: string | null
+}
+
+interface MergePreviewChange {
+  field: string
+  label: string
+  mode: 'fill' | 'append'
+  current: string | null
+  incoming: string | null
+  next: string | null
+}
+
+interface MergePreviewIgnored {
+  field: string
+  label: string
+  current: string | null
+  incoming: string | null
+  reason: string
 }
 
 interface Props {
@@ -41,26 +66,65 @@ const STATUS_COLORS: Record<string, string> = {
   sold: 'bg-gray-100 text-gray-600',
 }
 
-export default function DuplicateMatchCard({ match, extracted, onDismiss: _onDismiss, onAddNew }: Props) {
+export default function DuplicateMatchCard({ match, extracted, onDismiss, onAddNew }: Props) {
   const router = useRouter()
-  const [loading, setLoading] = useState<'merge' | 'attach' | null>(null)
+  const [loading, setLoading] = useState<'preview' | 'merge' | 'attach' | null>(null)
   const [confirmNew, setConfirmNew] = useState(false)
+  const [preview, setPreview] = useState<{
+    additions: MergePreviewChange[]
+    ignored: MergePreviewIgnored[]
+  } | null>(null)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const label = `${match.year} ${match.make} ${match.model}${match.trim ? ` ${match.trim}` : ''}`
 
+  async function handlePreviewMerge() {
+    setLoading('preview')
+    setPreviewError(null)
+    setActionError(null)
+    try {
+      const res = await fetch(`/api/vehicles/${match.id}/merge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(extracted),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setPreviewError(data.error ?? 'Could not compare the imported data.')
+        return
+      }
+      setPreview({
+        additions: data.additions ?? [],
+        ignored: data.ignored ?? [],
+      })
+    } catch {
+      setPreviewError('Could not compare the imported data.')
+    } finally {
+      setLoading(null)
+    }
+  }
+
   async function handleMerge() {
     setLoading('merge')
+    setActionError(null)
     try {
-      await fetch(`/api/vehicles/${match.id}/merge`, {
+      const res = await fetch(`/api/vehicles/${match.id}/merge`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(extracted),
       })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setActionError(data.error ?? 'Could not update the existing vehicle.')
+        return
+      }
+      router.push(`/vehicles/${match.id}`)
     } catch {
-      // best-effort
+      setActionError('Could not update the existing vehicle.')
+    } finally {
+      setLoading(null)
     }
-    setLoading(null)
-    router.push(`/vehicles/${match.id}`)
   }
 
   async function handleAttach() {
@@ -69,8 +133,8 @@ export default function DuplicateMatchCard({ match, extracted, onDismiss: _onDis
       return
     }
     setLoading('attach')
+    setActionError(null)
     try {
-      // Convert base64 to Blob, then FormData — matching the existing documents POST route
       const byteString = atob(extracted.imageBase64)
       const ab = new ArrayBuffer(byteString.length)
       const ia = new Uint8Array(ab)
@@ -83,15 +147,21 @@ export default function DuplicateMatchCard({ match, extracted, onDismiss: _onDis
       fd.append('file', file)
       fd.append('label', 'Intake scan')
 
-      await fetch(`/api/vehicles/${match.id}/documents`, {
+      const res = await fetch(`/api/vehicles/${match.id}/documents`, {
         method: 'POST',
         body: fd,
       })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setActionError(data.error ?? 'Could not attach the intake scan.')
+        return
+      }
+      router.push(`/vehicles/${match.id}`)
     } catch {
-      // best-effort
+      setActionError('Could not attach the intake scan.')
+    } finally {
+      setLoading(null)
     }
-    setLoading(null)
-    router.push(`/vehicles/${match.id}`)
   }
 
   return (
@@ -119,18 +189,124 @@ export default function DuplicateMatchCard({ match, extracted, onDismiss: _onDis
       </div>
 
       <div className="space-y-2">
-        {/* Merge */}
-        <Button
-          className="w-full justify-start gap-2 bg-white dark:bg-gray-900 text-foreground border hover:bg-muted h-10"
-          variant="outline"
-          onClick={handleMerge}
-          disabled={!!loading}
-        >
-          <GitMerge className="h-4 w-4 text-blue-500" />
-          <span className="text-sm">Update existing vehicle with new info</span>
-        </Button>
+        {!preview ? (
+          <Button
+            className="w-full justify-start gap-2 bg-white dark:bg-gray-900 text-foreground border hover:bg-muted h-10"
+            variant="outline"
+            onClick={handlePreviewMerge}
+            disabled={!!loading}
+          >
+            {loading === 'preview'
+              ? <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+              : <GitMerge className="h-4 w-4 text-blue-500" />}
+            <span className="text-sm">Review update to existing vehicle</span>
+          </Button>
+        ) : (
+          <div className="rounded-lg border bg-white/80 dark:bg-gray-950/60 p-3 space-y-3">
+            <div>
+              <p className="text-sm font-medium">This vehicle already exists in inventory.</p>
+              <p className="text-xs text-muted-foreground">
+                Review the imported details first. Nothing on the existing vehicle will be deleted.
+              </p>
+            </div>
 
-        {/* Attach photo — only if image was captured */}
+            {preview.additions.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                  Will add
+                </p>
+                <div className="space-y-2">
+                  {preview.additions.map(change => (
+                    <div
+                      key={`${change.field}-${change.label}`}
+                      className="rounded-md border border-emerald-200 bg-emerald-50/80 dark:bg-emerald-950/30 px-3 py-2"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-sm font-medium">{change.label}</span>
+                        <span className="text-[11px] uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                          {change.mode === 'append' ? 'Append' : 'Add'}
+                        </span>
+                      </div>
+                      {change.current ? (
+                        <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                          Current: {change.current}
+                        </p>
+                      ) : null}
+                      {change.incoming ? (
+                        <p className="mt-1 text-xs text-foreground line-clamp-3">
+                          Imported: {change.incoming}
+                        </p>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-md border border-muted px-3 py-2 text-xs text-muted-foreground">
+                No new details would be added from this import.
+              </div>
+            )}
+
+            {preview.ignored.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                  Will not change
+                </p>
+                <div className="space-y-2">
+                  {preview.ignored.map(change => (
+                    <div
+                      key={`${change.field}-${change.label}`}
+                      className="rounded-md border border-amber-200 bg-amber-50/80 dark:bg-amber-950/30 px-3 py-2"
+                    >
+                      <p className="text-sm font-medium">{change.label}</p>
+                      <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                        Current: {change.current || 'Empty'}
+                      </p>
+                      <p className="mt-1 text-xs text-foreground line-clamp-2">
+                        Imported: {change.incoming || 'Empty'}
+                      </p>
+                      <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-400">{change.reason}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <Button
+                className="flex-1"
+                onClick={handleMerge}
+                disabled={!!loading || preview.additions.length === 0}
+              >
+                {loading === 'merge' ? 'Updating…' : 'Update existing vehicle'}
+              </Button>
+              <Button
+                className="flex-1"
+                variant="outline"
+                onClick={() => {
+                  setPreview(null)
+                  setPreviewError(null)
+                }}
+                disabled={!!loading}
+              >
+                Back
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {previewError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-xs text-red-700 dark:text-red-300">
+            {previewError}
+          </div>
+        )}
+
+        {actionError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-xs text-red-700 dark:text-red-300">
+            {actionError}
+          </div>
+        )}
+
         {extracted.imageBase64 && (
           <Button
             className="w-full justify-start gap-2 bg-white dark:bg-gray-900 text-foreground border hover:bg-muted h-10"
@@ -143,7 +319,6 @@ export default function DuplicateMatchCard({ match, extracted, onDismiss: _onDis
           </Button>
         )}
 
-        {/* Add as new — requires confirmation */}
         {!confirmNew ? (
           <Button
             className="w-full justify-start gap-2 h-10"
@@ -180,6 +355,10 @@ export default function DuplicateMatchCard({ match, extracted, onDismiss: _onDis
             </div>
           </div>
         )}
+
+        <Button variant="ghost" className="w-full" onClick={onDismiss} disabled={!!loading}>
+          Go back
+        </Button>
       </div>
     </div>
   )

@@ -8,8 +8,13 @@ import { isLabeledLeadPaste, parseLabeledLeadPaste } from '@/lib/leads/parseLabe
 import { parseCarGurusDigest } from '@/lib/leads/parser'
 import { scanLeadText, scanResultToParsedLead } from '@/lib/leads/visionIngest'
 import { normalizePhone } from '@/lib/utils/phone'
+import { deriveLeadIntentFromLead, mergeLeadIntent } from '@/lib/leads/intent'
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>
+
+function normalizeName(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+}
 
 /** Look up a vehicle in this org's inventory. VIN match first; year/make/model fallback. */
 async function findVehicleInInventory(
@@ -76,7 +81,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (digestLeads.length > 0) {
     const results: Array<{ isNew: boolean; customerId: string; name: string; phone: string | null; email: string | null; note: string | null; vehicle: string | null; vehicleId: string | null; vehicleName: string | null; source: string }> = []
     for (const lead of digestLeads) {
-      if (!lead.phone && !lead.email) continue
       const digits = (lead.phone ?? '').replace(/\D/g, '')
       const phone10 = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits.slice(0, 10)
       const phoneDisplay = phone10.length === 10 ? `(${phone10.slice(0, 3)}) ${phone10.slice(3, 6)}-${phone10.slice(6)}` : (lead.phone || '')
@@ -116,17 +120,46 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           match = byPhone ? { id: byPhone.id } : null
         }
       }
+      if (!match && !lead.email && !lead.phone) {
+        const normalizedLeadName = normalizeName(lead.name)
+        const { data: nameCandidates } = await service
+          .from('customers')
+          .select('id, name, interested_in, lead_source')
+          .or(orgFilter)
+          .order('created_at', { ascending: true })
+          .limit(200)
+        const matchedByName = (nameCandidates ?? []).filter(candidate => {
+          if (normalizeName(candidate.name ?? '') !== normalizedLeadName) return false
+          if (lead.vehicle && candidate.interested_in) {
+            return candidate.interested_in.toLowerCase().includes(lead.vehicle.toLowerCase())
+          }
+          return candidate.lead_source === 'cargurus' || candidate.lead_source === 'cargurus_digest'
+        })
+        if (matchedByName.length === 1) {
+          match = { id: matchedByName[0].id }
+        }
+      }
+      if (!match && !lead.phone && !lead.email) continue
 
       let customerId: string
       let isNew = false
+      let existingIntent: {
+        lead_intent_tier?: string | null
+        lead_intent_score?: number | null
+        lead_intent_flags?: string[] | null
+        lead_intent_summary?: string | null
+        lead_intent_source?: string | null
+        lead_intent_manual_note?: string | null
+      } | null = null
       if (match) {
         customerId = match.id
         // Merge: backfill only empty fields so we never overwrite existing data or lose history
         const { data: existing } = await supabase
           .from('customers')
-          .select('email, zip_code, name, notes, interested_in, lead_source')
+          .select('email, zip_code, name, notes, interested_in, lead_source, lead_intent_tier, lead_intent_score, lead_intent_flags, lead_intent_summary, lead_intent_source, lead_intent_manual_note')
           .eq('id', customerId)
           .single()
+        existingIntent = existing
         const updates: Record<string, string | null> = {}
         if (lead.email && !existing?.email?.trim()) updates.email = lead.email
         if (lead.zip && !existing?.zip_code?.trim()) updates.zip_code = lead.zip
@@ -155,6 +188,28 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         if (error || !newCust) continue
         customerId = newCust.id
         isNew = true
+      }
+
+      const intent = deriveLeadIntentFromLead(lead, !isNew)
+      if (intent) {
+        const mergedIntent = mergeLeadIntent({
+          tier: existingIntent?.lead_intent_tier,
+          score: existingIntent?.lead_intent_score,
+          flags: existingIntent?.lead_intent_flags,
+          summary: existingIntent?.lead_intent_summary,
+          source: existingIntent?.lead_intent_source,
+          manualNote: existingIntent?.lead_intent_manual_note,
+        }, intent)
+        const intentPatch: Record<string, unknown> = {
+          lead_intent_score: mergedIntent.score,
+          lead_intent_tier: mergedIntent.tier,
+          lead_intent_flags: mergedIntent.flags,
+          lead_intent_summary: mergedIntent.summary,
+          lead_intent_source: mergedIntent.source,
+          lead_intent_updated_at: mergedIntent.updatedAt,
+        }
+        if (mergedIntent.tier === 'hot') intentPatch.lead_rating = 'hot'
+        await supabase.from('customers').update(intentPatch).eq('id', customerId)
       }
 
       // Auto-link vehicle from inventory (VIN first, then year/make/model)

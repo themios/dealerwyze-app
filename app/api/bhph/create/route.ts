@@ -6,7 +6,6 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createServiceClient } from '@/lib/supabase/service'
 import { requireProfile } from '@/lib/auth/profile'
 import { CONSENT_DISCLOSURE } from '@/lib/bhph/schedule'
 import { canAccessBhph } from '@/lib/auth/dealerRoles'
@@ -20,7 +19,6 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = await createClient()
-  const service = createServiceClient()
 
   const body = await req.json()
   const {
@@ -36,6 +34,8 @@ export async function POST(req: NextRequest) {
     payment_frequency,
     payment_day,
     first_due_date,
+    required_down_payment,
+    deferred_payments,
     customer_email,
     sms_consent,
     email_consent,
@@ -48,83 +48,55 @@ export async function POST(req: NextRequest) {
 
   const orgId = profile.org_id
   const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0] ?? 'unknown'
+  const requiredDownValue = required_down_payment ? parseFloat(String(required_down_payment)) : 0
+  const actualDownValue = down_payment ? parseFloat(String(down_payment)) : 0
+  const deferredRows = Array.isArray(deferred_payments)
+    ? deferred_payments
+        .map((row: unknown) => row as { amount?: unknown; due_date?: unknown; notes?: unknown })
+        .map(row => ({
+          amount: typeof row.amount === 'number' ? row.amount : parseFloat(String(row.amount ?? '0')),
+          due_date: String(row.due_date ?? ''),
+          notes: row.notes ? String(row.notes).trim().slice(0, 500) : null,
+        }))
+        .filter(row => row.amount > 0 && /^\d{4}-\d{2}-\d{2}$/.test(row.due_date))
+    : []
 
-  // 1. Update vehicle to sold
-  const { error: vErr } = await supabase
-    .from('vehicles')
-    .update({
-      status: 'sold',
-      sold_price: parseFloat(sold_price),
-      sold_at: new Date().toISOString(),
-      sold_to_customer_id: customer_id || null,
-      finance_type,
-      finance_company: finance_company || null,
-    })
-    .eq('id', vehicle_id)
-
-  if (vErr) return NextResponse.json({ error: vErr.message }, { status: 500 })
-
-  // 2. Record customer-vehicle relationship (sold vehicle appears in customer history)
-  if (customer_id) {
-    await supabase.from('customer_vehicles').upsert({
-      customer_id,
-      vehicle_id,
-      interest_level: 'hot',
-    }, { onConflict: 'customer_id,vehicle_id' })
-
-    // Auto-close the buyer's pending inbound lead activities for this vehicle
-    await service.from('activities')
-      .update({ completed_at: new Date().toISOString() })
-      .eq('user_id', orgId)
-      .eq('customer_id', customer_id)
-      .eq('vehicle_id', vehicle_id)
-      .eq('direction', 'inbound')
-      .is('completed_at', null)
-  }
-
-  // 3. Create BHPH contract if applicable
-  if (finance_type === 'bhph' && monthly_payment && first_due_date) {
-    if (!customer_id) {
-      return NextResponse.json({ error: 'Customer required for BHPH contracts' }, { status: 400 })
+  if (finance_type === 'bhph') {
+    const remainingDown = Math.max(0, Math.round((requiredDownValue - actualDownValue) * 100) / 100)
+    const deferredTotal = Math.round(deferredRows.reduce((sum, row) => sum + row.amount, 0) * 100) / 100
+    if (deferredRows.length > 0 && remainingDown <= 0) {
+      return NextResponse.json({ error: 'Deferred down payment requires a remaining balance' }, { status: 400 })
     }
-
-    const { error: bhphErr } = await service.from('bhph_payments').insert({
-      user_id: orgId,
-      vehicle_id,
-      customer_id,
-      down_payment: parseFloat(down_payment) || 0,
-      loan_amount: loan_amount ? parseFloat(loan_amount) : null,
-      monthly_payment: parseFloat(monthly_payment),
-      payment_frequency: payment_frequency ?? 'monthly',
-      payment_day_of_month: parseInt(payment_day) || 1,
-      frequency_anchor_date: first_due_date,
-      payment_day_anchor: parseInt(payment_day) || 1,
-      next_due_date: first_due_date,
-      customer_email: customer_email || null,
-      sms_consent: sms_consent ?? false,
-      sms_consent_at: sms_consent ? new Date().toISOString() : null,
-      sms_consent_ip: sms_consent ? clientIp : null,
-      sms_consent_disclosure: sms_consent ? CONSENT_DISCLOSURE : null,
-      email_consent: email_consent ?? false,
-      email_consent_at: email_consent ? new Date().toISOString() : null,
-      notes: notes || null,
-      status: 'active',
-      reminder_sequence_status: 'active',
-    })
-
-    if (bhphErr) return NextResponse.json({ error: bhphErr.message }, { status: 500 })
-
-    // 3. Auto-create first payment follow-up task
-    await service.from('activities').insert({
-      user_id: orgId,
-      customer_id,
-      vehicle_id,
-      type: 'task',
-      body: `BHPH payment #1 due — ${payment_frequency ?? 'monthly'} — $${monthly_payment}`,
-      due_at: new Date(first_due_date + 'T09:00:00').toISOString(),
-      priority: 'high',
-    })
+    if (deferredRows.length > 0 && Math.abs(deferredTotal - remainingDown) > 0.01) {
+      return NextResponse.json({ error: 'Deferred payments must equal the remaining down payment balance' }, { status: 400 })
+    }
   }
+  const { error: finalizeError } = await supabase.rpc('finalize_bhph_sale_with_deferred', {
+    p_org_id: orgId,
+    p_vehicle_id: vehicle_id,
+    p_customer_id: customer_id || null,
+    p_sold_price: parseFloat(sold_price),
+    p_finance_type: finance_type,
+    p_finance_company: finance_company || null,
+    p_down_payment: finance_type === 'bhph' ? actualDownValue : null,
+    p_required_down_payment: finance_type === 'bhph' ? requiredDownValue || null : null,
+    p_loan_amount: finance_type === 'bhph' && loan_amount ? parseFloat(loan_amount) : null,
+    p_monthly_payment: finance_type === 'bhph' && monthly_payment ? parseFloat(monthly_payment) : null,
+    p_payment_frequency: finance_type === 'bhph' ? payment_frequency ?? 'monthly' : null,
+    p_payment_day: finance_type === 'bhph' ? parseInt(payment_day) || 1 : null,
+    p_first_due_date: finance_type === 'bhph' && first_due_date ? first_due_date : null,
+    p_customer_email: finance_type === 'bhph' ? customer_email || null : null,
+    p_sms_consent: finance_type === 'bhph' ? Boolean(sms_consent) : false,
+    p_sms_consent_at: finance_type === 'bhph' && sms_consent ? new Date().toISOString() : null,
+    p_sms_consent_ip: finance_type === 'bhph' && sms_consent ? clientIp : null,
+    p_sms_consent_disclosure: finance_type === 'bhph' && sms_consent ? CONSENT_DISCLOSURE : null,
+    p_email_consent: finance_type === 'bhph' ? Boolean(email_consent) : false,
+    p_email_consent_at: finance_type === 'bhph' && email_consent ? new Date().toISOString() : null,
+    p_notes: notes || null,
+    p_deferred_payments: finance_type === 'bhph' ? deferredRows : [],
+  })
+
+  if (finalizeError) return NextResponse.json({ error: finalizeError.message }, { status: 500 })
 
   // Trigger pulse survey for the buyer (non-blocking)
   if (customer_id) {
@@ -142,7 +114,7 @@ export async function POST(req: NextRequest) {
 
   // Prepend the buyer so they get a thank-you message first
   if (customer_id) {
-    const { data: buyer } = await service
+    const { data: buyer } = await supabase
       .from('customers')
       .select('id, name, primary_phone, email')
       .eq('id', customer_id)
@@ -160,11 +132,11 @@ export async function POST(req: NextRequest) {
   if (customer_id) seen.add(customer_id) // exclude the buyer
 
   const [{ data: cvRows }, { data: matchRows }] = await Promise.all([
-    service
+    supabase
       .from('customer_vehicles')
       .select('customer_id, customer:customers(id, name, primary_phone, email)')
       .eq('vehicle_id', vehicle_id),
-    service
+    supabase
       .from('activities')
       .select('customer_id, customer:customers(id, name, primary_phone, email)')
       .eq('user_id', orgId)

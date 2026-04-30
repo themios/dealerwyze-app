@@ -13,6 +13,7 @@ import { Phone, CheckSquare, Square, X, UserCheck, Archive, ArrowUp, ArrowDown, 
 import { formatPhone, leadAgeBadge, lastContactBadge } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { LEAD_STATE_CONFIG, LEAD_STATES, type LeadState } from '@/lib/leads/states'
+import { LEAD_INTENT_TIER_LABELS, LEAD_INTENT_TIER_STYLES, type LeadIntentFlag, type LeadIntentTier } from '@/lib/leads/intent'
 import CustomerQuickUploadSheet from './CustomerQuickUploadSheet'
 
 /** Returns Tailwind bg class based on hours since last activity */
@@ -29,6 +30,16 @@ const SOURCE_LABELS: Record<string, string> = {
   autotrader: 'AutoTrader', offerup: 'OfferUp',
   facebook: 'Facebook', kbb: 'KBB', autolist: 'Autolist', carsforsale: 'Carsforsale',
   voice: 'Voice', manual: 'Manual', direct: 'Direct',
+}
+
+function getLeadIntentTier(customer: Customer): LeadIntentTier {
+  const tier = customer.lead_intent_tier
+  if (tier === 'hot' || tier === 'warm' || tier === 'active' || tier === 'standard') return tier
+  return customer.lead_rating === 'hot' ? 'hot' : 'standard'
+}
+
+function hasLeadIntentFlag(customer: Customer, flag: LeadIntentFlag): boolean {
+  return Array.isArray(customer.lead_intent_flags) && customer.lead_intent_flags.includes(flag)
 }
 
 function timeAgo(iso: string | null | undefined): string {
@@ -71,9 +82,15 @@ interface Props {
   showArchived?: boolean
 }
 
+type DisplayCustomer = Customer & {
+  archived?: boolean | null
+  archived_reason?: string | null
+}
+
 type SortOption =
   | 'created_at'
   | 'name'
+  | 'intent_score'
   | 'response_time'
   | 'last_activity'
   | 'last_call'
@@ -84,6 +101,7 @@ type StatusFilter =
   | 'all' | 'new_lead' | 'contacted' | 'engaged'
   | 'appointment_set' | 'appointment_confirmed'
   | 'showed' | 'sold' | 'lost' | 'dormant'
+type IntentFilter = 'all' | 'hot' | 'warm' | 'active' | 'manual' | 'callback' | 'appointment' | 'reengaged'
 
 const STATUS_LABELS: Record<StatusFilter, string> = {
   all:                   'All',
@@ -101,6 +119,7 @@ const STATUS_LABELS: Record<StatusFilter, string> = {
 const SORT_LABELS: Record<SortOption, string> = {
   created_at: 'Lead Created',
   name: 'Name',
+  intent_score: 'Intent Score',
   response_time: 'Response Time',
   last_activity: 'Last Activity',
   last_call: 'Last Call',
@@ -111,6 +130,7 @@ const SORT_LABELS: Record<SortOption, string> = {
 const SORT_OPTIONS: SortOption[] = [
   'created_at',
   'name',
+  'intent_score',
   'response_time',
   'last_activity',
   'last_call',
@@ -146,6 +166,12 @@ function sortCustomers(
       return copy.sort((a, b) => {
         const cmp = a.name.localeCompare(b.name)
         return direction === 'asc' ? cmp : -cmp
+      })
+    case 'intent_score':
+      return copy.sort((a, b) => {
+        const av = a.lead_intent_score ?? 0
+        const bv = b.lead_intent_score ?? 0
+        return direction === 'asc' ? av - bv : bv - av
       })
     case 'response_time':
       return copy.sort((a, b) => {
@@ -183,6 +209,17 @@ function sortCustomers(
   }
 }
 
+const INTENT_FILTER_LABELS: Record<IntentFilter, string> = {
+  all: 'All Intent',
+  hot: 'Hot',
+  warm: 'Warm',
+  active: 'Active',
+  manual: 'Manual',
+  callback: 'Callback',
+  appointment: 'Appt',
+  reengaged: 'Re-engaged',
+}
+
 export default function CustomersListClient({
   customers: initial,
   isAdmin,
@@ -193,10 +230,27 @@ export default function CustomersListClient({
   lastEmailMap = {},
   showArchived = false,
 }: Props) {
-  const [customers, setCustomers] = useState<Customer[]>(initial)
-  const [sort, setSort] = useState<SortOption>('created_at')
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+  const initialSortState = (() => {
+    if (typeof window === 'undefined') {
+      return { sort: 'created_at' as SortOption, direction: 'desc' as SortDirection }
+    }
+    try {
+      const raw = window.sessionStorage.getItem(SORT_STORAGE_KEY)
+      if (!raw) return { sort: 'created_at' as SortOption, direction: 'desc' as SortDirection }
+      const parsed = JSON.parse(raw) as { sort?: SortOption; direction?: SortDirection }
+      return {
+        sort: parsed.sort && SORT_OPTIONS.includes(parsed.sort) ? parsed.sort : 'created_at',
+        direction: parsed.direction === 'asc' || parsed.direction === 'desc' ? parsed.direction : 'desc',
+      }
+    } catch {
+      return { sort: 'created_at' as SortOption, direction: 'desc' as SortDirection }
+    }
+  })()
+  const [customers, setCustomers] = useState<DisplayCustomer[]>(initial)
+  const [sort, setSort] = useState<SortOption>(initialSortState.sort)
+  const [sortDirection, setSortDirection] = useState<SortDirection>(initialSortState.direction)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [intentFilter, setIntentFilter] = useState<IntentFilter>('all')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [selectMode, setSelectMode] = useState(false)
   const [assignTo, setAssignTo] = useState('')
@@ -231,18 +285,6 @@ export default function CustomersListClient({
 
   useEffect(() => {
     try {
-      const raw = window.sessionStorage.getItem(SORT_STORAGE_KEY)
-      if (!raw) return
-      const parsed = JSON.parse(raw) as { sort?: SortOption; direction?: SortDirection }
-      if (parsed.sort && SORT_OPTIONS.includes(parsed.sort)) setSort(parsed.sort)
-      if (parsed.direction === 'asc' || parsed.direction === 'desc') setSortDirection(parsed.direction)
-    } catch {
-      // Ignore invalid persisted sort state
-    }
-  }, [])
-
-  useEffect(() => {
-    try {
       window.sessionStorage.setItem(
         SORT_STORAGE_KEY,
         JSON.stringify({ sort, direction: sortDirection }),
@@ -257,10 +299,32 @@ export default function CustomersListClient({
     [agents]
   )
 
+  const filteredCustomers = customers.filter(c => {
+    const statusMatch = statusFilter === 'all' || (c.thread_state ?? 'new_lead') === statusFilter
+    if (!statusMatch) return false
+
+    switch (intentFilter) {
+      case 'all':
+        return true
+      case 'hot':
+      case 'warm':
+      case 'active':
+        return getLeadIntentTier(c) === intentFilter
+      case 'manual':
+        return hasLeadIntentFlag(c, 'manual_priority')
+      case 'callback':
+        return hasLeadIntentFlag(c, 'callback_requested')
+      case 'appointment':
+        return hasLeadIntentFlag(c, 'appointment')
+      case 'reengaged':
+        return hasLeadIntentFlag(c, 'reengaged')
+      default:
+        return true
+    }
+  })
+
   const sorted = sortCustomers(
-    statusFilter === 'all'
-      ? customers
-      : customers.filter(c => (c.thread_state ?? 'new_lead') === statusFilter),
+    filteredCustomers,
     sort,
     sortDirection,
     { lastActivityMap, lastCallMap, lastSmsMap, lastEmailMap },
@@ -354,6 +418,49 @@ export default function CustomersListClient({
               >
                 {STATUS_LABELS[opt]}
                 <span className={`text-[10px] ${statusFilter === opt ? 'opacity-80' : 'opacity-60'}`}>
+                  {count}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {!showArchived && (
+        <div className="px-4 pt-0 pb-1 flex items-center gap-2 overflow-x-auto">
+          {(['all', 'hot', 'warm', 'active', 'manual', 'callback', 'appointment', 'reengaged'] as IntentFilter[]).map(opt => {
+            const count = customers.filter(c => {
+              switch (opt) {
+                case 'all':
+                  return true
+                case 'hot':
+                case 'warm':
+                case 'active':
+                  return getLeadIntentTier(c) === opt
+                case 'manual':
+                  return hasLeadIntentFlag(c, 'manual_priority')
+                case 'callback':
+                  return hasLeadIntentFlag(c, 'callback_requested')
+                case 'appointment':
+                  return hasLeadIntentFlag(c, 'appointment')
+                case 'reengaged':
+                  return hasLeadIntentFlag(c, 'reengaged')
+              }
+            }).length
+
+            return (
+              <button
+                key={opt}
+                onClick={() => setIntentFilter(opt)}
+                aria-pressed={intentFilter === opt}
+                className={`text-xs px-2.5 py-1 rounded-full flex-shrink-0 transition-colors flex items-center gap-1 ${
+                  intentFilter === opt
+                    ? 'bg-orange-500 text-white font-medium'
+                    : 'bg-muted text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {INTENT_FILTER_LABELS[opt]}
+                <span className={`text-[10px] ${intentFilter === opt ? 'opacity-80' : 'opacity-60'}`}>
                   {count}
                 </span>
               </button>
@@ -485,7 +592,10 @@ export default function CustomersListClient({
               const contactBadge = lastContactBadge(lastActivityMap[customer.id] ?? null)
 
               const urgencyBg = activityUrgencyBg(lastActivityMap[customer.id])
-              const isArchived = (customer as any).archived
+              const intentTier = getLeadIntentTier(customer)
+              const intentStyle = LEAD_INTENT_TIER_STYLES[intentTier]
+              const intentSummary = customer.lead_intent_summary
+              const isArchived = customer.archived
               const stateConfig = isArchived
                 ? { label: 'Archived', color: 'bg-muted text-muted-foreground' }
                 : LEAD_STATE_CONFIG[(customer.thread_state ?? 'new_lead') as LeadState]
@@ -509,21 +619,31 @@ export default function CustomersListClient({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
                         <p className="font-medium truncate text-sm">{customer.name}</p>
-                        {customer.lead_rating === 'hot' && (
+                        {intentTier === 'hot' && (
                           <Flame className="h-3.5 w-3.5 text-orange-500 flex-shrink-0" />
+                        )}
+                        {intentTier !== 'standard' && (
+                          <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${intentStyle.badge}`}>
+                            {LEAD_INTENT_TIER_LABELS[intentTier]}
+                          </span>
                         )}
                       </div>
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
                         <Phone className="h-3 w-3 flex-shrink-0" />
                         <span>{formatPhone(customer.primary_phone)}</span>
                         <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${stateConfig?.color ?? 'bg-gray-100 text-gray-500'}`}
-                          title={isArchived && (customer as any).archived_reason ? (customer as any).archived_reason : undefined}>
+                          title={isArchived && customer.archived_reason ? customer.archived_reason : undefined}>
                           {stateConfig?.label ?? customer.thread_state}
                         </span>
-                        {isArchived && (customer as any).archived_reason && (
-                          <span className="text-[10px] text-muted-foreground truncate max-w-[100px]">· {(customer as any).archived_reason}</span>
+                        {isArchived && customer.archived_reason && (
+                          <span className="text-[10px] text-muted-foreground truncate max-w-[100px]">· {customer.archived_reason}</span>
                         )}
                       </div>
+                      {intentSummary && (
+                        <p className={`mt-1 text-[11px] leading-snug line-clamp-2 ${intentStyle.text}`}>
+                          {intentSummary}
+                        </p>
+                      )}
                     </div>
 
                     <div className="flex flex-col items-end gap-1 flex-shrink-0" suppressHydrationWarning>
@@ -662,6 +782,8 @@ export default function CustomersListClient({
                   const stateConfig = LEAD_STATE_CONFIG[state as keyof typeof LEAD_STATE_CONFIG]
                   const resp = fmtRespTime(customer.response_time_seconds)
                   const isChecked = selected.has(customer.id)
+                  const intentTier = getLeadIntentTier(customer)
+                  const intentStyle = LEAD_INTENT_TIER_STYLES[intentTier]
 
                   return (
                     <tr
@@ -682,7 +804,22 @@ export default function CustomersListClient({
                           <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs flex-shrink-0">
                             {initials}
                           </div>
-                          <span className="font-medium truncate max-w-[160px]">{customer.name}</span>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-medium truncate max-w-[160px]">{customer.name}</span>
+                              {intentTier === 'hot' && <Flame className="h-3.5 w-3.5 text-orange-500 flex-shrink-0" />}
+                              {intentTier !== 'standard' && (
+                                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${intentStyle.badge}`}>
+                                  {LEAD_INTENT_TIER_LABELS[intentTier]}
+                                </span>
+                              )}
+                            </div>
+                            {customer.lead_intent_summary && (
+                              <p className={`text-[11px] mt-0.5 truncate max-w-[260px] ${intentStyle.text}`}>
+                                {customer.lead_intent_summary}
+                              </p>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="py-2.5 pr-4 text-muted-foreground tabular-nums">{formatPhone(customer.primary_phone)}</td>

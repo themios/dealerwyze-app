@@ -30,6 +30,26 @@ interface DocEntry {
 interface CustomerResult { id: string; name: string; primary_phone: string; email?: string }
 interface InterestedCustomer { customer_id: string; name: string; primary_phone: string | null; email: string | null; is_buyer?: boolean }
 type NotifyStatus = 'idle' | 'sending' | 'sent' | 'skipped'
+interface DeferredPaymentDraft { due_date: string; amount: string; notes: string }
+
+const INITIAL_FORM = {
+  sold_price: '',
+  finance_type: 'cash',
+  finance_company: '',
+  customer_query: '',
+  customer_id: '',
+  customer_email: '',
+  down_payment: '',
+  required_down_payment: '',
+  loan_amount: '',
+  monthly_payment: '',
+  payment_frequency: 'monthly',
+  payment_day: '1',
+  first_due_date: '',
+  sms_consent: false,
+  email_consent: false,
+  notes: '',
+}
 
 export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }: Props) {
   const router = useRouter()
@@ -90,6 +110,13 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
       setNotifyStatus({})
       setPostsaleChecks({ review: true, pulse: true })
       setPostsaleSending(false)
+      setForm({ ...INITIAL_FORM })
+      setDeferredEnabled(false)
+      setDeferredRows([])
+      setCustomerResults([])
+      setSearching(false)
+      setSaving(false)
+      setError('')
       return
     }
     fetch(`/api/vehicles/${vehicleId}/documents`)
@@ -113,24 +140,9 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
     setConfirmDeleteDoc(null)
   }
 
-  const [form, setForm] = useState({
-    sold_price: '',
-    finance_type: 'cash',
-    finance_company: '',
-    customer_query: '',
-    customer_id: '',
-    customer_email: '',
-    // BHPH
-    down_payment: '',
-    loan_amount: '',
-    monthly_payment: '',
-    payment_frequency: 'monthly',
-    payment_day: '1',
-    first_due_date: '',
-    sms_consent: false,
-    email_consent: false,
-    notes: '',
-  })
+  const [form, setForm] = useState({ ...INITIAL_FORM })
+  const [deferredEnabled, setDeferredEnabled] = useState(false)
+  const [deferredRows, setDeferredRows] = useState<DeferredPaymentDraft[]>([])
   const [customerResults, setCustomerResults] = useState<CustomerResult[]>([])
   const [searching, setSearching] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -138,6 +150,18 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
 
   function update(field: string, value: string | boolean) {
     setForm(p => ({ ...p, [field]: value }))
+  }
+
+  function addDeferredRow() {
+    setDeferredRows(prev => [...prev, { due_date: '', amount: '', notes: '' }])
+  }
+
+  function updateDeferredRow(index: number, field: keyof DeferredPaymentDraft, value: string) {
+    setDeferredRows(prev => prev.map((row, i) => i === index ? { ...row, [field]: value } : row))
+  }
+
+  function removeDeferredRow(index: number) {
+    setDeferredRows(prev => prev.filter((_, i) => i !== index))
   }
 
   async function searchCustomers(q: string) {
@@ -172,6 +196,26 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
       if (!form.customer_id) { setError('Customer is required for BHPH'); return }
       if (!form.monthly_payment) { setError('Monthly payment is required for BHPH'); return }
       if (!form.first_due_date) { setError('First due date is required for BHPH'); return }
+      const requiredDown = parseFloat(form.required_down_payment || '0') || 0
+      const actualDown = parseFloat(form.down_payment || '0') || 0
+      const remainingDown = Math.max(0, Math.round((requiredDown - actualDown) * 100) / 100)
+      const deferredTotal = deferredRows.reduce((sum, row) => sum + (parseFloat(row.amount || '0') || 0), 0)
+      if (deferredEnabled && remainingDown <= 0) {
+        setError('Deferred down payment requires a remaining balance after collected down payment')
+        return
+      }
+      if (deferredEnabled && deferredRows.length === 0) {
+        setError('Add at least one deferred payment date')
+        return
+      }
+      if (deferredEnabled && deferredRows.some(row => !row.due_date || !(parseFloat(row.amount || '0') > 0))) {
+        setError('Each deferred payment needs a due date and amount')
+        return
+      }
+      if (deferredEnabled && Math.abs(deferredTotal - remainingDown) > 0.01) {
+        setError('Deferred payment amounts must equal the remaining down payment balance')
+        return
+      }
       if (!form.sms_consent && !form.email_consent) {
         setError('At least one contact consent is required to set up BHPH reminders')
         return
@@ -183,7 +227,15 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
     const res = await fetch('/api/bhph/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form, vehicle_id: vehicleId }),
+      body: JSON.stringify({
+        ...form,
+        vehicle_id: vehicleId,
+        deferred_payments: deferredEnabled ? deferredRows.map(row => ({
+          due_date: row.due_date,
+          amount: parseFloat(row.amount || '0'),
+          notes: row.notes || null,
+        })) : [],
+      }),
     })
     const data = await res.json()
 
@@ -242,6 +294,10 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
 
   const isBhph = form.finance_type === 'bhph'
   const isFinance = form.finance_type === 'finance'
+  const requiredDown = parseFloat(form.required_down_payment || '0') || 0
+  const actualDown = parseFloat(form.down_payment || '0') || 0
+  const remainingDeferred = Math.max(0, Math.round((requiredDown - actualDown) * 100) / 100)
+  const deferredDraftTotal = deferredRows.reduce((sum, row) => sum + (parseFloat(row.amount || '0') || 0), 0)
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
@@ -407,14 +463,28 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label>Down Payment</Label>
+                  <Label>Collected Today</Label>
                   <Input type="number" placeholder="2000" value={form.down_payment}
                     onChange={e => update('down_payment', e.target.value)} className="h-11" />
                 </div>
                 <div className="space-y-1.5">
+                  <Label>Required Down</Label>
+                  <Input type="number" placeholder="3000" value={form.required_down_payment}
+                    onChange={e => update('required_down_payment', e.target.value)} className="h-11" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
                   <Label>Loan Amount</Label>
                   <Input type="number" placeholder="10000" value={form.loan_amount}
                     onChange={e => update('loan_amount', e.target.value)} className="h-11" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Deferred Balance</Label>
+                  <div className="h-11 rounded-md border bg-background px-3 flex items-center text-sm">
+                    {remainingDeferred.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
+                  </div>
                 </div>
               </div>
 
@@ -437,6 +507,80 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
                 <Label>First Payment Due *</Label>
                 <Input type="date" value={form.first_due_date}
                   onChange={e => update('first_due_date', e.target.value)} className="h-11" />
+              </div>
+
+              <div className="space-y-3 border-t pt-3">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={deferredEnabled}
+                    onChange={e => {
+                      setDeferredEnabled(e.target.checked)
+                      if (e.target.checked && deferredRows.length === 0) addDeferredRow()
+                    }}
+                    className="mt-1 h-4 w-4 rounded"
+                  />
+                  <div>
+                    <p className="text-sm font-medium">Set up deferred down payment plan</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Use this when the buyer owes part of the required down payment after delivery.
+                    </p>
+                  </div>
+                </label>
+
+                {deferredEnabled && (
+                  <div className="space-y-3 rounded-lg border bg-background p-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Deferred installments</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          Remaining target: {remainingDeferred.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
+                          {' · '}
+                          Planned: {deferredDraftTotal.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
+                        </p>
+                      </div>
+                      <Button type="button" size="sm" variant="outline" onClick={addDeferredRow}>Add date</Button>
+                    </div>
+
+                    {deferredRows.map((row, index) => (
+                      <div key={`${index}-${row.due_date}-${row.amount}`} className="space-y-2 rounded-lg border p-3">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label>Due Date</Label>
+                            <Input
+                              type="date"
+                              value={row.due_date}
+                              onChange={e => updateDeferredRow(index, 'due_date', e.target.value)}
+                              className="h-10"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label>Amount</Label>
+                            <Input
+                              type="number"
+                              value={row.amount}
+                              onChange={e => updateDeferredRow(index, 'amount', e.target.value)}
+                              className="h-10"
+                              placeholder="500"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <Label>Notes</Label>
+                          <Input
+                            value={row.notes}
+                            onChange={e => updateDeferredRow(index, 'notes', e.target.value)}
+                            className="h-10"
+                            placeholder="Promise to pay after payday"
+                          />
+                        </div>
+                        <Button type="button" size="sm" variant="ghost" className="text-destructive px-0" onClick={() => removeDeferredRow(index)}>
+                          Remove installment
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Reminders section */}

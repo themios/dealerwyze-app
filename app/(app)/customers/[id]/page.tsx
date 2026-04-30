@@ -1,13 +1,15 @@
 export const dynamic = 'force-dynamic'
 import { createClientForRequest } from '@/lib/supabase/forRequest'
+import { createServiceClient } from '@/lib/supabase/service'
 import { requireProfile } from '@/lib/auth/profile'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import TopBar from '@/components/layout/TopBar'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Pencil, Flame } from 'lucide-react'
-import { isDealerAdmin } from '@/types/index'
+import { isDealerAdmin, type LeadIntentTier } from '@/types/index'
 import CustomerDetailClient from './CustomerDetailClient'
+import { LEAD_INTENT_TIER_LABELS, LEAD_INTENT_TIER_STYLES } from '@/lib/leads/intent'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -17,6 +19,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
   const { id } = await params
   const profile = await requireProfile()
   const supabase = await createClientForRequest()
+  const service = createServiceClient()
 
   const [{ data: customer }, { data: sentActivities }, { data: scheduledActivities }, { data: tasks }, { data: cvData }] = await Promise.all([
     supabase.from('customers').select('*').eq('id', id).eq('user_id', profile.org_id).single(),
@@ -41,7 +44,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
       .eq('status', 'open')
       .order('due_at', { ascending: true, nullsFirst: false })
       .limit(20),
-    supabase.from('customer_vehicles').select('vehicle:vehicles(*)').eq('customer_id', id),
+    service.from('customer_vehicles').select('vehicle:vehicles(*)').eq('customer_id', id),
   ])
 
   // Pick the primary vehicle: prefer non-sold/non-removed, fall back to first
@@ -53,6 +56,12 @@ export default async function CustomerDetailPage({ params }: PageProps) {
   })()
 
   if (!customer) notFound()
+  const intentTier: LeadIntentTier = customer.lead_intent_tier === 'hot' || customer.lead_intent_tier === 'warm' || customer.lead_intent_tier === 'active' || customer.lead_intent_tier === 'standard'
+    ? customer.lead_intent_tier
+    : (customer as { lead_rating?: string | null }).lead_rating === 'hot'
+      ? 'hot'
+      : 'standard'
+  const intentStyle = LEAD_INTENT_TIER_STYLES[intentTier]
 
   return (
     <div>
@@ -60,9 +69,9 @@ export default async function CustomerDetailPage({ params }: PageProps) {
         left={
           <h1 className="flex items-center gap-2" style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 700, lineHeight: 1.15 }}>
             {customer.name}
-            {(customer as { lead_rating?: string | null }).lead_rating === 'hot' && (
-              <span className="inline-flex items-center gap-1 bg-red-50 text-red-700 rounded-full px-2 py-0.5 text-[11px] font-semibold">
-                <Flame className="h-3 w-3 flex-shrink-0" />hot
+            {intentTier !== 'standard' && (
+              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${intentStyle.badge}`}>
+                <Flame className="h-3 w-3 flex-shrink-0" />{LEAD_INTENT_TIER_LABELS[intentTier]}
               </span>
             )}
           </h1>

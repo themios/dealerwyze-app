@@ -19,6 +19,7 @@ import VoiceLeadCard from '@/components/leads/VoiceLeadCard'
 import VehicleMatchCard from '@/components/leads/VehicleMatchCard'
 import EmailFollowUpItem from '@/components/leads/EmailFollowUpItem'
 import AppointmentRequestCard from '@/components/today/AppointmentRequestCard'
+import UpcomingAppointmentsList, { type UpcomingAppointmentItem } from '@/components/appointments/UpcomingAppointmentsList'
 
 const MOTIVATIONAL_MESSAGES = [
   'Every call could be your next deal.',
@@ -62,12 +63,13 @@ interface TodayContentProps {
   initialApptRequests: Activity[]
   initialVoiceLeads: VoiceCall[]
   initialVehicleMatches?: Activity[]
+  upcomingAppointments?: UpcomingAppointmentItem[]
   businessName?: string
   respondedCustomerIds?: string[]
   sequenceStatusMap?: Record<string, SequenceStatus>
 }
 
-export default function TodayContent({ initialNewLeads, initialTasks, initialWaiting, initialApptRequests, initialVoiceLeads, initialVehicleMatches = [], respondedCustomerIds = [], sequenceStatusMap = {} }: TodayContentProps) {
+export default function TodayContent({ initialNewLeads, initialTasks, initialWaiting, initialApptRequests, initialVoiceLeads, initialVehicleMatches = [], upcomingAppointments = [], respondedCustomerIds = [], sequenceStatusMap = {} }: TodayContentProps) {
   const [newLeads, setNewLeads] = useState<Activity[]>(initialNewLeads)
   const [tasks, setTasks] = useState<Activity[]>(initialTasks)
   const [waiting, setWaiting] = useState<Activity[]>(initialWaiting)
@@ -343,6 +345,10 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
       </div>
 
       <div className="px-4 py-2 space-y-6">
+        <UpcomingAppointmentsList
+          title="Today & Tomorrow Appointments"
+          appointments={upcomingAppointments}
+        />
 
         {queue.length === 0 && (
           <div className="text-center py-16 text-muted-foreground flex flex-col items-center gap-2">

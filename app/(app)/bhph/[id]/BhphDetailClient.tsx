@@ -7,9 +7,9 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import TopBar from '@/components/layout/TopBar'
-import { formatCurrency } from '@/lib/utils'
 import { nextDueDate } from '@/lib/bhph/schedule'
 import type { PaymentFrequency } from '@/lib/bhph/schedule'
+import DeferredPaymentManager, { type DeferredPaymentRow } from './DeferredPaymentManager'
 import {
   CheckCircle, AlertTriangle, ChevronLeft, Phone, Mail,
   History, Link2, DollarSign, MoreVertical,
@@ -22,6 +22,7 @@ interface Account {
   loan_amount: number | null
   total_paid: number
   down_payment: number
+  required_down_payment: number | null
   monthly_payment: number
   payment_frequency: string
   payment_day_anchor: number | null
@@ -48,6 +49,7 @@ interface ReminderLog {
 interface Props {
   account: Account
   reminderLog: ReminderLog[]
+  deferredPayments: DeferredPaymentRow[]
 }
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -187,7 +189,7 @@ function RecordPaymentForm({
 
 // ── Main Component ─────────────────────────────────────────────
 
-export default function BhphDetailClient({ account: acct, reminderLog }: Props) {
+export default function BhphDetailClient({ account: acct, deferredPayments }: Props) {
   const [showRecordForm, setShowRecordForm] = useState(false)
 
   const customer = acct.customer
@@ -214,6 +216,9 @@ export default function BhphDetailClient({ account: acct, reminderLog }: Props) 
     : null
 
   const schedule = buildSchedule(acct)
+  const deferredOutstanding = deferredPayments
+    .filter(row => row.status === 'scheduled')
+    .reduce((sum, row) => sum + row.amount, 0)
 
   const vehicleLabel = vehicle
     ? `${vehicle.year} ${vehicle.make} ${vehicle.model}`
@@ -363,6 +368,24 @@ export default function BhphDetailClient({ account: acct, reminderLog }: Props) 
                 </p>
               </div>
             )}
+
+            {(acct.required_down_payment ?? 0) > 0 && (
+              <div className="bg-card border border-border rounded-[10px] p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Required down payment</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Deferred remaining {fmt(deferredOutstanding)}
+                  </p>
+                </div>
+                <p className="text-lg font-[family-name:var(--font-display)] font-bold text-foreground">
+                  {fmt(acct.required_down_payment)}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="px-4 lg:px-6 pb-4">
+            <DeferredPaymentManager contractId={acct.id} rows={deferredPayments} />
           </div>
 
           {/* Payment schedule */}

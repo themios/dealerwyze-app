@@ -56,7 +56,7 @@ export async function confirmAppointment(
     .eq('id', activityId)
 
   // 2. Create Google Calendar event
-  const calendarUrl = await createCalendarEvent(
+  const { htmlLink: calendarUrl, eventId } = await createCalendarEvent(
     {
       summary: `Appointment - ${customerName}`,
       description: `Customer requested: "${originalBody}"\n\nCustomer phone: ${customerPhone}`,
@@ -66,14 +66,11 @@ export async function confirmAppointment(
     orgId
   )
 
-  if (calendarUrl) {
-    const eventId = calendarUrl.split('/').pop()?.split('?')[0]
-    if (eventId) {
-      await supabase
-        .from('activities')
-        .update({ google_calendar_event_id: eventId })
-        .eq('id', activityId)
-    }
+  if (eventId) {
+    await supabase
+      .from('activities')
+      .update({ google_calendar_event_id: eventId })
+      .eq('id', activityId)
   }
 
   // 3. Fetch dealer name for notification

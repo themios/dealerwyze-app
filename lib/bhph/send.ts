@@ -23,6 +23,8 @@ export async function sendBhphReminder(params: {
   customerPhone: string
   customerEmail?: string | null
   customerSmsOptedOut: boolean
+  smsConsent: boolean
+  emailConsent: boolean
   reminderType: ReminderType
   dealerTimezone: string
   dealerPhone: string
@@ -31,7 +33,7 @@ export async function sendBhphReminder(params: {
 }): Promise<SendResult> {
   const {
     bhphId, userId, customerId, customerPhone, customerEmail,
-    customerSmsOptedOut, reminderType, dealerTimezone, dealerPhone,
+    customerSmsOptedOut, smsConsent, emailConsent, reminderType, dealerTimezone,
     messageVars, amount,
   } = params
 
@@ -56,7 +58,7 @@ export async function sendBhphReminder(params: {
   const twilioFrom = process.env.TWILIO_FROM_NUMBER
 
   if (twilioSid && twilioToken && twilioFrom) {
-    if (customerSmsOptedOut) {
+    if (!smsConsent || customerSmsOptedOut) {
       result.sms = 'skipped_optout'
     } else if (!isWithinSendHours(dealerTimezone)) {
       result.sms = 'skipped_hours'
@@ -124,7 +126,9 @@ export async function sendBhphReminder(params: {
   // ── Email via Resend ─────────────────────────────────────────────────────────
   const resendKey = process.env.RESEND_API_KEY
   if (resendKey) {
-    if (!customerEmail) {
+    if (!emailConsent) {
+      result.email = 'skipped_optout'
+    } else if (!customerEmail) {
       result.email = 'skipped_noemail'
     } else {
       const subject = buildEmailSubject(reminderType, messageVars.vehicleLabel)

@@ -15,6 +15,13 @@ export interface ParsedLead {
   is_hot?: boolean
   /** Customer previously inquired and is re-engaging */
   is_reengaged?: boolean
+  /** Structured shopper-signal flags used for prioritization */
+  signal_flags?: Array<
+    'appointment' | 'warm_shopper' | 'reengaged' | 'returning_shopper' |
+    'low_competition' | 'local_shopper' | 'viewed_vdp' | 'callback_requested' | 'manual_priority'
+  >
+  /** Human-readable summary for the CRM */
+  signal_summary?: string
 }
 
 function field(text: string, label: string): string {
@@ -91,6 +98,81 @@ export function parseCarGurusLead(subject: string, textBody: string): ParsedLead
 
 /** CarGurus LeadAI digest — daily summary with multiple leads */
 export function parseCarGurusDigest(subject: string, textBody: string): ParsedLead[] {
+  const shopperSignalsDigest =
+    textBody.includes('Shopper Signals have arrived') ||
+    textBody.includes('Shopper Signals Digest')
+  if (shopperSignalsDigest) {
+    const normalized = textBody.replace(/\r/g, '')
+    const blocks = normalized
+      .split(/View full profile/gi)
+      .map(block => block.trim())
+      .filter(Boolean)
+
+    const shopperLeads: ParsedLead[] = []
+    for (const block of blocks) {
+      const lines = block
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean)
+
+      if (lines.length < 4) continue
+
+      const name = lines.find(line =>
+        /^[A-Z][A-Za-z.'’-]+(?:\s+[A-Z][A-Za-z.'’-]+){1,3}$/.test(line) &&
+        !/shoppers?|competition|listings|miles away|appointment|warm|profile/i.test(line)
+      ) ?? ''
+
+      const vehicle = lines.find(line => /^\d{4}\s+[A-Za-z0-9-]/.test(line)) ?? ''
+
+      if (!name || !vehicle) continue
+
+      const lower = block.toLowerCase()
+      const flags = new Set<NonNullable<ParsedLead['signal_flags']>[number]>()
+
+      if (/appointment/i.test(block)) flags.add('appointment')
+      if (/warm/i.test(block) || /more likely to close than an average shopper/i.test(block)) flags.add('warm_shopper')
+      if (/re-engaged shoppers|reengaged|re-engaged|reconnected|revisited/i.test(block)) flags.add('reengaged')
+      if (/viewed your vdp/i.test(block)) flags.add('viewed_vdp')
+
+      const milesMatch = block.match(/(\d+)\s+miles away/i)
+      if (milesMatch && Number(milesMatch[1]) <= 75) flags.add('local_shopper')
+
+      if (/no dealers are in competition yet/i.test(lower) || /\b1 other dealer in competition\b/i.test(block)) {
+        flags.add('low_competition')
+      }
+
+      const connectionMatch = block.match(/(\d+)\s+connections?\s+across/i)
+      if (connectionMatch && Number(connectionMatch[1]) >= 5) flags.add('returning_shopper')
+
+      const summaryParts: string[] = []
+      if (flags.has('warm_shopper')) summaryParts.push('Above-average likelihood to close')
+      if (flags.has('appointment')) summaryParts.push('Appointment signal')
+      if (flags.has('reengaged')) summaryParts.push('Re-engaged shopper')
+      if (flags.has('low_competition')) summaryParts.push('Low competition')
+      if (flags.has('local_shopper') && milesMatch) summaryParts.push(`${milesMatch[1]} miles away`)
+      if (connectionMatch) summaryParts.push(`${connectionMatch[1]} total connections`)
+
+      shopperLeads.push({
+        name,
+        email: '',
+        phone: '',
+        zip: '',
+        vehicle,
+        vin: '',
+        listed_price: null,
+        comments: summaryParts.join(' • '),
+        source: 'cargurus_digest',
+        raw_text: block,
+        is_hot: flags.has('warm_shopper') || flags.has('appointment') || undefined,
+        is_reengaged: flags.has('reengaged') || undefined,
+        signal_flags: Array.from(flags),
+        signal_summary: summaryParts.join(' • ') || undefined,
+      })
+    }
+
+    if (shopperLeads.length > 0) return shopperLeads
+  }
+
   const isDigest =
     subject.toLowerCase().includes('leadai') ||
     subject.toLowerCase().includes('lead ai') ||

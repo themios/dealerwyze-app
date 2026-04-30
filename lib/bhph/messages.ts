@@ -17,6 +17,7 @@ export interface MessageVars {
   dealerPhone: string
   dealerName: string   // e.g. "Apollo Auto"
   vehicleLabel: string // e.g. "2019 Honda CR-V"
+  paymentContext?: 'loan' | 'deferred_down_payment'
 }
 
 function fmt(amount: number): string {
@@ -30,23 +31,29 @@ function formatDate(iso: string): string {
 }
 
 export function buildSmsMessage(type: ReminderType, vars: MessageVars): string {
-  const { customerName, amount, dueDate, dealerPhone, dealerName, vehicleLabel } = vars
+  const { customerName, amount, dueDate, dealerPhone, dealerName, vehicleLabel, paymentContext } = vars
   const first = customerName.split(' ')[0]
   const d = formatDate(dueDate)
   const a = fmt(amount)
+  const paymentLabel = paymentContext === 'deferred_down_payment'
+    ? `deferred down payment installment of ${a}`
+    : `payment of ${a}`
+  const accountLabel = paymentContext === 'deferred_down_payment'
+    ? `for your ${vehicleLabel}`
+    : `for your ${vehicleLabel}`
 
   switch (type) {
     case 'pre_3day':
-      return `Hi ${first}, this is a reminder from ${dealerName} that your payment of ${a} for your ${vehicleLabel} is due on ${d}. Questions? Call us at ${dealerPhone}. Reply STOP to opt out.`
+      return `Hi ${first}, this is a reminder from ${dealerName} that your ${paymentLabel} ${accountLabel} is due on ${d}. Questions? Call us at ${dealerPhone}. Reply STOP to opt out.`
 
     case 'due_day':
-      return `Hi ${first}, your payment of ${a} to ${dealerName} is due TODAY for your ${vehicleLabel}. Please call ${dealerPhone} or stop by to make your payment. Reply PAY to confirm you are coming in. Reply STOP to opt out.`
+      return `Hi ${first}, your ${paymentLabel} to ${dealerName} is due TODAY ${accountLabel}. Please call ${dealerPhone} or stop by to make your payment. Reply PAY to confirm you are coming in. Reply STOP to opt out.`
 
     case 'late_2day':
-      return `Hi ${first}, your payment of ${a} to ${dealerName} for your ${vehicleLabel} is now 2 days past due. Please contact us at ${dealerPhone} as soon as possible to keep your account current. Reply STOP to opt out.`
+      return `Hi ${first}, your ${paymentLabel} to ${dealerName} ${accountLabel} is now 2 days past due. Please contact us at ${dealerPhone} as soon as possible to keep your account current. Reply STOP to opt out.`
 
     case 'late_7day':
-      return `Hi ${first}, your payment of ${a} to ${dealerName} for your ${vehicleLabel} is 7 days past due. Please call ${dealerPhone} immediately to discuss payment options and avoid further action on your account. Reply STOP to opt out.`
+      return `Hi ${first}, your ${paymentLabel} to ${dealerName} ${accountLabel} is 7 days past due. Please call ${dealerPhone} immediately to discuss payment options and avoid further action on your account. Reply STOP to opt out.`
   }
 }
 
@@ -60,9 +67,12 @@ export function buildEmailSubject(type: ReminderType, vehicleLabel: string): str
 }
 
 export function buildEmailBody(type: ReminderType, vars: MessageVars): string {
-  const { customerName, amount, dueDate, dealerPhone, dealerName, vehicleLabel } = vars
+  const { customerName, amount, dueDate, dealerPhone, dealerName, vehicleLabel, paymentContext } = vars
   const d = formatDate(dueDate)
   const a = fmt(amount)
+  const paymentLabel = paymentContext === 'deferred_down_payment'
+    ? `deferred down payment installment of <strong>${a}</strong>`
+    : `payment of <strong>${a}</strong>`
 
   const header = `Dear ${customerName},`
   const footer = `
@@ -75,15 +85,15 @@ export function buildEmailBody(type: ReminderType, vars: MessageVars): string {
   let body = ''
   switch (type) {
     case 'pre_3day':
-      body = `<p>This is a friendly reminder that your payment of <strong>${a}</strong> for your <strong>${vehicleLabel}</strong> is due on <strong>${d}</strong>.</p>
+      body = `<p>This is a friendly reminder that your ${paymentLabel} for your <strong>${vehicleLabel}</strong> is due on <strong>${d}</strong>.</p>
 <p>If you have already made your payment, please disregard this notice. Thank you for your business!</p>`
       break
     case 'due_day':
-      body = `<p>Your payment of <strong>${a}</strong> for your <strong>${vehicleLabel}</strong> is due <strong>today</strong>.</p>
+      body = `<p>Your ${paymentLabel} for your <strong>${vehicleLabel}</strong> is due <strong>today</strong>.</p>
 <p>Please call us at <strong>${dealerPhone}</strong> or visit us to make your payment.</p>`
       break
     case 'late_2day':
-      body = `<p>Your payment of <strong>${a}</strong> for your <strong>${vehicleLabel}</strong> is now <strong>2 days past due</strong>.</p>
+      body = `<p>Your ${paymentLabel} for your <strong>${vehicleLabel}</strong> is now <strong>2 days past due</strong>.</p>
 <p>Please contact us at <strong>${dealerPhone}</strong> as soon as possible to bring your account current and avoid any additional issues.</p>`
       break
     case 'late_7day':

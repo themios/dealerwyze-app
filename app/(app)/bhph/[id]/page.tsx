@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { redirect, notFound } from 'next/navigation'
 import { createClientForRequest } from '@/lib/supabase/forRequest'
+import { createServiceClient } from '@/lib/supabase/service'
 import { requireProfile } from '@/lib/auth/profile'
 import { canAccessBhph } from '@/lib/auth/dealerRoles'
 import type { UserRole } from '@/types/index'
@@ -17,6 +18,7 @@ export default async function BhphDetailPage({ params }: Props) {
   if (!canAccessBhph(profile.role as UserRole)) redirect('/today')
 
   const supabase = await createClientForRequest()
+  const service = createServiceClient()
 
   const { data: acct } = await supabase
     .from('bhph_payments')
@@ -32,17 +34,25 @@ export default async function BhphDetailPage({ params }: Props) {
   if (!acct) notFound()
 
   // Fetch recent reminder log for payment history context
-  const { data: reminderLog } = await supabase
+  const { data: reminderLog } = await service
     .from('payment_reminder_log')
     .select('id, reminder_type, channel, status, scheduled_for, sent_at, created_at')
     .eq('bhph_id', id)
     .order('scheduled_for', { ascending: false })
     .limit(50)
 
+  const { data: deferredPayments } = await supabase
+    .from('bhph_deferred_payments')
+    .select('*')
+    .eq('bhph_id', id)
+    .eq('user_id', profile.org_id)
+    .order('due_date', { ascending: true })
+
   return (
     <BhphDetailClient
       account={acct}
       reminderLog={reminderLog ?? []}
+      deferredPayments={deferredPayments ?? []}
     />
   )
 }

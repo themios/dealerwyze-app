@@ -2,8 +2,10 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Camera, PenLine, Loader2, ScanLine } from 'lucide-react'
+import { Camera, ClipboardPaste, PenLine, Loader2, ScanLine } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
 import dynamic from 'next/dynamic'
 import DuplicateMatchCard from './DuplicateMatchCard'
 
@@ -17,6 +19,15 @@ interface ExtractedData {
   model?: string | null
   trim?: string | null
   mileage?: number | null
+  color?: string | null
+  purchase_price?: number | null
+  purchased_from?: string | null
+  purchased_at?: string | null
+  acquisition_source?: 'auction' | 'private' | 'trade_in' | 'dealer_trade' | 'other' | null
+  auction_name?: string | null
+  auction_lot?: string | null
+  status?: 'staging' | 'available' | null
+  acquisition_notes?: string | null
   imageBase64?: string | null
   mimeType?: string | null
 }
@@ -32,7 +43,7 @@ interface MatchedVehicle {
   match_type: 'vin' | 'ymm'
 }
 
-type Step = 'menu' | 'barcode' | 'photo-processing' | 'result'
+type Step = 'menu' | 'barcode' | 'photo-processing' | 'paste' | 'result'
 
 interface Props {
   open: boolean
@@ -47,12 +58,14 @@ export default function VehicleIntakeSheet({ open, onClose }: Props) {
   const [processingMsg, setProcessingMsg] = useState('')
   const [extracted, setExtracted] = useState<ExtractedData | null>(null)
   const [match, setMatch] = useState<MatchedVehicle | null>(null)
+  const [pastedText, setPastedText] = useState('')
 
   function reset() {
     setStep('menu')
     setProcessing(false)
     setExtracted(null)
     setMatch(null)
+    setPastedText('')
   }
 
   function handleClose() {
@@ -68,6 +81,15 @@ export default function VehicleIntakeSheet({ open, onClose }: Props) {
     if (data.model) params.set('model', data.model)
     if (data.trim) params.set('trim', data.trim)
     if (data.mileage) params.set('mileage', String(data.mileage))
+    if (data.color) params.set('color', data.color)
+    if (data.purchase_price != null) params.set('purchase_price', String(data.purchase_price))
+    if (data.purchased_from) params.set('purchased_from', data.purchased_from)
+    if (data.purchased_at) params.set('purchased_at', data.purchased_at)
+    if (data.acquisition_source) params.set('acquisition_source', data.acquisition_source)
+    if (data.auction_name) params.set('auction_name', data.auction_name)
+    if (data.auction_lot) params.set('auction_lot', data.auction_lot)
+    if (data.status) params.set('status', data.status)
+    if (data.acquisition_notes) params.set('acquisition_notes', data.acquisition_notes)
 
     // Store image in sessionStorage — too large for URL params
     if (data.imageBase64 && data.mimeType) {
@@ -213,6 +235,72 @@ export default function VehicleIntakeSheet({ open, onClose }: Props) {
     }
   }
 
+  async function handlePasteSubmit() {
+    const text = pastedText.trim()
+    if (text.length < 40) {
+      alert('Paste more of the auction or website page so AI has enough context.')
+      return
+    }
+
+    setStep('photo-processing')
+    setProcessing(true)
+    setProcessingMsg('Reading pasted page...')
+
+    try {
+      const res = await fetch('/api/vehicles/intake/parse-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        setProcessing(false)
+        setStep('paste')
+        alert(data.error ?? 'Could not read vehicle info from that pasted content.')
+        return
+      }
+
+      let finalData: ExtractedData = data
+
+      if (data.vin && data.vin.length === 17 && (!data.make || !data.model)) {
+        setProcessingMsg('Looking up VIN...')
+        try {
+          const vinRes = await fetch('/api/vehicles/intake/vin-decode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ vin: data.vin }),
+          })
+          if (vinRes.ok) {
+            const vinData = await vinRes.json()
+            finalData = {
+              ...finalData,
+              year: finalData.year ?? vinData.year,
+              make: finalData.make ?? vinData.make,
+              model: finalData.model ?? vinData.model,
+              trim: finalData.trim ?? vinData.trim,
+            }
+          }
+        } catch {
+          // best-effort enrichment only
+        }
+      }
+
+      if (data.notes) {
+        finalData = {
+          ...finalData,
+          acquisition_notes: data.notes,
+        }
+      }
+
+      await processExtracted(finalData)
+    } catch {
+      setProcessing(false)
+      setStep('paste')
+      alert('Something went wrong parsing that pasted content. Please try again.')
+    }
+  }
+
   return (
     <>
       {/* Barcode scanner renders full-screen outside the sheet */}
@@ -280,6 +368,20 @@ export default function VehicleIntakeSheet({ open, onClose }: Props) {
                 </div>
               </button>
 
+              {/* Paste Website Content */}
+              <button
+                className="w-full flex items-center gap-4 p-4 rounded-xl border bg-card hover:bg-muted/50 transition-colors text-left"
+                onClick={() => setStep('paste')}
+              >
+                <div className="w-11 h-11 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center flex-shrink-0">
+                  <ClipboardPaste className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-sm">Paste Website or Auction Page</p>
+                  <p className="text-xs text-muted-foreground">Paste ACV, auction, marketplace, or inventory page text</p>
+                </div>
+              </button>
+
               {/* Enter Manually */}
               <button
                 className="w-full flex items-center gap-4 p-4 rounded-xl border bg-card hover:bg-muted/50 transition-colors text-left"
@@ -293,6 +395,32 @@ export default function VehicleIntakeSheet({ open, onClose }: Props) {
                   <p className="text-xs text-muted-foreground">Type in the vehicle details</p>
                 </div>
               </button>
+            </div>
+          )}
+
+          {step === 'paste' && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Paste the page content</p>
+                <p className="text-xs text-muted-foreground">
+                  AI will try to pull out the VIN, year, make, model, mileage, purchase price, purchase date, source, and useful notes.
+                </p>
+              </div>
+              <Textarea
+                value={pastedText}
+                onChange={(e) => setPastedText(e.target.value)}
+                placeholder="Paste the auction or website page text here..."
+                rows={12}
+                className="resize-none text-sm"
+              />
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" className="flex-1" onClick={() => setStep('menu')}>
+                  Back
+                </Button>
+                <Button type="button" className="flex-1" onClick={handlePasteSubmit}>
+                  Parse with AI
+                </Button>
+              </div>
             </div>
           )}
 

@@ -4,6 +4,7 @@ export type ActivityOutcome = 'answered' | 'no_answer' | 'left_vm' | 'pending' |
 export type ActivityPriority = 'high' | 'normal' | 'low'
 export type VehicleStatus = 'available' | 'pending' | 'sold' | 'sync_removed' | 'staging'
 export type InterestLevel = 'hot' | 'warm' | 'cold'
+export type LeadIntentTier = 'standard' | 'active' | 'warm' | 'hot'
 export type TemplateChannel = 'sms' | 'email'
 export type UserRole =
   | 'dealer_admin'
@@ -55,6 +56,13 @@ export interface Customer {
   sms_opt_out_at?: string | null
   thread_state?: string
   lead_rating?: 'hot' | 'warm' | 'cold' | null
+  lead_intent_score?: number
+  lead_intent_tier?: LeadIntentTier | null
+  lead_intent_summary?: string | null
+  lead_intent_flags?: string[]
+  lead_intent_source?: string | null
+  lead_intent_manual_note?: string | null
+  lead_intent_updated_at?: string | null
   address?: string | null
   city?: string | null
   state?: string | null

@@ -25,10 +25,11 @@ import { usePendingCall } from '@/components/call/usePendingCall'
 import { useOrgSettings } from '@/hooks/useOrgSettings'
 import { formatPhone } from '@/lib/utils'
 import LeadStateSelector from '@/components/customer/LeadStateSelector'
+import { LEAD_INTENT_TIER_LABELS, LEAD_INTENT_TIER_STYLES, buildManualLeadIntent, normalizeLeadIntentFlags, type LeadIntentFlag, type LeadIntentTier } from '@/lib/leads/intent'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Mail, Phone, MessageSquare, Plus, FileText, Archive, X, MessageSquareOff, Trophy, Trash2, GitMerge, Clock, Pencil, ClipboardList } from 'lucide-react'
+import { Mail, Phone, Plus, FileText, Archive, X, MessageSquareOff, Trophy, Trash2, GitMerge, Clock, Pencil, ClipboardList, Flame, PhoneCall, CalendarClock, RotateCcw } from 'lucide-react'
 
 interface TaskItem {
   id: string
@@ -97,6 +98,26 @@ export default function CustomerDetailClient({ customer, activities: initialActi
   const [unsubEmail, setUnsubEmail] = useState<boolean>(!!(custExt.unsubscribe_email))
   const [unsubSms, setUnsubSms] = useState<boolean>(!!(custExt.unsubscribe_sms))
   const [savingUnsub, setSavingUnsub] = useState(false)
+  const [intentOpen, setIntentOpen] = useState(false)
+  const initialTier = (customer.lead_intent_tier === 'hot' || customer.lead_intent_tier === 'warm' || customer.lead_intent_tier === 'active' || customer.lead_intent_tier === 'standard'
+    ? customer.lead_intent_tier
+    : customer.lead_rating === 'hot'
+      ? 'hot'
+      : 'standard') as LeadIntentTier
+  const [intentTier, setIntentTier] = useState<LeadIntentTier>(initialTier)
+  const [intentFlags, setIntentFlags] = useState<LeadIntentFlag[]>(Array.isArray(customer.lead_intent_flags) ? customer.lead_intent_flags as LeadIntentFlag[] : [])
+  const [intentNote, setIntentNote] = useState(customer.lead_intent_manual_note ?? '')
+  const [intentSaving, setIntentSaving] = useState(false)
+  const [intentError, setIntentError] = useState<string | null>(null)
+  const [intentSnapshot, setIntentSnapshot] = useState(() => ({
+    score: customer.lead_intent_score ?? (initialTier === 'hot' ? 90 : initialTier === 'warm' ? 60 : initialTier === 'active' ? 30 : 0),
+    tier: initialTier,
+    flags: normalizeLeadIntentFlags(customer.lead_intent_flags),
+    summary: customer.lead_intent_summary ?? customer.lead_intent_manual_note ?? null,
+    source: customer.lead_intent_source ?? null,
+    manualNote: customer.lead_intent_manual_note ?? null,
+    updatedAt: customer.lead_intent_updated_at ?? new Date().toISOString(),
+  }))
   const { pendingCall, modalOpen, dismissModal } = usePendingCall()
   const orgSettings = useOrgSettings()
   const supabase = createClient()
@@ -353,6 +374,31 @@ export default function CustomerDetailClient({ customer, activities: initialActi
     router.push('/customers')
   }
 
+  function toggleIntentFlag(flag: LeadIntentFlag) {
+    setIntentFlags(prev => prev.includes(flag) ? prev.filter(v => v !== flag) : [...prev, flag])
+  }
+
+  async function saveLeadIntent() {
+    setIntentSaving(true)
+    setIntentError(null)
+    const res = await fetch(`/api/customers/${customer.id}/intent`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tier: intentTier, flags: intentFlags, note: intentNote }),
+    })
+    const data = await res.json().catch(() => ({})) as { error?: string; intent?: ReturnType<typeof buildManualLeadIntent> }
+    setIntentSaving(false)
+    if (!res.ok || !data.intent) {
+      setIntentError(data.error ?? 'Failed to save lead priority')
+      return
+    }
+    setIntentSnapshot(data.intent)
+    setIntentOpen(false)
+    router.refresh()
+  }
+
+  const intentStyle = LEAD_INTENT_TIER_STYLES[intentSnapshot.tier]
+
   return (
     <div className="pb-36 lg:pb-6">
       {/* Contact info header card */}
@@ -402,6 +448,10 @@ export default function CustomerDetailClient({ customer, activities: initialActi
 
         {/* Quick stats chips */}
         <div className="flex gap-2 mt-3 overflow-x-auto pb-0.5 -mx-0.5 px-0.5">
+          <div className={`rounded-lg px-3 py-2 flex-shrink-0 border ${intentStyle.badge}`}>
+            <p className="text-[10px] uppercase tracking-wider font-medium opacity-80">Priority</p>
+            <p className="text-sm font-semibold mt-0.5">{LEAD_INTENT_TIER_LABELS[intentSnapshot.tier]}</p>
+          </div>
           {(customer as unknown as Record<string, unknown>).last_contact_at ? (
             <div className="bg-secondary rounded-lg px-3 py-2 flex-shrink-0">
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Last contact</p>
@@ -422,13 +472,13 @@ export default function CustomerDetailClient({ customer, activities: initialActi
               <p className="text-sm font-semibold mt-0.5 capitalize">{String((customer as unknown as Record<string, unknown>).lead_source).replace(/_/g, ' ')}</p>
             </div>
           ) : null}
-          <div className={`rounded-lg px-3 py-2 flex-shrink-0 ${(customer as any).archived ? 'bg-muted' : 'bg-secondary'}`}>
+          <div className={`rounded-lg px-3 py-2 flex-shrink-0 ${customer.archived ? 'bg-muted' : 'bg-secondary'}`}>
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Status</p>
-            {(customer as any).archived ? (
+            {customer.archived ? (
               <div>
                 <p className="text-sm font-semibold mt-0.5 text-muted-foreground">Archived</p>
-                {(customer as any).archived_reason && (
-                  <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">{(customer as any).archived_reason}</p>
+                {customer.archived_reason && (
+                  <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">{customer.archived_reason}</p>
                 )}
               </div>
             ) : (
@@ -467,6 +517,11 @@ export default function CustomerDetailClient({ customer, activities: initialActi
         {customer.notes && (
           <p className="text-sm text-muted-foreground mt-2 italic">{customer.notes}</p>
         )}
+        {intentSnapshot.summary && (
+          <p className={`text-xs mt-2 ${intentStyle.text}`}>
+            {intentSnapshot.summary}
+          </p>
+        )}
       </div>
 
       <div className="hidden lg:flex px-4 py-3 gap-2 border-b bg-card">
@@ -501,6 +556,14 @@ export default function CustomerDetailClient({ customer, activities: initialActi
           className="flex-1 gap-1.5 text-muted-foreground"
         >
           <Clock className="h-4 w-4" />Follow Up
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => { setIntentOpen(v => !v); setIntentError(null) }}
+          className={`flex-1 gap-1.5 ${intentStyle.text}`}
+        >
+          <Flame className="h-4 w-4" />Priority
         </Button>
         <Button
           variant="outline"
@@ -666,6 +729,68 @@ export default function CustomerDetailClient({ customer, activities: initialActi
           </div>
           {snoozeError && <p className="text-xs text-red-600">{snoozeError}</p>}
           <p className="text-xs text-muted-foreground">This lead will reappear in your queue on the selected date.</p>
+        </div>
+      )}
+
+      {intentOpen && (
+        <div className="mx-4 my-2 p-3 rounded-lg border border-orange-200 bg-orange-50 dark:bg-orange-950/20 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-orange-700 dark:text-orange-400">Lead priority</p>
+            <button onClick={() => setIntentOpen(false)} title="Close">
+              <X className="h-4 w-4 text-muted-foreground" />
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {(['standard', 'active', 'warm', 'hot'] as LeadIntentTier[]).map(tier => (
+              <button
+                key={tier}
+                onClick={() => setIntentTier(tier)}
+                className={`rounded-md border px-3 py-2 text-sm font-medium ${
+                  intentTier === tier ? 'border-orange-500 bg-white text-orange-700' : 'border-orange-200 bg-white/70 text-muted-foreground'
+                }`}
+              >
+                {LEAD_INTENT_TIER_LABELS[tier]}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { flag: 'callback_requested' as LeadIntentFlag, label: 'Callback requested', icon: PhoneCall },
+              { flag: 'appointment' as LeadIntentFlag, label: 'Appointment interest', icon: CalendarClock },
+              { flag: 'reengaged' as LeadIntentFlag, label: 'Re-engaged', icon: RotateCcw },
+              { flag: 'returning_shopper' as LeadIntentFlag, label: 'Strong interest', icon: Flame },
+            ].map(item => {
+              const Icon = item.icon
+              const active = intentFlags.includes(item.flag)
+              return (
+                <button
+                  key={item.flag}
+                  onClick={() => toggleIntentFlag(item.flag)}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium border ${
+                    active ? 'border-orange-500 bg-white text-orange-700' : 'border-orange-200 bg-white/70 text-muted-foreground'
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {item.label}
+                </button>
+              )
+            })}
+          </div>
+          <Input
+            placeholder="Optional note, e.g. asked for a callback after 5pm"
+            value={intentNote}
+            onChange={e => setIntentNote(e.target.value)}
+            className="h-9 text-sm"
+          />
+          {intentError && <p className="text-xs text-destructive">{intentError}</p>}
+          <div className="flex gap-2">
+            <Button className="flex-1" onClick={saveLeadIntent} disabled={intentSaving}>
+              {intentSaving ? 'Saving…' : 'Save Priority'}
+            </Button>
+            <Button variant="outline" className="flex-1" onClick={() => setIntentOpen(false)} disabled={intentSaving}>
+              Cancel
+            </Button>
+          </div>
         </div>
       )}
 

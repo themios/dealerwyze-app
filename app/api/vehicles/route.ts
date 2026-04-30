@@ -13,6 +13,7 @@ export async function POST(req: NextRequest) {
   const profile = await requireProfile()
   const body = await req.json().catch(() => ({}))
   const { vin, year, make, model, trim, price, mileage, status = 'available' } = body
+  const cleanVin = vin ? String(vin).replace(/[^A-HJ-NPR-Z0-9]/gi, '').toUpperCase() : null
 
   if (!year || !make || !model) {
     return NextResponse.json(
@@ -29,8 +30,8 @@ export async function POST(req: NextRequest) {
   const validStatuses = ['available', 'pending', 'staging', 'sold', 'sync_removed']
   const finalStatus = validStatuses.includes(status) ? status : 'available'
 
-  const stockNo = vin && String(vin).length >= 6
-    ? `VIN-${String(vin).slice(-6)}`
+  const stockNo = cleanVin && cleanVin.length >= 6
+    ? cleanVin.slice(-6)
     : `ONB-${Date.now().toString().slice(-6)}`
 
   // Auth client: RLS enforces org isolation for the vehicles INSERT; get_org_id() scopes the new row automatically.
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
     .insert({
       user_id: profile.org_id,
       stock_no: stockNo,
-      vin: vin ? String(vin).trim() || null : null,
+      vin: cleanVin || null,
       year: numYear,
       make: String(make).trim(),
       model: String(model).trim(),

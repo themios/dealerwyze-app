@@ -14,8 +14,14 @@ export interface CalendarEventInput {
   summary:     string   // event title
   description: string   // body/notes
   location?:   string   // location name from AI summary
-  startIso:    string   // "YYYY-MM-DD HH:mm" in PT
+  startIso?:   string   // "YYYY-MM-DD HH:mm" in PT
+  startDateTimeIso?: string // absolute ISO datetime
   durationMin?: number  // default 60
+}
+
+export interface CreatedCalendarEvent {
+  htmlLink: string | null
+  eventId: string | null
 }
 
 /**
@@ -27,7 +33,7 @@ export interface CalendarEventInput {
 export async function createCalendarEvent(
   input: CalendarEventInput,
   orgId?: string,
-): Promise<string | null> {
+): Promise<CreatedCalendarEvent> {
   let refreshToken: string | null = null
   const locationMap: Record<string, string> = {}
 
@@ -59,15 +65,27 @@ export async function createCalendarEvent(
 
   if (!refreshToken) {
     console.warn('[calendar] No refresh token available — skipping')
-    return null
+    return { htmlLink: null, eventId: null }
   }
 
   try {
     const calendar = makeCalendarClient(refreshToken)
     const duration = input.durationMin ?? 60
 
-    // Parse "YYYY-MM-DD HH:mm" as LA local time
-    const start = new Date(`${input.startIso.replace(' ', 'T')}:00-08:00`)
+    let start: Date
+    if (input.startDateTimeIso) {
+      start = new Date(input.startDateTimeIso)
+    } else if (input.startIso) {
+      // Parse "YYYY-MM-DD HH:mm" as LA local time
+      start = new Date(`${input.startIso.replace(' ', 'T')}:00-08:00`)
+    } else {
+      throw new Error('Missing calendar event start time')
+    }
+
+    if (isNaN(start.getTime())) {
+      throw new Error('Invalid calendar event start time')
+    }
+
     const end   = new Date(start.getTime() + duration * 60_000)
 
     const locationStr = input.location
@@ -89,10 +107,13 @@ export async function createCalendarEvent(
       },
     })
 
-    return res.data.htmlLink ?? null
+    return {
+      htmlLink: res.data.htmlLink ?? null,
+      eventId: res.data.id ?? null,
+    }
   } catch (err) {
     console.error('[calendar] Failed to create event:', err)
-    return null
+    return { htmlLink: null, eventId: null }
   }
 }
 
