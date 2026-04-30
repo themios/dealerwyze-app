@@ -9,6 +9,7 @@ import { sendAutoResponseStep1 } from '@/lib/sequences/sendAutoResponseStep1'
 import { detectAppointmentIntent } from '@/lib/leads/detectAppointmentIntent'
 import { normalizePhone } from '@/lib/utils/phone'
 import { deriveLeadIntentFromLead, mergeLeadIntent } from '@/lib/leads/intent'
+import { pickReInquiryCandidate } from '@/lib/leads/reinquiry'
 
 function normalizeName(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
@@ -110,33 +111,49 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId: s
           return { status: 'skipped', reason: 'no_contact_info' }
         }
       } else {
-      const assignedTo = await resolveLeadAssignee(userId)
-      const { data: created, error } = await supabase
-        .from('customers')
-        .insert({
-          user_id: userId,
-          name: lead.name,
-          primary_phone: lead.phone,
-          email: lead.email,
-          lead_source: lead.source,
-          zip_code: lead.zip,
-          assigned_to: assignedTo,
-        })
-        .select('id')
-        .single()
+        const { data: nameCandidates } = await supabase
+          .from('customers')
+          .select('id, name, interested_in, zip_code, lead_source, lead_intent_tier, lead_intent_score, lead_intent_flags, lead_intent_summary, lead_intent_source, lead_intent_manual_note')
+          .eq('user_id', userId)
+          .ilike('name', lead.name.trim())
+          .is('merged_at', null)
+          .limit(10)
 
-      if (error || !created) {
-        return { error: error?.message || 'Failed to create customer' }
-      }
-      customerId = created.id
-      existingIntent = null
+        const reInquiryMatch = pickReInquiryCandidate(lead, nameCandidates ?? [])
+        if (reInquiryMatch) {
+          customerId = reInquiryMatch.id
+          existingIntent = reInquiryMatch
+          isReInquiry = true
+          await supabase.from('customers').update({ email: lead.email }).eq('id', customerId).is('email', null)
+        } else {
+          const assignedTo = await resolveLeadAssignee(userId)
+          const { data: created, error } = await supabase
+            .from('customers')
+            .insert({
+              user_id: userId,
+              name: lead.name,
+              primary_phone: lead.phone,
+              email: lead.email,
+              lead_source: lead.source,
+              zip_code: lead.zip,
+              assigned_to: assignedTo,
+            })
+            .select('id')
+            .single()
 
-      // Set initial lead state for brand-new customers (no-op if already set)
-      await supabase.rpc('advance_lead_state', {
-        p_customer_id: customerId,
-        p_new_state:   'new_lead',
-        p_reason:      `New lead from ${lead.source}`,
-      })
+          if (error || !created) {
+            return { error: error?.message || 'Failed to create customer' }
+          }
+          customerId = created.id
+          existingIntent = null
+
+          // Set initial lead state for brand-new customers (no-op if already set)
+          await supabase.rpc('advance_lead_state', {
+            p_customer_id: customerId,
+            p_new_state:   'new_lead',
+            p_reason:      `New lead from ${lead.source}`,
+          })
+        }
       }
     }
   }

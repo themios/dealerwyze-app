@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import TopBar from '@/components/layout/TopBar'
 import { CheckCircle, Edit2, Plus, Trash2 } from 'lucide-react'
+import ConfirmActionDialog from '@/components/settings/ConfirmActionDialog'
 
 type Period = 'today' | 'weekly' | 'monthly' | 'annual'
 
@@ -76,7 +77,6 @@ export default function GoalsPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Remove this goal?')) return
     await fetch('/api/intelligence/goals', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
@@ -139,9 +139,18 @@ export default function GoalsPage() {
                       <button className="p-1 text-muted-foreground hover:text-foreground" onClick={() => startEdit(g)} title="Edit goal">
                         <Edit2 className="h-3.5 w-3.5" />
                       </button>
-                      <button className="p-1 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(g.id)} title="Delete goal">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      <ConfirmActionDialog
+                        title="Remove this goal?"
+                        description="This goal will be deleted from the AI dealer brief and team tracking."
+                        confirmLabel="Remove goal"
+                        confirmVariant="destructive"
+                        onConfirm={() => handleDelete(g.id)}
+                        trigger={(
+                          <button className="p-1 text-muted-foreground hover:text-destructive" title="Delete goal">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      />
                     </div>
                   </div>
                 ))}

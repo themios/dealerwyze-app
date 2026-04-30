@@ -21,6 +21,7 @@
 
 import { useState } from 'react'
 import { Send, CheckCircle2, XCircle, Loader2, RefreshCw } from 'lucide-react'
+import ConfirmActionDialog from '@/components/settings/ConfirmActionDialog'
 
 interface Props {
   /** Whether this org already has a Telegram chat connected */
@@ -77,7 +78,6 @@ export default function TelegramConnect({ initialConnected, botUsername }: Props
   // ── Disconnect ────────────────────────────────────────────────────────────
 
   async function handleDisconnect() {
-    if (!confirm('Disconnect Telegram? You will stop receiving lead notifications.')) return
     setStep('checking')
     await fetch('/api/settings/telegram/connect', { method: 'DELETE' })
     setCode(null)
@@ -100,12 +100,18 @@ export default function TelegramConnect({ initialConnected, botUsername }: Props
           You will receive an instant notification when a new lead comes in.
           You can also message <strong>@{botUsername}</strong> to ask questions about your leads and inventory.
         </p>
-        <button
-          onClick={handleDisconnect}
-          className="text-xs text-destructive hover:underline"
-        >
-          Disconnect Telegram
-        </button>
+        <ConfirmActionDialog
+          title="Disconnect Telegram?"
+          description="You will stop receiving lead notifications in Telegram until you reconnect it."
+          confirmLabel="Disconnect"
+          confirmVariant="destructive"
+          onConfirm={handleDisconnect}
+          trigger={(
+            <button className="text-xs text-destructive hover:underline">
+              Disconnect Telegram
+            </button>
+          )}
+        />
       </div>
     )
   }

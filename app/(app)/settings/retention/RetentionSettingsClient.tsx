@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { apiFetch, ApiError } from '@/lib/api/fetchClient'
+import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -75,11 +76,15 @@ const TRIGGER_INFO: { key: keyof RetentionSettings; label: string; description: 
 
 export default function RetentionSettingsClient({ initialSettings, sequences, postgridApiKey }: Props) {
   const router = useRouter()
+  const initialPostgridConfigured = !!postgridApiKey
   const [saving, setSaving] = useState(false)
+  const [postgridConfigured, setPostgridConfigured] = useState(initialPostgridConfigured)
   const [pgKey, setPgKey] = useState(postgridApiKey ? '••••••••' : '')
   const [pgKeyEditing, setPgKeyEditing] = useState(false)
   const [pgKeySaving, setPgKeySaving] = useState(false)
   const [pgKeyError, setPgKeyError]   = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
 
   async function savePostgridKey() {
     if (!pgKeyEditing || pgKey === '••••••••') { setPgKeyEditing(true); return }
@@ -88,7 +93,10 @@ export default function RetentionSettingsClient({ initialSettings, sequences, po
     try {
       await apiFetch('/api/settings/org', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ postgrid_api_key: pgKey.trim() || null }) })
       setPgKeyEditing(false)
-      setPgKey(pgKey.trim() ? '••••••••' : '')
+      const hasKey = !!pgKey.trim()
+      setPgKey(hasKey ? '••••••••' : '')
+      setPostgridConfigured(hasKey)
+      router.refresh()
     } catch (err) {
       setPgKeyError(err instanceof ApiError ? err.message : 'Save failed. Please try again.')
     } finally {
@@ -113,13 +121,36 @@ export default function RetentionSettingsClient({ initialSettings, sequences, po
     post_sale_delay_days:          String(getInitial('post_sale_delay_days', 7)),
     card_delivery_method:          (getInitial('card_delivery_method', 'print_and_mail') as string),
   })
+  const initialFormSnapshot = JSON.stringify({
+    birthday_sequence_id: initialSettings?.birthday_sequence_id ?? NONE,
+    anniversary_sequence_id: initialSettings?.anniversary_sequence_id ?? NONE,
+    service_due_sequence_id: initialSettings?.service_due_sequence_id ?? NONE,
+    post_sale_sequence_id: initialSettings?.post_sale_sequence_id ?? NONE,
+    referral_thankyou_sequence_id: initialSettings?.referral_thankyou_sequence_id ?? NONE,
+    birthday_days_before: String(initialSettings?.birthday_days_before ?? 0),
+    anniversary_days_before: String(initialSettings?.anniversary_days_before ?? 0),
+    service_due_days: String(initialSettings?.service_due_days ?? 60),
+    post_sale_delay_days: String(initialSettings?.post_sale_delay_days ?? 7),
+    card_delivery_method: initialSettings?.card_delivery_method ?? 'print_and_mail',
+    postgridConfigured: initialPostgridConfigured,
+  })
+  const isDirty = JSON.stringify({
+    ...form,
+    postgridConfigured,
+  }) !== initialFormSnapshot
+
+  useUnsavedChangesGuard(isDirty)
 
   function update(field: string, value: string) {
     setForm(prev => ({ ...prev, [field]: value }))
+    setSaved(false)
+    setSaveError(null)
   }
 
   async function handleSave() {
     setSaving(true)
+    setSaveError(null)
+    setSaved(false)
     try {
       const payload: Record<string, unknown> = {
         card_delivery_method: form.card_delivery_method,
@@ -130,7 +161,11 @@ export default function RetentionSettingsClient({ initialSettings, sequences, po
       }
 
       const res = await fetch('/api/retention/settings', { method: 'PUT', body: JSON.stringify(payload), headers: { 'Content-Type': 'application/json' } })
-      if (!res.ok) { alert('Save failed. Please try again.'); return }
+      if (!res.ok) {
+        setSaveError('Save failed. Please try again.')
+        return
+      }
+      setSaved(true)
       router.refresh()
     } finally {
       setSaving(false)
@@ -259,6 +294,8 @@ export default function RetentionSettingsClient({ initialSettings, sequences, po
       <Button onClick={handleSave} disabled={saving} className="w-full h-12 text-base">
         {saving ? 'Saving...' : 'Save Retention Settings'}
       </Button>
+      {saveError ? <p className="text-sm text-destructive">{saveError}</p> : null}
+      {saved ? <p className="text-sm text-green-700">Retention settings saved.</p> : null}
     </div>
   )
 }

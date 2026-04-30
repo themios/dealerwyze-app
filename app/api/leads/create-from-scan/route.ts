@@ -30,39 +30,55 @@ export interface CreateFromScanBody {
 }
 
 export async function POST(req: NextRequest) {
-  const profile = await requireProfile()
-  const orgId   = profile.org_id
+  try {
+    const profile = await requireProfile()
+    const orgId   = profile.org_id
 
-  const body: CreateFromScanBody = await req.json()
-  const { scan, isPdf, send_intro_sms, overrides = {}, link_vehicle_id } = body
+    const body: CreateFromScanBody = await req.json()
+    const { scan, isPdf, send_intro_sms, overrides = {}, link_vehicle_id } = body
 
-  // Apply user edits on top of scan values
-  const merged: LeadScanResult = {
-    ...scan,
-    first_name:    { ...scan.first_name,    value: overrides.first_name    ?? scan.first_name.value },
-    last_name:     { ...scan.last_name,     value: overrides.last_name     ?? scan.last_name.value },
-    phone:         { ...scan.phone,         value: overrides.phone         ?? scan.phone.value },
-    phone2:        { ...scan.phone2,        value: overrides.phone2        ?? scan.phone2.value },
-    email:         { ...scan.email,         value: overrides.email         ?? scan.email.value },
-    zip:           { ...scan.zip,           value: overrides.zip           ?? scan.zip.value },
-    vehicle_year:  { ...scan.vehicle_year,  value: overrides.vehicle_year  !== undefined ? overrides.vehicle_year : scan.vehicle_year.value },
-    vehicle_make:  { ...scan.vehicle_make,  value: overrides.vehicle_make  ?? scan.vehicle_make.value },
-    vehicle_model: { ...scan.vehicle_model, value: overrides.vehicle_model ?? scan.vehicle_model.value },
-    vehicle_trim:  { ...scan.vehicle_trim,  value: overrides.vehicle_trim  ?? scan.vehicle_trim.value },
-    vehicle_vin:   { ...scan.vehicle_vin,   value: overrides.vehicle_vin   ?? scan.vehicle_vin.value },
-    notes:         { ...scan.notes,         value: overrides.notes         ?? scan.notes.value },
-  }
+    // Apply user edits on top of scan values
+    const merged: LeadScanResult = {
+      ...scan,
+      first_name:    { ...scan.first_name,    value: overrides.first_name    ?? scan.first_name.value },
+      last_name:     { ...scan.last_name,     value: overrides.last_name     ?? scan.last_name.value },
+      phone:         { ...scan.phone,         value: overrides.phone         ?? scan.phone.value },
+      phone2:        { ...scan.phone2,        value: overrides.phone2        ?? scan.phone2.value },
+      email:         { ...scan.email,         value: overrides.email         ?? scan.email.value },
+      zip:           { ...scan.zip,           value: overrides.zip           ?? scan.zip.value },
+      vehicle_year:  { ...scan.vehicle_year,  value: overrides.vehicle_year  !== undefined ? overrides.vehicle_year : scan.vehicle_year.value },
+      vehicle_make:  { ...scan.vehicle_make,  value: overrides.vehicle_make  ?? scan.vehicle_make.value },
+      vehicle_model: { ...scan.vehicle_model, value: overrides.vehicle_model ?? scan.vehicle_model.value },
+      vehicle_trim:  { ...scan.vehicle_trim,  value: overrides.vehicle_trim  ?? scan.vehicle_trim.value },
+      vehicle_vin:   { ...scan.vehicle_vin,   value: overrides.vehicle_vin   ?? scan.vehicle_vin.value },
+      notes:         { ...scan.notes,         value: overrides.notes         ?? scan.notes.value },
+    }
 
-  const { scanResultToParsedLead } = await import('@/lib/leads/visionIngest')
-  const parsedLead = scanResultToParsedLead(merged)
-  const externalId = `scan-${orgId}-${Date.now()}`
+    const { scanResultToParsedLead } = await import('@/lib/leads/visionIngest')
+    const parsedLead = scanResultToParsedLead(merged)
+    const externalId = `scan-${orgId}-${Date.now()}`
 
-  const result = await ingestLead(parsedLead, externalId, orgId)
-  if ('error' in result && result.error) {
-    return NextResponse.json({ error: result.error }, { status: 500 })
-  }
+    let result: Awaited<ReturnType<typeof ingestLead>>
+    try {
+      result = await ingestLead(parsedLead, externalId, orgId)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Lead ingest failed'
+      console.error('[leads/create-from-scan] ingestLead threw:', msg)
+      return NextResponse.json({ error: msg }, { status: 500 })
+    }
 
-  const customerId = result.customer_id ?? null
+    if ('error' in result && result.error) {
+      return NextResponse.json({ error: result.error }, { status: 500 })
+    }
+
+    const customerId = (result as { customer_id?: string | null }).customer_id ?? null
+    if (!customerId) {
+      const reason = (result as { reason?: string }).reason ?? 'unknown'
+      return NextResponse.json(
+        { error: `Lead was scanned but could not be saved (${reason}). Please add a phone number or email and try again.` },
+        { status: 422 },
+      )
+    }
 
   // Link vehicle from inventory if dealer selected one on the confirm screen
   if (customerId && link_vehicle_id) {
@@ -126,8 +142,13 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({
-    status: result.status ?? 'created',
-    customer_id: customerId,
-  })
+    return NextResponse.json({
+      status: (result as { status?: string }).status ?? 'created',
+      customer_id: customerId,
+    })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unexpected error'
+    console.error('[leads/create-from-scan] unhandled:', msg)
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
 }

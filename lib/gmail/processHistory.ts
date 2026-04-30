@@ -14,6 +14,9 @@ import { google } from 'googleapis'
 import { simpleParser } from 'mailparser'
 import { createServiceClient } from '@/lib/supabase/service'
 import { stopSequenceOnReply } from '@/lib/sequences/stopSequenceOnReply'
+import { parseAnyLead, parseCarGurusDigest } from '@/lib/leads/parser'
+import { ingestLead } from '@/lib/leads/ingest'
+import { getLeadSourceEmailMatchers, matchesLeadSourceEmail } from '@/lib/leads/sourceMatchers'
 
 // Keywords that suggest an inbound inquiry from an unknown sender
 const LEAD_KEYWORDS = ['price', 'interested', 'available', 'how much', 'financing', 'finance', 'cost', 'inquiry', 'asking', 'payment']
@@ -41,6 +44,12 @@ export async function processGmailHistory(
   const supabase = createServiceClient()
   const auth = buildOAuthClient(refreshToken)
   const gmail = google.gmail({ version: 'v1', auth })
+  const { data: settings } = await supabase
+    .from('org_settings')
+    .select('lead_source_email_matchers')
+    .eq('org_id', orgId)
+    .maybeSingle()
+  const sourceMatchers = getLeadSourceEmailMatchers(settings?.lead_source_email_matchers)
 
   // Fetch history since last known historyId
   const historyRes = await gmail.users.history.list({
@@ -197,7 +206,7 @@ export async function processGmailHistory(
     }
 
     // ── Unknown sender — check for lead inquiry ───────────────────────────
-    if (!fromEmail || !looksLikeLead(subject, body)) continue
+    if (!fromEmail || !matchesLeadSourceEmail(fromEmail, sourceMatchers)) continue
 
     // Dedup by gmail_message_id across all activities for this org's customers
     // (crude but avoids re-creating leads from the same email on every push)
@@ -209,42 +218,65 @@ export async function processGmailHistory(
       .maybeSingle()
     if (dupCheck) continue
 
-    // Get org admin for new lead attribution
-    const adminId = await getOrgAdmin()
-    if (!adminId) continue
+    const digestLeads = parseCarGurusDigest(subject, body)
+    if (digestLeads.length > 0) {
+      for (let i = 0; i < digestLeads.length; i++) {
+        const extId = `${gmailMsgId}-digest-${i}`
+        await ingestLead(digestLeads[i], extId, orgId)
+        leads++
+      }
+    } else {
+      const parsedLead = parseAnyLead(subject, body, fromEmail)
+      if (parsedLead) {
+        await ingestLead(parsedLead, gmailMsgId, orgId)
+        leads++
+      } else {
+        if (!looksLikeLead(subject, body)) continue
 
-    // Extract name from From header
-    const fromName = parsed.from?.value?.[0]?.name?.trim() || fromEmail.split('@')[0]
+        // Get org admin for new lead attribution
+        const adminId = await getOrgAdmin()
+        if (!adminId) continue
 
-    // Create new customer record
-    const { data: newCustomer } = await supabase
-      .from('customers')
-      .insert({
-        user_id: orgId,
-        name: fromName,
-        email: fromEmail,
-        lead_source: 'email',
-        status: 'lead',
-      })
-      .select('id')
-      .single()
+        // Extract name from From header
+        const fromName = parsed.from?.value?.[0]?.name?.trim() || fromEmail.split('@')[0]
 
-    if (!newCustomer) continue
+        // Create new customer record
+        const { data: newCustomer } = await supabase
+          .from('customers')
+          .insert({
+            user_id: orgId,
+            name: fromName,
+            email: fromEmail,
+            lead_source: 'email',
+            status: 'lead',
+          })
+          .select('id')
+          .single()
 
-    // Create inbound lead activity
-    await supabase.from('activities').insert({
-      user_id: adminId,
-      customer_id: newCustomer.id,
-      type: 'email',
-      direction: 'inbound',
-      body: `Subject: ${subject}\n\n${body}`,
-      completed_at: new Date().toISOString(),
-      priority: 'normal',
-      gmail_message_id: gmailMsgId,
-      gmail_thread_id: gmailThreadId,
-    })
+        if (!newCustomer) continue
 
-    leads++
+        // Create inbound lead activity
+        await supabase.from('activities').insert({
+          user_id: adminId,
+          customer_id: newCustomer.id,
+          type: 'email',
+          direction: 'inbound',
+          body: `Subject: ${subject}\n\n${body}`,
+          completed_at: new Date().toISOString(),
+          priority: 'normal',
+          gmail_message_id: gmailMsgId,
+          gmail_thread_id: gmailThreadId,
+        })
+
+        leads++
+      }
+    }
+
+    await gmail.users.messages.modify({
+      userId: 'me',
+      id: msgId,
+      requestBody: { removeLabelIds: ['UNREAD'] },
+    }).catch(() => null)
   }
 
   // Update historyId cursor so next push starts from here

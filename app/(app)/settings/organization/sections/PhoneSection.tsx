@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Phone, X, Loader2 } from 'lucide-react'
+import ConfirmActionDialog from '@/components/settings/ConfirmActionDialog'
 
 function formatPhone(p: string) {
   const d = p.replace(/\D/g, '')
@@ -70,7 +71,6 @@ export default function PhoneSection() {
   }
 
   async function handleRelease() {
-    if (!confirm('Release this number? Your dealership will no longer be able to send or receive texts or take calls on it.')) return
     setReleasing(true)
     const res = await fetch('/api/admin/provision-phone', {
       method:  'DELETE',
@@ -92,14 +92,22 @@ export default function PhoneSection() {
             <span className="font-mono text-sm">{formatPhone(twilioNumber)}</span>
             <span className="text-xs bg-green-500/10 text-green-600 px-1.5 py-0.5 rounded-full font-medium">Active</span>
           </div>
-          <Button
-            variant="ghost" size="sm"
-            className="text-destructive text-xs"
-            onClick={handleRelease}
-            disabled={releasing}
-          >
-            {releasing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Release'}
-          </Button>
+          <ConfirmActionDialog
+            title="Release this number?"
+            description="Your dealership will no longer be able to send or receive texts or calls on this number."
+            confirmLabel={releasing ? 'Releasing...' : 'Release number'}
+            confirmVariant="destructive"
+            onConfirm={handleRelease}
+            trigger={(
+              <Button
+                variant="ghost" size="sm"
+                className="text-destructive text-xs"
+                disabled={releasing}
+              >
+                {releasing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Release'}
+              </Button>
+            )}
+          />
         </div>
       ) : (
         <>

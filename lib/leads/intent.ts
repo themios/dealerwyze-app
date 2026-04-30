@@ -5,6 +5,7 @@ export type LeadIntentFlag =
   | 'appointment'
   | 'warm_shopper'
   | 'reengaged'
+  | 'repeat_inquiry'
   | 'returning_shopper'
   | 'low_competition'
   | 'local_shopper'
@@ -26,6 +27,7 @@ const FLAG_WEIGHTS: Record<LeadIntentFlag, number> = {
   appointment: 50,
   warm_shopper: 35,
   reengaged: 25,
+  repeat_inquiry: 20,
   returning_shopper: 15,
   low_competition: 10,
   local_shopper: 10,
@@ -38,6 +40,7 @@ const FLAG_LABELS: Record<LeadIntentFlag, string> = {
   appointment: 'Appointment interest',
   warm_shopper: 'Above-average close likelihood',
   reengaged: 'Re-engaged shopper',
+  repeat_inquiry: 'Repeat inquiry',
   returning_shopper: 'Returning shopper',
   low_competition: 'Low competition',
   local_shopper: 'Local shopper',
@@ -50,6 +53,7 @@ const UNIQUE_FLAGS: LeadIntentFlag[] = [
   'appointment',
   'warm_shopper',
   'reengaged',
+  'repeat_inquiry',
   'returning_shopper',
   'low_competition',
   'local_shopper',
@@ -101,7 +105,7 @@ export function deriveLeadIntentFromLead(lead: ParsedLead, isReturningCustomer: 
   const flags = new Set<LeadIntentFlag>(normalizeLeadIntentFlags(lead.signal_flags))
 
   if (lead.is_reengaged) flags.add('reengaged')
-  if (isReturningCustomer) flags.add('returning_shopper')
+  if (isReturningCustomer) flags.add('repeat_inquiry')
   if (lead.is_hot && flags.size === 0) flags.add('warm_shopper')
 
   if (flags.size === 0) return null

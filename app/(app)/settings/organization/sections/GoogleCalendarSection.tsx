@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Calendar } from 'lucide-react'
+import ConfirmActionDialog from '@/components/settings/ConfirmActionDialog'
 
 export default function GoogleCalendarSection() {
   const [calendarConnected, setCalendarConnected] = useState(() => {
@@ -24,7 +25,6 @@ export default function GoogleCalendarSection() {
   }, [])
 
   async function handleCalendarDisconnect() {
-    if (!confirm('Disconnect Google Calendar? Appointments will no longer sync.')) return
     await fetch('/api/google/calendar-disconnect', { method: 'DELETE' })
     setCalendarConnected(false)
   }
@@ -41,9 +41,18 @@ export default function GoogleCalendarSection() {
               <p className="text-xs text-muted-foreground">Appointments sync to Google Calendar</p>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={handleCalendarDisconnect} className="text-destructive border-destructive/30 text-xs">
-            Disconnect
-          </Button>
+          <ConfirmActionDialog
+            title="Disconnect Google Calendar?"
+            description="Appointments will no longer sync to Google Calendar until it is reconnected."
+            confirmLabel="Disconnect"
+            confirmVariant="destructive"
+            onConfirm={handleCalendarDisconnect}
+            trigger={(
+              <Button variant="outline" size="sm" className="text-destructive border-destructive/30 text-xs">
+                Disconnect
+              </Button>
+            )}
+          />
         </div>
       ) : (
         <div className="space-y-2">

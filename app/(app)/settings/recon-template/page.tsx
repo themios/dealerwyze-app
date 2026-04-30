@@ -6,6 +6,7 @@ import TopBar from '@/components/layout/TopBar'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Plus, Trash2, GripVertical } from 'lucide-react'
 import Link from 'next/link'
+import ConfirmActionDialog from '@/components/settings/ConfirmActionDialog'
 
 interface TemplateItem {
   label: string
@@ -63,7 +64,6 @@ export default function ReconTemplatePage() {
   }
 
   async function handleReset() {
-    if (!confirm('Reset to default checklist? This will not affect existing vehicles.')) return
     setSaving(true)
     await fetch('/api/settings/recon-template', {
       method: 'PUT',
@@ -97,9 +97,18 @@ export default function ReconTemplatePage() {
         {isCustom && (
           <div className="flex items-center gap-2 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
             <p className="text-xs text-blue-700 dark:text-blue-400 flex-1">Using custom template</p>
-            <Button size="sm" variant="ghost" className="h-7 text-xs text-blue-700" onClick={handleReset} disabled={saving}>
-              Reset to default
-            </Button>
+            <ConfirmActionDialog
+              title="Reset to default checklist?"
+              description="This restores the default recon template. Existing vehicles will not be changed."
+              confirmLabel={saving ? 'Resetting...' : 'Reset to default'}
+              confirmVariant="destructive"
+              onConfirm={handleReset}
+              trigger={(
+                <Button size="sm" variant="ghost" className="h-7 text-xs text-blue-700" disabled={saving}>
+                  Reset to default
+                </Button>
+              )}
+            />
           </div>
         )}
 

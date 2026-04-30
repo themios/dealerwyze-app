@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,33 +23,58 @@ interface Props {
 const MASK = '••••••••••••••••'
 
 async function patchOrgSettings(payload: Record<string, unknown>) {
-  await fetch('/api/settings/org', {
+  const res = await fetch('/api/settings/org', {
     method:  'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify(payload),
   })
+  if (!res.ok) {
+    throw new Error('save_failed')
+  }
 }
 
 export default function PaymentSettingsClient({
   stripePublishableKey, stripeSecretKey, bookingEnabled, bookingIntroText, orgSlug,
 }: Props) {
+  const initialPubKey = stripePublishableKey ?? ''
+  const initialBookingText = bookingIntroText
+  const initialBookingEnabled = bookingEnabled
   const [pubKey, setPubKey]             = useState(stripePublishableKey ?? '')
   const [secKey, setSecKey]             = useState(stripeSecretKey ? MASK : '')
   const [secKeyEditing, setSecKeyEditing] = useState(false)
   const [showPub, setShowPub]           = useState(false)
   const [savingStripe, setSavingStripe] = useState(false)
   const [stripeConfigured, setStripeConfigured] = useState(!!(stripePublishableKey && stripeSecretKey))
+  const [stripeError, setStripeError] = useState<string | null>(null)
+  const [stripeSaved, setStripeSaved] = useState(false)
 
   const [bookingOn, setBookingOn]       = useState(bookingEnabled)
   const [bookingText, setBookingText]   = useState(bookingIntroText)
   const [savingBooking, setSavingBooking] = useState(false)
+  const [bookingError, setBookingError] = useState<string | null>(null)
+  const [bookingSaved, setBookingSaved] = useState(false)
 
   const bookUrl = `${typeof window !== 'undefined' ? window.location.origin : 'https://dealerwyze.com'}/book/${orgSlug}`
+  const isDirty =
+    pubKey !== initialPubKey ||
+    secKeyEditing ||
+    bookingOn !== initialBookingEnabled ||
+    bookingText !== initialBookingText
+
+  useUnsavedChangesGuard(isDirty)
 
   async function saveStripeKeys() {
+    setStripeError(null)
+    setStripeSaved(false)
     if (!pubKey.trim() || (!secKeyEditing && secKey === MASK)) return
-    if (!pubKey.startsWith('pk_')) { alert('Publishable key must start with pk_'); return }
-    if (secKeyEditing && !secKey.startsWith('sk_')) { alert('Secret key must start with sk_'); return }
+    if (!pubKey.startsWith('pk_')) {
+      setStripeError('Publishable key must start with pk_.')
+      return
+    }
+    if (secKeyEditing && !secKey.startsWith('sk_')) {
+      setStripeError('Secret key must start with sk_.')
+      return
+    }
     setSavingStripe(true)
     try {
       const payload: Record<string, unknown> = { stripe_dealer_publishable_key: pubKey.trim() }
@@ -57,15 +83,25 @@ export default function PaymentSettingsClient({
       setSecKeyEditing(false)
       setSecKey(MASK)
       setStripeConfigured(true)
+      setStripeSaved(true)
+      setTimeout(() => setStripeSaved(false), 2500)
+    } catch {
+      setStripeError('Could not save Stripe keys. Please try again.')
     } finally {
       setSavingStripe(false)
     }
   }
 
   async function saveBooking() {
+    setBookingError(null)
+    setBookingSaved(false)
     setSavingBooking(true)
     try {
       await patchOrgSettings({ booking_enabled: bookingOn, booking_intro_text: bookingText })
+      setBookingSaved(true)
+      setTimeout(() => setBookingSaved(false), 2500)
+    } catch {
+      setBookingError('Could not save booking settings. Please try again.')
     } finally {
       setSavingBooking(false)
     }
@@ -132,6 +168,8 @@ export default function PaymentSettingsClient({
           <Button onClick={saveStripeKeys} disabled={savingStripe} className="w-full h-10">
             {savingStripe ? 'Saving...' : 'Save Stripe Keys'}
           </Button>
+          {stripeError ? <p className="text-sm text-destructive">{stripeError}</p> : null}
+          {stripeSaved ? <p className="text-sm text-green-700">Stripe keys saved.</p> : null}
 
           <p className="text-xs text-muted-foreground">
             Get your keys at{' '}
@@ -196,6 +234,8 @@ export default function PaymentSettingsClient({
           <Button onClick={saveBooking} disabled={savingBooking} className="w-full h-10">
             {savingBooking ? 'Saving...' : 'Save Booking Settings'}
           </Button>
+          {bookingError ? <p className="text-sm text-destructive">{bookingError}</p> : null}
+          {bookingSaved ? <p className="text-sm text-green-700">Booking settings saved.</p> : null}
         </CardContent>
       </Card>
     </div>

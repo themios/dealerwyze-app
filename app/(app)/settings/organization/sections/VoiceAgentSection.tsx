@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Loader2 } from 'lucide-react'
+import ConfirmActionDialog from '@/components/settings/ConfirmActionDialog'
 
 interface VoiceForm {
   dealer_cell_number: string
@@ -92,7 +93,6 @@ export default function VoiceAgentSection() {
   }
 
   async function handleDeprovisionVoice() {
-    if (!confirm('Remove the AI voice agent? Incoming calls will no longer be answered automatically.')) return
     setVoiceDeprovisioning(true)
     setVoiceError(null)
     await fetch('/api/admin/provision-voice', {
@@ -159,16 +159,24 @@ export default function VoiceAgentSection() {
             )}
             {voiceError && <p className="text-xs text-destructive">{voiceError}</p>}
             {retellAgentId ? (
-              <Button
-                variant="outline" size="sm"
-                className="text-destructive border-destructive/30 text-xs"
-                onClick={handleDeprovisionVoice}
-                disabled={voiceDeprovisioning}
-              >
-                {voiceDeprovisioning
-                  ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Removing…</>
-                  : 'Remove Voice Agent'}
-              </Button>
+              <ConfirmActionDialog
+                title="Remove the AI voice agent?"
+                description="Incoming calls will no longer be answered automatically until the voice agent is provisioned again."
+                confirmLabel={voiceDeprovisioning ? 'Removing...' : 'Remove voice agent'}
+                confirmVariant="destructive"
+                onConfirm={handleDeprovisionVoice}
+                trigger={(
+                  <Button
+                    variant="outline" size="sm"
+                    className="text-destructive border-destructive/30 text-xs"
+                    disabled={voiceDeprovisioning}
+                  >
+                    {voiceDeprovisioning
+                      ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Removing…</>
+                      : 'Remove Voice Agent'}
+                  </Button>
+                )}
+              />
             ) : (
               <Button
                 variant="outline" size="sm"

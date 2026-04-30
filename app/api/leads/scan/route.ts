@@ -7,6 +7,31 @@ const ALLOWED_IMAGE_TYPES = new Set([
   'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif',
 ])
 
+function normalizeImageMime(mime: string): 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif' | null {
+  if (mime === 'image/jpg') return 'image/jpeg'
+  if (mime === 'image/jpeg') return 'image/jpeg'
+  if (mime === 'image/png') return 'image/png'
+  if (mime === 'image/webp') return 'image/webp'
+  if (mime === 'image/gif') return 'image/gif'
+  return null
+}
+
+function sniffImageMime(bytes: Uint8Array): 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif' | null {
+  // JPEG: FF D8 FF
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg'
+  // PNG: 89 50 4E 47
+  if (bytes.length >= 4 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return 'image/png'
+  // GIF: 47 49 46 38
+  if (bytes.length >= 4 && bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38) return 'image/gif'
+  // WebP: RIFF....WEBP
+  if (
+    bytes.length >= 12 &&
+    bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+    bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50
+  ) return 'image/webp'
+  return null
+}
+
 export async function POST(req: NextRequest) {
   const profile = await requireProfile()
   const orgId   = profile.org_id
@@ -17,9 +42,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No file provided' }, { status: 400 })
   }
 
-  const mime   = file.type
-  const isPdf  = mime === 'application/pdf'
-  const isImg  = ALLOWED_IMAGE_TYPES.has(mime)
+  const declaredMime = file.type
+  const normalizedDeclared = normalizeImageMime(declaredMime)
+  const isPdf  = declaredMime === 'application/pdf'
+  const isImg  = ALLOWED_IMAGE_TYPES.has(declaredMime)
 
   if (!isPdf && !isImg) {
     return NextResponse.json(
@@ -50,6 +76,7 @@ export async function POST(req: NextRequest) {
 
   // Convert file to base64
   const buffer = await file.arrayBuffer()
+  const bytes = new Uint8Array(buffer)
   const base64 = Buffer.from(buffer).toString('base64')
 
   // Run AI extraction — dynamic import so Anthropic SDK is never bundled in client
@@ -59,9 +86,18 @@ export async function POST(req: NextRequest) {
     if (isPdf) {
       scan = await scanLeadPdf(base64)
     } else {
+      // Some clients report a MIME type derived from the filename extension; ensure it matches the actual bytes.
+      const sniffed = sniffImageMime(bytes)
+      const mime = sniffed ?? normalizedDeclared
+      if (!mime) {
+        return NextResponse.json(
+          { error: 'Unsupported image type. Please upload JPEG, PNG, WebP, or GIF.' },
+          { status: 415 }
+        )
+      }
       scan = await scanLeadImage(
         base64,
-        mime as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif',
+        mime,
       )
     }
   } catch (err) {

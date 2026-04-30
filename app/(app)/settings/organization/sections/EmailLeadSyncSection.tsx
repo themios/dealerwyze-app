@@ -2,9 +2,11 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -13,6 +15,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Mail, X, Loader2, CheckCircle2, AlertCircle, Plus, Eye, EyeOff, Download, Pencil } from 'lucide-react'
+import { inferLeadSourceEmailMatcherType } from '@/lib/leads/sourceMatchers'
+import ConfirmActionDialog from '@/components/settings/ConfirmActionDialog'
 
 interface EmailAccount {
   id: string
@@ -22,6 +26,11 @@ interface EmailAccount {
   enabled: boolean
   last_polled_at: string | null
   last_error: string | null
+}
+
+interface LeadSourceEmailMatcher {
+  type: 'exact' | 'domain' | 'contains'
+  value: string
 }
 
 const EMAIL_PROVIDERS = [
@@ -74,14 +83,22 @@ export default function EmailLeadSyncSection() {
   const [importLoading, setImportLoading] = useState(false)
   const [importError, setImportError]     = useState<string | null>(null)
   const [importSummary, setImportSummary] = useState<{ created: number; duplicate: number; skipped: number; errors: number; over_limit: number } | null>(null)
+  const [leadMatchers, setLeadMatchers] = useState<LeadSourceEmailMatcher[]>([])
+  const [leadMatcherDraft, setLeadMatcherDraft] = useState('')
+  const [leadMatcherSaving, setLeadMatcherSaving] = useState(false)
+  const [leadMatcherError, setLeadMatcherError] = useState<string | null>(null)
+  const [leadMatcherSaved, setLeadMatcherSaved] = useState(false)
 
   useEffect(() => {
-    fetch('/api/integrations/email')
-      .then(r => r.json())
-      .catch(() => [])
-      .then(accounts => {
-        if (Array.isArray(accounts)) setEmailAccounts(accounts)
-      })
+    Promise.all([
+      fetch('/api/integrations/email').then(r => r.json()).catch(() => []),
+      fetch('/api/settings/org').then(r => r.json()).catch(() => null),
+    ]).then(([accounts, settings]) => {
+      if (Array.isArray(accounts)) setEmailAccounts(accounts)
+      if (settings && Array.isArray(settings.lead_source_email_matchers)) {
+        setLeadMatchers(settings.lead_source_email_matchers)
+      }
+    })
 
     const params = new URLSearchParams(window.location.search)
     const email = params.get('email')
@@ -150,7 +167,6 @@ export default function EmailLeadSyncSection() {
   }
 
   async function handleRemoveAccount(id: string) {
-    if (!confirm('Remove this email account? Lead emails from it will no longer be imported.')) return
     setRemovingId(id)
     await fetch(`/api/integrations/email/${id}`, { method: 'DELETE' })
     setRemovingId(null)
@@ -295,6 +311,47 @@ export default function EmailLeadSyncSection() {
     }
   }
 
+  async function saveLeadMatchers(next: LeadSourceEmailMatcher[]) {
+    setLeadMatcherSaving(true)
+    setLeadMatcherError(null)
+    setLeadMatcherSaved(false)
+    try {
+      const res = await fetch('/api/settings/org', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lead_source_email_matchers: next }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setLeadMatcherError(data.error ?? 'Could not save lead sender rules')
+        return false
+      }
+      setLeadMatchers(Array.isArray(data.lead_source_email_matchers) ? data.lead_source_email_matchers : next)
+      setLeadMatcherSaved(true)
+      window.setTimeout(() => setLeadMatcherSaved(false), 2500)
+      return true
+    } catch {
+      setLeadMatcherError('Could not save lead sender rules')
+      return false
+    } finally {
+      setLeadMatcherSaving(false)
+    }
+  }
+
+  async function handleAddLeadMatcher() {
+    const value = leadMatcherDraft.trim().toLowerCase()
+    if (!value) return
+    const type = inferLeadSourceEmailMatcherType(value)
+    const next = [...leadMatchers, { type, value }]
+    const ok = await saveLeadMatchers(next)
+    if (ok) setLeadMatcherDraft('')
+  }
+
+  async function handleRemoveLeadMatcher(value: string, type: LeadSourceEmailMatcher['type']) {
+    const next = leadMatchers.filter(m => !(m.value === value && m.type === type))
+    await saveLeadMatchers(next)
+  }
+
   const selectedProvider = EMAIL_PROVIDERS.find(p => p.value === imapProvider)
 
   return (
@@ -342,14 +399,22 @@ export default function EmailLeadSyncSection() {
                 <Button variant="ghost" size="sm" className="text-xs" onClick={() => startEditAccount(acct)} title="Edit">
                   <Pencil className="h-3.5 w-3.5" />
                 </Button>
-                <Button
-                  variant="ghost" size="sm"
-                  className="text-destructive text-xs"
-                  onClick={() => handleRemoveAccount(acct.id)}
-                  disabled={removingId === acct.id}
-                >
-                  {removingId === acct.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Remove'}
-                </Button>
+                <ConfirmActionDialog
+                  title="Remove this email account?"
+                  description="Lead emails from this inbox will no longer be imported until you reconnect it."
+                  confirmLabel={removingId === acct.id ? 'Removing...' : 'Remove account'}
+                  confirmVariant="destructive"
+                  onConfirm={() => handleRemoveAccount(acct.id)}
+                  trigger={(
+                    <Button
+                      variant="ghost" size="sm"
+                      className="text-destructive text-xs"
+                      disabled={removingId === acct.id}
+                    >
+                      {removingId === acct.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Remove'}
+                    </Button>
+                  )}
+                />
               </div>
             </div>
           ))}
@@ -361,6 +426,76 @@ export default function EmailLeadSyncSection() {
           Connect an email inbox to automatically import CarGurus, AutoTrader, and OfferUp leads every 15 minutes.
         </p>
       )}
+
+      <div className="mt-4 space-y-3 rounded-lg border bg-card p-3">
+        <div>
+          <p className="text-sm font-medium">Lead Sender Rules</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Add extra sender emails or partial domains that should be treated as lead-source messages across every connected inbox. Built-in marketplace rules stay active automatically.
+          </p>
+        </div>
+
+        <div className="space-y-1">
+          <Label className="text-xs">Add a sender match</Label>
+          <div className="flex gap-2">
+            <Input
+              placeholder="cargurus, carsforsale.com, or dealer-leads@messages.cargurus.com"
+              value={leadMatcherDraft}
+              onChange={e => {
+                setLeadMatcherDraft(e.target.value)
+                setLeadMatcherError(null)
+                setLeadMatcherSaved(false)
+              }}
+              className="h-9"
+            />
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleAddLeadMatcher}
+              disabled={leadMatcherSaving || !leadMatcherDraft.trim()}
+            >
+              {leadMatcherSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Add'}
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+            We auto-detect exact email, domain, or partial contains matching. Very short partials are ignored to avoid false positives.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-xs">Custom rules</Label>
+          <div className="flex flex-wrap gap-2">
+            {leadMatchers.map(matcher => (
+              <Badge key={`${matcher.type}:${matcher.value}`} variant="secondary" className="gap-1.5 pr-1">
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{matcher.type}</span>
+                <span>{matcher.value}</span>
+                <button
+                  type="button"
+                  className="rounded p-0.5 hover:bg-black/10"
+                  onClick={() => handleRemoveLeadMatcher(matcher.value, matcher.type)}
+                  aria-label={`Remove ${matcher.value}`}
+                  title="Remove"
+                  disabled={leadMatcherSaving}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+          </div>
+        </div>
+
+        {leadMatcherError && <p className="text-xs text-destructive">{leadMatcherError}</p>}
+        {leadMatcherSaved && <p className="text-xs text-green-700">Lead sender rules saved.</p>}
+
+        <div className="space-y-1">
+          <Label className="text-xs">Examples</Label>
+          <Textarea
+            readOnly
+            value={'dealer-leads@messages.cargurus.com\ncarsforsale.com\nautotrader\ncargurus'}
+            className="min-h-20 resize-none text-xs"
+          />
+        </div>
+      </div>
 
       {/* Edit email account form */}
       {editingAccountId && (

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { CheckCircle, MessageSquare, Mail, Zap } from 'lucide-react'
@@ -201,6 +202,9 @@ export default function AutomationClient({ initial, sequences }: Props) {
   const [saveError, setSaveError] = useState<string | null>(null)
   const sanitizedEmailSignature = sanitizeEmailSignatureHtml(settings.email_signature)
   const [tab, setTab] = useState<'sms' | 'email'>('sms')
+  const isDirty = JSON.stringify(settings) !== JSON.stringify(initial)
+
+  useUnsavedChangesGuard(isDirty)
 
   async function save() {
     setSaving(true)

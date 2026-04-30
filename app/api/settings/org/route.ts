@@ -3,6 +3,7 @@ import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 import { isDealerAdmin } from '@/lib/auth/dealerRoles'
 import { logOrgAudit } from '@/lib/audit/orgAudit'
+import { sanitizeLeadSourceEmailMatchers } from '@/lib/leads/sourceMatchers'
 
 export async function GET() {
   const profile = await requireProfile()
@@ -20,7 +21,7 @@ export async function GET() {
 
   const { data: settings } = await supabase
     .from('org_settings')
-    .select('business_name, business_phone, business_address, zip_code, timezone, dealer_cell_number, voice_business_hours_start, voice_business_hours_end, twilio_phone_number, retell_agent_id, gbp_location_id, locations, resend_from_domain, dealer_website_url, dealer_website_inventory_path, lead_assignment_mode')
+    .select('business_name, business_phone, business_address, zip_code, timezone, dealer_cell_number, voice_business_hours_start, voice_business_hours_end, twilio_phone_number, retell_agent_id, gbp_location_id, locations, resend_from_domain, dealer_website_url, dealer_website_inventory_path, lead_assignment_mode, lead_source_email_matchers')
     .eq('org_id', profile.org_id)
     .maybeSingle()
 
@@ -52,6 +53,7 @@ export async function GET() {
     dealer_website_inventory_path: settings?.dealer_website_inventory_path ?? '/cars-for-sale',
     calendar_connected: !!(calendarToken?.calendar_refresh_token),
     lead_assignment_mode: settings?.lead_assignment_mode ?? 'owner',
+    lead_source_email_matchers: sanitizeLeadSourceEmailMatchers(settings?.lead_source_email_matchers),
   })
 }
 
@@ -86,6 +88,7 @@ export async function PATCH(req: NextRequest) {
     review_request_delay_days?: number
     lead_assignment_mode?: string
     lead_assignment_rep_index?: number
+    lead_source_email_matchers?: unknown[]
   } = await req.json()
 
   // Update organizations.name if provided
@@ -131,6 +134,9 @@ export async function PATCH(req: NextRequest) {
   if (body.review_request_delay_days !== undefined) (settingsPayload as Record<string, unknown>).review_request_delay_days = body.review_request_delay_days
   if (body.lead_assignment_mode !== undefined) (settingsPayload as Record<string, unknown>).lead_assignment_mode = body.lead_assignment_mode
   if (body.lead_assignment_rep_index !== undefined) (settingsPayload as Record<string, unknown>).lead_assignment_rep_index = body.lead_assignment_rep_index
+  if (body.lead_source_email_matchers !== undefined) {
+    ;(settingsPayload as Record<string, unknown>).lead_source_email_matchers = sanitizeLeadSourceEmailMatchers(body.lead_source_email_matchers)
+  }
 
   const hasSettingsUpdate = Object.keys(settingsPayload).length > 2 // more than just org_id + updated_at
   if (hasSettingsUpdate) {
@@ -154,7 +160,7 @@ export async function PATCH(req: NextRequest) {
 
   const { data: settings } = await supabase
     .from('org_settings')
-    .select('business_name, business_phone, business_address, zip_code, timezone, dealer_cell_number, voice_business_hours_start, voice_business_hours_end, twilio_phone_number, retell_agent_id, gbp_location_id, locations, resend_from_domain, dealer_website_url, dealer_website_inventory_path')
+    .select('business_name, business_phone, business_address, zip_code, timezone, dealer_cell_number, voice_business_hours_start, voice_business_hours_end, twilio_phone_number, retell_agent_id, gbp_location_id, locations, resend_from_domain, dealer_website_url, dealer_website_inventory_path, lead_source_email_matchers')
     .eq('org_id', profile.org_id)
     .maybeSingle()
 
@@ -189,5 +195,6 @@ export async function PATCH(req: NextRequest) {
     dealer_website_url: settings?.dealer_website_url ?? null,
     dealer_website_inventory_path: settings?.dealer_website_inventory_path ?? '/cars-for-sale',
     calendar_connected: !!calendarToken,
+    lead_source_email_matchers: sanitizeLeadSourceEmailMatchers(settings?.lead_source_email_matchers),
   })
 }

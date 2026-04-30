@@ -3,10 +3,11 @@ import { requireProfile } from '@/lib/auth/profile'
 import TopBar from '@/components/layout/TopBar'
 import Link from 'next/link'
 import { isDealerAdmin } from '@/lib/auth/dealerRoles'
+import { canViewSettingsAudience } from '@/lib/settings/access'
 import {
   BarChart2, Users, ChevronRight, ExternalLink, CreditCard, Building2,
   Target, BookOpen, Zap, MessageSquare, ClipboardList, ListOrdered,
-  Webhook, DollarSign, Layers, GitBranch, Video, Share2, Palette, Heart, Shield,
+  Webhook, DollarSign, GitBranch, Video, Share2, Palette, Heart, Shield, Globe, ArrowRightLeft,
   type LucideIcon,
 } from 'lucide-react'
 import FontSizeSetting from '@/components/settings/FontSizeSetting'
@@ -57,6 +58,12 @@ const ORG_LINKS: LinkCardDef[] = [
     description: 'Rename, reorder, and add custom stages to match your sales process',
   },
   {
+    href: '/settings/website',
+    icon: Globe,
+    title: 'Website',
+    description: 'Website details, inventory site content, and customer-facing settings',
+  },
+  {
     href: '/settings/audit',
     icon: Shield,
     title: 'Audit Log',
@@ -77,6 +84,12 @@ const FINANCE_LINKS: LinkCardDef[] = [
     title: 'Payments & Booking',
     description: 'Stripe keys for BHPH online payments, customer booking page',
   },
+  {
+    href: '/settings/transfer',
+    icon: ArrowRightLeft,
+    title: 'Business Transfer',
+    description: 'Transfer dealership ownership with a controlled, high-risk workflow',
+  },
 ]
 
 const COMMUNICATION_LINKS: LinkCardDef[] = [
@@ -93,11 +106,14 @@ const COMMUNICATION_LINKS: LinkCardDef[] = [
     description: 'Build automated follow-up cadences for email and SMS leads',
   },
   {
-    href: '/customers/segments',
-    icon: Layers,
-    title: 'Smart Segments',
-    description: 'Save customer filters and bulk-enroll them into sequences',
+    href: '/settings/webhooks',
+    icon: Webhook,
+    title: 'Webhooks',
+    description: 'Send real-time events to your own systems when leads, stages, or appointments change',
   },
+]
+
+const CUSTOMER_EXPERIENCE_LINKS: LinkCardDef[] = [
   {
     href: '/settings/pulse',
     icon: Heart,
@@ -105,10 +121,10 @@ const COMMUNICATION_LINKS: LinkCardDef[] = [
     description: 'Google review requests and satisfaction surveys after every sale',
   },
   {
-    href: '/settings/webhooks',
-    icon: Webhook,
-    title: 'Webhooks',
-    description: 'Send real-time events to your own systems when leads, stages, or appointments change',
+    href: '/settings/retention',
+    icon: Users,
+    title: 'Customer Retention',
+    description: 'Campaign timing, direct-mail postcards, and retention automation settings',
   },
 ]
 
@@ -181,6 +197,7 @@ export default async function SettingsPage() {
   const profile = await requireProfile()
   const supabase = await createClientForRequest()
   const canManageReconTemplate = isDealerAdmin(profile.role)
+  const canViewAdminSettings = canViewSettingsAudience(profile.role, 'dealer_admin')
 
   const { data: orgSettings } = await supabase
     .from('org_settings')
@@ -196,7 +213,7 @@ export default async function SettingsPage() {
       <div className="px-4 py-4 space-y-8">
 
         {/* Admin-only sections */}
-        {profile.role === 'admin' && (
+        {canViewAdminSettings && (
           <>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Dealership Settings</p>
 
@@ -226,6 +243,11 @@ export default async function SettingsPage() {
             </section>
 
             <section>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer Experience</p>
+              <LinkGroup links={CUSTOMER_EXPERIENCE_LINKS} />
+            </section>
+
+            <section>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Notifications</p>
               {/* Telegram — instant lead alerts + AI chat via bot */}
               <TelegramConnect
@@ -235,7 +257,7 @@ export default async function SettingsPage() {
             </section>
 
             <section>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">AI Dealer Brief</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Goals</p>
               <LinkGroup links={GOALS_LINKS} />
             </section>
 
@@ -250,11 +272,6 @@ export default async function SettingsPage() {
             </section>
 
             <section>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Inventory</p>
-              <LinkGroup links={INVENTORY_LINKS} />
-            </section>
-
-            <section>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Reports</p>
               <LinkGroup links={REPORTS_LINKS} />
               <div className="mt-2">
@@ -264,7 +281,7 @@ export default async function SettingsPage() {
           </>
         )}
 
-        {canManageReconTemplate && profile.role !== 'admin' && (
+        {canManageReconTemplate && (
           <section>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Inventory</p>
             <LinkGroup links={INVENTORY_LINKS} />
@@ -282,7 +299,7 @@ export default async function SettingsPage() {
         </section>
 
         {/* Integrations */}
-        {profile.role === 'admin' && (
+        {canViewAdminSettings && (
           <section>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Integrations</p>
             <div className="space-y-2">
@@ -377,7 +394,7 @@ export default async function SettingsPage() {
           </div>
         </section>
 
-        {profile.role === 'admin' && (
+        {canViewAdminSettings && (
           <section>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Quick Links</p>
             <div className="space-y-2">

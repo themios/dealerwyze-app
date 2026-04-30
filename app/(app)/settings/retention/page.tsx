@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from '@/lib/auth/profile'
 import RetentionSettingsClient from './RetentionSettingsClient'
+import SettingsPageShell from '@/components/settings/SettingsPageShell'
 
 export default async function RetentionSettingsPage() {
   const profile  = await requireProfile()
@@ -25,16 +26,16 @@ export default async function RetentionSettingsPage() {
   ])
 
   return (
-    <div className="px-4 py-6 max-w-2xl mx-auto">
-      <h1 className="text-xl font-bold mb-1">Customer Retention</h1>
-      <p className="text-sm text-muted-foreground mb-6">
-        Automatically stay in touch with customers after the sale - birthdays, anniversaries, service reminders, and more.
-      </p>
+    <SettingsPageShell
+      title="Customer Retention"
+      description="Automatically stay in touch after the sale with birthdays, anniversaries, service reminders, and referral follow-ups."
+      type="form"
+    >
       <RetentionSettingsClient
         initialSettings={settings}
         sequences={sequences ?? []}
         postgridApiKey={orgSettings?.postgrid_api_key ?? null}
       />
-    </div>
+    </SettingsPageShell>
   )
 }

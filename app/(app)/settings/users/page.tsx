@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Plus, UserX, ArrowLeft, Copy, Check, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
+import ConfirmActionDialog from '@/components/settings/ConfirmActionDialog'
 
 type UserRole = 'dealer_admin' | 'dealer_manager' | 'dealer_finance' | 'dealer_rep' | 'dealer_staff' | 'admin' | 'agent'
 
@@ -152,7 +153,6 @@ export default function UsersPage() {
   }
 
   async function handleDeactivate(id: string) {
-    if (!confirm('Deactivate this user? They will lose access immediately. Their assigned leads will be preserved.')) return
     setBusy(id)
     await fetch(`/api/admin/users?id=${id}`, { method: 'DELETE' })
     setBusy(null)
@@ -284,16 +284,24 @@ export default function UsersPage() {
                       )}
                     </div>
                     {!isAdmin && !isDeactivated && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeactivate(u.id)}
-                        disabled={busy === u.id}
-                        className="text-destructive hover:text-destructive shrink-0"
-                        title="Deactivate user"
-                      >
-                        <UserX className="h-4 w-4" />
-                      </Button>
+                      <ConfirmActionDialog
+                        title="Deactivate this user?"
+                        description="They will lose access immediately. Their assigned leads will be preserved."
+                        confirmLabel={busy === u.id ? 'Deactivating...' : 'Deactivate user'}
+                        confirmVariant="destructive"
+                        onConfirm={() => handleDeactivate(u.id)}
+                        trigger={(
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={busy === u.id}
+                            className="text-destructive hover:text-destructive shrink-0"
+                            title="Deactivate user"
+                          >
+                            <UserX className="h-4 w-4" />
+                          </Button>
+                        )}
+                      />
                     )}
                     {isDeactivated && (
                       <Button

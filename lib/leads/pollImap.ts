@@ -3,6 +3,7 @@ import { simpleParser } from 'mailparser'
 import { parseAnyLead, parseCarGurusDigest } from '@/lib/leads/parser'
 import { ingestLead } from '@/lib/leads/ingest'
 import type { PollResult } from '@/lib/leads/poll'
+import { matchesLeadSourceEmail, type LeadSourceEmailMatcher } from '@/lib/leads/sourceMatchers'
 
 interface ImapAccount {
   id:        string
@@ -13,19 +14,6 @@ interface ImapAccount {
   imap_pass: string
 }
 
-const LEAD_DOMAINS = [
-  'cargurus.com',
-  'messages.cargurus.com',
-  'autotrader.com',
-  'messages.autotrader.com',
-  'offerup.com',
-  'messages.offerup.com',
-  'kbb.com',
-  'autolist.com',
-  'carsforsalemail.com',
-  'facebookmail.com',
-]
-
 /**
  * Poll an IMAP mailbox for new lead emails.
  * Fetches unseen messages from the last 2 days, filters by known lead domains,
@@ -33,6 +21,7 @@ const LEAD_DOMAINS = [
  */
 export async function pollImapAccount(
   account: ImapAccount,
+  sourceMatchers: LeadSourceEmailMatcher[],
 ): Promise<{ processed: number; results: PollResult[] } | { error: string }> {
   const results: PollResult[] = []
   const since = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)
@@ -58,8 +47,7 @@ export async function pollImapAccount(
 
       for await (const msg of client.fetch(recentUids, { source: true, envelope: true })) {
         const fromAddr = (msg.envelope?.from?.[0]?.address ?? '').toLowerCase()
-        const isLeadSource = LEAD_DOMAINS.some(d => fromAddr.includes(d))
-        if (!isLeadSource) continue
+        if (!matchesLeadSourceEmail(fromAddr, sourceMatchers)) continue
 
         if (!msg.source) continue
         const parsed    = await simpleParser(msg.source)

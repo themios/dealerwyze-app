@@ -54,16 +54,18 @@ export default function SequencesClient({ initialSequences }: Props) {
   const [newName, setNewName] = useState('')
   const [creating, setCreating] = useState(false)
   const [seeding, setSeeding] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const filtered = initialSequences.filter(s => s.channel === activeTab)
 
   async function handleSeedStarters() {
     setSeeding(true)
+    setError(null)
     try {
       const res = await fetch('/api/sequences/seed-starters', { method: 'POST' })
       const d = await res.json().catch(() => ({})) as { error?: string }
       if (!res.ok) {
-        alert(d.error ?? 'Failed to load starter campaigns')
+        setError(d.error ?? 'Failed to load starter campaigns')
         return
       }
       router.refresh()
@@ -75,6 +77,7 @@ export default function SequencesClient({ initialSequences }: Props) {
   async function handleCreate() {
     if (!newName.trim()) return
     setCreating(true)
+    setError(null)
     try {
       const res = await fetch('/api/sequences', {
         method: 'POST',
@@ -83,7 +86,7 @@ export default function SequencesClient({ initialSequences }: Props) {
       })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
-        alert(d.error ?? 'Failed to create sequence')
+        setError(d.error ?? 'Failed to create sequence')
         return
       }
       const { sequence } = await res.json()
@@ -120,6 +123,8 @@ export default function SequencesClient({ initialSequences }: Props) {
           </button>
         ))}
       </div>
+
+      {error ? <p className="text-sm text-destructive mb-4">{error}</p> : null}
 
       <div className="space-y-2 mb-4">
         {initialSequences.length === 0 && filtered.length === 0 && (

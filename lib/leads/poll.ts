@@ -5,6 +5,12 @@ import { ingestLead } from '@/lib/leads/ingest'
 import { createServiceClient } from '@/lib/supabase/service'
 import { pollImapAccount } from '@/lib/leads/pollImap'
 import { pollCustomerRepliesForOrg, pollCustomerRepliesViaImap } from '@/lib/leads/pollReplies'
+import {
+  buildLeadSourceEmailGmailQuery,
+  getLeadSourceEmailMatchers,
+  matchesLeadSourceEmail,
+  type LeadSourceEmailMatcher,
+} from '@/lib/leads/sourceMatchers'
 
 export interface PollResult {
   external_id: string
@@ -22,17 +28,13 @@ export interface PollResult {
 async function pollWithClient(
   gmail: ReturnType<typeof google.gmail>,
   orgId: string,
-  options: { dryRun?: boolean; scanMode?: boolean },
+  options: { dryRun?: boolean; scanMode?: boolean; sourceMatchers: LeadSourceEmailMatcher[] },
 ): Promise<{ processed: number; results: PollResult[] } | { error: string }> {
-  const { dryRun = false, scanMode = false } = options
+  const { dryRun = false, scanMode = false, sourceMatchers } = options
   const results: PollResult[] = []
 
   try {
-    // Exclude facebookmail.com — each FB Marketplace email triggers Gmail push; they have no contact info and cause a webhook storm. Broad skip in ingest is safety net.
-    const senderQuery = 'from:cargurus.com OR from:messages.cargurus.com OR from:autotrader.com OR from:offerup.com OR from:kbb.com OR from:autolist.com OR from:carsforsalemail.com'
-    const q = scanMode
-      ? 'newer_than:2d'
-      : `(${senderQuery}) newer_than:2d`
+    const q = scanMode ? 'newer_than:2d' : buildLeadSourceEmailGmailQuery(sourceMatchers)
 
     const listRes = await gmail.users.messages.list({ userId: 'me', q, maxResults: 20 })
     const messages = listRes.data.messages || []
@@ -80,6 +82,13 @@ async function pollWithClient(
         id: msgRef.id!,
         requestBody: { removeLabelIds: ['UNREAD'] },
       })
+
+      if (!matchesLeadSourceEmail(fromEmail, sourceMatchers)) {
+        if (scanMode) {
+          results.push({ external_id: messageId, status: 'scan', subject, from: fromEmail, source: 'unknown' })
+        }
+        continue
+      }
 
       const digestLeads = parseCarGurusDigest(subject, text)
       if (digestLeads.length > 0) {
@@ -139,6 +148,14 @@ export async function runLeadPollForOrg(orgId: string): Promise<LeadPollResult> 
     .eq('org_id', orgId)
     .eq('enabled', true)
 
+  const { data: settings } = await supabase
+    .from('org_settings')
+    .select('lead_source_email_matchers')
+    .eq('org_id', orgId)
+    .maybeSingle()
+
+  const sourceMatchers = getLeadSourceEmailMatchers(settings?.lead_source_email_matchers)
+
   if (!accounts?.length) return { processed: 0, results: [] }
 
   const allResults: PollResult[] = []
@@ -157,7 +174,7 @@ export async function runLeadPollForOrg(orgId: string): Promise<LeadPollResult> 
       const gmailClient = google.gmail({ version: 'v1', auth })
       // Run lead poll and customer reply poll in parallel
       const [leadResult] = await Promise.all([
-        pollWithClient(gmailClient, orgId, {}),
+        pollWithClient(gmailClient, orgId, { sourceMatchers }),
         pollCustomerRepliesForOrg(orgId, gmailClient).catch(() => null),
       ])
       result = leadResult
@@ -172,7 +189,7 @@ export async function runLeadPollForOrg(orgId: string): Promise<LeadPollResult> 
         imap_pass: account.imap_pass,
       }
       const [leadResult] = await Promise.all([
-        pollImapAccount(imapAccount),
+        pollImapAccount(imapAccount, sourceMatchers),
         pollCustomerRepliesViaImap(orgId, imapAccount).catch(() => null),
       ])
       result = leadResult
