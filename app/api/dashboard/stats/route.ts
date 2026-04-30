@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
-import { createServiceClient } from '@/lib/supabase/service'
 import { computeDashboardStats } from '@/lib/dashboard/computeStats'
 
 export async function GET() {
@@ -9,8 +8,7 @@ export async function GET() {
     const profile = await requireProfile()
     const supabase = await createClient()
 
-    const service = createServiceClient()
-    const { data: org } = await service
+    const { data: org } = await supabase
       .from('organizations')
       .select('name')
       .eq('id', profile.org_id)

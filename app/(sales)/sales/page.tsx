@@ -70,6 +70,7 @@ const HEALTH_CONFIG: Record<DealerHealth, {
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function SalesDashboard() {
+  const [nowMs] = useState(() => Date.now())
   const [affiliate, setAffiliate]   = useState<AffiliateInfo | null>(null)
   const [stats, setStats]           = useState<Stats | null>(null)
   const [dealers, setDealers]       = useState<Dealer[]>([])
@@ -78,8 +79,8 @@ export default function SalesDashboard() {
   const [showCommissions, setShowCommissions] = useState(false)
   const [showArchived, setShowArchived]       = useState(false)
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const load = useCallback(async (options?: { showSpinner?: boolean }) => {
+    if (options?.showSpinner !== false) setLoading(true)
     const [meRes, dealersRes, commissionsRes] = await Promise.all([
       fetch('/api/sales/me'),
       fetch(`/api/sales/dealers${showArchived ? '?include_archived=true' : ''}`),
@@ -110,7 +111,40 @@ export default function SalesDashboard() {
     await load()
   }
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadInitial() {
+      const [meRes, dealersRes, commissionsRes] = await Promise.all([
+        fetch('/api/sales/me'),
+        fetch(`/api/sales/dealers${showArchived ? '?include_archived=true' : ''}`),
+        fetch('/api/sales/commissions'),
+      ])
+      if (cancelled) return
+
+      if (meRes.ok) {
+        const d = await meRes.json()
+        if (!cancelled) {
+          setAffiliate(d.affiliate)
+          setStats(d.stats)
+        }
+      }
+      if (dealersRes.ok) {
+        const d = await dealersRes.json()
+        if (!cancelled) setDealers(d.dealers ?? [])
+      }
+      if (commissionsRes.ok) {
+        const d = await commissionsRes.json()
+        if (!cancelled) setEvents(d.events ?? [])
+      }
+      if (!cancelled) setLoading(false)
+    }
+
+    void loadInitial()
+    return () => {
+      cancelled = true
+    }
+  }, [showArchived])
 
   if (loading) {
     return (
@@ -144,7 +178,7 @@ export default function SalesDashboard() {
             {' '}· {affiliate.type}
           </p>
         </div>
-        <button onClick={load} title="Refresh dashboard data" className="p-2 rounded-lg hover:bg-gray-100">
+        <button onClick={() => { void load() }} title="Refresh dashboard data" className="p-2 rounded-lg hover:bg-gray-100">
           <RefreshCw className="w-4 h-4 text-gray-400" />
         </button>
       </div>
@@ -183,7 +217,7 @@ export default function SalesDashboard() {
           </h2>
           <div className="space-y-2">
             {urgentDealers.map(d => (
-              <DealerCard key={d.id} dealer={d} onArchive={archiveDealer} />
+              <DealerCard key={d.id} dealer={d} onArchive={archiveDealer} nowMs={nowMs} />
             ))}
           </div>
         </div>
@@ -206,7 +240,7 @@ export default function SalesDashboard() {
         </div>
         <div className="space-y-2">
           {dealers.filter(d => !HEALTH_CONFIG[d.health].urgent).map(d => (
-            <DealerCard key={d.id} dealer={d} onArchive={archiveDealer} />
+            <DealerCard key={d.id} dealer={d} onArchive={archiveDealer} nowMs={nowMs} />
           ))}
           {dealers.length === 0 && (
             <p className="text-sm text-gray-400 text-center py-6">
@@ -259,13 +293,15 @@ export default function SalesDashboard() {
 function DealerCard({
   dealer,
   onArchive,
+  nowMs,
 }: {
   dealer: Dealer
   onArchive: (orgId: string, archived: boolean) => void
+  nowMs: number
 }) {
   const cfg = HEALTH_CONFIG[dealer.health]
   const Icon = cfg.icon
-  const daysOld = Math.floor((Date.now() - new Date(dealer.created_at).getTime()) / 86400000)
+  const daysOld = Math.floor((nowMs - new Date(dealer.created_at).getTime()) / 86400000)
 
   return (
     <div className={`border rounded-xl p-3 ${dealer.archived ? 'opacity-60 bg-gray-50 border-gray-200' : cfg.bg}`}>

@@ -272,7 +272,7 @@ export async function processVoiceCall(params: VoiceCallParams): Promise<void> {
     title: `Missed call: ${finalName || 'Unknown caller'}${vehicleLabel}`,
     body:  `${displayPhone}${timelineLabel}`,
     url:   customerId ? `/customers/${customerId}` : '/today',
-  }).catch(() => {})
+  }, org_id).catch(() => {})
 
   // 8. Send confirmation SMS to caller (skip if opted out)
   const { data: customerForOptOut } = await supabase

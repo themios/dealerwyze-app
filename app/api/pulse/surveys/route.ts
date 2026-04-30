@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import { deliverPulseSurvey } from '@/lib/pulse/deliver'
 
 export async function POST(req: NextRequest) {
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'customer_id required' }, { status: 400 })
   }
 
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   // Verify customer belongs to this org
   const { data: customer } = await supabase

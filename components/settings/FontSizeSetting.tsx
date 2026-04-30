@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 
 type FontSize = 'sm' | 'md' | 'lg' | 'xl'
@@ -11,16 +11,11 @@ const OPTIONS: { value: FontSize; label: string }[] = [
 ]
 
 export default function FontSizeSetting() {
-  const [size, setSize] = useState<FontSize>('md')
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    const saved = (localStorage.getItem('dealerwyze-font-size') as FontSize) || 'md'
-    setSize(saved)
-    setMounted(true)
-  }, [])
-
-  if (!mounted) return <div className="h-9" /> // placeholder to avoid layout shift
+  const [size, setSize] = useState<FontSize>(() => {
+    if (typeof document === 'undefined') return 'md'
+    const current = document.documentElement.getAttribute('data-font-size')
+    return current === 'sm' || current === 'md' || current === 'lg' || current === 'xl' ? current : 'md'
+  })
 
   function apply(s: FontSize) {
     setSize(s)

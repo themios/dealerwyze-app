@@ -1,5 +1,5 @@
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import { isDealerAdmin } from '@/lib/auth/dealerRoles'
 import { redirect } from 'next/navigation'
 import TopBar from '@/components/layout/TopBar'
@@ -13,7 +13,7 @@ export default async function PaymentSettingsPage() {
   const profile  = await requireProfile()
   if (!isDealerAdmin(profile.role)) redirect('/settings')
 
-  const supabase = createServiceClient()
+  const supabase = await createClient()
   const { data: settings } = await supabase
     .from('org_settings')
     .select('stripe_dealer_publishable_key, stripe_dealer_secret_key, booking_enabled, booking_intro_text, business_name, business_phone')

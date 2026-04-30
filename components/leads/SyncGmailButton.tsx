@@ -8,19 +8,26 @@ import { RefreshCw, CheckCircle, AlertCircle } from 'lucide-react'
 type Status = 'idle' | 'loading' | 'done' | 'error'
 
 type ErrorDetail = { message: string; reason: string; action: string; code: string; accountEmail?: string }
+type SyncResult = {
+  status: 'created' | 'duplicate' | 'error' | 'dry-run' | 'no-match'
+  name?: string | null
+  email?: string | null
+  source?: string | null
+  from?: string | null
+  subject?: string | null
+  error?: string | null
+}
 
 export default function SyncGmailButton({ compact = false }: { compact?: boolean }) {
   const router = useRouter()
   const [status, setStatus] = useState<Status>('idle')
   const [result, setResult] = useState<string | null>(null)
   const [details, setDetails] = useState<string | null>(null)
-  const [errorDetail, setErrorDetail] = useState<ErrorDetail | null>(null)
 
   async function run(dry = false) {
     setStatus('loading')
     setResult(null)
     setDetails(null)
-    setErrorDetail(null)
 
     try {
       const res = await fetch(dry ? '/api/leads/sync?dry=1' : '/api/leads/sync', { method: 'POST' })
@@ -30,7 +37,6 @@ export default function SyncGmailButton({ compact = false }: { compact?: boolean
 
       if (!res.ok) {
         if (data.errorDetail && data.errorDetail.code) {
-          setErrorDetail(data.errorDetail)
           setResult(data.errorDetail.message)
           const parts = [
             data.errorDetail.accountEmail
@@ -45,22 +51,22 @@ export default function SyncGmailButton({ compact = false }: { compact?: boolean
           setResult(data.error || `Server error ${res.status}`)
         }
         setStatus('error')
-        setTimeout(() => { setStatus('idle'); setResult(null); setDetails(null); setErrorDetail(null) }, 12000)
+        setTimeout(() => { setStatus('idle'); setResult(null); setDetails(null) }, 12000)
         return
       }
 
-      const all = (data.results ?? []) as any[]
-      const newLeads = all.filter((r: any) => r.status === 'created')
-      const dupes = all.filter((r: any) => r.status === 'duplicate').length
-      const errors = all.filter((r: any) => r.status === 'error')
+      const all = (data.results ?? []) as SyncResult[]
+      const newLeads = all.filter(r => r.status === 'created')
+      const dupes = all.filter(r => r.status === 'duplicate').length
+      const errors = all.filter(r => r.status === 'error')
 
       if (dry) {
-        const parsed = all.filter((r: any) => r.status === 'dry-run')
-        const noMatch = all.filter((r: any) => r.status === 'no-match')
+        const parsed = all.filter(r => r.status === 'dry-run')
+        const noMatch = all.filter(r => r.status === 'no-match')
         setResult(`DRY: ${parsed.length} parsed, ${noMatch.length} skipped`)
         setDetails([
-          ...parsed.map((r: any) => `✓ ${r.name || '?'} <${r.email || '?'}> [${r.source}]`),
-          ...noMatch.map((r: any) => `✗ [${r.from}] "${r.subject}"`),
+          ...parsed.map(r => `✓ ${r.name || '?'} <${r.email || '?'}> [${r.source}]`),
+          ...noMatch.map(r => `✗ [${r.from}] "${r.subject}"`),
         ].join('\n') || 'Nothing found')
         setStatus('done')
         return
@@ -68,19 +74,20 @@ export default function SyncGmailButton({ compact = false }: { compact?: boolean
 
       if (newLeads.length > 0) {
         setResult(`${newLeads.length} new lead${newLeads.length !== 1 ? 's' : ''}`)
-        setDetails(newLeads.map((r: any) => `+ ${r.name || r.email}`).join('\n') +
+        setDetails(newLeads.map(r => `+ ${r.name || r.email}`).join('\n') +
           (dupes > 0 ? `\n${dupes} duplicate(s) skipped` : ''))
         router.refresh()
       } else if (errors.length > 0) {
         setResult('Sync error')
-        setDetails(errors.map((r: any) => `✗ ${r.name || r.email}: ${r.status}${r.error ? ' — ' + r.error : ''}`).join('\n'))
+        setDetails(errors.map(r => `✗ ${r.name || r.email}: ${r.status}${r.error ? ' — ' + r.error : ''}`).join('\n'))
       } else {
         setResult('No new leads')
         setDetails(dupes > 0 ? `${dupes} duplicate(s) skipped` : null)
       }
       setStatus('done')
-    } catch (err: any) {
-      setResult(err.message || 'Sync failed')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Sync failed'
+      setResult(message)
       setStatus('error')
     }
 
@@ -88,7 +95,6 @@ export default function SyncGmailButton({ compact = false }: { compact?: boolean
       setStatus('idle')
       setResult(null)
       setDetails(null)
-      setErrorDetail(null)
     }, 8000)
   }
 

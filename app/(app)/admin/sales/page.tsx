@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import TopBar from '@/components/layout/TopBar'
 import {
-  Briefcase, TrendingUp, TrendingDown, AlertCircle,
+  Briefcase, TrendingDown, AlertCircle,
   DollarSign, Users, ChevronRight, Mail, ArrowUpDown,
   Plus, CheckCircle2, Pencil, X, Save,
 } from 'lucide-react'

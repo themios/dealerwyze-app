@@ -1,7 +1,8 @@
 'use client'
 
+import Image from 'next/image'
 import { useState, useEffect, useRef } from 'react'
-import { FileText, Image, Trash2, Upload, X, Download, Eye, ShieldAlert } from 'lucide-react'
+import { FileText, Image as ImageIcon, Trash2, Upload, X, Download, Eye, ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface CustomerDocument {
@@ -40,7 +41,7 @@ function formatSize(bytes: number | null): string {
 
 function DocIcon({ mimeType }: { mimeType: string | null }) {
   if (mimeType?.startsWith('image/')) {
-    return <Image className="h-4 w-4 shrink-0 text-muted-foreground" />
+    return <ImageIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
   }
   return <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
 }
@@ -347,7 +348,9 @@ export default function DocumentsSection({ customerId }: Props) {
           </div>
           <div className="flex-1 flex items-center justify-center overflow-hidden px-4 pb-4" onClick={e => e.stopPropagation()}>
             {viewingDoc.mime_type.startsWith('image/') ? (
-              <img src={viewingDoc.signed_url} alt={viewingDoc.label} className="max-w-full max-h-full object-contain" />
+              <div className="relative h-full w-full">
+                <Image src={viewingDoc.signed_url} alt={viewingDoc.label} fill unoptimized className="object-contain" sizes="100vw" />
+              </div>
             ) : viewingDoc.mime_type === 'application/pdf' ? (
               <iframe src={viewingDoc.signed_url} title={viewingDoc.label} className="w-full h-full" />
             ) : (

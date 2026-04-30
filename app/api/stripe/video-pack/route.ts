@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { canManageUsers } from '@/lib/auth/dealerRoles'
@@ -10,7 +10,7 @@ const VIDEO_PACK_CENTS   = 1000 // $10.00
 // POST /api/stripe/video-pack
 // Creates a $10 Stripe Checkout session for 25 additional video renders.
 // Reuses the org's existing Stripe customer so their saved card is pre-filled.
-export async function POST(_req: NextRequest) {
+export async function POST() {
   const profile = await requireProfile()
   if (!canManageUsers(profile.role)) {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 })

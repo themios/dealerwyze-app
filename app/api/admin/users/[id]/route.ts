@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { canManageUsers } from '@/lib/auth/dealerRoles'
 import type { UserRole } from '@/types/index'
+import { logOrgAudit } from '@/lib/audit/orgAudit'
 
 const ALLOWED_DEALER_ROLES: UserRole[] = [
   'dealer_admin',
@@ -54,6 +55,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     .eq('id', targetId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  void logOrgAudit({ org_id: callerProfile.org_id, actor_id: user.id, actor_type: 'user',
+    action: 'user_role_changed', details: { target_user_id: targetId, new_role: newRole } })
 
   return NextResponse.json({ success: true, role: newRole })
 }

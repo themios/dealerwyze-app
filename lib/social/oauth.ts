@@ -1,13 +1,16 @@
 import crypto from 'crypto'
 
 const STATE_SECRET = process.env.SOCIAL_OAUTH_STATE_SECRET ?? ''
+const STATE_TTL_MS = 10 * 60 * 1000 // 10 minutes
 
 // ---- State signing ----
 
 export function signOAuthState(payload: { orgId: string; platform: string }): string {
-  const data = JSON.stringify(payload)
-  const b64  = Buffer.from(data).toString('base64url')
-  const sig  = crypto.createHmac('sha256', STATE_SECRET).update(b64).digest('hex')
+  const nonce = crypto.randomBytes(16).toString('hex')
+  const exp   = Date.now() + STATE_TTL_MS
+  const data  = JSON.stringify({ ...payload, nonce, exp })
+  const b64   = Buffer.from(data).toString('base64url')
+  const sig   = crypto.createHmac('sha256', STATE_SECRET).update(b64).digest('hex')
   return `${b64}.${sig}`
 }
 
@@ -23,7 +26,8 @@ export function verifyOAuthState(state: string): { orgId: string; platform: stri
     if (sigBuf.length !== expectedBuf.length) return null
     if (!crypto.timingSafeEqual(sigBuf, expectedBuf)) return null
     const data = JSON.parse(Buffer.from(b64, 'base64url').toString('utf8'))
-    return data as { orgId: string; platform: string }
+    if (typeof data.exp === 'number' && Date.now() > data.exp) return null
+    return { orgId: data.orgId, platform: data.platform }
   } catch {
     return null
   }

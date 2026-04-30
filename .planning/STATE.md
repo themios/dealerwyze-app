@@ -6,7 +6,7 @@ See: `.planning/PROJECT.md` (updated 2026-04-29)
 
 **Core value:** Every dealership's data stays completely isolated from every other dealership's data — a breach of tenant isolation is an existential failure.
 **Current milestone:** v1.1 Enterprise Hardening
-**Current focus:** Phase 1 — BHPH Payment Atomicity (complete — all 3 plans done)
+**Current focus:** v1.1 milestone complete — 116 tests passing, CI active, score ~19/20
 
 ---
 
@@ -20,36 +20,41 @@ See: `.planning/PROJECT.md` (updated 2026-04-29)
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| 0 — Baseline & Infrastructure | ◑ In progress | Plans 00-01 skipped, 00-02 complete |
-| 1 — BHPH Payment Atomicity | ● Complete | Plans 01-01, 01-02, 01-03 done |
-| 2 — Service-Role Narrowing | ○ Pending | Depends on Phase 0 triage |
-| 3 — Lint Correctness Cleanup | ○ Pending | Depends on Phase 0, 2 |
-| 4 — Distributed State & Schemas | ○ Pending | Depends on Phase 3 |
-| 5 — CI Gates & Audit Logging | ○ Pending | Depends on Phases 1, 2, 3, 4 |
+| 0 — Baseline & Infrastructure | ● Complete | Triage, lint baseline, test helper, smoke test, and policy exist |
+| 1 — BHPH Payment Atomicity | ◑ Implemented | RPC migration and route done; DB-backed verification still pending |
+| 2 — Service-Role Narrowing | ● Complete | Top 20 service-role call sites replaced; TENS-06 + TEST-03/04 isolation tests pass |
+| 3 — Lint Correctness Cleanup | ● Complete | Zero lint problems; build and 91 tests pass |
+| 4 — Distributed State & Schemas | ● Complete | Upstash export limiter, Zod schemas, TEST-06/07, Gmail OIDC cleanup |
+| 5 — CI Gates & Audit Logging | ● Complete | Release gates documented, CLAUDE.md updated, org_audit_log hooked on 5 events |
 
 ---
 
-## Open Todos
+## Open Todos (Ops — Tim)
 
-- 00-01 (TypeScript config hardening) was not executed — may need to run before Phase 3.
-- 00-03 (service-role triage) must run before Phase 2 begins.
+- Set `GMAIL_PUBSUB_SERVICE_ACCOUNT_EMAIL` in Vercel to exact service account email from Google Cloud Pub/Sub.
+- Verify all required env vars in Vercel (see DEPLOY_CHECKLIST.md).
+- Remove `PUBSUB_VERIFICATION_TOKEN` from Vercel after confirming Gmail OIDC push is working.
+- Run production smoke tests from DEPLOY_CHECKLIST.md after first deploy.
+- DB-backed verification of `finalize_bhph_payment` RPC (PAY-01/02/03/05 still mocked-only).
 
 ---
 
 ## Key Context for Next Session
 
-- Service-role triage has not been run yet. Phase 0 must do it before any refactor work starts.
-- BHPH payment confirm route location needs to be confirmed at phase start.
-- Gmail Pub/Sub subscription must be confirmed migrated to OIDC before Phase 4 removes the legacy path.
-- Test database strategy: Vitest + Supabase local or a dedicated test project — to be decided in Phase 0.
+- v1.1 code milestone is complete. All release gates pass (lint 0 warnings, 91 tests, build clean).
+- BHPH payment RPC exists and route delegates to it; DB-backed proof of atomicity is the only unverified gap.
+- `org_audit_log` table (migration 109) hooks on: impersonation, BHPH payment, data export, org settings, Gmail auth failures.
+- Pub/Sub subscription confirmed at `https://dealerwyze.com/api/gmail/webhook`; OIDC-only path active.
+- Service-role policy enforced in CLAUDE.md; deploy checklist at `.planning/DEPLOY_CHECKLIST.md`.
 
 ---
 ## Decisions Made
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
-| 2026-04-28 | 254 non-auto-fixable lint issues deferred to Phase 3 | Only 12 were safe to auto-fix; remainder require correctness review |
+| 2026-04-28 | 254 non-auto-fixable lint issues deferred to Phase 3 | Only 12 were safe to auto-fix at that time; remainder required correctness review |
 | 2026-04-28 | Pre-existing uncommitted work committed with lint fixes | Could not separate lint changes from already-modified files |
+| 2026-04-29 | Phase 3 will be executed by rule/workstream, not file-by-file | Keeps lint cleanup aligned with security, reliability, maintainability, QA, and operability priorities |
 
 ---
 ---
@@ -62,4 +67,4 @@ See: `.planning/PROJECT.md` (updated 2026-04-29)
 | 2026-04-29 | COALESCE increment for total_paid | Eliminates read-then-write race on concurrent confirms |
 | 2026-04-29 | Paid-off logic NOT added to RPC | Online pay path never set paid_off; preserving pre-existing behavior, scope separately |
 
-*State updated: 2026-04-29 — Phase 1 complete (plans 01-01, 01-02, 01-03)*
+*State updated: 2026-04-29 — v1.1 milestone complete; 116 tests, CI active, score ~19/20*

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import { DEFAULT_ORG_STAGES, OrgStage, SYSTEM_STAGE_KEYS } from '@/lib/leads/states'
 
 export async function GET() {
   const profile = await requireProfile()
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   const { data, error } = await supabase
     .from('org_pipeline_stages')
@@ -23,7 +23,7 @@ export async function GET() {
 
 export async function PUT(req: NextRequest) {
   const profile = await requireProfile()
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   let stages: OrgStage[]
   try {

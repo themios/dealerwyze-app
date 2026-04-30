@@ -1,5 +1,5 @@
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import TopBar from '@/components/layout/TopBar'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
@@ -17,7 +17,7 @@ export default async function VideoSettingsPage() {
     redirect('/settings')
   }
 
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   const [{ data: videoSettings }, { data: templates }, { data: org }] = await Promise.all([
     supabase

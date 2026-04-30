@@ -132,7 +132,7 @@ export async function autoPostVideo(
 
     // Refresh token if needed
     try {
-      await refreshSocialToken(account.id)
+      await refreshSocialToken(account.id, orgId)  // Pass orgId for security verification
       // Re-fetch updated token
       const { data: refreshed } = await supabase
         .from('social_accounts')

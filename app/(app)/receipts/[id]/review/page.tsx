@@ -36,7 +36,8 @@ export default async function ReviewPage({
     signedUrl = data?.signedUrl ?? null
   }
 
-  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
+  const renderNow = new Date()
+  const ninetyDaysAgo = new Date(renderNow.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString()
 
   const [{ data: categories }, { data: lotVehicles }, { data: soldVehicles }] = await Promise.all([
     supabase

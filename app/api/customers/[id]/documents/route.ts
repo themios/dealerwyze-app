@@ -49,6 +49,17 @@ export async function GET(
   // Generate signed URLs via service client (bypasses storage RLS)
   const withUrls = await Promise.all(
     (docs ?? []).map(async (doc: CustomerDocument) => {
+      // ✓ Security: Verify storage path includes org_id prefix before generating signed URL
+      // This prevents access to files outside org's storage namespace, even if file_key was tampered with
+      const expectedPrefix = `${profile.org_id}/`
+      if (!doc.file_key.startsWith(expectedPrefix)) {
+        console.warn(
+          '[documents GET] Rejected storage access: file_key does not belong to org',
+          { fileKey: doc.file_key, orgId: profile.org_id }
+        )
+        return { ...doc, signed_url: null }
+      }
+
       const { data: signed } = await storage.storage
         .from(BUCKET)
         .createSignedUrl(doc.file_key, 3600)

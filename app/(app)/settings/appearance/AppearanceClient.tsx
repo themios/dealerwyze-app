@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { Check, Lock, Palette, Type, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -22,6 +23,7 @@ export default function AppearanceClient({
   isPaid,
   plan,
 }: Props) {
+  void plan
   const [preset,    setPreset]    = useState(initialPreset)
   const [primary,   setPrimary]   = useState(initialPrimary ?? '#0D2B55')
   const [accent,    setAccent]    = useState(initialAccent  ?? '#F07018')
@@ -103,7 +105,7 @@ export default function AppearanceClient({
             Personalize your CRM with your dealership colors and style on the Growth or Pro plan.
           </p>
           <Button asChild className="mt-2">
-            <a href="/settings/billing">Upgrade your plan</a>
+            <Link href="/settings/billing">Upgrade your plan</Link>
           </Button>
         </div>
         {/* Show a read-only preview of what they'd get */}

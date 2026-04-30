@@ -1,7 +1,6 @@
 'use client'
 
-
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Customer, Vehicle } from '@/types'
 import TopBar from '@/components/layout/TopBar'
@@ -9,7 +8,6 @@ import CustomerCard from '@/components/customer/CustomerCard'
 import VehicleCard from '@/components/vehicle/VehicleCard'
 import { Input } from '@/components/ui/input'
 import { Search } from 'lucide-react'
-import { useCallback as useDebounce } from 'react'
 
 export default function SearchPage() {
   const [query, setQuery] = useState('')
@@ -75,7 +73,7 @@ export default function SearchPage() {
         <div className="text-center py-16 text-muted-foreground text-sm">Searching…</div>
       ) : !hasResults ? (
         <div className="text-center py-16 text-muted-foreground">
-          <p className="text-sm">No results for "{query}"</p>
+          <p className="text-sm">No results for &quot;{query}&quot;</p>
         </div>
       ) : (
         <div className="px-4 space-y-4">

@@ -5,12 +5,12 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import { getCalendarEvents } from '@/lib/google/calendar'
 
 export async function GET(req: NextRequest) {
   const profile = await requireProfile()
-  const supabase = createServiceClient()
+  const supabase = await createClient()
   const orgId = profile.org_id
 
   const fromParam = req.nextUrl.searchParams.get('from')

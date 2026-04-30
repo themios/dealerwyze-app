@@ -18,6 +18,17 @@ export interface MarketCheckStats {
   sampleSize: number
 }
 
+interface MarketCheckListing {
+  price?: number | string | null
+  miles?: number | string | null
+  dom?: number | string | null
+}
+
+interface MarketCheckResponse {
+  num_found?: number
+  listings?: MarketCheckListing[]
+}
+
 function median(sorted: number[]): number {
   const n = sorted.length
   if (n === 0) return 0
@@ -77,15 +88,15 @@ export async function fetchMarketCheckStats(
       return null
     }
 
-    const data = await res.json()
+    const data = await res.json() as MarketCheckResponse
     const totalActive: number = data.num_found ?? 0
-    const listings: any[] = data.listings ?? []
+    const listings = data.listings ?? []
 
     const bandLow  = targetMileage && targetMileage > 0 ? targetMileage * (targetMileage > 180_000 ? 0.50 : 0.60) : 0
     const bandHigh = targetMileage && targetMileage > 0 ? targetMileage * (targetMileage > 180_000 ? 1.50 : 1.40) : Infinity
 
     const valid = listings
-      .map((l: any) => ({
+      .map(l => ({
         price: Number(l.price),
         miles: Number(l.miles),
         dom:   Number(l.dom) || 0,

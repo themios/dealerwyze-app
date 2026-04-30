@@ -8,6 +8,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { paymentLimiter } from '@/lib/rateLimit/upstash'
+import { PayTokenPostSchema, parseBody } from '@/lib/validation/schemas'
+import { logOrgAudit } from '@/lib/audit/orgAudit'
 
 interface StripePaymentIntentResponse {
   id: string
@@ -80,8 +82,10 @@ export async function POST(
   const { token } = await params
   const supabase  = createServiceClient()
 
-  const body = await req.json().catch(() => ({ action: 'intent' }))
-  const { action, payment_intent_id } = body as { action?: string; payment_intent_id?: string }
+  const parsed = await parseBody(req, PayTokenPostSchema)
+  if (parsed.errorResponse) return parsed.errorResponse
+  const { action } = parsed.data
+  const payment_intent_id = 'payment_intent_id' in parsed.data ? parsed.data.payment_intent_id : undefined
 
   // ── Create PaymentIntent ──────────────────────────────────────────────────
   if (action === 'intent' || !action) {
@@ -105,8 +109,10 @@ export async function POST(
       return NextResponse.json({ error: 'Online payments not configured for this dealer' }, { status: 422 })
     }
 
+    const intentAbort = AbortSignal.timeout(10_000)
     const intentRes = await fetch('https://api.stripe.com/v1/payment_intents', {
       method: 'POST',
+      signal: intentAbort,
       headers: {
         Authorization:  `Bearer ${org.stripe_dealer_secret_key}`,
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -155,6 +161,7 @@ export async function POST(
     const verifyRes = await fetch(
       `https://api.stripe.com/v1/payment_intents/${encodeURIComponent(payment_intent_id)}`,
       {
+        signal: AbortSignal.timeout(10_000),
         headers: {
           Authorization: `Bearer ${org.stripe_dealer_secret_key}`,
         },
@@ -197,9 +204,16 @@ export async function POST(
       return NextResponse.json({ error: 'Token already processed' }, { status: 409 })
     }
 
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null
+
     if (result?.already_processed) {
+      void logOrgAudit({ org_id: pt.org_id, actor_type: 'system', action: 'bhph_payment_idempotent',
+        ip, details: { token_id: pt.id, payment_intent_id } })
       return NextResponse.json({ ok: true, already_processed: true })
     }
+
+    void logOrgAudit({ org_id: pt.org_id, actor_type: 'system', action: 'bhph_payment_confirmed',
+      ip, details: { token_id: pt.id, payment_intent_id, amount: pt.amount } })
 
     return NextResponse.json({ ok: true })
   }

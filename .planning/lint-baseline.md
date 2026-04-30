@@ -1,37 +1,53 @@
-# Lint Baseline — Phase 0
+# Lint Baseline — Phase 0 / Phase 3 Entry
 
-**Date:** 2026-04-28
+**Refreshed:** 2026-04-29
 
-## Before Auto-Fix
+## Historical Baseline (2026-04-28)
 
-- Total problems: 266 (151 errors, 115 warnings)
-- Auto-fixable: 9 errors + 3 warnings = 12
+- Before auto-fix: 266 problems (151 errors, 115 warnings)
+- After auto-fix: 254 problems (142 errors, 112 warnings)
+- Auto-fix reduction: 12 total
 
-## After Auto-Fix
+## Current Baseline (HEAD at Phase 3 prep)
 
-- Total problems: 254 (142 errors, 112 warnings)
-- Auto-fixable remaining: 0
-- Reduction: exactly 12 (as expected)
+Command used:
 
-## Remaining by Rule (for Phase 3)
+```bash
+npx eslint app components hooks lib remotion next.config.ts proxy.ts --max-warnings=0
+```
 
-| Rule | Approx Count | Type |
-|------|-------------|------|
-| @typescript-eslint/no-unused-vars | ~99 | warning/error |
-| @typescript-eslint/no-explicit-any | ~53 | error |
-| react-hooks (setState-in-effect, purity) | ~47 | error |
-| next/no-unescaped-entities | ~20 | error |
-| react-hooks/exhaustive-deps | ~5 | warning |
-| react-hooks/rules-of-hooks | ~3 | error |
-| other | ~27 | mixed |
+Machine-readable summary (`-f json`):
 
-## Build Status
+- Total problems: 0
+- Errors: 0
+- Warnings: 0
 
-- `npx tsc --noEmit`: PASS (no output, exit 0)
-- TypeScript check run after eslint --fix confirmed zero new errors introduced
+## Top Rules (Current)
+
+No source lint problems were found on the current baseline run.
+
+## Phase 3 Entry Criteria
+
+- `npm run build`: passing
+- `npm test`: passing (4 test files, 38 tests)
+- Source lint: passing with zero problems
+
+## Workstream Order
+
+1. React correctness blockers
+   - `react-hooks/rules-of-hooks`
+   - `react-hooks/set-state-in-effect`
+   - `react-hooks/purity`
+2. Sensitive type-safety cleanup
+   - `@typescript-eslint/no-explicit-any` in payment, auth, webhook, and public ingestion code
+3. Framework correctness
+   - `@next/next/no-html-link-for-pages`
+   - `@next/next/no-img-element`
+4. Hygiene reduction
+   - `@typescript-eslint/no-unused-vars`
+   - `react/no-unescaped-entities`
 
 ## Notes
 
-- The 254 remaining issues are intentionally left for Phase 3 correctness work.
-- Auto-fix resolved: primarily unused-import removals and minor style corrections.
-- Files affected by auto-fix were spread across app/, components/, and lib/ (60 files total).
+- This file is now the canonical Phase 3 baseline.
+- Any future numeric references in planning docs should use this refreshed baseline, not the 2026-04-28 post-autofix snapshot.

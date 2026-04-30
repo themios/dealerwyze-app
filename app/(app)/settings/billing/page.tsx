@@ -46,32 +46,45 @@ function QuotaBar({ used, quota, label }: { used: number; quota: number; label: 
 }
 
 export default function BillingPage() {
+  const [nowMs] = useState(() => Date.now())
   const [status, setStatus] = useState<BillingStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [redirecting, setRedirecting] = useState(false)
   const [topupAmount, setTopupAmount] = useState<number | null>(null)
-  const [topupBanner, setTopupBanner] = useState<'success' | 'canceled' | null>(null)
+  const [topupBanner] = useState<'success' | 'canceled' | null>(() => {
+    if (typeof window === 'undefined') return null
+    const p = new URLSearchParams(window.location.search)
+    if (p.get('topup') === 'success') return 'success'
+    if (p.get('topup') === 'canceled') return 'canceled'
+    return null
+  })
   const [error, setError] = useState<string | null>(null)
 
-  async function load() {
-    const res = await fetch('/api/stripe/billing-status')
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      setError(data.error ?? 'Failed to load billing status. Please refresh.')
-      setLoading(false)
-      return
-    }
-    const d = await res.json()
-    setStatus(d)
-    setLoading(false)
-  }
-
-  useEffect(() => { load() }, [])
-
   useEffect(() => {
-    const p = new URLSearchParams(window.location.search)
-    if (p.get('topup') === 'success') setTopupBanner('success')
-    else if (p.get('topup') === 'canceled') setTopupBanner('canceled')
+    let cancelled = false
+
+    async function loadInitial() {
+      const res = await fetch('/api/stripe/billing-status')
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        if (!cancelled) {
+          setError(data.error ?? 'Failed to load billing status. Please refresh.')
+          setLoading(false)
+        }
+        return
+      }
+
+      const d = await res.json()
+      if (!cancelled) {
+        setStatus(d)
+        setLoading(false)
+      }
+    }
+
+    void loadInitial()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   async function handleSubscribe(plan: PlanTier, smsTier?: SmsTier) {
@@ -89,7 +102,7 @@ export default function BillingPage() {
       return
     }
     const { url } = await res.json()
-    window.location.href = url
+    window.location.assign(url)
   }
 
   async function handlePortal() {
@@ -103,7 +116,7 @@ export default function BillingPage() {
       return
     }
     const { url } = await res.json()
-    window.location.href = url
+    window.location.assign(url)
   }
 
   async function handleTopup(amount: number) {
@@ -121,7 +134,7 @@ export default function BillingPage() {
       return
     }
     const { url } = await res.json()
-    window.location.href = url
+    window.location.assign(url)
   }
 
   if (loading) return <div className="p-6 text-sm text-muted-foreground">Loading…</div>
@@ -136,7 +149,7 @@ export default function BillingPage() {
   const trialEnd  = status?.trial_ends_at    ? new Date(status.trial_ends_at)    : null
   const periodEnd = status?.current_period_end ? new Date(status.current_period_end) : null
   const cycleEnd  = status?.billing_cycle_end  ? new Date(status.billing_cycle_end)  : null
-  const daysLeft  = trialEnd ? Math.ceil((trialEnd.getTime() - Date.now()) / 86400000) : null
+  const daysLeft  = trialEnd ? Math.ceil((trialEnd.getTime() - nowMs) / 86400000) : null
 
   const smsUsed       = status?.monthly_message_count ?? 0
   const mmsUsed       = status?.monthly_mms_count ?? 0

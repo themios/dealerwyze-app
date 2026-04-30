@@ -82,8 +82,6 @@ async function uploadToR2(key: string, buffer: Buffer, contentType: string): Pro
   if (!R2_ACCOUNT_ID || !R2_ACCESS_KEY || !R2_SECRET_KEY) {
     throw new Error('R2 credentials not configured')
   }
-  const endpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET}/${key}`
-
   const client = new S3Client({
     region: 'auto',
     endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,

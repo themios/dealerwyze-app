@@ -14,8 +14,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const body = await req.json() as { lead: ParsedLead; external_id: string }
-  const result = await ingestLead(body.lead, body.external_id)
+  const body = await req.json() as { lead: ParsedLead; external_id: string; org_id: string }
+  if (!body.org_id) {
+    return NextResponse.json({ error: 'Missing required field: org_id' }, { status: 400 })
+  }
+  const result = await ingestLead(body.lead, body.external_id, body.org_id)
 
   if ('error' in result) return NextResponse.json(result, { status: 500 })
   return NextResponse.json(result)

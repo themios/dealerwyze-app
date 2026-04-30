@@ -11,11 +11,11 @@ import PushPermission from '@/components/push/PushPermission'
 import PastDueBanner from '@/components/layout/PastDueBanner'
 import ImpersonationBanner from '@/components/admin/ImpersonationBanner'
 import SupportSessionBanner from '@/components/layout/SupportSessionBanner'
-import BetaBanner from '@/components/layout/BetaBanner'
 import FeedbackButton from '@/components/layout/FeedbackButton'
 import { isDealerAdmin } from '@/types/index'
 import { getStaffSessionInfo } from '@/lib/auth/staffSession'
 import { getOrgTheme, buildThemeStyleTag } from '@/lib/theme/getOrgTheme'
+import { isPlatformSuperAdmin } from '@/lib/auth/platform'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -34,12 +34,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const pathname = (await headers()).get('x-pathname') ?? ''
 
   // Platform staff and superadmins bypass all gates
-  const isPlatformUser = profile.platform_role === 'platform_staff' ||
-    (await (async () => {
-      const service = createServiceClient()
-      const { data } = await service.from('platform_superusers').select('user_id').eq('user_id', user.id).maybeSingle()
-      return !!data
-    })())
+  const isSuperAdmin = await isPlatformSuperAdmin(user.id)
+  const isPlatformUser = profile.platform_role === 'platform_staff' || isSuperAdmin
 
   if (!isPlatformUser) {
     const isAdmin = isDealerAdmin(profile.role)

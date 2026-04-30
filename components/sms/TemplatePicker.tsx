@@ -175,8 +175,8 @@ export default function TemplatePicker({
       if (!res.ok) throw new Error(data.error || 'Failed to send')
       resetAndClose()
       loadHistory()
-    } catch (err: any) {
-      setSendError(err.message)
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : 'Failed to send')
     } finally {
       setSending(false)
     }

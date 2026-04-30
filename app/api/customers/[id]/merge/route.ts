@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import { canAssignLeads } from '@/lib/auth/dealerRoles'
 
 export async function POST(
@@ -15,7 +15,7 @@ export async function POST(
   }
 
   const { id: sourceId } = await params
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   let body: { target_customer_id?: string }
   try {

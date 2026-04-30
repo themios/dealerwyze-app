@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { isDealerAdmin } from '@/types/index'
@@ -20,6 +20,64 @@ interface ScrapedVehicle {
   listing_url?: string
 }
 
+type JsonLdVehicle = {
+  '@type'?: string
+  name?: string
+  sku?: string
+  productID?: string
+  vehicleIdentificationNumber?: string
+  brand?: { name?: string }
+  offers?: { price?: string | number } | Array<{ price?: string | number }>
+  mileageFromOdometer?: { value?: string | number }
+  color?: string
+  image?: string | string[]
+  url?: string
+}
+
+type EmbeddedInventoryVehicle = {
+  stock_no?: string
+  stockNo?: string
+  stock?: string
+  id?: string
+  year?: string | number
+  modelYear?: string | number
+  make?: string
+  Make?: string
+  model?: string
+  Model?: string
+  trim?: string
+  Trim?: string
+  price?: string | number
+  listPrice?: string | number
+  vin?: string
+  VIN?: string
+  mileage?: string | number
+  miles?: string | number
+  color?: string
+  exteriorColor?: string
+  image?: string
+  photo?: string
+  photoUrl?: string
+  url?: string
+}
+
+function parseNumericValue(value: string | number | undefined): number | undefined {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined
+  if (typeof value === 'string' && value.trim()) {
+    const normalized = value.replace(/[^0-9.]/g, '')
+    if (!normalized) return undefined
+    const parsed = Number.parseFloat(normalized)
+    return Number.isFinite(parsed) ? parsed : undefined
+  }
+  return undefined
+}
+
+function firstOfferPrice(offers: JsonLdVehicle['offers']): number | undefined {
+  if (!offers) return undefined
+  const first = Array.isArray(offers) ? offers[0] : offers
+  return parseNumericValue(first?.price)
+}
+
 const CAR_MAKES = [
   'Acura','Alfa Romeo','Audi','BMW','Buick','Cadillac','Chevrolet','Chevy',
   'Chrysler','Dodge','Ferrari','Fiat','Ford','Genesis','GMC','Honda',
@@ -35,7 +93,7 @@ function tryJsonLd(html: string): ScrapedVehicle[] {
   while ((match = pattern.exec(html)) !== null) {
     try {
       const data = JSON.parse(match[1])
-      const items: any[] = Array.isArray(data) ? data : [data]
+      const items: JsonLdVehicle[] = Array.isArray(data) ? data : [data]
       for (const item of items) {
         if (item['@type'] === 'Car' || item['@type'] === 'Vehicle') {
           const name: string = item.name || ''
@@ -48,9 +106,9 @@ function tryJsonLd(html: string): ScrapedVehicle[] {
             year,
             make: item.brand?.name || parts[1] || '',
             model: parts.slice(2).join(' '),
-            price: item.offers?.price ? parseFloat(item.offers.price) : undefined,
+            price: firstOfferPrice(item.offers),
             vin: item.vehicleIdentificationNumber,
-            mileage: item.mileageFromOdometer?.value ? parseInt(item.mileageFromOdometer.value) : undefined,
+            mileage: parseNumericValue(item.mileageFromOdometer?.value),
             color: item.color,
           })
         }
@@ -75,14 +133,14 @@ function tryEmbeddedJson(html: string): ScrapedVehicle[] {
       const arr = JSON.parse(m[1])
       if (!Array.isArray(arr) || arr.length === 0) continue
       const mapped: ScrapedVehicle[] = arr
-        .map((v: any) => ({
+        .map((v: EmbeddedInventoryVehicle) => ({
           stock_no: v.stock_no || v.stockNo || v.stock || v.id || '',
-          year: parseInt(v.year || v.modelYear || 0),
+          year: parseInt(String(v.year || v.modelYear || 0), 10),
           make: v.make || v.Make || '',
           model: v.model || v.Model || '',
           trim: v.trim || v.Trim || undefined,
-          price: v.price || v.listPrice ? parseFloat(v.price || v.listPrice) : undefined,
-          mileage: v.mileage || v.miles ? parseInt(v.mileage || v.miles) : undefined,
+          price: parseNumericValue(v.price || v.listPrice),
+          mileage: parseNumericValue(v.mileage || v.miles),
           vin: v.vin || v.VIN || undefined,
           color: v.color || v.exteriorColor || undefined,
         }))
@@ -143,7 +201,7 @@ function vehicleLinkKey(v: ScrapedVehicle): string {
   return `${v.year}-${make}-${model}`
 }
 
-export async function POST(_req: NextRequest) {
+export async function POST() {
   const profile = await requireProfile()
   if (!isDealerAdmin(profile.role as UserRole)) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 })
@@ -213,7 +271,7 @@ export async function POST(_req: NextRequest) {
       clearTimeout(timeoutId)
       const text = res.ok ? await res.text() : ''
       return { html: text, status: res.status }
-    } catch (err: any) {
+    } catch (err: unknown) {
       clearTimeout(timeoutId)
       throw err
     }
@@ -249,8 +307,8 @@ export async function POST(_req: NextRequest) {
       html = result.html
     }
     if (!html) throw new Error(`HTTP ${fetchStatus ?? result.status}`)
-  } catch (err: any) {
-    const isTimeout = err?.name === 'AbortError'
+  } catch (err: unknown) {
+    const isTimeout = err instanceof Error && err.name === 'AbortError'
     let message: string
     if (isTimeout) {
       message = 'Your site took too long to respond. Try again in a few minutes or contact support if it keeps happening.'

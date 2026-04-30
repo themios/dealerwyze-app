@@ -71,13 +71,14 @@ export async function GET(req: NextRequest) {
     seqDelivery = await runJob('sequenceDelivery',        () => runSequenceDelivery(supabase))
     fullAuto    = await runJob('fullAutoSequence',         () => runFullAutoSequence(supabase))
     reviews     = await runJob('reviewRequests',          () => runReviewRequests(supabase))
-    gmailWatch  = await runJob('gmailWatchRenewal',       () => runGmailWatchRenewal(supabase))
+    gmailWatch  = await runJob('gmailWatchRenewal',       () => runGmailWatchRenewal())
     gmailTokens = await runJob('gmailTokenHealth',        () => runGmailTokenHealth(supabase))
     await          runJob('pulseSurveys',                 () => runPulseSurveys(supabase))
     apptV2      = await runJob('appointmentRemindersV2',  () => runAppointmentRemindersV2(supabase))
     abuse       = await runJob('abuseDetection',           () => runAbuseDetection(supabase))
   } finally {
-    await finishCronRun(runId, 'success', adminResult?.allOrgsCount)
+    const anyFailed = Object.values(jobResults).some(v => v !== 'ok')
+    await finishCronRun(runId, anyFailed ? 'partial_failure' : 'success', adminResult?.allOrgsCount)
   }
 
   return NextResponse.json({

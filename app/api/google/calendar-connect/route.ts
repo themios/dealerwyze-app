@@ -2,11 +2,15 @@ import { NextResponse } from 'next/server'
 import { google } from 'googleapis'
 import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from '@/lib/auth/profile'
+import { canManageUsers } from '@/lib/auth/dealerRoles'
 import { createServiceClient } from '@/lib/supabase/service'
 import crypto from 'crypto'
 
 export async function GET() {
   const profile = await requireProfile()
+  if (!canManageUsers(profile.role)) {
+    return NextResponse.json({ error: 'Only admins can connect Google Calendar' }, { status: 403 })
+  }
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

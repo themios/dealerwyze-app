@@ -15,7 +15,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Brain, Loader2, CheckCircle2, ChevronDown } from 'lucide-react'
+import { Brain, Loader2, CheckCircle2 } from 'lucide-react'
 
 type State = 'idle' | 'loading_list' | 'running' | 'done' | 'nothing_to_do'
 
@@ -23,16 +23,12 @@ export default function RunMarketIntelligenceButton() {
   const [state, setState]     = useState<State>('idle')
   const [progress, setProgress] = useState({ done: 0, total: 0 })
   const [failed, setFailed]   = useState(0)
-  const [showDone, setShowDone] = useState(true)
-
   async function handleRun() {
     if (state === 'running' || state === 'loading_list') return
 
     setState('loading_list')
     setProgress({ done: 0, total: 0 })
     setFailed(0)
-    setShowDone(true)
-
     // Step 1 — fetch unchecked vehicle IDs
     let vehicles: { id: string; year: number; make: string; model: string }[] = []
     try {

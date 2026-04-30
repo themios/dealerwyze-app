@@ -14,6 +14,15 @@ export interface NhtsaResult {
   latestRecall: string | null
 }
 
+interface NhtsaRecallEntry {
+  Component?: string
+  Summary?: string
+}
+
+interface NhtsaResponse {
+  results?: NhtsaRecallEntry[]
+}
+
 export async function fetchNhtsaRecalls(
   year: number,
   make: string,
@@ -34,8 +43,8 @@ export async function fetchNhtsaRecalls(
       return fallback
     }
 
-    const data = await res.json()
-    const results: any[] = data.results ?? []
+    const data = await res.json() as NhtsaResponse
+    const results = data.results ?? []
     const count = results.length
 
     const tier: 'low' | 'moderate' | 'high' =

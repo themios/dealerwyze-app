@@ -6,12 +6,12 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import { enrollCustomer } from '@/lib/sequences/enrollCustomer'
 
 export async function POST(req: NextRequest) {
   const profile = await requireProfile()
-  const service = createServiceClient()
+  const service = await createClient()
 
   let body: { customer_ids?: unknown; sequence_id?: unknown }
   try {

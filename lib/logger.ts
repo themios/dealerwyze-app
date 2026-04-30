@@ -47,17 +47,8 @@ export const logger = {
       ...formatError(error),
       ...meta,
     })
-    // Fire push notification for fatal errors (non-blocking)
-    import('@/lib/push/send').then(({ sendLeadNotification }) => {
-      sendLeadNotification({
-        title: `Fatal error: ${ctx}`,
-        body:  error instanceof Error ? error.message.slice(0, 100) : String(error).slice(0, 100),
-        url:   '/settings',
-      }).catch((pushErr: unknown) => {
-        console.error(JSON.stringify({ ts: new Date().toISOString(), level: 'error', context: 'logger.fatal', message: 'push notification failed', error: String(pushErr) }))
-      })
-    }).catch((importErr: unknown) => {
-      console.error(JSON.stringify({ ts: new Date().toISOString(), level: 'error', context: 'logger.fatal', message: 'push import failed', error: String(importErr) }))
-    })
+    // Push notifications require an orgId to prevent cross-org broadcast.
+    // logger.fatal has no org context — push is intentionally omitted here.
+    // Use Telegram (sendTelegramMessage) for platform-level fatal alerts instead.
   },
 }

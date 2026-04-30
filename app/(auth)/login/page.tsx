@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Image from 'next/image'
@@ -15,16 +15,12 @@ function LoginForm() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [noOrgMessage, setNoOrgMessage] = useState('')
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
-
-  useEffect(() => {
-    if (searchParams.get('reason') === 'no_org') {
-      setNoOrgMessage('No organization linked to this account. Create a new account to get your own dealership.')
-    }
-  }, [searchParams])
+  const noOrgMessage = searchParams.get('reason') === 'no_org'
+    ? 'No organization linked to this account. Create a new account to get your own dealership.'
+    : ''
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/utils'
 import { TrendingUp, ShieldCheck, ShieldAlert, Shield, Loader2, RefreshCw, Copy, Check, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react'
 
-interface MarketData {
+export interface MarketData {
   fastSalePrice:   number | null
   fairMarketPrice: number | null
   maxReturnPrice:  number | null
@@ -69,7 +69,7 @@ export default function MarketIntelligenceCard({
 }: Props) {
   const [data, setData] = useState<MarketData | null>(initialData)
   const [recallCount, setRecallCount] = useState<number | null>(initialRecallCount)
-  const [reliabilityTier, setReliabilityTier] = useState<string | null>(initialReliabilityTier)
+  const [reliabilityTier] = useState<string | null>(initialReliabilityTier)
   const [loading, setLoading] = useState(false)
   const [descLoading, setDescLoading] = useState(false)
   const [description, setDescription] = useState<string | null>(null)

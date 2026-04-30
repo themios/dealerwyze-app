@@ -32,13 +32,6 @@ interface Props {
   onSetAutoOverride?: (value: string | null) => void
 }
 
-function formatDue(iso: string | null) {
-  if (!iso) return null
-  const d = new Date(iso)
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
-    ' at ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-}
-
 export default function AutoresponderCard({ customerId, customerName, unsubEmail = false, unsubSms = false, savingUnsub = false, onToggleUnsub, autoOverride, savingAuto = false, onSetAutoOverride }: Props) {
   const [status, setStatus]     = useState<ChannelStatus | null>(null)
   const [loading, setLoading]   = useState(true)

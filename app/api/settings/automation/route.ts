@@ -3,7 +3,7 @@ import { requireProfile } from '@/lib/auth/profile'
 import { isDealerAdmin } from '@/lib/auth/dealerRoles'
 import { sanitizeEmailSignatureHtml } from '@/lib/security/html'
 import { createClient } from '@/lib/supabase/server'
-import { createServiceClient } from '@/lib/supabase/service'
+import { logOrgAudit } from '@/lib/audit/orgAudit'
 
 const ALLOWED = [
   'automation_mode', 'lead_response_sla_minutes', 'followup_delay_hours', 'followup_next_day_hour',
@@ -45,9 +45,6 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
   }
   const supabase = await createClient()
-  // Service client used for UUID FK writes (auto_respond sequence IDs) which
-  // need to bypass RLS to validate the FK against sequences table
-  const serviceSupa = createServiceClient()
 
   const body = await req.json() as Partial<Record<AllowedKey, string | number | null>> & {
     auto_respond_email_sequence_id?: string | null
@@ -69,7 +66,7 @@ export async function PATCH(req: NextRequest) {
   // Validate and set auto-respond sequence IDs
   if (body.auto_respond_email_sequence_id !== undefined) {
     if (body.auto_respond_email_sequence_id !== null) {
-      const { data: seq } = await serviceSupa
+      const { data: seq } = await supabase
         .from('sequences')
         .select('id, channel')
         .eq('id', body.auto_respond_email_sequence_id)
@@ -83,7 +80,7 @@ export async function PATCH(req: NextRequest) {
 
   if (body.auto_respond_sms_sequence_id !== undefined) {
     if (body.auto_respond_sms_sequence_id !== null) {
-      const { data: seq } = await serviceSupa
+      const { data: seq } = await supabase
         .from('sequences')
         .select('id, channel')
         .eq('id', body.auto_respond_sms_sequence_id)
@@ -105,6 +102,9 @@ export async function PATCH(req: NextRequest) {
   // org_settings RLS blocks INSERT (only UPDATE allowed) — use update(), not upsert()
   // The org_settings row always exists (created by create_org_on_signup trigger)
   await supabase.from('org_settings').update(patch).eq('org_id', profile.org_id)
+
+  void logOrgAudit({ org_id: profile.org_id, actor_id: profile.id, actor_type: 'user',
+    action: 'automation_settings_updated', details: { fields: Object.keys(patch).filter(k => k !== 'org_id' && k !== 'updated_at') } })
 
   return NextResponse.json({ ok: true })
 }

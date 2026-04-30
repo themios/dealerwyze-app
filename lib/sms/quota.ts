@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { createServiceClient } from '@/lib/supabase/service'
 import { sendNotificationEmail } from '@/lib/email/notify'
 import { fireCogsAlertBackground } from '@/lib/cogs/alertWebhook'
@@ -79,7 +80,7 @@ export async function checkQuota(orgId: string, isMms = false): Promise<QuotaSta
       }
     }
     if (hasBuffer) {
-      const newBalance = await deductBuffer(orgId, MMS_OVERAGE_CENTS)
+      const newBalance = await deductBuffer(supabase, orgId, MMS_OVERAGE_CENTS)
       if (newBalance < 0) {
         return {
           allowed: false, is_mms_blocked: true, warning_level: 'over', is_overage: false,
@@ -87,9 +88,9 @@ export async function checkQuota(orgId: string, isMms = false): Promise<QuotaSta
           reason: 'Your prepaid credit has run out. Go to Settings → Billing to add more — messages will send immediately after.',
         }
       }
-      if (newBalance <= 500) void triggerLowBufferNotification(orgId, newBalance)
+      if (newBalance <= 500) void triggerLowBufferNotification(supabase, orgId, newBalance)
     }
-    void incrementMmsOverage(orgId)
+    void incrementMmsOverage(supabase, orgId)
     return { allowed: true, is_mms_blocked: false, warning_level: 'over', is_overage: true, current_count: count, mms_count: mmsCount, quota: effectiveQuota }
   }
 
@@ -103,7 +104,7 @@ export async function checkQuota(orgId: string, isMms = false): Promise<QuotaSta
       }
     }
     if (hasBuffer) {
-      const newBalance = await deductBuffer(orgId, SMS_OVERAGE_CENTS)
+      const newBalance = await deductBuffer(supabase, orgId, SMS_OVERAGE_CENTS)
       if (newBalance < 0) {
         return {
           allowed: false, is_mms_blocked: false, warning_level: 'over', is_overage: false,
@@ -111,9 +112,9 @@ export async function checkQuota(orgId: string, isMms = false): Promise<QuotaSta
           reason: 'Your prepaid credit has run out. Go to Settings → Billing to add more — messages will send immediately after.',
         }
       }
-      if (newBalance <= 500) void triggerLowBufferNotification(orgId, newBalance)
+      if (newBalance <= 500) void triggerLowBufferNotification(supabase, orgId, newBalance)
     }
-    void incrementSmsOverage(orgId)
+    void incrementSmsOverage(supabase, orgId)
     return { allowed: true, is_mms_blocked: false, warning_level: 'over', is_overage: true, current_count: count, mms_count: mmsCount, quota: effectiveQuota }
   }
 
@@ -129,34 +130,29 @@ export async function checkQuota(orgId: string, isMms = false): Promise<QuotaSta
     const cycleStart = (org as Record<string, unknown>).billing_cycle_start as string | null
     const alreadyNotified = notifiedAt && cycleStart && notifiedAt >= cycleStart
     if (!alreadyNotified) {
-      void triggerQuotaNotification(orgId, count, effectiveQuota, Math.round(pct * 100))
+      void triggerQuotaNotification(supabase, orgId, count, effectiveQuota, Math.round(pct * 100))
     }
   }
 
   return { allowed: true, is_mms_blocked: false, warning_level, is_overage: false, current_count: count, mms_count: mmsCount, quota: effectiveQuota }
 }
 
-async function incrementSmsOverage(orgId: string): Promise<void> {
-  const supabase = createServiceClient()
+async function incrementSmsOverage(supabase: SupabaseClient, orgId: string): Promise<void> {
   await supabase.rpc('increment_sms_overage', { p_org_id: orgId })
 }
 
-async function incrementMmsOverage(orgId: string): Promise<void> {
-  const supabase = createServiceClient()
+async function incrementMmsOverage(supabase: SupabaseClient, orgId: string): Promise<void> {
   await supabase.rpc('increment_mms_overage', { p_org_id: orgId })
 }
 
 /** Atomically deduct cost from overage buffer. Returns new balance, or -1 if insufficient. */
-async function deductBuffer(orgId: string, costCents: number): Promise<number> {
-  const supabase = createServiceClient()
+async function deductBuffer(supabase: SupabaseClient, orgId: string, costCents: number): Promise<number> {
   const { data } = await supabase.rpc('deduct_overage_buffer', { p_org_id: orgId, p_cost_cents: costCents })
   return typeof data === 'number' ? data : -1
 }
 
 /** Send a low-buffer reminder email (deduplicated via admin_alerts — once per week). */
-async function triggerLowBufferNotification(orgId: string, balanceCents: number): Promise<void> {
-  const supabase = createServiceClient()
-
+async function triggerLowBufferNotification(supabase: SupabaseClient, orgId: string, balanceCents: number): Promise<void> {
   // Dedup: skip if we already sent a low-buffer alert in the last 7 days
   const cutoff = new Date(Date.now() - 7 * 86_400_000).toISOString()
   const { data: existing } = await supabase
@@ -215,13 +211,12 @@ async function triggerLowBufferNotification(orgId: string, balanceCents: number)
 
 /** Fire notification email + stamp quota_soft_notified_at. Non-fatal. */
 async function triggerQuotaNotification(
+  supabase: SupabaseClient,
   orgId: string,
   used: number,
   quota: number,
   pct: number,
 ): Promise<void> {
-  const supabase = createServiceClient()
-
   // Stamp first to prevent duplicate sends on concurrent requests
   await supabase
     .from('organizations')

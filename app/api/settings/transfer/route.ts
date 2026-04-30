@@ -20,6 +20,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Valid email required' }, { status: 400 })
   }
 
+  // Service client is required for business_transfers writes: the table has no RLS and requires elevated access.
+  // All data snapshot count queries below use the auth client (await createClient()) for org scoping.
+  // This split is intentional: business_transfers is a platform-managed table, not user-owned.
   const supabase = createServiceClient()
   const orgId = profile.org_id
 

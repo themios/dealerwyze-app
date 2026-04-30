@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -328,7 +329,7 @@ export default function EmailLeadSyncSection() {
                     {' · '}
                     {acct.last_error
                       ? (acct.last_error.includes('invalid_grant') || acct.last_error.includes('expired') || acct.last_error.includes('reconnect'))
-                        ? <a href="/api/integrations/gmail/connect" className="text-amber-600 font-medium underline">Connection expired - tap to reconnect</a>
+                        ? <Link href="/api/integrations/gmail/connect" className="text-amber-600 font-medium underline">Connection expired - tap to reconnect</Link>
                         : <span className="text-destructive">Sync error - check credentials</span>
                       : acct.enabled
                         ? <span suppressHydrationWarning>Synced {formatLastPolled(acct.last_polled_at)}</span>
@@ -447,12 +448,12 @@ export default function EmailLeadSyncSection() {
       {/* Add buttons */}
       {!addImapOpen && !editingAccountId && (
         <div className="flex flex-wrap gap-2">
-          <a href="/api/integrations/gmail/connect">
-            <Button variant="outline" size="sm">
+          <Button asChild variant="outline" size="sm">
+            <Link href="/api/integrations/gmail/connect">
               <Mail className="h-4 w-4 mr-1.5" />
               Connect Gmail
-            </Button>
-          </a>
+            </Link>
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setAddImapOpen(true)}>
             <Plus className="h-4 w-4 mr-1.5" />
             Add Account

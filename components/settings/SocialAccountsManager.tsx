@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckCircle2, XCircle, Trash2, Loader2 } from 'lucide-react'
+import { CheckCircle2, Trash2, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface SocialAccount {

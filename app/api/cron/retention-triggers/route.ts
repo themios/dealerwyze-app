@@ -22,10 +22,7 @@ export async function GET(req: NextRequest) {
 
   const runId    = await startCronRun('retention-triggers')
   const supabase = createServiceClient()
-
-  const now    = new Date()
-  const todayM = now.getUTCMonth() + 1   // 1-12
-  const todayD = now.getUTCDate()         // 1-31
+  const now = new Date()
 
   let enrolled = 0
   let skipped  = 0

@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useState, useEffect, useRef } from 'react'
 import TopBar from '@/components/layout/TopBar'
 import { Input } from '@/components/ui/input'
@@ -130,11 +131,16 @@ function ContactCard({ c, onFax }: { c: Contact; onFax: (fax: string) => void })
         <div className="border-t border-border px-3 pb-3 pt-2 space-y-2">
           {/* Card image if available */}
           {c.card_signed_url && (
-            <img
-              src={c.card_signed_url}
-              alt="Business card"
-              className="w-full max-h-32 object-contain rounded-lg border border-border mb-2"
-            />
+            <div className="relative h-32 w-full mb-2">
+              <Image
+                src={c.card_signed_url}
+                alt="Business card"
+                fill
+                unoptimized
+                className="rounded-lg border border-border object-contain"
+                sizes="100vw"
+              />
+            </div>
           )}
           {c.phone && (
             <div className="flex items-center justify-between">
@@ -244,7 +250,22 @@ export default function ContactsPage() {
     if (r.ok) setContacts(await r.json())
   }
 
-  useEffect(() => { fetchContacts() }, [])
+  useEffect(() => {
+    let cancelled = false
+
+    fetch('/api/contacts')
+      .then(async r => {
+        if (!r.ok) return null
+        return r.json()
+      })
+      .then(data => {
+        if (!cancelled && data) setContacts(data)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const filtered = contacts.filter(c =>
     [c.name, c.company, c.phone, c.email].some(v =>
@@ -346,7 +367,11 @@ export default function ContactsPage() {
       {/* ── SCANNING ── */}
       {view === 'scanning' && (
         <div className="flex flex-col items-center justify-center py-16 gap-4 px-4">
-          {scanPreview && <img src={scanPreview} alt="card preview" className="max-h-48 rounded-lg object-contain border border-border" />}
+          {scanPreview && (
+            <div className="relative h-48 w-full max-w-sm">
+              <Image src={scanPreview} alt="card preview" fill unoptimized className="rounded-lg border border-border object-contain" sizes="384px" />
+            </div>
+          )}
           <Loader2 className="h-8 w-8 animate-spin text-[#F07018]" />
           <p className="text-sm text-muted-foreground">Reading business card…</p>
         </div>
@@ -357,7 +382,9 @@ export default function ContactsPage() {
         <>
           {scanPreview && (
             <div className="px-4 pt-4">
-              <img src={scanPreview} alt="card" className="w-full max-h-36 object-contain rounded-lg border border-border" />
+              <div className="relative h-36 w-full">
+                <Image src={scanPreview} alt="card" fill unoptimized className="rounded-lg border border-border object-contain" sizes="100vw" />
+              </div>
               <div className="flex items-center gap-2 mt-2 mb-1">
                 <CheckCircle2 className="h-4 w-4 text-green-400" />
                 <p className="text-sm text-green-400 font-medium">Card scanned — review and save</p>

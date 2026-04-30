@@ -426,7 +426,7 @@ export async function POST(req: NextRequest) {
           title: `${customer.name} confirmed SMS`,
           body:  'They replied YES — you can now text them.',
           url:   `/customers/${customer.id}`,
-        }).catch(() => {})
+        }, orgId).catch(() => {})
         sendTelegramMessage(
           `<b>SMS consent confirmed</b>\n${customer.name} replied YES — ready to text.`
         ).catch(() => {})
@@ -460,7 +460,7 @@ export async function POST(req: NextRequest) {
       title: `${customer.name} confirmed payment`,
       body:  'They replied PAY - expect them in today.',
       url:   `/customers/${customer.id}`,
-    }).catch(() => {})
+    }, orgId).catch(() => {})
     return new NextResponse(
       twimlMsg(`Thanks! We have you confirmed for today. See you soon from ${tcpaBizName}.`),
       { status: 200, headers: { 'Content-Type': 'text/xml' } }
@@ -522,7 +522,7 @@ export async function POST(req: NextRequest) {
         title: `Text from ${customer.name}`,
         body: notifBody,
         url: `/customers/${customer.id}`,
-      })
+      }, orgId)
     } catch {
       // Non-fatal
     }

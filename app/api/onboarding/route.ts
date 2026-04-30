@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 
 /** GET — return current onboarding step + org settings */
 export async function GET() {
   const profile = await requireProfile()
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   const [{ data: org }, { data: settings }] = await Promise.all([
     supabase.from('organizations').select('name').eq('id', profile.org_id).single(),
@@ -18,7 +18,7 @@ export async function GET() {
 /** PATCH — advance step, update settings, or mark complete */
 export async function PATCH(req: NextRequest) {
   const profile = await requireProfile()
-  const supabase = createServiceClient()
+  const supabase = await createClient()
   const body = await req.json() as {
     step?: number
     complete?: boolean

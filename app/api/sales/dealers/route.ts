@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { requireChannelRep, isPlatformSuperAdmin } from '@/lib/auth/platform'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 
 export type DealerHealth = 'churned' | 'at_risk' | 'dormant' | 'free' | 'trialing' | 'healthy'
 
@@ -27,7 +27,7 @@ function computeHealth(org: {
 
 export async function GET(req: NextRequest) {
   const profile = await requireProfile()
-  const service  = createServiceClient()
+  const supabase = await createClient()
 
   let affiliateCode: string
   const viewerProfileId = profile.id
@@ -44,12 +44,12 @@ export async function GET(req: NextRequest) {
   const includeArchived = req.nextUrl.searchParams.get('include_archived') === 'true'
 
   const [orgRes, archivedRes] = await Promise.all([
-    service
+    supabase
       .from('organizations')
       .select('id, name, slug, subscription_status, monthly_message_count, created_at')
       .eq('affiliate_code', affiliateCode)
       .order('created_at', { ascending: false }),
-    service
+    supabase
       .from('rep_archived_orgs')
       .select('org_id')
       .eq('profile_id', viewerProfileId),
@@ -93,10 +93,10 @@ export async function POST(req: NextRequest) {
   const { org_id, archived } = await req.json().catch(() => ({}))
   if (!org_id) return NextResponse.json({ error: 'org_id required' }, { status: 400 })
 
-  const service = createServiceClient()
+  const supabase = await createClient()
 
   // Verify this org belongs to this rep's affiliate code
-  const { data: org } = await service
+  const { data: org } = await supabase
     .from('organizations')
     .select('affiliate_code')
     .eq('id', org_id)
@@ -107,10 +107,10 @@ export async function POST(req: NextRequest) {
   }
 
   if (archived) {
-    await service.from('rep_archived_orgs')
+    await supabase.from('rep_archived_orgs')
       .upsert({ profile_id: profile.id, org_id }, { onConflict: 'profile_id,org_id' })
   } else {
-    await service.from('rep_archived_orgs')
+    await supabase.from('rep_archived_orgs')
       .delete()
       .eq('profile_id', profile.id)
       .eq('org_id', org_id)

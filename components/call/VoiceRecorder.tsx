@@ -92,7 +92,7 @@ export default function VoiceRecorder({ customerId, activityId, onSaved }: Voice
     setState('uploading')
     const filename = `voice-notes/${customerId}/${Date.now()}.webm`
 
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from('voice-notes')
       .upload(filename, blobRef.current, { contentType: 'audio/webm' })
 
@@ -102,7 +102,6 @@ export default function VoiceRecorder({ customerId, activityId, onSaved }: Voice
       return
     }
 
-    const { data: { publicUrl } } = supabase.storage.from('voice-notes').getPublicUrl(filename)
     const noteBody = `🎤 Voice note (${duration}s)`
     const me = (await fetch('/api/auth/me').then(r => r.ok ? r.json() : {}).catch(() => ({}))) as { display_name?: string }
     const bodyWithAuthor = prefixWithAuthorName(me?.display_name, noteBody)

@@ -48,7 +48,7 @@ export async function runResponseTimeAlerts(
       title: `No response: ${c.name}`,
       body:  `${isVoice ? 'Voice' : 'Email'} lead — ${mins}m without first contact`,
       url:   `/customers/${c.id}`,
-    })
+    }, c.user_id)
 
     await supabase.from('tasks').insert({
       user_id:            c.user_id,

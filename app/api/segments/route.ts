@@ -5,11 +5,11 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 
 export async function GET() {
   const profile = await requireProfile()
-  const service = createServiceClient()
+  const service = await createClient()
 
   const { data, error } = await service
     .from('saved_segments')
@@ -26,7 +26,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const profile = await requireProfile()
-  const service = createServiceClient()
+  const service = await createClient()
 
   let body: { name?: string; filters?: Record<string, unknown> }
   try {
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   const profile = await requireProfile()
-  const service = createServiceClient()
+  const service = await createClient()
 
   const id = req.nextUrl.searchParams.get('id')
   if (!id) {

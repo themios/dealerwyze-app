@@ -2,7 +2,7 @@
 
 import React, { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Camera, FileText, Image, X, ChevronRight, AlertTriangle, CheckCircle, XCircle, Car } from 'lucide-react'
+import { Camera, FileText, Image as ImageIcon, ChevronRight, AlertTriangle, CheckCircle, XCircle, Car } from 'lucide-react'
 import type { LeadScanResult, Confidence, ScanField } from '@/lib/leads/visionIngestTypes'
 import VehiclePickerSheet from '@/components/customer/VehiclePickerSheet'
 
@@ -221,7 +221,7 @@ export default function LeadScanner({ onClose }: { onClose?: () => void }) {
             }}
             className="flex items-center gap-3 p-4 rounded-xl border bg-card hover:bg-accent transition-colors text-left"
           >
-            <Image className="h-5 w-5 text-blue-400 flex-shrink-0" />
+            <ImageIcon className="h-5 w-5 text-blue-400 flex-shrink-0" />
             <div>
               <p className="font-medium text-sm">Photos</p>
               <p className="text-xs text-muted-foreground">Choose a screenshot or photo from device</p>

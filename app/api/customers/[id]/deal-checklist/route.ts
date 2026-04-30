@@ -11,7 +11,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 
 const STANDARD_ITEMS = [
   // Customer docs
@@ -40,7 +40,7 @@ export async function GET(
 ) {
   const { id } = await params
   const profile = await requireProfile()
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   const { data, error } = await supabase
     .from('tasks')
@@ -60,7 +60,7 @@ export async function POST(
 ) {
   const { id } = await params
   const profile = await requireProfile()
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   // Verify customer belongs to org
   const { data: customer } = await supabase
@@ -109,7 +109,7 @@ export async function PATCH(
 ) {
   const { id } = await params
   const profile = await requireProfile()
-  const supabase = createServiceClient()
+  const supabase = await createClient()
   const body: { task_id: string; status: 'open' | 'done' } = await req.json()
 
   if (!body.task_id || !['open', 'done'].includes(body.status)) {

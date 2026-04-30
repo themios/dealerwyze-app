@@ -6,6 +6,11 @@ import { Button } from '@/components/ui/button'
 import { RefreshCw, CheckCircle, AlertCircle } from 'lucide-react'
 
 type Status = 'idle' | 'loading' | 'done' | 'error'
+type SyncResponse = {
+  added?: number
+  needs_review?: number
+  error?: string
+}
 
 export default function SyncInventoryButton() {
   const [status, setStatus] = useState<Status>('idle')
@@ -19,27 +24,28 @@ export default function SyncInventoryButton() {
     for (let tryNum = 1; tryNum <= maxTries; tryNum++) {
       try {
         const res = await fetch('/api/inventory/sync', { method: 'POST' })
-        const data = await res.json().catch(() => ({}))
+        const data: SyncResponse = await res.json().catch(() => ({}))
         if (!res.ok) throw new Error(data.error || 'Sync failed')
 
         const parts: string[] = []
-        if (data.added > 0) parts.push(`+${data.added} added`)
-        if (data.needs_review > 0) parts.push(`${data.needs_review} need review`)
+        if ((data.added ?? 0) > 0) parts.push(`+${data.added} added`)
+        if ((data.needs_review ?? 0) > 0) parts.push(`${data.needs_review} need review`)
         setResult(parts.length > 0 ? parts.join(' · ') : 'Up to date')
         setStatus('done')
         router.refresh()
         setTimeout(() => { setStatus('idle'); setResult(null) }, 4000)
         return
-      } catch (err: any) {
-        const isNetworkError = err?.message === 'Failed to fetch'
+      } catch (err) {
+        const message = err instanceof Error ? err.message : ''
+        const isNetworkError = message === 'Failed to fetch'
         if (isNetworkError && tryNum < maxTries) {
           await new Promise(r => setTimeout(r, 2000))
           continue
         }
-        const message = isNetworkError
+        const errorMessage = isNetworkError
           ? 'Connection interrupted. Check your internet and try again.'
-          : (err?.message || 'Sync failed. Check your inventory URL in Settings → Organization.')
-        setResult(message)
+          : (message || 'Sync failed. Check your inventory URL in Settings → Organization.')
+        setResult(errorMessage)
         setStatus('error')
         if (!isNetworkError) console.error(err)
         break

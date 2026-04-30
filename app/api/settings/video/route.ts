@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import { isDealerAdmin } from '@/lib/auth/dealerRoles'
 
 // GET /api/settings/video — return video settings + quota for current org
-export async function GET(_req: NextRequest) {
+export async function GET() {
   const profile = await requireProfile()
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   const { data: settings } = await supabase
     .from('org_video_settings')
@@ -50,7 +50,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
   }
 
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   // Build update object with only whitelisted fields
   const allowed = [

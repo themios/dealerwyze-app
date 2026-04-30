@@ -1,13 +1,13 @@
 // app/api/settings/pulse/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import { canManageUsers } from '@/lib/auth/dealerRoles'
 import type { UserRole } from '@/types/index'
 
 export async function GET() {
   const profile  = await requireProfile()
-  const supabase = createServiceClient()
+  const supabase = await createClient()
   const { data } = await supabase
     .from('org_settings')
     .select(
@@ -54,7 +54,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'No valid fields provided' }, { status: 400 })
   }
 
-  const supabase = createServiceClient()
+  const supabase = await createClient()
   const { error } = await supabase
     .from('org_settings')
     .update(update)

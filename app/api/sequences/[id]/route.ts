@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 
 type Params = { params: Promise<{ id: string }> }
 
 export async function GET(_req: NextRequest, { params }: Params) {
   const profile = await requireProfile()
   const { id } = await params
-  const service = createServiceClient()
+  const service = await createClient()
 
   const { data: seq, error } = await service
     .from('sequences')
@@ -30,7 +30,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 export async function PATCH(req: NextRequest, { params }: Params) {
   const profile = await requireProfile()
   const { id } = await params
-  const service = createServiceClient()
+  const service = await createClient()
 
   const { data: existing } = await service
     .from('sequences')
@@ -63,7 +63,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'No updatable fields' }, { status: 400 })
   }
 
-  const { error } = await service.from('sequences').update(allowed).eq('id', id)
+  const { error } = await service.from('sequences').update(allowed).eq('id', id).eq('org_id', profile.org_id)
   if (error) return NextResponse.json({ error: 'Failed to update' }, { status: 500 })
 
   return NextResponse.json({ ok: true })
@@ -72,7 +72,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const profile = await requireProfile()
   const { id } = await params
-  const service = createServiceClient()
+  const service = await createClient()
 
   const { data: existing } = await service
     .from('sequences')

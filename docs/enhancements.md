@@ -4,6 +4,24 @@ Strategic ideas captured here. Promote to ROADMAP.md when ready to schedule.
 
 ---
 
+## Done — 2026-04-29: PLAN-D & PLAN-E service-role remediation
+
+Support, pulse (authenticated routes), sales rep APIs, onboarding GET/PATCH, push subscribe, auth/me, vehicle PATCH + AI description + market-check, split email/fax as documented; eight RSC settings/analytics pages use `await createClient()`; `lib/sms/quota.ts` threads one service client through `checkQuota` helpers. See repo root `enhancements.md` and `.planning/service-role-remediation/PLAN-D-support-pulse-misc.md`, `PLAN-E-pages-lib.md`.
+
+---
+
+## Done — 2026-04-29: PLAN-C service-role remediation
+
+Customers/receipts (DB paths), activities, calendar events, reports, and dashboard stats use `await createClient()` under `requireProfile()`; service client remains only for Supabase Storage (customer documents, receipt signed URLs / upload / delete). See repo root `enhancements.md` and `.planning/service-role-remediation/PLAN-C-customers-receipts.md`.
+
+---
+
+## Done — 2026-04-29: PLAN-B service-role remediation
+
+Sequences seed helper, onboarding step, and automation settings no longer use `createServiceClient()` where `requireProfile()` + RLS suffice. See repo root `enhancements.md` and `.planning/service-role-remediation/PLAN-B-PROGRESS.md`.
+
+---
+
 ## Security, Reliability & Performance Sprint — COMPLETED 2026-04-25
 
 All 26 tasks from the 10-audit plan executed. 25 commits, build passing, 20 tests green.

@@ -5,11 +5,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { requireChannelRep, isPlatformSuperAdmin } from '@/lib/auth/platform'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 
 export async function GET(req: NextRequest) {
   const profile = await requireProfile()
-  const service  = createServiceClient()
+  const supabase = await createClient()
 
   let affiliateCode: string
 
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     affiliateCode = result.affiliateCode
   }
 
-  const { data: ledger, error } = await service
+  const { data: ledger, error } = await supabase
     .from('commission_ledger')
     .select(`
       id, event_type, amount, status,
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
   const orgIds = [...new Set((ledger ?? []).map(r => r.org_id))]
   let orgNames: Record<string, string> = {}
   if (orgIds.length > 0) {
-    const { data: orgs } = await service
+    const { data: orgs } = await supabase
       .from('organizations')
       .select('id, name')
       .in('id', orgIds)

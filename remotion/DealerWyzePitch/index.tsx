@@ -11,7 +11,7 @@ import {
 } from 'remotion';
 import {
   ORANGE, DARK, SLATE, WHITE, GREEN, RED, BLUE,
-  fadeIn, slideUpVal, useSpring,
+  fadeIn,
   ProgressBar, GradientBg, KineticText, Particles, Ripple,
 } from '../components/shared';
 
@@ -131,7 +131,7 @@ const SceneHook: React.FC = () => {
         <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
           <AnimatedClock startFrame={20} />
           <div style={{ opacity: fadeIn(frame, 30, 20), color: SLATE, fontSize: 18, textAlign: 'center' }}>
-            Time passing<br />while you're busy
+            Time passing<br />while you&apos;re busy
           </div>
         </div>
 
@@ -173,7 +173,7 @@ const SceneHook: React.FC = () => {
         fontSize: 26,
         fontWeight: 700,
       }}>
-        You didn't lose that deal because your car was worse.{' '}
+        You didn&apos;t lose that deal because your car was worse.{' '}
         <span style={{ color: ORANGE }}>You lost it because you replied late.</span>
       </div>
     </AbsoluteFill>
@@ -369,7 +369,7 @@ const SceneObjections: React.FC = () => {
 
       <AbsoluteFill style={{ padding: '60px 80px' }}>
         <div style={{ opacity: fadeIn(frame, 0, 15), color: SLATE, fontSize: 18, textTransform: 'uppercase', letterSpacing: 4, marginBottom: 12 }}>
-          We've heard it
+          We&apos;ve heard it
         </div>
         <KineticText
           text="Every objection. Answered."
@@ -430,7 +430,7 @@ const SceneCTA: React.FC = () => {
       <AbsoluteFill style={{ justifyContent: 'center', alignItems: 'center', flexDirection: 'column', padding: 80 }}>
 
         <div style={{ opacity: fadeIn(frame, 0, 20), color: SLATE, fontSize: 20, textTransform: 'uppercase', letterSpacing: 4, marginBottom: 24, textAlign: 'center' }}>
-          The question isn't whether you can afford a CRM.
+          The question isn&apos;t whether you can afford a CRM.
         </div>
 
         <div style={{

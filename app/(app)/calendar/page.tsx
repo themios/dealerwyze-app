@@ -96,7 +96,48 @@ export default function CalendarPage() {
     setEvents((data as unknown as CalEvent[]) || [])
   }, [view, current, supabase])
 
-  useEffect(() => { loadEvents() }, [loadEvents])
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadInitialEvents() {
+      let start: Date
+      let end: Date
+      if (view === 'month') {
+        start = new Date(current.getFullYear(), current.getMonth(), 1)
+        end = new Date(current.getFullYear(), current.getMonth() + 1, 0, 23, 59, 59)
+      } else if (view === 'week') {
+        start = startOfWeek(current)
+        end = addDays(start, 6)
+        end.setHours(23, 59, 59)
+      } else {
+        start = new Date(current)
+        start.setHours(0, 0, 0, 0)
+        end = new Date(current)
+        end.setHours(23, 59, 59)
+      }
+
+      const { data } = await supabase
+        .from('activities')
+        .select('id, type, body, due_at, completed_at, customer:customers(id, name)')
+        .eq('type', 'appointment')
+        .is('customer_sequence_id', null)
+        .not('due_at', 'is', null)
+        .gte('due_at', start.toISOString())
+        .lte('due_at', end.toISOString())
+        .order('due_at', { ascending: true })
+
+      const normalizedEvents = ((data ?? []) as Array<CalEvent & { customer?: CalEvent['customer'] | CalEvent['customer'][] }>).map(event => ({
+        ...event,
+        customer: Array.isArray(event.customer) ? event.customer[0] : event.customer,
+      }))
+      if (!cancelled) setEvents(normalizedEvents)
+    }
+
+    void loadInitialEvents()
+    return () => {
+      cancelled = true
+    }
+  }, [current, supabase, view])
 
   // Reload when tab regains focus — catches appointments added from another screen
   useEffect(() => {
@@ -183,7 +224,7 @@ export default function CalendarPage() {
           <WeekView current={current} eventsByDate={eventsByDate} todayStr={todayStr} onDayClick={d => { setCurrent(d); setView('day') }} />
         )}
         {view === 'day' && (
-          <DayView date={current} events={eventsByDate.get(isoDate(current)) || []} todayStr={todayStr} onAdd={() => openAdd(current)} />
+          <DayView events={eventsByDate.get(isoDate(current)) || []} onAdd={() => openAdd(current)} />
         )}
       </div>
 
@@ -307,14 +348,10 @@ function WeekView({ current, eventsByDate, todayStr, onDayClick }: {
 }
 
 // ── Day View ────────────────────────────────────────────────
-function DayView({ date, events, todayStr, onAdd }: {
-  date: Date
+function DayView({ events, onAdd }: {
   events: CalEvent[]
-  todayStr: string
   onAdd: () => void
 }) {
-  const isToday = isoDate(date) === todayStr
-
   if (events.length === 0) {
     return (
       <div className="text-center py-16 text-muted-foreground">

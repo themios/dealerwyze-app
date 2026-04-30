@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import { canManageUsers } from '@/lib/auth/dealerRoles'
 import type { UserRole } from '@/types/index'
 
@@ -11,7 +11,7 @@ export async function GET() {
   if (!canManageUsers(profile.role as UserRole) && profile.role !== 'dealer_manager') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
-  const supabase = createServiceClient()
+  const supabase = await createClient()
   const { data } = await supabase
     .from('pulse_actions')
     .select('*, assignee:profiles!assigned_to(id, display_name)')
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
   if (!VALID_CATS.has(category))  return NextResponse.json({ error: 'Invalid category' }, { status: 400 })
   if (!plan_text?.trim())          return NextResponse.json({ error: 'plan_text required' }, { status: 400 })
 
-  const supabase = createServiceClient()
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('pulse_actions')
     .insert({

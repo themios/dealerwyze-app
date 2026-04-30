@@ -11,7 +11,7 @@ export async function GET() {
 
   const supabase = createServiceClient()
 
-  const [alertsRes, ticketsRes, atRiskRes] = await Promise.all([
+  const [alertsRes, ticketsRes] = await Promise.all([
     supabase
       .from('admin_alerts')
       .select('id', { count: 'exact', head: true })
@@ -20,10 +20,6 @@ export async function GET() {
       .from('support_tickets')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'open'),
-    supabase
-      .from('organizations')
-      .select('id', { count: 'exact', head: true })
-      .eq('subscription_status', 'active'),
   ])
 
   return NextResponse.json({

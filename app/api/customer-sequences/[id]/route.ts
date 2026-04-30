@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 
 type Params = { params: Promise<{ id: string }> }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   const profile = await requireProfile()
   const { id }  = await params
-  const service = createServiceClient()
+  const service = await createClient()
 
   const { data: enrollment } = await service
     .from('customer_sequences')

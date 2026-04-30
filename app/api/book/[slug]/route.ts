@@ -1,15 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { bookingLimiter } from '@/lib/rateLimit/upstash'
-
-interface BookingBody {
-  name: string
-  phone: string
-  email?: string
-  date: string   // ISO date string (YYYY-MM-DD)
-  time: string   // HH:MM (24h)
-  notes?: string
-}
+import { BookingSchema, parseBody } from '@/lib/validation/schemas'
 
 async function resolveOrgId(supabase: ReturnType<typeof createServiceClient>, slug: string): Promise<string | null> {
   const { data } = await supabase
@@ -72,7 +64,7 @@ export async function POST(
   // Verify booking is enabled
   const { data: settings } = await supabase
     .from('org_settings')
-    .select('business_name, booking_enabled')
+    .select('business_name, booking_enabled, timezone')
     .eq('org_id', orgId)
     .maybeSingle()
 
@@ -80,35 +72,41 @@ export async function POST(
     return NextResponse.json({ error: 'Booking not available' }, { status: 404 })
   }
 
-  let body: BookingBody & { website?: string }
-  try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
-  }
+  const parsedBody = await parseBody(req, BookingSchema)
+  if (parsedBody.errorResponse) return parsedBody.errorResponse
+
+  const { name, phone, email, date, time, notes, website } = parsedBody.data
 
   // Honeypot: bots fill hidden fields, real users don't
-  if (body.website) return NextResponse.json({ success: true })
+  if (website) return NextResponse.json({ success: true })
 
-  const { name, phone, email, date, time, notes } = body
-
-  if (!name?.trim() || !phone?.trim() || !date || !time) {
-    return NextResponse.json({ error: 'Name, phone, date, and time are required' }, { status: 400 })
-  }
-
-  // Sanitize inputs
-  const cleanName  = name.trim().slice(0, 100)
+  const cleanName  = name.slice(0, 100)
   const cleanPhone = phone.replace(/\D/g, '').slice(0, 15)
-  const cleanEmail = email?.trim().slice(0, 200) ?? null
-  const cleanNotes = notes?.trim().slice(0, 500) ?? null
+  const cleanEmail = email?.slice(0, 200) ?? null
+  const cleanNotes = notes?.slice(0, 500) ?? null
 
-  if (cleanPhone.length < 10) {
-    return NextResponse.json({ error: 'Please enter a valid phone number' }, { status: 400 })
-  }
-
-  // Parse appointment datetime (naive — store as ISO string)
-  const appointmentAt = new Date(`${date}T${time}:00`).toISOString()
-  if (isNaN(new Date(appointmentAt).getTime())) {
+  // Parse appointment datetime in the dealer's timezone so UTC storage is correct.
+  // e.g. "2026-05-10T14:00" interpreted as America/Chicago, not server UTC.
+  const orgTimezone = settings.timezone ?? 'America/Los_Angeles'
+  let appointmentAt: string
+  try {
+    // Build a date string with the timezone offset of the org at the given local time.
+    const localIso = `${date}T${time}:00`
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: orgTimezone,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false,
+      timeZoneName: 'longOffset',
+    })
+    // Use the offset the formatter gives us for this moment in that timezone.
+    const offsetParts = formatter.formatToParts(new Date(localIso + 'Z'))
+    const tzName = offsetParts.find(p => p.type === 'timeZoneName')?.value ?? 'UTC'
+    // tzName is like "GMT-05:00" or "GMT+05:30"; convert to ±HH:MM
+    const offset = tzName.replace('GMT', '') || '+00:00'
+    appointmentAt = new Date(`${localIso}${offset}`).toISOString()
+    if (isNaN(new Date(appointmentAt).getTime())) throw new Error('invalid')
+  } catch {
     return NextResponse.json({ error: 'Invalid date or time' }, { status: 400 })
   }
 
@@ -165,8 +163,7 @@ export async function POST(
     due_at:      appointmentAt,
   })
 
-  // Create a follow-up task for the dealer
-  const apptDate = new Date(`${date}T${time}:00`)
+  // Create a follow-up task for the dealer (reuse already-parsed UTC timestamp)
   await supabase.from('tasks').insert({
     user_id:           orgId,
     linked_customer_id: customerId,
@@ -174,7 +171,7 @@ export async function POST(
     title:             `Appointment: ${cleanName} – test drive`,
     priority:          'high',
     status:            'open',
-    due_at:            apptDate.toISOString(),
+    due_at:            appointmentAt,
     notes:             `Booked online. Phone: ${e164}${cleanEmail ? ` | Email: ${cleanEmail}` : ''}${cleanNotes ? ` | Note: ${cleanNotes}` : ''}`,
   })
 

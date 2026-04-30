@@ -4,12 +4,15 @@
  * Creates the 3 default starter campaigns for a new org.
  * Safe to call multiple times — skips silently if org already has sequences.
  *
+ * Uses an RLS-scoped Supabase client from the caller (e.g. createClient() in API routes).
+ * Do not pass the service-role client here.
+ *
  * Used by:
  *  - POST /api/sequences/seed-starters  (manual "Load starter campaigns" button)
  *  - POST /api/onboarding/step { complete: true }  (auto-seeds on onboarding finish)
  */
 
-import { createServiceClient } from '@/lib/supabase/service'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 const STARTERS = [
   {
@@ -166,10 +169,11 @@ Wishing you the best!`,
  * Returns the number of sequences created, or 0 if org already had sequences.
  * Never throws.
  */
-export async function seedStarterSequences(orgId: string): Promise<number> {
+export async function seedStarterSequences(
+  orgId: string,
+  supabase: SupabaseClient,
+): Promise<number> {
   try {
-    const supabase = createServiceClient()
-
     // Skip if org already has sequences
     const { count } = await supabase
       .from('sequences')

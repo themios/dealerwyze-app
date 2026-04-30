@@ -11,9 +11,9 @@ import {
 
 export const dynamic = 'force-dynamic'
 
-function humanizeAgo(dateStr: string | null): string {
+function humanizeAgo(dateStr: string | null, nowMs: number): string {
   if (!dateStr) return 'Never'
-  const days = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000)
+  const days = Math.floor((nowMs - new Date(dateStr).getTime()) / 86400000)
   if (days === 0) return 'Today'
   if (days === 1) return '1d ago'
   if (days < 30)  return `${days}d ago`
@@ -39,6 +39,8 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
   const denied  = await requirePlatformSuperAdmin(profile.id)
   if (denied) redirect('/admin')
 
+  const renderNow = new Date()
+  const renderNowMs = renderNow.getTime()
   const service = createServiceClient()
 
   const { data: staffProfile } = await service
@@ -76,7 +78,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
   const closedTickets = (tickets ?? []).filter(t => t.status === 'closed' || t.status === 'resolved')
   const lastSignIn    = authUser?.last_sign_in_at ?? null
   const daysInactive  = lastSignIn
-    ? Math.floor((Date.now() - new Date(lastSignIn).getTime()) / 86400000)
+    ? Math.floor((renderNowMs - new Date(lastSignIn).getTime()) / 86400000)
     : 999
 
   return (
@@ -105,7 +107,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
               )}
               <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1">
                 <Clock className="h-3 w-3 shrink-0" />
-                Joined {formatDate(staffProfile.created_at)} · Last login {humanizeAgo(lastSignIn)}
+                Joined {formatDate(staffProfile.created_at)} · Last login {humanizeAgo(lastSignIn, renderNowMs)}
               </p>
               {daysInactive > 14 && (
                 <p className="text-xs text-orange-600 flex items-center gap-1 mt-1">
@@ -197,7 +199,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
                 >
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium truncate">{t.subject}</p>
-                    <p className="text-[10px] text-muted-foreground">Updated {humanizeAgo(t.updated_at)}</p>
+                    <p className="text-[10px] text-muted-foreground">Updated {humanizeAgo(t.updated_at, renderNowMs)}</p>
                   </div>
                   <div className="flex items-center gap-2 ml-3 shrink-0">
                     <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${PRIORITY_COLOR[t.priority] ?? PRIORITY_COLOR.normal}`}>

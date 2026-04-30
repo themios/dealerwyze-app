@@ -85,33 +85,6 @@ function displayTitle(title: string): string {
   return title.startsWith(prefix) ? title.slice(prefix.length) : title
 }
 
-// ── Entity pill ───────────────────────────────────────────────────────────────
-
-function EntityPill({ task }: { task: Task }) {
-  let text: string | null = null
-
-  if (task.task_type === 'inventory_review' && task.vehicles) {
-    text = `\u{1F4E6} ${task.vehicles.stock_no}`
-  } else if (task.task_type === 'receipt_review' && task.receipts) {
-    const vendor = task.receipts.vendor_norm ?? task.receipts.vendor_raw
-    if (vendor) text = `\u{1F9FE} ${vendor}`
-  } else if (task.task_type === 'manual') {
-    if (task.vehicles) {
-      text = `\u{1F697} ${task.vehicles.stock_no}`
-    } else if (task.customers) {
-      text = `\u{1F464} ${task.customers.name}`
-    }
-  }
-
-  if (!text) return null
-
-  return (
-    <span className="mt-0.5 inline-block text-xs rounded-full bg-muted px-2 py-0.5 text-muted-foreground truncate max-w-[160px]">
-      {text}
-    </span>
-  )
-}
-
 // ── Detail sheet ──────────────────────────────────────────────────────────────
 
 interface DetailSheetProps {
@@ -416,6 +389,7 @@ function DetailSheet({ task, onClose, onComplete, onSnooze, onUpdate, onDelete }
 // ── Main TodoItem ─────────────────────────────────────────────────────────────
 
 export default function TodoItem({ task, onComplete, onSnooze, onUpdate }: Props) {
+  const [nowMs] = useState(() => Date.now())
   const [showDetail, setShowDetail] = useState(false)
   const [flashClass, setFlashClass] = useState('')
   const [translateX, setTranslateX] = useState(0)
@@ -428,7 +402,7 @@ export default function TodoItem({ task, onComplete, onSnooze, onUpdate }: Props
 
   const { label: dueLabel, cls: dueCls } = formatDue(task.due_at)
   const overdue = isOverdue(task.due_at)
-  const snoozed = task.snooze_until ? new Date(task.snooze_until).getTime() > Date.now() : false
+  const snoozed = task.snooze_until ? new Date(task.snooze_until).getTime() > nowMs : false
 
   const dotColor = snoozed
     ? 'bg-gray-400'

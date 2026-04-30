@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 
 export async function GET(req: NextRequest) {
   let profile
@@ -10,9 +10,7 @@ export async function GET(req: NextRequest) {
     return new Response('Unauthorized', { status: 401 })
   }
 
-  // Service client bypasses RLS — ledger_transactions are stored with user_id = org_id
-  // which may differ from auth.uid() in multi-tenant setups.
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   const { searchParams } = new URL(req.url)
   const dateFrom = searchParams.get('date_from')

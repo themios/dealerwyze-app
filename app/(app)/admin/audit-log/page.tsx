@@ -53,11 +53,29 @@ export default function AuditLogPage() {
   }
 
   useEffect(() => {
-    load()
-    // Load org list for filter dropdown
+    let cancelled = false
+
+    fetch(buildUrl())
+      .then(r => r.json())
+      .then((d: LogEntry[]) => {
+        if (!cancelled) {
+          setEntries(Array.isArray(d) ? d : [])
+          setLoading(false)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false)
+      })
+
     fetch('/api/admin/orgs')
       .then(r => r.json())
-      .then((d: OrgOption[]) => setOrgs(Array.isArray(d) ? d.slice(0, 100) : []))
+      .then((d: OrgOption[]) => {
+        if (!cancelled) setOrgs(Array.isArray(d) ? d.slice(0, 100) : [])
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleSearch(val: string) {

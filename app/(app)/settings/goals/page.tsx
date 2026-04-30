@@ -40,7 +40,22 @@ export default function GoalsPage() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadInitial() {
+      const res = await fetch('/api/intelligence/goals')
+      const d = await res.json()
+      if (cancelled) return
+      setGoals(d.goals ?? [])
+      setLoading(false)
+    }
+
+    void loadInitial()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   async function handleSave() {
     setSaving(true)

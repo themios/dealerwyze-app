@@ -1,19 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
+import { z } from 'zod'
 import { createServiceClient } from '@/lib/supabase/service'
 import { buildUnsubscribeToken } from '@/lib/security/unsubscribe'
 
+const UnsubscribeQuerySchema = z.object({
+  token: z.string().min(1).max(128).regex(/^[0-9a-f]+$/, 'Invalid token format'),
+  cid:   z.string().uuid('Invalid customer id'),
+})
+
+function htmlError(msg: string, status: number) {
+  return new NextResponse(
+    `<html><body style="font-family:sans-serif;max-width:500px;margin:40px auto;padding:0 16px"><h2>Invalid link</h2><p>${msg}</p></body></html>`,
+    { headers: { 'Content-Type': 'text/html' }, status },
+  )
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
-  const token = searchParams.get('token') ?? ''
-  const cid = searchParams.get('cid') ?? ''
+  const parsed = UnsubscribeQuerySchema.safeParse({
+    token: searchParams.get('token') ?? '',
+    cid:   searchParams.get('cid') ?? '',
+  })
 
-  if (!token || !cid) {
-    return new NextResponse('<html><body>Invalid unsubscribe link.</body></html>', {
-      headers: { 'Content-Type': 'text/html' },
-      status: 400,
-    })
+  if (!parsed.success) {
+    return htmlError('This unsubscribe link is not valid. Please contact us directly if you want to opt out.', 400)
   }
+
+  const { token, cid } = parsed.data
 
   let expected = ''
   try {

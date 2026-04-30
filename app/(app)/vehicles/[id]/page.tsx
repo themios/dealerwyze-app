@@ -1,4 +1,5 @@
 import { createClientForRequest } from '@/lib/supabase/forRequest'
+import { createServiceClient } from '@/lib/supabase/service'
 import { requireProfile } from '@/lib/auth/profile'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -11,7 +12,7 @@ import VehicleSoldButton from '@/components/vehicle/VehicleSoldButton'
 import VehicleDocuments from '@/components/vehicle/VehicleDocuments'
 import VehiclePhotos from '@/components/vehicle/VehiclePhotos'
 import ShareVehicleSheet from '@/components/vehicle/ShareVehicleSheet'
-import MarketIntelligenceCard from '@/components/vehicles/MarketIntelligenceCard'
+import MarketIntelligenceCard, { type MarketData } from '@/components/vehicles/MarketIntelligenceCard'
 import ReconSection from '@/components/vehicle/ReconSection'
 import BuySheetCard from '@/components/vehicle/BuySheetCard'
 import MechanicWorksheetCard from '@/components/vehicle/MechanicWorksheetCard'
@@ -25,6 +26,16 @@ export const dynamic = 'force-dynamic'
 
 interface PageProps {
   params: Promise<{ id: string }>
+}
+
+type VehicleLead = {
+  id: string
+  interest_level: string | null
+  customer: {
+    id: string
+    name: string | null
+    primary_phone: string | null
+  } | null
 }
 
 const statusColors: Record<string, string> = {
@@ -59,6 +70,7 @@ export default async function VehicleDetailPage({ params }: PageProps) {
   const { id } = await params
   const profile = await requireProfile()
   const supabase = await createClientForRequest()
+  const service = createServiceClient()
 
   const isAdmin = profile.role === 'admin'
   const canEdit = canAccessLedger(profile.role)
@@ -66,9 +78,9 @@ export default async function VehicleDetailPage({ params }: PageProps) {
   const [{ data: vehicle }, { data: activities }, { data: leads }, { data: org }, { data: vehiclePhotos }] = await Promise.all([
     supabase.from('vehicles').select('*').eq('id', id).eq('user_id', profile.org_id).single(),
     supabase.from('activities').select('*, customer:customers(id, name, primary_phone)').eq('vehicle_id', id).order('created_at', { ascending: false }).limit(50),
-    supabase.from('customer_vehicles').select('*, customer:customers(id, name, primary_phone)').eq('vehicle_id', id).order('created_at', { ascending: false }),
+    service.from('customer_vehicles').select('*, customer:customers(id, name, primary_phone)').eq('vehicle_id', id).order('created_at', { ascending: false }),
     supabase.from('organizations').select('slug').eq('id', profile.org_id).single(),
-    supabase.from('vehicle_photos').select('url').eq('vehicle_id', id).order('position').limit(8),
+    service.from('vehicle_photos').select('url').eq('vehicle_id', id).order('position').limit(8),
   ])
 
   if (!vehicle) notFound()
@@ -153,7 +165,7 @@ export default async function VehicleDetailPage({ params }: PageProps) {
         <MarketIntelligenceCard
           vehicleId={id}
           vehicleStatus={vehicle.status}
-          initialData={(vehicle.market_data_json as any) ?? null}
+          initialData={(vehicle.market_data_json as MarketData | null) ?? null}
           initialRecallCount={vehicle.nhtsa_recall_count ?? null}
           initialReliabilityTier={vehicle.reliability_tier ?? null}
         />
@@ -190,6 +202,7 @@ export default async function VehicleDetailPage({ params }: PageProps) {
                 vehicleId={id}
                 canEdit={canEdit}
                 canDelete={canDelete}
+                canManageTemplate={isDealerAdmin(profile.role)}
               />
             </div>
             <MechanicWorksheetCard vehicleId={id} canEdit={canEdit} />
@@ -232,12 +245,12 @@ export default async function VehicleDetailPage({ params }: PageProps) {
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Active Leads ({leads.length})</p>
             <div className="space-y-2">
-              {leads.map((lead: any) => (
-                <Link key={lead.id} href={`/customers/${lead.customer.id}`}>
+              {(leads as VehicleLead[]).map(lead => (
+                <Link key={lead.id} href={lead.customer?.id ? `/customers/${lead.customer.id}` : '#'}>
                   <div className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-colors">
                     <div>
-                      <p className="font-medium text-sm">{lead.customer.name}</p>
-                      <p className="text-xs text-muted-foreground">{lead.customer.primary_phone}</p>
+                      <p className="font-medium text-sm">{lead.customer?.name ?? 'Unknown customer'}</p>
+                      <p className="text-xs text-muted-foreground">{lead.customer?.primary_phone ?? 'No phone'}</p>
                     </div>
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${
                       lead.interest_level === 'hot' ? 'bg-red-500/10 text-red-600' :

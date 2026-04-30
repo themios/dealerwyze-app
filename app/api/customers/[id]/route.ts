@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import { canAssignLeads } from '@/lib/auth/dealerRoles'
 
 export async function PATCH(
@@ -9,7 +9,7 @@ export async function PATCH(
 ) {
   const profile = await requireProfile()
   const { id: customerId } = await params
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   let body: Record<string, unknown>
   try {
@@ -84,7 +84,7 @@ export async function DELETE(
   }
 
   const { id: customerId } = await params
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   // Verify customer belongs to this org before deleting.
   const { data: existing } = await supabase

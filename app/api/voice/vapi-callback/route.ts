@@ -44,8 +44,6 @@ export async function POST(req: NextRequest) {
   const toNumber    = call.phoneNumber?.number ?? ''
   const recordingUrl = msg.recordingUrl ?? call.recordingUrl ?? null
   const transcript  = msg.transcript ?? ''
-  const endedReason = call.endedReason ?? ''
-
   // Duration from timestamps
   const startedAt = call.startedAt ? new Date(call.startedAt).getTime() : 0
   const endedAt   = call.endedAt   ? new Date(call.endedAt).getTime()   : Date.now()

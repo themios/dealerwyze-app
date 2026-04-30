@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
-import { canAccessLedger } from '@/lib/auth/dealerRoles'
+import { canAccessLedger, isDealerAdmin } from '@/lib/auth/dealerRoles'
+import { DEFAULT_RECON_CHECKLIST, type ReconChecklistTemplateItem } from '@/lib/recon/defaults'
+
+const ACTIVE_RECON_STATUSES = ['staging', 'available', 'pending'] as const
 
 export async function GET(
   _req: NextRequest,
@@ -84,35 +87,159 @@ export async function POST(
   const body = await req.json()
   const label = String(body.label ?? '').trim().slice(0, 120)
   if (!label) return NextResponse.json({ error: 'Label required' }, { status: 400 })
+  const applyToAll = Boolean(body.apply_to_all)
+  if (applyToAll && !isDealerAdmin(profile.role)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+  }
 
   const cost = body.cost != null ? Math.max(0, parseFloat(body.cost)) : null
   const notes = body.notes ? String(body.notes).trim().slice(0, 500) : null
+  const normalizedLabel = label.toLowerCase()
 
-  const { data: maxRow } = await supabase
-    .from('recon_checklist_items')
-    .select('sort_order')
-    .eq('vehicle_id', id)
-    .order('sort_order', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  if (!applyToAll) {
+    const { data: existing } = await supabase
+      .from('recon_checklist_items')
+      .select('*')
+      .eq('vehicle_id', id)
+      .eq('org_id', profile.org_id)
+      .ilike('label', label)
+      .maybeSingle()
 
-  const sort_order = (maxRow?.sort_order ?? 0) + 1
+    if (existing) return NextResponse.json({ item: existing, duplicate: true }, { status: 200 })
 
-  const { data: item, error } = await supabase
-    .from('recon_checklist_items')
-    .insert({
-      vehicle_id: id,
+    const { data: maxRow } = await supabase
+      .from('recon_checklist_items')
+      .select('sort_order')
+      .eq('vehicle_id', id)
+      .order('sort_order', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const sort_order = (maxRow?.sort_order ?? 0) + 1
+
+    const { data: item, error } = await supabase
+      .from('recon_checklist_items')
+      .insert({
+        vehicle_id: id,
+        org_id: profile.org_id,
+        label,
+        is_required: false,
+        sort_order,
+        cost: isNaN(cost as number) ? null : cost,
+        notes,
+      })
+      .select()
+      .single()
+
+    if (error) return NextResponse.json({ error: 'Failed to add item' }, { status: 500 })
+
+    return NextResponse.json({ item }, { status: 201 })
+  }
+
+  const [{ data: settings }, { data: vehicles }, { data: existingItems }] = await Promise.all([
+    supabase
+      .from('org_settings')
+      .select('recon_checklist_template')
+      .eq('org_id', profile.org_id)
+      .maybeSingle(),
+    supabase
+      .from('vehicles')
+      .select('id')
+      .eq('user_id', profile.org_id)
+      .in('status', [...ACTIVE_RECON_STATUSES]),
+    supabase
+      .from('recon_checklist_items')
+      .select('id, vehicle_id, label, sort_order, is_required, checked, notes, cost, completed_at, category')
+      .eq('org_id', profile.org_id),
+  ])
+
+  const template = ((settings?.recon_checklist_template as ReconChecklistTemplateItem[] | null) ?? DEFAULT_RECON_CHECKLIST).slice()
+  let templateUpdated = false
+  if (!template.some(item => item.label.trim().toLowerCase() === normalizedLabel)) {
+    templateUpdated = true
+    template.push({
+      label,
+      is_required: false,
+      sort_order: template.length + 1,
+      category: 'standard',
+    })
+    const { error: templateError } = await supabase
+      .from('org_settings')
+      .update({
+        recon_checklist_template: template.map((item, index) => ({
+          ...item,
+          sort_order: index + 1,
+        })),
+      })
+      .eq('org_id', profile.org_id)
+
+    if (templateError) {
+      return NextResponse.json({ error: 'Failed to update checklist template' }, { status: 500 })
+    }
+  }
+
+  const vehicleIds = (vehicles ?? []).map(vehicle => vehicle.id)
+  if (vehicleIds.length === 0) {
+    return NextResponse.json({ error: 'No active inventory vehicles found' }, { status: 404 })
+  }
+
+  const existingByVehicle = new Map<string, { id: string; vehicle_id: string; label: string; sort_order: number | null }[]>()
+  for (const item of existingItems ?? []) {
+    const list = existingByVehicle.get(item.vehicle_id) ?? []
+    list.push(item)
+    existingByVehicle.set(item.vehicle_id, list)
+  }
+
+  const rowsToInsert: Array<{
+    vehicle_id: string
+    org_id: string
+    label: string
+    is_required: boolean
+    sort_order: number
+    cost: number | null
+    notes: string | null
+  }> = []
+
+  for (const vehicleId of vehicleIds) {
+    const itemsForVehicle = existingByVehicle.get(vehicleId) ?? []
+    const alreadyHasLabel = itemsForVehicle.some(item => item.label.trim().toLowerCase() === normalizedLabel)
+    if (alreadyHasLabel) continue
+
+    const nextSortOrder = itemsForVehicle.reduce((max, item) => Math.max(max, item.sort_order ?? 0), 0) + 1
+    rowsToInsert.push({
+      vehicle_id: vehicleId,
       org_id: profile.org_id,
       label,
       is_required: false,
-      sort_order,
+      sort_order: nextSortOrder,
       cost: isNaN(cost as number) ? null : cost,
       notes,
     })
-    .select()
-    .single()
+  }
 
-  if (error) return NextResponse.json({ error: 'Failed to add item' }, { status: 500 })
+  let inserted: Array<Record<string, unknown>> = []
+  if (rowsToInsert.length > 0) {
+    const { data, error } = await supabase
+      .from('recon_checklist_items')
+      .insert(rowsToInsert)
+      .select()
 
-  return NextResponse.json({ item }, { status: 201 })
+    if (error) return NextResponse.json({ error: 'Failed to add item to all vehicles' }, { status: 500 })
+    inserted = data ?? []
+  }
+
+  const existingCurrentItem = (existingItems ?? []).find(item =>
+    item.vehicle_id === id && item.label.trim().toLowerCase() === normalizedLabel
+  )
+  const currentItem = inserted.find(item => item.vehicle_id === id) ?? existingCurrentItem ?? null
+
+  return NextResponse.json(
+    {
+      item: currentItem,
+      applied_to_all: true,
+      added_vehicle_count: rowsToInsert.length,
+      template_updated: templateUpdated,
+    },
+    { status: 201 },
+  )
 }

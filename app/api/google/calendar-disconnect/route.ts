@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
+import { canManageUsers } from '@/lib/auth/dealerRoles'
 import { createServiceClient } from '@/lib/supabase/service'
 
 export async function DELETE() {
   const profile = await requireProfile()
+  if (!canManageUsers(profile.role)) {
+    return NextResponse.json({ error: 'Only admins can disconnect Google Calendar' }, { status: 403 })
+  }
   const service = createServiceClient()
 
   const { error } = await service

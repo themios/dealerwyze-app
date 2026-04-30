@@ -1,20 +1,20 @@
 import { NextResponse } from 'next/server'
 import { getProfile } from '@/lib/auth/profile'
 import { canAccessAdminArea } from '@/lib/auth/platform'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 
 export async function GET() {
   const profile = await getProfile()
   if (!profile) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
   const is_platform_admin = await canAccessAdminArea(profile.id)
 
-  const service = createServiceClient()
+  const supabase = await createClient()
 
   // Get platform_role + platform_permissions for role-aware UI
   let platform_role: string | null = null
   let platform_permissions: string[] = []
   if (is_platform_admin) {
-    const { data } = await service
+    const { data } = await supabase
       .from('profiles')
       .select('platform_role, platform_permissions')
       .eq('id', profile.id)
@@ -24,7 +24,7 @@ export async function GET() {
   }
 
   // Fetch org plan for free-tier gating on the client
-  const { data: org } = await service
+  const { data: org } = await supabase
     .from('organizations')
     .select('plan')
     .eq('id', profile.org_id)

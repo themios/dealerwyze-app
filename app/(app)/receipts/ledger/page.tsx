@@ -13,7 +13,8 @@ export default async function LedgerPage() {
   const profile = await requireProfile()
   const supabase = await createClientForRequest()
 
-  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
+  const renderNow = new Date()
+  const ninetyDaysAgo = new Date(renderNow.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString()
 
   const [{ data: transactions }, { data: categories }, { data: lotVehicles }, { data: soldVehicles }] =
     await Promise.all([

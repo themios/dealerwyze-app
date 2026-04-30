@@ -22,10 +22,6 @@ export function useOrgSettings(): OrgSettings {
   const [settings, setSettings] = useState<OrgSettings>(_cached ?? DEFAULT)
 
   useEffect(() => {
-    if (_cached) {
-      setSettings(_cached)
-      return
-    }
     if (!_promise) {
       _promise = fetch('/api/settings/org')
         .then(r => r.ok ? r.json() : null)
@@ -42,7 +38,13 @@ export function useOrgSettings(): OrgSettings {
         })
         .catch(() => DEFAULT)
     }
-    _promise.then(s => setSettings(s))
+    let cancelled = false
+    _promise.then(s => {
+      if (!cancelled) setSettings(s)
+    })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   return settings

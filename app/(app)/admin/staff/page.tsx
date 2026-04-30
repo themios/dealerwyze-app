@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import TopBar from '@/components/layout/TopBar'
 import {
   UserPlus, Trash2, Shield, Mail, Clock,
   TicketCheck, Building2, ChevronRight, Pencil, Check, X,
-  Settings, Users, Briefcase, ChevronDown,
+  Settings, Users, Briefcase,
 } from 'lucide-react'
 
 const ROLE_LABELS: Record<string, string> = {
@@ -59,18 +59,18 @@ interface PlatformUser {
 
 type TabKey = 'staff' | 'managers' | 'admins'
 
-function humanizeAgo(d: string | null) {
+function humanizeAgo(d: string | null, nowMs: number) {
   if (!d) return 'Never'
-  const days = Math.floor((Date.now() - new Date(d).getTime()) / 86400000)
+  const days = Math.floor((nowMs - new Date(d).getTime()) / 86400000)
   if (days === 0) return 'Today'
   if (days === 1) return '1d ago'
   if (days < 30)  return `${days}d ago`
   return `${Math.floor(days / 30)}mo ago`
 }
 
-function ActivityDot({ lastSignIn }: { lastSignIn: string | null }) {
+function ActivityDot({ lastSignIn, nowMs }: { lastSignIn: string | null; nowMs: number }) {
   if (!lastSignIn) return <span className="inline-block h-2 w-2 rounded-full bg-gray-300" />
-  const days = (Date.now() - new Date(lastSignIn).getTime()) / 86400000
+  const days = (nowMs - new Date(lastSignIn).getTime()) / 86400000
   const color = days < 7 ? 'bg-green-500' : days < 30 ? 'bg-yellow-500' : 'bg-red-400'
   return <span className={`inline-block h-2 w-2 rounded-full ${color}`} />
 }
@@ -84,6 +84,7 @@ function RoleBadge({ role }: { role: string }) {
 }
 
 export default function AdminStaffPage() {
+  const [nowMs] = useState(() => Date.now())
   const [users, setUsers]         = useState<PlatformUser[]>([])
   const [staffStats, setStaffStats] = useState<Record<string, { tickets_open: number; tickets_closed: number; orgs_assigned: number }>>({})
   const [loading, setLoading]     = useState(true)
@@ -110,8 +111,8 @@ export default function AdminStaffPage() {
   const [editRoleSaving, setEditRoleSaving] = useState(false)
   const [editRoleError, setEditRoleError]   = useState('')
 
-  async function load() {
-    setLoading(true)
+  async function load(options?: { showSpinner?: boolean }) {
+    if (options?.showSpinner !== false) setLoading(true)
     const [usersRes, staffRes] = await Promise.all([
       fetch('/api/admin/platform-users').then(r => r.ok ? r.json() : []),
       fetch('/api/admin/staff').then(r => r.ok ? r.json() : []),
@@ -126,7 +127,30 @@ export default function AdminStaffPage() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadInitial() {
+      const [usersRes, staffRes] = await Promise.all([
+        fetch('/api/admin/platform-users').then(r => r.ok ? r.json() : []),
+        fetch('/api/admin/staff').then(r => r.ok ? r.json() : []),
+      ])
+      if (cancelled) return
+
+      setUsers(usersRes ?? [])
+      const map: Record<string, { tickets_open: number; tickets_closed: number; orgs_assigned: number }> = {}
+      for (const s of staffRes ?? []) {
+        map[s.id] = { tickets_open: s.tickets_open ?? 0, tickets_closed: s.tickets_closed ?? 0, orgs_assigned: s.orgs_assigned ?? 0 }
+      }
+      setStaffStats(map)
+      setLoading(false)
+    }
+
+    void loadInitial()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const staffUsers    = users.filter(u => u.platform_role === 'platform_staff')
   const managerUsers  = users.filter(u => u.platform_role === 'platform_staff_manager' || u.platform_role === 'platform_sales_manager')
@@ -261,7 +285,7 @@ export default function AdminStaffPage() {
                           <Shield className="h-4 w-4 text-white/80" />
                         </div>
                         <span className="absolute -bottom-0.5 -right-0.5">
-                          <ActivityDot lastSignIn={u.last_sign_in_at} />
+                          <ActivityDot lastSignIn={u.last_sign_in_at} nowMs={nowMs} />
                         </span>
                       </div>
                       <div className="min-w-0">
@@ -402,7 +426,7 @@ export default function AdminStaffPage() {
                           <Clock className="h-3 w-3" />
                           <span className="text-[10px] uppercase tracking-wide font-medium">Last Active</span>
                         </div>
-                        <p className="text-sm font-bold">{humanizeAgo(u.last_sign_in_at)}</p>
+                        <p className="text-sm font-bold">{humanizeAgo(u.last_sign_in_at, nowMs)}</p>
                         <p className="text-[10px] text-muted-foreground">login</p>
                       </div>
                     </div>
@@ -411,7 +435,7 @@ export default function AdminStaffPage() {
                   {/* Manager/Admin info row */}
                   {tab !== 'staff' && (
                     <div className="border-t px-4 py-2 flex items-center justify-between text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> Last active: {humanizeAgo(u.last_sign_in_at)}</span>
+                      <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> Last active: {humanizeAgo(u.last_sign_in_at, nowMs)}</span>
                       {u.platform_role === 'platform_admin' && u.platform_permissions.length > 0 && (
                         <span className="flex flex-wrap gap-1 max-w-xs justify-end">
                           {u.platform_permissions.map(p => (

@@ -30,6 +30,16 @@ export async function DELETE(
   }
 
   // Delete from Storage via service client (bypasses storage RLS)
+  // ✓ Security: Verify storage path includes org_id prefix to prevent cross-org file deletion
+  const expectedPrefix = `${profile.org_id}/`
+  if (!doc.file_key.startsWith(expectedPrefix)) {
+    console.warn(
+      '[documents DELETE] Rejected storage access: file_key does not belong to org',
+      { fileKey: doc.file_key, orgId: profile.org_id }
+    )
+    return NextResponse.json({ error: 'Unauthorized: invalid file path' }, { status: 403 })
+  }
+
   const { error: storageError } = await storage.storage
     .from(BUCKET)
     .remove([doc.file_key])

@@ -47,7 +47,7 @@ export default function SmsOptInPage() {
               <p className="text-sm text-gray-600 mb-3">
                 The customer fills out a contact form on CarGurus, AutoTrader, Cars.com, or a
                 similar listing site. They provide their name, email, and phone number as part
-                of their vehicle inquiry. This is the point where the customer's phone number
+                  of their vehicle inquiry. This is the point where the customer&apos;s phone number
                 is collected.
               </p>
               <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">

@@ -3,7 +3,7 @@
  * the @/ alias. If this fails, the test infrastructure is broken.
  */
 
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { makeTestClient, makeTestProfile, TEST_ORG_ID, TEST_ORG_B_ID } from './testClient'
 
 describe('makeTestClient', () => {
@@ -25,16 +25,29 @@ describe('makeTestClient', () => {
   it('allows mocking individual table responses', async () => {
     const { supabase, ORG_ID } = makeTestClient()
     const fakeVehicle = { id: 'v1', user_id: ORG_ID, make: 'Toyota' }
-    supabase._table('vehicles').single.mockResolvedValueOnce({ data: fakeVehicle, error: null })
+    ;(supabase._table('vehicles').single as { mockResolvedValueOnce: (value: unknown) => unknown })
+      .mockResolvedValueOnce({ data: fakeVehicle, error: null })
 
-    const result = await supabase.from('vehicles').select('*').eq('user_id', ORG_ID).single()
+    const vehicleQuery = supabase.from('vehicles') as {
+      select: (columns: string) => {
+        eq: (column: string, value: string) => {
+          single: () => Promise<{
+            data: typeof fakeVehicle | null
+            error: unknown
+          }>
+        }
+      }
+    }
+    const result = await vehicleQuery.select('*').eq('user_id', ORG_ID).single()
     expect(result.data).toEqual(fakeVehicle)
     expect(result.error).toBeNull()
   })
 
   it('rpc() returns stubbed null by default', async () => {
     const { supabase } = makeTestClient()
-    const result = await supabase.rpc('confirm_bhph_payment', {})
+    const result = await supabase.rpc('confirm_bhph_payment', {}) as {
+      error: unknown
+    }
     expect(result.error).toBeNull()
   })
 

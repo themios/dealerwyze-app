@@ -9,7 +9,7 @@ import { VehiclePhotoSlideshow, TEMPLATE_DURATION as SLIDESHOW_DURATION } from '
 import { VehicleBrightShowcase, TEMPLATE_DURATION as BRIGHT_DURATION } from './VehicleBrightShowcase';
 import { VehicleSplitGallery, TEMPLATE_DURATION as SPLIT_DURATION } from './VehicleSplitGallery';
 import { VehicleReelsFast, TEMPLATE_DURATION as REELS_FAST_DURATION } from './VehicleReelsFast';
-import { DEFAULT_PROPS, VehicleVideoProps } from './types';
+import { DEFAULT_PROPS } from './types';
 
 const defaultVehicleProps: VehicleListingProps = {
   year: 2022,
@@ -51,60 +51,54 @@ export const RemotionRoot: React.FC = () => {
         height={1080}
         defaultProps={{}}
       />
-      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
       <Composition
         id="VehicleModernDark"
-        component={VehicleModernDark as any}
+        component={VehicleModernDark as React.ComponentType<Record<string, unknown>>}
         durationInFrames={MODERN_DARK_DURATION}
         fps={30}
         width={1920}
         height={1080}
         defaultProps={DEFAULT_PROPS}
       />
-      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
       <Composition
         id="VehicleReelsPortrait"
-        component={VehicleReelsPortrait as any}
+        component={VehicleReelsPortrait as React.ComponentType<Record<string, unknown>>}
         durationInFrames={REELS_DURATION}
         fps={30}
         width={1080}
         height={1920}
         defaultProps={DEFAULT_PROPS}
       />
-      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
       <Composition
         id="VehiclePhotoSlideshow"
-        component={VehiclePhotoSlideshow as any}
+        component={VehiclePhotoSlideshow as React.ComponentType<Record<string, unknown>>}
         durationInFrames={SLIDESHOW_DURATION}
         fps={30}
         width={1920}
         height={1080}
         defaultProps={DEFAULT_PROPS}
       />
-      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
       <Composition
         id="VehicleBrightShowcase"
-        component={VehicleBrightShowcase as any}
+        component={VehicleBrightShowcase as React.ComponentType<Record<string, unknown>>}
         durationInFrames={BRIGHT_DURATION}
         fps={30}
         width={1920}
         height={1080}
         defaultProps={DEFAULT_PROPS}
       />
-      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
       <Composition
         id="VehicleSplitGallery"
-        component={VehicleSplitGallery as any}
+        component={VehicleSplitGallery as React.ComponentType<Record<string, unknown>>}
         durationInFrames={SPLIT_DURATION}
         fps={30}
         width={1920}
         height={1080}
         defaultProps={DEFAULT_PROPS}
       />
-      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
       <Composition
         id="VehicleReelsFast"
-        component={VehicleReelsFast as any}
+        component={VehicleReelsFast as React.ComponentType<Record<string, unknown>>}
         durationInFrames={REELS_FAST_DURATION}
         fps={30}
         width={1080}

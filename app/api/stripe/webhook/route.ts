@@ -1,25 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { stripe, tierFromPriceId, smsTierFromPriceId, storagePackFromPriceId, PLAN_QUOTA, SMS_TIER_QUOTA, STORAGE_PACK_QUOTA, STORAGE_BASE_QUOTA } from '@/lib/stripe'
+import { stripe, tierFromPriceId, smsTierFromPriceId, storagePackFromPriceId, PLAN_QUOTA, SMS_TIER_QUOTA, STORAGE_PACK_QUOTA } from '@/lib/stripe'
 import { createServiceClient } from '@/lib/supabase/service'
 import { sendNotificationEmail } from '@/lib/email/notify'
 import { recordCommission } from '@/lib/stripe/commissions'
 import Stripe from 'stripe'
-
-// In-process idempotency: skip duplicate Stripe events within the same instance lifetime.
-// Cross-instance dedup relies on Stripe's own at-least-once delivery (events are idempotent by design).
-const processedStripeEvents = new Map<string, number>() // eventId → processedAt ms
-const STRIPE_EVENT_TTL_MS = 15 * 60 * 1000 // 15 min
-
-function isStripeEventDuplicate(eventId: string): boolean {
-  const now = Date.now()
-  // Prune expired entries
-  for (const [id, ts] of processedStripeEvents) {
-    if (now - ts > STRIPE_EVENT_TTL_MS) processedStripeEvents.delete(id)
-  }
-  if (processedStripeEvents.has(eventId)) return true
-  processedStripeEvents.set(eventId, now)
-  return false
-}
 
 export async function POST(req: NextRequest) {
   const body = await req.text()
@@ -38,12 +22,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
-  // Vector 3: skip already-processed events (Stripe retries on non-2xx)
-  if (isStripeEventDuplicate(event.id)) {
-    return NextResponse.json({ received: true, duplicate: true })
-  }
-
   const supabase = createServiceClient()
+
+  // Durable dedup: insert event_id; unique PK rejects duplicates across all instances.
+  const { error: dedupError } = await supabase
+    .from('processed_stripe_events')
+    .insert({ event_id: event.id })
+  if (dedupError) {
+    // Postgres unique_violation = 23505; any conflict means already processed
+    if (dedupError.code === '23505') {
+      return NextResponse.json({ received: true, duplicate: true })
+    }
+    // Unexpected DB error — let Stripe retry
+    return NextResponse.json({ error: 'Dedup check failed' }, { status: 500 })
+  }
 
   switch (event.type) {
     case 'checkout.session.completed': {

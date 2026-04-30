@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import TopBar from '@/components/layout/TopBar'
-import { Search, Filter, ChevronRight, UserCheck, X, Check } from 'lucide-react'
+import { Search, Filter, ChevronRight, UserCheck, Check } from 'lucide-react'
 
 interface OrgRow {
   id: string
@@ -53,9 +53,9 @@ function HealthDot({ score }: { score: number }) {
   return <span className={`inline-block h-2 w-2 rounded-full ${color} shrink-0`} title={`Health: ${score}`} />
 }
 
-function humanizeAgo(d: string | null) {
+function humanizeAgo(d: string | null, nowMs: number) {
   if (!d) return 'Never'
-  const days = Math.floor((Date.now() - new Date(d).getTime()) / 86400000)
+  const days = Math.floor((nowMs - new Date(d).getTime()) / 86400000)
   if (days === 0) return 'Today'
   if (days === 1) return '1d ago'
   if (days < 30)  return `${days}d ago`
@@ -68,6 +68,7 @@ function formatDate(d: string | null) {
 }
 
 export default function AdminOrgsPage() {
+  const [nowMs] = useState(() => Date.now())
   const [orgs, setOrgs]         = useState<OrgRow[]>([])
   const [staff, setStaff]       = useState<StaffOption[]>([])
   const [loading, setLoading]   = useState(true)
@@ -93,7 +94,29 @@ export default function AdminOrgsPage() {
     }).finally(() => setLoading(false))
   }
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => {
+    let cancelled = false
+
+    Promise.all([
+      fetch('/api/admin/orgs').then(async r => {
+        const j = await r.json()
+        if (!r.ok) console.error('[admin/orgs] HTTP', r.status, j)
+        return j
+      }).catch(() => []),
+      fetch('/api/admin/staff').then(r => r.json()).catch(() => []),
+    ]).then(([orgsData, staffData]) => {
+      if (cancelled) return
+      setOrgs(Array.isArray(orgsData) ? orgsData : [])
+      setStaff(Array.isArray(staffData) ? staffData : [])
+      if (!Array.isArray(orgsData)) console.error('Admin orgs API error:', orgsData)
+    }).finally(() => {
+      if (!cancelled) setLoading(false)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const filtered = useMemo(() => {
     let list = orgs
@@ -336,7 +359,7 @@ export default function AdminOrgsPage() {
                             <span className="text-xs text-muted-foreground">{org.sms_used_pct}%</span>
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-xs text-muted-foreground">{humanizeAgo(org.last_active_at)}</td>
+                        <td className="py-3 px-4 text-xs text-muted-foreground">{humanizeAgo(org.last_active_at, nowMs)}</td>
                         <td className="py-3 px-4 text-xs text-muted-foreground">{formatDate(billingDate ?? null)}</td>
                         <td className="py-3 px-4">
                           <Link
@@ -396,7 +419,7 @@ export default function AdminOrgsPage() {
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          {humanizeAgo(org.last_active_at)} · SMS {org.sms_used_pct}%
+                          {humanizeAgo(org.last_active_at, nowMs)} · SMS {org.sms_used_pct}%
                           {org.assigned_staff_name && ` · ${org.assigned_staff_name}`}
                           {!org.has_active_email && ' · No email'}
                           {billingDate && ` · ${formatDate(billingDate)}`}

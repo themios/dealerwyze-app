@@ -10,16 +10,13 @@
  * Scoped to the authenticated user's org only.
  */
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { canManageUsers } from '@/lib/auth/dealerRoles'
+import { orgDataExportLimiter } from '@/lib/rateLimit/upstash'
+import { logOrgAudit } from '@/lib/audit/orgAudit'
 import { createServiceClient } from '@/lib/supabase/service'
 import JSZip from 'jszip'
-
-const EXPORT_COOLDOWN_MS = 24 * 60 * 60 * 1000 // 24 hours
-
-// In-process cooldown — prevents repeated large exports. One per org per day is plenty.
-const lastExport = new Map<string, number>()
 
 function toCSV(rows: Record<string, unknown>[]): string {
   if (rows.length === 0) return ''
@@ -33,17 +30,16 @@ function toCSV(rows: Record<string, unknown>[]): string {
   return `${header}\n${body}`
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const profile = await requireProfile()
   if (!canManageUsers(profile.role)) {
     return NextResponse.json({ error: 'Only admins can export dealership data.' }, { status: 403 })
   }
   const orgId   = profile.org_id
 
-  // Cooldown: one export per org per 24 hours
-  const last = lastExport.get(orgId)
-  if (last && Date.now() - last < EXPORT_COOLDOWN_MS) {
-    const waitMins = Math.ceil((EXPORT_COOLDOWN_MS - (Date.now() - last)) / 60000)
+  const exportLimit = await orgDataExportLimiter(orgId)
+  if (!exportLimit.allowed) {
+    const waitMins = Math.max(1, Math.ceil(exportLimit.retryAfterSeconds / 60))
     return NextResponse.json(
       { error: `You can export your data once per day. Please wait ${waitMins} more minute${waitMins !== 1 ? 's' : ''}.` },
       { status: 429 }
@@ -51,6 +47,9 @@ export async function GET() {
   }
 
   const supabase = createServiceClient()
+
+  // ✓ Verified 2026-04-29: all exported tables are org-scoped via user_id (customers, activities, templates) or org_id (vehicles)
+  // Service client is acceptable here because queries are explicitly filtered by org before returning data.
 
   // Customers — use user_id for org scoping (no org_id column)
   const { data: customers } = await supabase
@@ -85,8 +84,6 @@ export async function GET() {
     .order('created_at', { ascending: true })
     .limit(5000)
 
-  lastExport.set(orgId, Date.now())
-
   const zip = new JSZip()
   zip.file('customers.csv',  toCSV((customers  ?? []) as Record<string, unknown>[]))
   zip.file('vehicles.csv',   toCSV((vehicles   ?? []) as Record<string, unknown>[]))
@@ -95,6 +92,10 @@ export async function GET() {
 
   const buffer = await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' })
   const ab     = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null
+  void logOrgAudit({ org_id: orgId, actor_id: profile.id, actor_type: 'user', action: 'data_export',
+    ip, details: { tables: ['customers', 'vehicles', 'activities', 'templates'] } })
 
   return new NextResponse(ab as ArrayBuffer, {
     status: 200,

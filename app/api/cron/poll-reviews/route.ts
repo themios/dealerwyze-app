@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
             ? `${review.authorName}: "${review.comment.slice(0, 80)}${review.comment.length > 80 ? '…' : ''}"`
             : `${review.authorName} left a ${review.rating}-star review`,
           url:   '/today',
-        })
+        }, orgId)
         await supabase
           .from('gbp_reviews')
           .update({ notified_at: new Date().toISOString() })

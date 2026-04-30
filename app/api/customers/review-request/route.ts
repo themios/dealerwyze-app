@@ -15,11 +15,11 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 
 export async function POST(req: NextRequest) {
   const profile = await requireProfile()
-  const service = createServiceClient()
+  const service = await createClient()
 
   let body: { customer_id?: unknown; force_send?: unknown }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid body' }, { status: 400 }) }

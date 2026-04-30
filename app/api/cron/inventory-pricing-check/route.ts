@@ -3,11 +3,21 @@ import { validateCronAuth } from '@/lib/cron/validateCronAuth'
 import { createServiceClient } from '@/lib/supabase/service'
 import { sendNotificationEmail } from '@/lib/email/notify'
 import { startCronRun, finishCronRun } from '@/lib/cron/runLogger'
-import { assessPricing, RATING_LABEL, type PricingRating } from '@/lib/pricing/pricingAssessment'
+import { assessPricing, type PricingRating } from '@/lib/pricing/pricingAssessment'
 import { formatCurrency } from '@/lib/utils'
 
 export const runtime = 'nodejs'
 export const maxDuration = 55
+
+interface MarketDataLike {
+  fairMarketPrice?: number | null
+  fastSalePrice?: number | null
+  maxReturnPrice?: number | null
+  fmvRangeLow?: number | null
+  fmvRangeHigh?: number | null
+  confidence?: string | null
+  avgDom?: number | null
+}
 
 export async function GET(req: NextRequest) {
   const denied = validateCronAuth(req)
@@ -49,7 +59,7 @@ export async function GET(req: NextRequest) {
       // Assess each vehicle
       const assessed = vehicles.map(v => {
         const daysOnLot = Math.floor((Date.now() - new Date(v.created_at).getTime()) / 86400000)
-        const pricing = assessPricing(v.price, v.market_data_json as any)
+        const pricing = assessPricing(v.price, v.market_data_json as MarketDataLike | null | undefined)
         return { v, pricing, daysOnLot }
       })
 
@@ -75,7 +85,6 @@ export async function GET(req: NextRequest) {
 
         const html = buildPricingEmail({
           dealerName: org.name,
-          recipientName: admin.display_name,
           dateStr,
           assessed,
           grouped,
@@ -88,8 +97,9 @@ export async function GET(req: NextRequest) {
         emailsSent++
       }
     }
-  } catch (err: any) {
-    await finishCronRun(runId, 'error', emailsSent, err?.message)
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    await finishCronRun(runId, 'error', emailsSent, message)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 
@@ -115,7 +125,6 @@ interface VehicleRow {
 
 function buildPricingEmail({
   dealerName,
-  recipientName,
   dateStr,
   assessed,
   grouped,
@@ -124,7 +133,6 @@ function buildPricingEmail({
   appUrl,
 }: {
   dealerName: string
-  recipientName: string
   dateStr: string
   assessed: VehicleRow[]
   grouped: Record<PricingRating, VehicleRow[]>

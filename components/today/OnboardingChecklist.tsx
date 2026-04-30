@@ -29,22 +29,19 @@ const ITEMS: { key: keyof CheckItems; label: string; href: string }[] = [
 const STORAGE_KEY = (orgId: string) => `dealerwyze_onboarding_dismissed_${orgId}`
 const DAYS_7 = 7 * 24 * 60 * 60 * 1000
 
+function shouldShowChecklist(orgId: string, onboardingCompletedAt: string | null): boolean {
+  if (!onboardingCompletedAt || typeof window === 'undefined') return false
+  if (localStorage.getItem(STORAGE_KEY(orgId)) === '1') return false
+
+  const completedAt = new Date(onboardingCompletedAt).getTime()
+  return Date.now() - completedAt < DAYS_7
+}
+
 export default function OnboardingChecklist({ orgId, onboardingCompletedAt, checkItems }: Props) {
-  const [visible, setVisible] = useState(false)
+  const [visible, setVisible] = useState(() => shouldShowChecklist(orgId, onboardingCompletedAt))
 
   const completed = ITEMS.filter(i => checkItems[i.key]).length
   const allDone   = completed === ITEMS.length
-
-  useEffect(() => {
-    if (!onboardingCompletedAt) return
-    if (typeof window === 'undefined') return
-    if (localStorage.getItem(STORAGE_KEY(orgId)) === '1') return
-
-    const completedAt = new Date(onboardingCompletedAt).getTime()
-    const withinWindow = Date.now() - completedAt < DAYS_7
-
-    if (withinWindow) setVisible(true)
-  }, [orgId, onboardingCompletedAt])
 
   const dismiss = useCallback(() => {
     localStorage.setItem(STORAGE_KEY(orgId), '1')

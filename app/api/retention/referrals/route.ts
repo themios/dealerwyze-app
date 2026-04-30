@@ -5,7 +5,7 @@
 
 import { NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import { canAccessReports } from '@/lib/auth/dealerRoles'
 
 export async function GET() {
@@ -14,7 +14,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   // Fetch customers with referrals for this org
   const { data: referred } = await supabase

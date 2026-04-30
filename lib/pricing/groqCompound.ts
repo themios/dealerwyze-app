@@ -7,6 +7,14 @@ export interface CompoundMarketIntel {
   report: string
 }
 
+type GroqCompletionResponse = {
+  choices?: Array<{
+    message?: {
+      content?: string
+    }
+  }>
+}
+
 /** Convert HTML fragments the model sometimes emits into plain markdown. */
 function htmlToMarkdown(text: string): string {
   return text
@@ -105,7 +113,7 @@ Rules: Separate facts vs estimates vs assumptions. Avoid marketing fluff. Write 
       return null
     }
 
-    const data = await res.json()
+    const data = await res.json() as GroqCompletionResponse
     const content: string = data.choices?.[0]?.message?.content?.trim() ?? ''
     console.log('[GroqCompound] response length:', content.length, '| model:', GROQ_COMPOUND_MODEL)
 
@@ -115,11 +123,11 @@ Rules: Separate facts vs estimates vs assumptions. Avoid marketing fluff. Write 
     }
 
     return { report: htmlToMarkdown(content) }
-  } catch (err: any) {
-    if (err?.name === 'AbortError') {
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
       console.warn('[GroqCompound] Timed out after 55s')
     } else {
-      console.warn('[GroqCompound] error:', err?.message)
+      console.warn('[GroqCompound] error:', err instanceof Error ? err.message : err)
     }
     return null
   }

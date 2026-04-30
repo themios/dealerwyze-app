@@ -60,7 +60,6 @@ export const KineticText: React.FC<{
   wordStyle?: React.CSSProperties;
 }> = ({ text, startFrame, wordDelay = 4, style, wordStyle }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
   const words = text.split(' ');
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25em', ...style }}>
@@ -116,7 +115,7 @@ export const Ripple: React.FC<{ cx?: string; cy?: string; color?: string }> = ({
         const t = ((frame + offset) % 90) / 90;
         const r = 60 + t * 300;
         const op = (1 - t) * 0.3;
-        return <circle key={i} cx={width / 2} cy={height / 2} r={r} fill="none" stroke={color} strokeWidth={2} opacity={op} />;
+        return <circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={2} opacity={op} />;
       })}
     </svg>
   );

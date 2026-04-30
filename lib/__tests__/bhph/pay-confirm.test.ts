@@ -65,6 +65,7 @@ function makeConfirmRequest(payment_intent_id = 'pi_test_001') {
 }
 
 const routeParams = { params: Promise.resolve({ token: 'test-token' }) }
+type MockOnce = { mockResolvedValueOnce: (value: unknown) => unknown }
 
 // ── Test suites ───────────────────────────────────────────────────────────────
 
@@ -73,11 +74,11 @@ describe('pay/[token] confirm branch — happy path', () => {
     vi.clearAllMocks()
 
     // Token lookup (confirm branch reads by token string)
-    supabase._table('bhph_payment_tokens').maybeSingle
+    ;(supabase._table('bhph_payment_tokens').maybeSingle as MockOnce)
       .mockResolvedValueOnce({ data: FAKE_TOKEN_ROW, error: null })
 
     // Org settings lookup (for Stripe secret key)
-    supabase._table('org_settings').maybeSingle
+    ;(supabase._table('org_settings').maybeSingle as MockOnce)
       .mockResolvedValueOnce({ data: FAKE_ORG, error: null })
 
     // Stripe verify fetch
@@ -93,7 +94,7 @@ describe('pay/[token] confirm branch — happy path', () => {
   it('returns 200 { ok: true } on successful payment', async () => {
     const res = await POST(makeConfirmRequest(), routeParams)
     expect(res.status).toBe(200)
-    const body = await res.json()
+    const body = await res.json() as Record<string, unknown>
     expect(body).toEqual({ ok: true })
   })
 
@@ -124,10 +125,10 @@ describe('pay/[token] confirm branch — idempotency (already_processed)', () =>
   beforeEach(() => {
     vi.clearAllMocks()
 
-    supabase._table('bhph_payment_tokens').maybeSingle
+    ;(supabase._table('bhph_payment_tokens').maybeSingle as MockOnce)
       .mockResolvedValueOnce({ data: FAKE_TOKEN_ROW, error: null })
 
-    supabase._table('org_settings').maybeSingle
+    ;(supabase._table('org_settings').maybeSingle as MockOnce)
       .mockResolvedValueOnce({ data: FAKE_ORG, error: null })
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({
@@ -142,7 +143,7 @@ describe('pay/[token] confirm branch — idempotency (already_processed)', () =>
   it('returns 200 { ok: true, already_processed: true } without error', async () => {
     const res = await POST(makeConfirmRequest(), routeParams)
     expect(res.status).toBe(200)
-    const body = await res.json()
+    const body = await res.json() as Record<string, unknown>
     expect(body).toEqual({ ok: true, already_processed: true })
   })
 })
@@ -151,10 +152,10 @@ describe('pay/[token] confirm branch — RPC failure', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    supabase._table('bhph_payment_tokens').maybeSingle
+    ;(supabase._table('bhph_payment_tokens').maybeSingle as MockOnce)
       .mockResolvedValueOnce({ data: FAKE_TOKEN_ROW, error: null })
 
-    supabase._table('org_settings').maybeSingle
+    ;(supabase._table('org_settings').maybeSingle as MockOnce)
       .mockResolvedValueOnce({ data: FAKE_ORG, error: null })
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({
@@ -172,7 +173,7 @@ describe('pay/[token] confirm branch — RPC failure', () => {
   it('returns 500 { error: Could not finalize payment }', async () => {
     const res = await POST(makeConfirmRequest(), routeParams)
     expect(res.status).toBe(500)
-    const body = await res.json()
+    const body = await res.json() as Record<string, unknown>
     expect(body).toEqual({ error: 'Could not finalize payment' })
   })
 })
@@ -181,10 +182,10 @@ describe('pay/[token] confirm branch — conflict (different PI on paid token)',
   beforeEach(() => {
     vi.clearAllMocks()
 
-    supabase._table('bhph_payment_tokens').maybeSingle
+    ;(supabase._table('bhph_payment_tokens').maybeSingle as MockOnce)
       .mockResolvedValueOnce({ data: FAKE_TOKEN_ROW, error: null })
 
-    supabase._table('org_settings').maybeSingle
+    ;(supabase._table('org_settings').maybeSingle as MockOnce)
       .mockResolvedValueOnce({ data: FAKE_ORG, error: null })
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({
@@ -199,7 +200,83 @@ describe('pay/[token] confirm branch — conflict (different PI on paid token)',
   it('returns 409 { error: Token already processed }', async () => {
     const res = await POST(makeConfirmRequest(), routeParams)
     expect(res.status).toBe(409)
-    const body = await res.json()
+    const body = await res.json() as Record<string, unknown>
     expect(body).toEqual({ error: 'Token already processed' })
+  })
+})
+
+describe('pay/[token] confirm branch — input validation', () => {
+  it('returns 400 when payment_intent_id is missing', async () => {
+    vi.clearAllMocks()
+    const req = new Request('http://localhost/api/pay/test-token', {
+      method:  'POST',
+      headers: { 'content-type': 'application/json' },
+      body:    JSON.stringify({ action: 'confirm' }),
+    }) as unknown as NextRequest
+    const res = await POST(req, routeParams)
+    expect(res.status).toBe(400)
+    const body = await res.json() as Record<string, unknown>
+    expect(body).toHaveProperty('error')
+  })
+})
+
+describe('pay/[token] confirm branch — token guard', () => {
+  it('returns 410 when token is not found', async () => {
+    vi.clearAllMocks()
+    ;(supabase._table('bhph_payment_tokens').maybeSingle as MockOnce)
+      .mockResolvedValueOnce({ data: null, error: null })
+    const res = await POST(makeConfirmRequest(), routeParams)
+    expect(res.status).toBe(410)
+  })
+
+  it('returns 410 when token is already paid', async () => {
+    vi.clearAllMocks()
+    ;(supabase._table('bhph_payment_tokens').maybeSingle as MockOnce)
+      .mockResolvedValueOnce({ data: { ...FAKE_TOKEN_ROW, status: 'paid' }, error: null })
+    const res = await POST(makeConfirmRequest(), routeParams)
+    expect(res.status).toBe(410)
+  })
+})
+
+describe('pay/[token] confirm branch — Stripe verify failures', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    ;(supabase._table('bhph_payment_tokens').maybeSingle as MockOnce)
+      .mockResolvedValueOnce({ data: FAKE_TOKEN_ROW, error: null })
+    ;(supabase._table('org_settings').maybeSingle as MockOnce)
+      .mockResolvedValueOnce({ data: FAKE_ORG, error: null })
+  })
+
+  it('returns 502 when Stripe verify fetch fails', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({ ok: false }))
+    const res = await POST(makeConfirmRequest(), routeParams)
+    expect(res.status).toBe(502)
+  })
+
+  it('returns 409 when PI status is not succeeded', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({
+      ok:   true,
+      json: () => Promise.resolve({ ...FAKE_PI, status: 'requires_payment_method' }),
+    }))
+    const res = await POST(makeConfirmRequest(), routeParams)
+    expect(res.status).toBe(409)
+  })
+
+  it('returns 409 when PI amount does not match token amount', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({
+      ok:   true,
+      json: () => Promise.resolve({ ...FAKE_PI, amount: 99999 }),
+    }))
+    const res = await POST(makeConfirmRequest(), routeParams)
+    expect(res.status).toBe(409)
+  })
+
+  it('returns 409 when PI metadata token does not match', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({
+      ok:   true,
+      json: () => Promise.resolve({ ...FAKE_PI, metadata: { bhph_payment_token: 'different-token-id' } }),
+    }))
+    const res = await POST(makeConfirmRequest(), routeParams)
+    expect(res.status).toBe(409)
   })
 })

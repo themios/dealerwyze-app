@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { google } from 'googleapis'
 import { requireProfile } from '@/lib/auth/profile'
+import { canManageUsers } from '@/lib/auth/dealerRoles'
 import { createClient } from '@/lib/supabase/server'
 import crypto from 'crypto'
 
@@ -12,6 +13,9 @@ import crypto from 'crypto'
  */
 export async function GET(req: NextRequest) {
   const profile = await requireProfile()
+  if (!canManageUsers(profile.role)) {
+    return NextResponse.json({ error: 'Only admins can connect Gmail' }, { status: 403 })
+  }
   const from = req.nextUrl.searchParams.get('from') ?? ''
 
   // Generate a one-time CSRF token and store it server-side so the callback

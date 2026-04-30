@@ -1,7 +1,32 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { STORAGE_BASE_QUOTA, STORAGE_PACK_QUOTA, STORAGE_PACK_LABEL } from '@/lib/stripe'
+import { STORAGE_BASE_QUOTA, STORAGE_PACK_QUOTA } from '@/lib/stripe'
+
+interface GroupedDoc {
+  id: string
+  label: string
+  file_name: string
+  file_size: number | null
+  created_at: string
+}
+
+interface VehicleStorageGroup {
+  vehicle_id: string
+  label: string
+  status: string
+  doc_count: number
+  total_bytes: number
+  docs: GroupedDoc[]
+}
+
+interface CustomerStorageGroup {
+  customer_id: string
+  label: string
+  doc_count: number
+  total_bytes: number
+  docs: GroupedDoc[]
+}
 
 // GET /api/settings/storage
 // Returns org document storage usage stats grouped by vehicle and customer
@@ -39,7 +64,7 @@ export async function GET(): Promise<NextResponse> {
   const totalBytes = [...allVehicleDocs, ...allCustomerDocs].reduce((s, d) => s + (d.file_size ?? 0), 0)
 
   // --- Vehicle section ---
-  let vehicleList: object[] = []
+  let vehicleList: VehicleStorageGroup[] = []
   if (allVehicleDocs.length > 0) {
     const vehicleIds = [...new Set(allVehicleDocs.map(d => d.vehicle_id))]
     const { data: vehicles } = await supabase
@@ -49,11 +74,7 @@ export async function GET(): Promise<NextResponse> {
       .in('id', vehicleIds)
     const vehicleMap = new Map((vehicles ?? []).map(v => [v.id, v]))
 
-    const byVehicle = new Map<string, {
-      vehicle_id: string; label: string; status: string
-      doc_count: number; total_bytes: number
-      docs: { id: string; label: string; file_name: string; file_size: number | null; created_at: string }[]
-    }>()
+    const byVehicle = new Map<string, VehicleStorageGroup>()
     for (const doc of allVehicleDocs) {
       const v = vehicleMap.get(doc.vehicle_id)
       if (!byVehicle.has(doc.vehicle_id)) {
@@ -69,11 +90,11 @@ export async function GET(): Promise<NextResponse> {
       entry.total_bytes += doc.file_size ?? 0
       entry.docs.push({ id: doc.id, label: doc.label, file_name: doc.file_name, file_size: doc.file_size, created_at: doc.created_at })
     }
-    vehicleList = [...byVehicle.values()].sort((a: any, b: any) => b.total_bytes - a.total_bytes)
+    vehicleList = [...byVehicle.values()].sort((a, b) => b.total_bytes - a.total_bytes)
   }
 
   // --- Customer section ---
-  let customerList: object[] = []
+  let customerList: CustomerStorageGroup[] = []
   if (allCustomerDocs.length > 0) {
     const customerIds = [...new Set(allCustomerDocs.map(d => d.customer_id))]
     const { data: customers } = await supabase
@@ -83,11 +104,7 @@ export async function GET(): Promise<NextResponse> {
       .in('id', customerIds)
     const customerMap = new Map((customers ?? []).map(c => [c.id, c]))
 
-    const byCustomer = new Map<string, {
-      customer_id: string; label: string
-      doc_count: number; total_bytes: number
-      docs: { id: string; label: string; file_name: string; file_size: number | null; created_at: string }[]
-    }>()
+    const byCustomer = new Map<string, CustomerStorageGroup>()
     for (const doc of allCustomerDocs) {
       const c = customerMap.get(doc.customer_id)
       if (!byCustomer.has(doc.customer_id)) {
@@ -102,7 +119,7 @@ export async function GET(): Promise<NextResponse> {
       entry.total_bytes += doc.file_size ?? 0
       entry.docs.push({ id: doc.id, label: doc.label, file_name: doc.file_name, file_size: doc.file_size, created_at: doc.created_at })
     }
-    customerList = [...byCustomer.values()].sort((a: any, b: any) => b.total_bytes - a.total_bytes)
+    customerList = [...byCustomer.values()].sort((a, b) => b.total_bytes - a.total_bytes)
   }
 
   // Determine effective quota

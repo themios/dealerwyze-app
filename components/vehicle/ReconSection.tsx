@@ -37,14 +37,16 @@ interface Props {
   vehicleId: string
   canEdit: boolean
   canDelete: boolean
+  canManageTemplate?: boolean
 }
 
-export default function ReconSection({ vehicleId, canEdit, canDelete }: Props) {
+export default function ReconSection({ vehicleId, canEdit, canDelete, canManageTemplate = false }: Props) {
   const [items, setItems] = useState<ReconChecklistItem[]>([])
   const [costSummary, setCostSummary] = useState<ReconCostSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [addLabel, setAddLabel] = useState('')
   const [adding, setAdding] = useState(false)
+  const [addScope, setAddScope] = useState<'vehicle' | 'all'>('vehicle')
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/vehicles/${vehicleId}/recon`)
@@ -56,7 +58,22 @@ export default function ReconSection({ vehicleId, canEdit, canDelete }: Props) {
     setLoading(false)
   }, [vehicleId])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    let cancelled = false
+
+    fetch(`/api/vehicles/${vehicleId}/recon`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (cancelled || !data) return
+        setItems(data.items)
+        setCostSummary(data.cost_summary)
+        setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [vehicleId])
 
   async function handleToggle(id: string, checked: boolean) {
     setItems(prev => prev.map(i => i.id === id ? { ...i, checked, completed_at: checked ? new Date().toISOString() : null } : i))
@@ -98,12 +115,17 @@ export default function ReconSection({ vehicleId, canEdit, canDelete }: Props) {
     const res = await fetch(`/api/vehicles/${vehicleId}/recon`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ label }),
+      body: JSON.stringify({ label, apply_to_all: canManageTemplate && addScope === 'all' }),
     })
     if (res.ok) {
       const data = await res.json()
-      setItems(prev => [...prev, data.item])
+      if (data.item) {
+        setItems(prev => prev.some(item => item.id === data.item.id) ? prev : [...prev, data.item])
+      } else {
+        await load()
+      }
       setAddLabel('')
+      setAddScope('vehicle')
     }
     setAdding(false)
   }
@@ -153,19 +175,37 @@ export default function ReconSection({ vehicleId, canEdit, canDelete }: Props) {
       </div>
 
       {canEdit && (
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={addLabel}
-            onChange={e => setAddLabel(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleAdd()}
-            placeholder="Add checklist item..."
-            className="flex-1 rounded-md border px-3 py-2 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-            maxLength={120}
-          />
-          <Button size="sm" onClick={handleAdd} disabled={adding || !addLabel.trim()}>
-            <Plus className="h-4 w-4" />
-          </Button>
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={addLabel}
+              onChange={e => setAddLabel(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAdd()}
+              placeholder="Add checklist item..."
+              className="flex-1 rounded-md border px-3 py-2 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+              maxLength={120}
+            />
+            <Button size="sm" onClick={handleAdd} disabled={adding || !addLabel.trim()}>
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+          {canManageTemplate && (
+            <div className="flex items-center justify-between rounded-md border bg-card px-3 py-2">
+              <div>
+                <p className="text-xs font-medium">Add scope</p>
+                <p className="text-[11px] text-muted-foreground">Choose whether this item is only for this unit or all active inventory vehicles.</p>
+              </div>
+              <select
+                value={addScope}
+                onChange={e => setAddScope(e.target.value === 'all' ? 'all' : 'vehicle')}
+                className="rounded-md border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="vehicle">Just this vehicle</option>
+                <option value="all">All vehicles</option>
+              </select>
+            </div>
+          )}
         </div>
       )}
     </div>

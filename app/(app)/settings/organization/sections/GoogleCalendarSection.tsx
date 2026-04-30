@@ -1,11 +1,15 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Calendar } from 'lucide-react'
 
 export default function GoogleCalendarSection() {
-  const [calendarConnected, setCalendarConnected] = useState(false)
+  const [calendarConnected, setCalendarConnected] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return new URLSearchParams(window.location.search).get('calendar') === 'connected'
+  })
 
   useEffect(() => {
     fetch('/api/settings/org')
@@ -14,10 +18,7 @@ export default function GoogleCalendarSection() {
         setCalendarConnected(!!d.calendar_connected)
       })
 
-    const params = new URLSearchParams(window.location.search)
-    const calendar = params.get('calendar')
-    if (calendar === 'connected') {
-      setCalendarConnected(true)
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('calendar') === 'connected') {
       window.history.replaceState({}, '', window.location.pathname)
     }
   }, [])
@@ -47,12 +48,12 @@ export default function GoogleCalendarSection() {
       ) : (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">Connect to sync appointment bookings to Google Calendar.</p>
-          <a href="/api/google/calendar-connect">
-            <Button variant="outline" size="sm" className="gap-2">
+          <Button asChild variant="outline" size="sm" className="gap-2">
+            <Link href="/api/google/calendar-connect">
               <Calendar className="h-4 w-4" />
               Connect Google Calendar
-            </Button>
-          </a>
+            </Link>
+          </Button>
         </div>
       )}
     </div>

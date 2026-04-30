@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
+import { canManageUsers } from '@/lib/auth/dealerRoles'
 import { createClient } from '@/lib/supabase/server'
 
 /**
@@ -8,6 +9,9 @@ import { createClient } from '@/lib/supabase/server'
  */
 export async function DELETE() {
   const profile = await requireProfile()
+  if (!canManageUsers(profile.role)) {
+    return NextResponse.json({ error: 'Only admins can disconnect Gmail' }, { status: 403 })
+  }
   const supabase = await createClient()
 
   await supabase

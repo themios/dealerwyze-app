@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 
 // ── GET /api/customer-sequences?customer_id=... ───────────────────────────────
 // Returns per-channel enrollment status: { email: EnrollmentEntry | null, sms: EnrollmentEntry | null }
 export async function GET(req: NextRequest) {
   const profile = await requireProfile()
-  const service = createServiceClient()
+  const service = await createClient()
   const customerId = req.nextUrl.searchParams.get('customer_id')
 
   if (!customerId) return NextResponse.json({ error: 'customer_id required' }, { status: 400 })
@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
 // enrollment for the same channel first.
 export async function POST(req: NextRequest) {
   const profile = await requireProfile()
-  const service = createServiceClient()
+  const service = await createClient()
 
   let body: Record<string, unknown>
   try {

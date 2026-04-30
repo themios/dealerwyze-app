@@ -8,7 +8,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 
 interface SegmentFilters {
   lead_state?:          string
@@ -20,7 +20,7 @@ interface SegmentFilters {
 
 export async function GET(req: NextRequest) {
   const profile = await requireProfile()
-  const service = createServiceClient()
+  const service = await createClient()
 
   const id = req.nextUrl.searchParams.get('id')
   if (!id) {
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const profile = await requireProfile()
-  const service = createServiceClient()
+  const service = await createClient()
 
   let body: { filters?: SegmentFilters }
   try {

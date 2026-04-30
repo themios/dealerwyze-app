@@ -48,37 +48,38 @@ export default function EmailButton({
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [attachments, setAttachments] = useState<Attachment[]>([])
-  const [displayName, setDisplayName] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const supabase    = createClient()
   const orgSettings = useOrgSettings()
 
+  function primeTemplateLoad() {
+    setLoadingTemplates(true)
+  }
+
   // Auto-open in reply mode when replyContext is set by parent
   useEffect(() => {
     if (!replyContext) return
-    const reSubject = replyContext.subject.startsWith('Re:')
-      ? replyContext.subject
-      : `Re: ${replyContext.subject}`
-    setActiveReplyCtx(replyContext)
-    setIsReply(true)
-    setIsBlank(false)
-    setSelected(null)
-    setSubject(reSubject)
-    setBody('')
-    setAttachments([])
-    setSendError(null)
-    setOpen(true)
-  }, [replyContext])  
+    const timer = window.setTimeout(() => {
+      const reSubject = replyContext.subject.startsWith('Re:')
+        ? replyContext.subject
+        : `Re: ${replyContext.subject}`
+      primeTemplateLoad()
+      setActiveReplyCtx(replyContext)
+      setIsReply(true)
+      setIsBlank(false)
+      setSelected(null)
+      setSubject(reSubject)
+      setBody('')
+      setAttachments([])
+      setSendError(null)
+      setOpen(true)
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [replyContext])
 
   useEffect(() => {
     if (!open) return
-    setDisplayName(null)
-    fetch('/api/auth/me')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => setDisplayName(d?.display_name ?? null))
-      .catch(() => setDisplayName(null))
-    setLoadingTemplates(true)
     let cancelled = false
     supabase
       .from('templates')
@@ -187,7 +188,10 @@ export default function EmailButton({
         variant="outline"
         size="lg"
         className={`border-[#0D2B55] text-[#0D2B55] hover:bg-[#0D2B55]/10 ${buttonClassName ?? ''}`.trim()}
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          primeTemplateLoad()
+          setOpen(true)
+        }}
       >
         <Mail className={`h-4 w-4 ${labelClassName ? 'mr-2' : ''}`.trim()} />
         <span className={labelClassName}>Email</span>

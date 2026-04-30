@@ -1,7 +1,7 @@
 // app/(app)/pulse/PulseDashboard.tsx
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { BarChart3 } from 'lucide-react'
@@ -33,18 +33,26 @@ export default function PulseDashboard() {
   const [enabled, setEnabled]   = useState<boolean | null>(null)
   const [toggling, setToggling] = useState(false)
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    const [scoresRes, settingsRes] = await Promise.all([
+  useEffect(() => {
+    let cancelled = false
+
+    Promise.all([
       fetch(`/api/pulse/scores?days=${days}`),
       fetch('/api/settings/pulse'),
-    ])
-    if (scoresRes.ok)   setData(await scoresRes.json())
-    if (settingsRes.ok) { const s = await settingsRes.json(); setEnabled(!!s.pulse_enabled) }
-    setLoading(false)
-  }, [days])
+    ]).then(async ([scoresRes, settingsRes]) => {
+      if (cancelled) return
+      if (scoresRes.ok) setData(await scoresRes.json())
+      if (settingsRes.ok) {
+        const s = await settingsRes.json()
+        if (!cancelled) setEnabled(!!s.pulse_enabled)
+      }
+      if (!cancelled) setLoading(false)
+    })
 
-  useEffect(() => { load() }, [load])
+    return () => {
+      cancelled = true
+    }
+  }, [days])
 
   async function toggleEnabled() {
     if (enabled === null) return
@@ -99,7 +107,10 @@ export default function PulseDashboard() {
             key={d}
             variant="outline"
             size="sm"
-            onClick={() => setDays(d)}
+            onClick={() => {
+              setLoading(true)
+              setDays(d)
+            }}
             className={cn(
               'text-xs font-semibold transition-colors',
               days === d

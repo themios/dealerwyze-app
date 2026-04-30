@@ -56,10 +56,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const supabase = await createClient()
-  const service  = createServiceClient()
+  const storage  = createServiceClient()
 
   // ── Fax page cap check (50 pages/mo default) ─────────────────────────────
-  const { data: orgUsage } = await service
+  const { data: orgUsage } = await supabase
     .from('organizations')
     .select('monthly_fax_pages, fax_page_cap, subscription_status')
     .eq('id', profile.org_id)
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const arrayBuf   = await file.arrayBuffer()
 
   // Upload to private fax-docs bucket
-  const { error: uploadErr } = await service.storage
+  const { error: uploadErr } = await storage.storage
     .from(BUCKET)
     .upload(file_key, new Uint8Array(arrayBuf), { contentType: file.type, upsert: false })
 
@@ -101,12 +101,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   // Signed URL valid 1 hour — Twilio fetches the file almost immediately
-  const { data: signed } = await service.storage
+  const { data: signed } = await storage.storage
     .from(BUCKET)
     .createSignedUrl(file_key, 3600)
 
   if (!signed?.signedUrl) {
-    await service.storage.from(BUCKET).remove([file_key])
+    await storage.storage.from(BUCKET).remove([file_key])
     return NextResponse.json({ error: 'Could not generate file URL' }, { status: 500 })
   }
 
@@ -115,7 +115,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const result = await sendFax(toNumber, fromNumber, signed.signedUrl, callbackUrl)
 
   if (!result.ok) {
-    await service.storage.from(BUCKET).remove([file_key])
+    await storage.storage.from(BUCKET).remove([file_key])
     return NextResponse.json({ error: result.error ?? 'Fax failed' }, { status: 502 })
   }
 
@@ -141,7 +141,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   // Increment fax page counter (1 page per fax; adjust if multi-page support added later)
-  void service.rpc('increment_fax_pages', { p_org_id: profile.org_id, p_pages: 1 })
+  void supabase.rpc('increment_fax_pages', { p_org_id: profile.org_id, p_pages: 1 })
 
   return NextResponse.json({ success: true, fax: faxRow }, { status: 201 })
 }

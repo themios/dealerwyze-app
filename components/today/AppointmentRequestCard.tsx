@@ -10,7 +10,7 @@ import DateTimePicker15 from '@/components/ui/DateTimePicker15'
 
 interface Props {
   activity: Activity & {
-    customer: { id: string; name: string; primary_phone: string }
+    customer: { id: string; name: string; primary_phone: string; email?: string | null }
   }
   onUpdate: () => void
 }
@@ -24,7 +24,6 @@ function toLocalDatetimeValue(d: Date): string {
 export default function AppointmentRequestCard({ activity, onUpdate }: Props) {
   const customer = activity.customer
   const openCustomer = useOpenCustomer()
-  if (!customer) return null
 
   const handleCardClick = () => openCustomer(activity.id, customer.id)
 
@@ -36,6 +35,8 @@ export default function AppointmentRequestCard({ activity, onUpdate }: Props) {
   const [datetime, setDatetime] = useState(toLocalDatetimeValue(defaultDate))
   const [saving, setSaving] = useState(false)
   const [dismissing, setDismissing] = useState(false)
+
+  if (!customer) return null
 
   async function handleSchedule() {
     setSaving(true)
@@ -49,7 +50,7 @@ export default function AppointmentRequestCard({ activity, onUpdate }: Props) {
           customer_id:    customer.id,
           customer_name:  customer.name,
           customer_phone: customer.primary_phone,
-          customer_email: (activity.customer as any)?.email ?? '',
+          customer_email: customer.email ?? '',
           original_body:  activity.body ?? '',
         }),
       })
@@ -104,7 +105,7 @@ export default function AppointmentRequestCard({ activity, onUpdate }: Props) {
       {activity.body && (
         <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
           <MessageSquare className="h-3 w-3 mt-0.5 flex-shrink-0" />
-          <p className="italic">"{activity.body}"</p>
+          <p className="italic">&quot;{activity.body}&quot;</p>
         </div>
       )}
 

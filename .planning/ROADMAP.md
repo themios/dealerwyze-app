@@ -181,8 +181,8 @@ Plans:
 
 2. **Gmail legacy path (OPS-02):**
    - Confirm Pub/Sub subscription is pointing to OIDC path (`/api/gmail/webhook`)
-   - Remove `app/api/integrations/gmail/push/route.ts` and all references to `PUBSUB_VERIFICATION_TOKEN`
-   - Add to CLAUDE.md: legacy path removed, do not re-add
+   - Removed `app/api/integrations/gmail/push/route.ts` and all references to `PUBSUB_VERIFICATION_TOKEN`
+   - Added to `CLAUDE.md`: legacy path removed, do not re-add
 
 3. **Email sanitization (OPS-03):**
    - Install `isomorphic-dompurify`

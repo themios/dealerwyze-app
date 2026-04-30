@@ -76,13 +76,13 @@ export default function ReviewCard({ review, onReplied }: Props) {
       </div>
 
       {review.comment && (
-        <p className="text-xs text-muted-foreground italic">"{review.comment}"</p>
+        <p className="text-xs text-muted-foreground italic">&quot;{review.comment}&quot;</p>
       )}
 
       {review.reply_comment ? (
         <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
           <CheckCircle2 className="h-3 w-3 mt-0.5 shrink-0 text-green-500" />
-          <p>Replied: "{review.reply_comment}"</p>
+          <p>Replied: &quot;{review.reply_comment}&quot;</p>
         </div>
       ) : !open ? (
         <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => setOpen(true)}>

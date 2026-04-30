@@ -1,10 +1,10 @@
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from '@/lib/auth/profile'
 import RetentionSettingsClient from './RetentionSettingsClient'
 
 export default async function RetentionSettingsPage() {
   const profile  = await requireProfile()
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   const [{ data: settings }, { data: sequences }, { data: orgSettings }] = await Promise.all([
     supabase

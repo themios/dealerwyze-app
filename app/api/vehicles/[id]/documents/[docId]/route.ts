@@ -35,6 +35,16 @@ export async function DELETE(
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
+    // ✓ Security: Verify storage path includes org_id prefix to prevent cross-org file deletion
+    const expectedPrefix = `${profile.org_id}/`
+    if (!doc.file_key.startsWith(expectedPrefix)) {
+      console.warn(
+        '[vehicle documents DELETE] Rejected storage access: file_key does not belong to org',
+        { fileKey: doc.file_key, orgId: profile.org_id }
+      )
+      return NextResponse.json({ error: 'Unauthorized: invalid file path' }, { status: 403 })
+    }
+
     // Delete DB record first — if storage fails, better to orphan than to leave a dangling DB row
     const { error: dbErr } = await supabase
       .from('vehicle_documents')

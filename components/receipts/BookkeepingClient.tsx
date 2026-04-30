@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Plus, Pencil, Trash2, X, Check, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -29,7 +28,6 @@ interface FormState {
 const emptyForm: FormState = { name: '', requires_vehicle: false, qb_account_name: '' }
 
 export default function BookkeepingClient({ categories: initial }: Props) {
-  const router = useRouter()
   const [categories, setCategories] = useState(initial)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)

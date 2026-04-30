@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import TopBar from '@/components/layout/TopBar'
 import {
-  ArrowLeft, User, Users, DollarSign, Clock, CheckCircle2,
+  ArrowLeft, User, Clock, CheckCircle2,
   ExternalLink, Building2, Loader2, UserPlus, X,
 } from 'lucide-react'
 
@@ -89,7 +89,34 @@ export default function AffiliateDetailPage() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [code])
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadInitial() {
+      const res = await fetch(`/api/admin/affiliates/${code}`)
+      if (!res.ok) {
+        if (!cancelled) {
+          setError('Affiliate not found')
+          setLoading(false)
+        }
+        return
+      }
+
+      const d = await res.json()
+      if (cancelled) return
+
+      setData(d)
+      if (d.affiliate.owner_email) {
+        setInviteForm(f => ({ ...f, email: f.email || d.affiliate.owner_email, display_name: f.display_name || d.affiliate.owner_name }))
+      }
+      setLoading(false)
+    }
+
+    void loadInitial()
+    return () => {
+      cancelled = true
+    }
+  }, [code])
 
   async function handleInvite() {
     setInviteSaving(true)

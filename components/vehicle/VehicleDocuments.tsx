@@ -113,7 +113,7 @@ export default function VehicleDocuments({ vehicleId, vehicleStatus }: { vehicle
     }
   }
 
-  async function handleDelete(id: string, fileKey: string) {
+  async function handleDelete(id: string) {
     // Optimistic remove
     setDocs(prev => prev.filter(d => d.id !== id))
     setConfirmDelete(null)
@@ -224,7 +224,7 @@ export default function VehicleDocuments({ vehicleId, vehicleStatus }: { vehicle
                     {confirmDelete === doc.id ? (
                       <div className="flex items-center gap-1">
                         <button
-                          onClick={() => handleDelete(doc.id, doc.file_key)}
+                      onClick={() => handleDelete(doc.id)}
                           className="text-destructive text-[10px] font-medium px-1.5 py-0.5 rounded border border-destructive/40"
                         >
                           Del

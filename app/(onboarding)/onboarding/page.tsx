@@ -1,12 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Loader2, CheckCircle2, Building2, Car, Mail, Users,
-  LayoutDashboard, TrendingUp, MessageSquare, PhoneCall,
   Plus, Trash2, ChevronRight, AlertCircle,
 } from 'lucide-react'
 
@@ -233,7 +233,7 @@ function StepVehicle({ onNext, onSkip }: { onNext: () => void; onSkip: () => voi
         <div className="p-2 rounded-xl bg-primary/10"><Car className="h-6 w-6 text-primary" /></div>
         <div>
           <h2 className="text-xl font-bold">Add Your First Vehicle</h2>
-          <p className="text-sm text-muted-foreground">Enter a VIN and we'll fill in the details. Add the rest later.</p>
+          <p className="text-sm text-muted-foreground">Enter a VIN and we&apos;ll fill in the details. Add the rest later.</p>
         </div>
       </div>
 
@@ -273,7 +273,7 @@ function StepVehicle({ onNext, onSkip }: { onNext: () => void; onSkip: () => voi
       )}
 
       <Button variant="ghost" className="w-full text-muted-foreground" onClick={onSkip}>
-        Skip - I'll add inventory later
+        Skip - I&apos;ll add inventory later
       </Button>
     </div>
   )
@@ -281,7 +281,10 @@ function StepVehicle({ onNext, onSkip }: { onNext: () => void; onSkip: () => voi
 
 // ── Step 3: Connect Gmail ─────────────────────────────────────────────────────
 function StepGmail({ onNext, onSkip }: { onNext: () => void; onSkip: () => void }) {
-  const [connected, setConnected] = useState(false)
+  const [connected, setConnected] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return new URLSearchParams(window.location.search).get('gmail_connected') === '1'
+  })
   const [showImap, setShowImap] = useState(false)
   const [imapProvider, setImapProvider] = useState<'outlook' | 'yahoo' | 'apple' | 'gmail_app' | 'imap'>('outlook')
   const [imapHost, setImapHost] = useState('imap-mail.outlook.com')
@@ -293,13 +296,11 @@ function StepGmail({ onNext, onSkip }: { onNext: () => void; onSkip: () => void 
   const [imapError, setImapError] = useState<string | null>(null)
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    if (params.get('gmail_connected') === '1') {
+    if (connected) {
       window.history.replaceState({}, '', '/onboarding')
-      setConnected(true)
       setTimeout(() => onNext(), 1500)
     }
-  }, [onNext])
+  }, [connected, onNext])
 
   function handleProviderChange(p: typeof imapProvider) {
     setImapProvider(p)
@@ -392,7 +393,7 @@ function StepGmail({ onNext, onSkip }: { onNext: () => void; onSkip: () => void 
       </div>
 
       <div className="space-y-3">
-        <a
+        <Link
           href="/api/integrations/gmail/connect?from=onboarding"
           className="flex items-center justify-center gap-2 w-full bg-white border-2 border-border rounded-lg px-4 py-3 text-sm font-semibold hover:bg-accent transition-colors"
         >
@@ -403,7 +404,7 @@ function StepGmail({ onNext, onSkip }: { onNext: () => void; onSkip: () => void 
             <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
           </svg>
           Connect Gmail / Google Workspace
-        </a>
+        </Link>
 
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
@@ -524,7 +525,7 @@ function StepGmail({ onNext, onSkip }: { onNext: () => void; onSkip: () => void 
       )}
 
       <Button variant="ghost" className="w-full text-muted-foreground" onClick={onSkip}>
-        Skip - I'll connect email later in Settings
+        Skip - I&apos;ll connect email later in Settings
       </Button>
     </div>
   )
@@ -561,7 +562,7 @@ function StepTeam({ onNext, onSkip }: { onNext: () => void; onSkip: () => void }
     <div className="flex-1 flex flex-col items-center justify-center py-16 text-center gap-4 px-6">
       <Users className="h-12 w-12 text-primary" />
       <p className="font-semibold text-lg">{invited} invite{invited !== 1 ? 's' : ''} sent!</p>
-      <p className="text-sm text-muted-foreground">They'll get an email to set up their account.</p>
+      <p className="text-sm text-muted-foreground">They&apos;ll get an email to set up their account.</p>
     </div>
   )
 
@@ -607,7 +608,7 @@ function StepTeam({ onNext, onSkip }: { onNext: () => void; onSkip: () => void }
       </Button>
 
       <Button variant="ghost" className="w-full text-muted-foreground" onClick={onSkip}>
-        Skip - I'll add team members later
+        Skip - I&apos;ll add team members later
       </Button>
     </div>
   )
@@ -683,9 +684,9 @@ function StepComplete({ businessName, onFinish, finishing }: {
                 <li>Instant view of what&apos;s urgent versus what can wait</li>
                 <li>Daily habit that keeps your pipeline moving</li>
               </ul>
-              <a href="/today" className="mt-2 inline-flex text-[11px] font-semibold text-[#F07018] hover:underline">
+              <Link href="/today" className="mt-2 inline-flex text-[11px] font-semibold text-[#F07018] hover:underline">
                 Open Today and clear the list &rarr;
-              </a>
+              </Link>
             </div>
 
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
@@ -704,9 +705,9 @@ function StepComplete({ businessName, onFinish, finishing }: {
                 <li>Every message is saved to the customer&apos;s timeline</li>
                 <li>Faster responses that win more conversations</li>
               </ul>
-              <a href="/customers" className="mt-2 inline-flex text-[11px] font-semibold text-[#F07018] hover:underline">
+              <Link href="/customers" className="mt-2 inline-flex text-[11px] font-semibold text-[#F07018] hover:underline">
                 Open the Lead Inbox and reply to one new lead &rarr;
-              </a>
+              </Link>
             </div>
 
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
@@ -725,9 +726,9 @@ function StepComplete({ businessName, onFinish, finishing }: {
                 <li>Make faster price and promotion decisions</li>
                 <li>Turn inventory without sacrificing margin</li>
               </ul>
-              <a href="/vehicles" className="mt-2 inline-flex text-[11px] font-semibold text-[#F07018] hover:underline">
+              <Link href="/vehicles" className="mt-2 inline-flex text-[11px] font-semibold text-[#F07018] hover:underline">
                 Run Market Intelligence on 3 aging units &rarr;
-              </a>
+              </Link>
             </div>
 
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
@@ -746,9 +747,9 @@ function StepComplete({ businessName, onFinish, finishing }: {
                 <li>Professional, consistent communication every time</li>
                 <li>Trust-building experience customers can feel</li>
               </ul>
-              <a href="/customers" className="mt-2 inline-flex text-[11px] font-semibold text-[#F07018] hover:underline">
+              <Link href="/customers" className="mt-2 inline-flex text-[11px] font-semibold text-[#F07018] hover:underline">
                 Open an active deal and scan the full timeline &rarr;
-              </a>
+              </Link>
             </div>
 
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
@@ -767,9 +768,9 @@ function StepComplete({ businessName, onFinish, finishing }: {
                 <li>A consistent voice across your whole team</li>
                 <li>Follow-up that feels intentional, not random</li>
               </ul>
-              <a href="/settings/automation" className="mt-2 inline-flex text-[11px] font-semibold text-[#F07018] hover:underline">
+              <Link href="/settings/automation" className="mt-2 inline-flex text-[11px] font-semibold text-[#F07018] hover:underline">
                 Save one of your go-to follow-ups as a template &rarr;
-              </a>
+              </Link>
             </div>
 
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
@@ -792,9 +793,9 @@ function StepComplete({ businessName, onFinish, finishing }: {
                 <li>Never let after-hours calls die in voicemail</li>
                 <li>Operate like a bigger store without a bigger payroll</li>
               </ul>
-              <a href="/settings/organization" className="mt-2 inline-flex text-[11px] font-semibold text-[#F07018] hover:underline">
+              <Link href="/settings/organization" className="mt-2 inline-flex text-[11px] font-semibold text-[#F07018] hover:underline">
                 Explore Voice Assistant settings &rarr;
-              </a>
+              </Link>
             </div>
 
             <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-3">
@@ -813,9 +814,9 @@ function StepComplete({ businessName, onFinish, finishing }: {
                 <li>Posts to all connected platforms automatically</li>
                 <li>50 free listing videos per month included</li>
               </ul>
-              <a href="/settings/social" className="mt-2 inline-flex text-[11px] font-semibold text-[#F07018] hover:underline">
+              <Link href="/settings/social" className="mt-2 inline-flex text-[11px] font-semibold text-[#F07018] hover:underline">
                 Connect your social accounts &rarr;
-              </a>
+              </Link>
             </div>
           </div>
 

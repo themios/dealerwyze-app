@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import { isDealerAdmin } from '@/types/index'
 import { THEME_PRESETS, FONT_STYLES } from '@/lib/theme/presets'
 import type { FontStyle } from '@/lib/theme/presets'
+import { logOrgAudit } from '@/lib/audit/orgAudit'
 
 const VALID_PRESETS  = new Set([...THEME_PRESETS.map(p => p.key), 'custom'])
 const VALID_FONTS    = new Set(FONT_STYLES.map(f => f.key))
@@ -18,7 +19,7 @@ function isFontStyle(value: string): value is FontStyle {
 
 export async function GET() {
   const profile = await requireProfile()
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   const { data } = await supabase
     .from('org_settings')
@@ -42,7 +43,7 @@ export async function PUT(req: NextRequest) {
   }
 
   // Check plan gate
-  const supabase = createServiceClient()
+  const supabase = await createClient()
   const { data: org } = await supabase
     .from('organizations')
     .select('plan')
@@ -89,6 +90,9 @@ export async function PUT(req: NextRequest) {
       theme_font_style: fontStyle,
     })
     .eq('org_id', profile.org_id)
+
+  void logOrgAudit({ org_id: profile.org_id, actor_id: profile.id, actor_type: 'user',
+    action: 'appearance_settings_updated', details: { theme_preset: preset, theme_font_style: fontStyle } })
 
   return NextResponse.json({ saved: true })
 }

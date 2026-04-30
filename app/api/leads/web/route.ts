@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { notifyDealerNewLead } from '@/lib/vdp/notifyDealer'
 import { webLeadLimiter } from '@/lib/rateLimit/upstash'
+import { WebLeadSchema, parseBody } from '@/lib/validation/schemas'
 
 export async function POST(req: NextRequest) {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'unknown'
@@ -15,31 +16,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
   }
 
-  let body: Record<string, unknown>
-  try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
-  }
+  const parsed = await parseBody(req, WebLeadSchema)
+  if (parsed.errorResponse) return parsed.errorResponse
 
-  const {
-    slug,
-    vdp,
-    name,
-    email,
-    phone,
-    message,
-    source_url,
-    website, // honeypot - must be absent or empty
-  } = body as Record<string, string | undefined>
+  const { slug, vdp, name, email, phone, message, source_url, website } = parsed.data
 
   // Honeypot: bots fill hidden fields
   if (website) {
     return NextResponse.json({ ok: true }) // silent reject
-  }
-
-  if (!slug?.trim() || !name?.trim()) {
-    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
   const supabase = createServiceClient()
@@ -59,11 +43,11 @@ export async function POST(req: NextRequest) {
   // Resolve the published vehicle from the public route slug.
   let vehicleId: string | null = null
   let vehicleName: string | undefined
-  if (vdp?.trim()) {
+  if (vdp) {
     const { data: v } = await supabase
       .from('vehicles')
       .select('id, year, make, model')
-      .eq('public_slug', vdp.trim())
+      .eq('public_slug', vdp)
       .eq('user_id', org.id)
       .eq('published', true)
       .single()
@@ -78,20 +62,20 @@ export async function POST(req: NextRequest) {
   await supabase.from('inventory_inquiries').insert({
     org_id: org.id,
     vehicle_id: vehicleId,
-    name: name.trim(),
-    email: email?.trim() || null,
-    phone: phone?.trim() || null,
-    message: message?.trim() || null,
-    source_url: source_url || null,
+    name,
+    email: email ?? null,
+    phone: phone ?? null,
+    message: message ?? null,
+    source_url: source_url ?? null,
   })
 
   // Create activity in dealer CRM inbox
   const activityBody = [
-    `Web inquiry from ${name.trim()}`,
-    phone ? `Phone: ${phone.trim()}` : null,
-    email ? `Email: ${email.trim()}` : null,
+    `Web inquiry from ${name}`,
+    phone ? `Phone: ${phone}` : null,
+    email ? `Email: ${email}` : null,
     vehicleName ? `Vehicle: ${vehicleName}` : null,
-    message?.trim() ? `Message: ${message.trim()}` : null,
+    message ? `Message: ${message}` : null,
   ]
     .filter(Boolean)
     .join('\n')
@@ -107,13 +91,7 @@ export async function POST(req: NextRequest) {
   })
 
   // Notify dealer via SMS (fire and forget)
-  notifyDealerNewLead(
-    org.id,
-    name.trim(),
-    phone?.trim(),
-    message?.trim(),
-    vehicleName
-  ).catch(() => {})
+  notifyDealerNewLead(org.id, name, phone, message, vehicleName).catch(() => {})
 
   return NextResponse.json({ ok: true })
 }

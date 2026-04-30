@@ -104,8 +104,8 @@ function CodesTab() {
   const [transferSaving, setTransferSaving] = useState(false)
   const [transferMsg, setTransferMsg]     = useState('')
 
-  async function load() {
-    setLoading(true)
+  async function load(options?: { showSpinner?: boolean }) {
+    if (options?.showSpinner !== false) setLoading(true)
     const res = await fetch('/api/admin/affiliates')
     if (res.ok) {
       const data = await res.json()
@@ -114,7 +114,25 @@ function CodesTab() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadInitial() {
+      const res = await fetch('/api/admin/affiliates')
+      if (!res.ok || cancelled) return
+
+      const data = await res.json()
+      if (cancelled) return
+
+      setCodes(data.affiliates ?? [])
+      setLoading(false)
+    }
+
+    void loadInitial()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   async function createCode(e: React.FormEvent) {
     e.preventDefault()
@@ -538,8 +556,8 @@ function CommissionsTab() {
   const [payError, setPayError]       = useState('')
   const [paySuccess, setPaySuccess]   = useState('')
 
-  async function load() {
-    setLoading(true)
+  async function load(options?: { showSpinner?: boolean }) {
+    if (options?.showSpinner !== false) setLoading(true)
     const res = await fetch('/api/admin/commissions')
     if (res.ok) {
       const data = await res.json()
@@ -549,7 +567,26 @@ function CommissionsTab() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadInitial() {
+      const res = await fetch('/api/admin/commissions')
+      if (!res.ok || cancelled) return
+
+      const data = await res.json()
+      if (cancelled) return
+
+      setCommissions(data.commissions ?? [])
+      setMinPayout(data.min_payout ?? 25)
+      setLoading(false)
+    }
+
+    void loadInitial()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   async function handlePayout(affiliateCode: string) {
     setPayError('')

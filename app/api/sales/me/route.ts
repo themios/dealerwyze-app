@@ -6,11 +6,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { requireChannelRep, isPlatformSuperAdmin } from '@/lib/auth/platform'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 
 export async function GET(req: NextRequest) {
   const profile = await requireProfile()
-  const service  = createServiceClient()
+  const supabase = await createClient()
 
   let affiliateCode: string
 
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     affiliateCode = result.affiliateCode
   }
 
-  const { data: aff, error } = await service
+  const { data: aff, error } = await supabase
     .from('affiliate_codes')
     .select('*')
     .eq('code', affiliateCode)
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Commission totals
-  const { data: ledger } = await service
+  const { data: ledger } = await supabase
     .from('commission_ledger')
     .select('amount, status')
     .eq('affiliate_code', affiliateCode)
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     .reduce((s, r) => s + Number(r.amount), 0)
 
   // Active dealer count
-  const { count: activeDealers } = await service
+  const { count: activeDealers } = await supabase
     .from('organizations')
     .select('id', { count: 'exact', head: true })
     .eq('affiliate_code', affiliateCode)

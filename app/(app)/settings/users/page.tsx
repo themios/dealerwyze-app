@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { Badge } from '@/components/ui/badge'
 import { Plus, UserX, ArrowLeft, Copy, Check, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 
@@ -78,7 +77,28 @@ export default function UsersPage() {
     setLoading(false)
   }, [showDeactivated])
 
-  useEffect(() => { loadUsers() }, [loadUsers])
+  useEffect(() => {
+    let cancelled = false
+
+    fetch(`/api/admin/users${showDeactivated ? '?include_deactivated=true' : ''}`)
+      .then(async res => {
+        if (res.status === 403) {
+          if (!cancelled) setLoading(false)
+          return null
+        }
+        const data = await res.json()
+        if (!cancelled) {
+          setUsers(data.users ?? [])
+          if (data.lead_assignment_mode) setAssignMode(data.lead_assignment_mode)
+          setLoading(false)
+        }
+        return null
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [showDeactivated])
 
   async function saveAssignMode(mode: 'owner' | 'round_robin' | 'manual') {
     setAssignMode(mode)

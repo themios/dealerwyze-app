@@ -1,11 +1,11 @@
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import TopBar from '@/components/layout/TopBar'
 import AppearanceClient from './AppearanceClient'
 
 export default async function AppearancePage() {
   const profile = await requireProfile()
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   const [{ data: settings }, { data: org }] = await Promise.all([
     supabase

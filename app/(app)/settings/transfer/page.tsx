@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,16 +27,11 @@ interface ActiveTransfer {
   notes:           string | null
 }
 
-function formatCurrency(n: number) {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n)
-}
-
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 export default function TransferPage() {
-  const router = useRouter()
   const [loading,          setLoading]          = useState(true)
   const [activeTransfer,   setActiveTransfer]   = useState<ActiveTransfer | null>(null)
   const [email,            setEmail]            = useState('')

@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DealerWyze | Operating System for Independent Dealers</title>
+  <meta name="description" content="DealerWyze replaces spreadsheets, notes, texts, and scattered emails with one operating system for independent used-car dealers." />
+  <style>
+    :root {
+      --navy: #07111f;
+      --navy-2: #0d1b2e;
+      --blue: #1548ff;
+      --blue-2: #315bff;
+      --light-blue: #eef4ff;
+      --red: #ef4444;
+      --orange: #f59e0b;
+      --green: #10b981;
+      --text: #0f172a;
+      --muted: #516178;
+      --line: #e2e8f0;
+      --soft: #f8fbff;
+      --white: #ffffff;
+      --shadow: 0 24px 70px rgba(15, 23, 42, 0.14);
+      --radius-lg: 28px;
+      --radius-md: 18px;
+      --radius-sm: 12px;
+      --max: 1220px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background: linear-gradient(180deg, #ffffff 0%, #f3f7ff 52%, #ffffff 100%);
+      line-height: 1.45;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    .page { overflow: hidden; }
+    .container { width: min(var(--max), calc(100% - 40px)); margin: 0 auto; }
+
+    .nav {
+      padding: 28px 0 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .brand { display: flex; align-items: center; gap: 12px; font-weight: 850; font-size: 28px; letter-spacing: -0.04em; }
+    .logo {
+      width: 42px; height: 42px; border-radius: 13px;
+      background: linear-gradient(135deg, #0f5bff 0%, #3b82f6 42%, #6d5dfc 100%);
+      position: relative;
+      box-shadow: 0 10px 28px rgba(21,72,255,.28);
+    }
+    .logo:before {
+      content: "D";
+      position: absolute; inset: 0;
+      display: grid; place-items: center;
+      color: white; font-weight: 900; font-size: 25px;
+      transform: skew(-8deg);
+    }
+
+    .nav-links { display: flex; gap: 22px; align-items: center; color: #334155; font-size: 14px; font-weight: 650; }
+    .nav-links a:hover { color: var(--blue); }
+    .nav-cta { padding: 11px 17px; border: 1px solid #cbd5e1; border-radius: 999px; background: white; }
+
+    .hero { padding: 34px 0 44px; position: relative; }
+    .hero-grid { display: grid; grid-template-columns: 0.95fr 1.25fr; gap: 56px; align-items: center; }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      color: var(--blue); border: 1px solid #d6e3ff; background: rgba(238, 244, 255, 0.75);
+      padding: 10px 18px; border-radius: 999px;
+      text-transform: uppercase; letter-spacing: .04em; font-size: 13px; font-weight: 850;
+      margin-bottom: 26px;
+    }
+    h1 { font-size: clamp(44px, 6vw, 78px); line-height: .96; letter-spacing: -0.065em; margin: 0 0 24px; }
+    .blue { color: var(--blue); }
+    .hero-copy { color: #26364d; font-size: clamp(18px, 1.8vw, 22px); max-width: 640px; margin: 0 0 26px; }
+    .hero-copy strong { color: var(--blue); }
+    .cta-row { display: flex; flex-wrap: wrap; gap: 14px; margin: 32px 0 24px; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+      padding: 17px 24px; border-radius: 12px;
+      font-size: 16px; font-weight: 850;
+      transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+    }
+    .btn:hover { transform: translateY(-2px); }
+    .btn-primary { background: linear-gradient(135deg, #0037ff, #2355ff); color: white; box-shadow: 0 14px 34px rgba(21,72,255,.32); }
+    .btn-secondary { background: white; color: var(--blue); border: 1.5px solid var(--blue); }
+
+    .trust-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 28px; }
+    .trust-item { display: flex; gap: 11px; align-items: flex-start; font-size: 13px; color: var(--muted); }
+    .trust-item b { display: block; color: var(--text); font-size: 14px; margin-bottom: 2px; }
+    .icon-circle { min-width: 32px; width: 32px; height: 32px; border: 2px solid var(--blue); border-radius: 50%; display: grid; place-items: center; color: var(--blue); font-weight: 900; }
+
+    .dashboard-wrap { position: relative; }
+    .scribble {
+      position: absolute; top: -54px; left: 50px; color: var(--blue); font-family: "Comic Sans MS", "Bradley Hand", cursive;
+      font-size: clamp(23px, 2.2vw, 32px); line-height: 1.08; transform: rotate(-3deg); z-index: 2;
+    }
+    .scribble:after { content: "↘"; margin-left: 10px; font-size: 34px; }
+    .dashboard {
+      background: white; border: 1px solid #dfe7f3; border-radius: var(--radius-lg); box-shadow: var(--shadow);
+      display: grid; grid-template-columns: 172px 1fr; overflow: hidden; transform: rotate(-1.3deg); transform-origin: center;
+    }
+    .sidebar { background: linear-gradient(180deg, #07111f, #0a1728); color: white; padding: 24px 16px; }
+    .side-logo { display: flex; align-items: center; gap: 8px; font-weight: 850; margin-bottom: 26px; font-size: 13px; }
+    .mini-logo { width: 26px; height: 26px; border-radius: 8px; background: linear-gradient(135deg, #0f5bff, #6d5dfc); display: grid; place-items:center; font-weight:900; }
+    .side-item { display:flex; align-items:center; gap:10px; padding:10px 10px; border-radius:10px; color:#c7d2e2; font-size:13px; margin-bottom:5px; }
+    .side-item.active { color:white; background:rgba(255,255,255,.09); }
+    .dash-main { padding: 26px; }
+    .dash-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .dash-top h3 { margin: 0; font-size: 26px; letter-spacing: -.04em; }
+    .search { flex: 0 1 350px; border: 1px solid var(--line); border-radius: 12px; color: #94a3b8; font-size: 12px; padding: 11px 14px; }
+    .metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 13px; margin-bottom: 18px; }
+    .metric { border: 1px solid var(--line); border-radius: 13px; padding: 15px 15px 13px; background: #fff; }
+    .metric:nth-child(1) { background: #fff1f2; }
+    .metric:nth-child(2) { background: #f5f8ff; }
+    .metric:nth-child(3) { background: #fffbeb; }
+    .metric:nth-child(4) { background: #ecfdf5; }
+    .metric strong { display: block; font-size: 27px; letter-spacing: -.04em; }
+    .metric span { font-size: 12px; color: #334155; font-weight: 750; }
+    .dash-content { display: grid; grid-template-columns: 1.3fr .9fr; gap: 16px; }
+    .panel { border: 1px solid var(--line); border-radius: 15px; background: white; padding: 16px; }
+    .panel h4 { margin: 0 0 14px; font-size: 14px; }
+    .lead-row { display:grid; grid-template-columns: 34px 1fr auto; gap: 11px; align-items:center; border-bottom:1px solid #edf2f7; padding: 12px 0; }
+    .lead-row:last-child { border-bottom:0; }
+    .avatar { width:34px; height:34px; border-radius:50%; background:linear-gradient(135deg,#e2e8f0,#cbd5e1); }
+    .lead-name { font-size: 13px; font-weight: 850; }
+    .lead-note { color:#64748b; font-size: 12px; margin-top:2px; }
+    .pill { font-size: 10px; padding: 4px 7px; border-radius:999px; font-weight:850; margin-left:6px; }
+    .pill.red { background:#fee2e2; color:#dc2626; }
+    .pill.bluepill { background:#dbeafe; color:#1558ff; }
+    .pill.orange { background:#ffedd5; color:#ea580c; }
+    .time { color:#64748b; font-size: 12px; }
+    .activity { display:flex; justify-content:space-between; gap:12px; font-size:12px; padding:10px 0; border-bottom:1px solid #edf2f7; }
+    .activity:last-child { border-bottom:0; }
+    .module-grid { grid-column: 1 / -1; display:grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-top: 0; }
+    .module { border:1px solid var(--line); border-radius:14px; padding:14px 10px; text-align:center; font-size:12px; font-weight:850; background:white; }
+    .module-icon { font-size: 22px; display:block; margin-bottom:6px; }
+
+    .split-section { display: grid; grid-template-columns: 1fr 1.05fr; min-height: 465px; }
+    .old-way { background: linear-gradient(145deg, #05101e, #071827); color: white; padding: 50px max(28px, calc((100vw - var(--max)) / 2)) 50px max(28px, calc((100vw - var(--max)) / 2)); }
+    .new-way { background: linear-gradient(145deg, #eff6ff, #ffffff); padding: 50px max(28px, calc((100vw - var(--max)) / 2)) 50px 56px; position: relative; }
+    .section-kicker { color: var(--red); text-transform: uppercase; font-weight: 900; letter-spacing:.06em; font-size:15px; margin-bottom: 8px; }
+    .new-way .section-kicker { color: var(--blue); }
+    .split-section h2 { font-size: clamp(28px, 3vw, 38px); line-height:1.05; letter-spacing:-.04em; margin:0 0 26px; }
+    .old-cards { display:grid; grid-template-columns: repeat(5, minmax(100px, 1fr)); gap: 14px; align-items: stretch; }
+    .old-card { position:relative; background:white; color:#111827; border-radius:12px; min-height:150px; padding:15px; box-shadow:0 12px 28px rgba(0,0,0,.25); font-size:12px; }
+    .xmark, .checkmark { position:absolute; top:-13px; left:-11px; width:30px; height:30px; border-radius:50%; display:grid; place-items:center; color:white; font-weight:900; }
+    .xmark { background: var(--red); }
+    .checkmark { background: var(--green); }
+    .sticky { background: #fff3b0; font-family: "Comic Sans MS", cursive; line-height:1.8; }
+    .chat-bubble { background:#eef2ff; border-radius:12px; padding:8px; margin:10px 0; }
+    .chat-bubble.reply { background:#0f5bff; color:white; margin-left:22px; }
+    .mail-row { display:flex; align-items:center; gap:7px; border-bottom:1px solid #e5e7eb; padding:8px 0; }
+    .head-notes { display:grid; place-items:center; text-align:center; color:#334155; }
+    .old-foot, .new-foot { text-align:center; margin:30px 0 0; font-size:22px; font-weight:750; }
+    .arrow-badge { position:absolute; left:-39px; top:42%; width:78px; height:78px; border-radius:50%; background:#07111f; color:white; border:5px solid white; display:grid; place-items:center; font-size:44px; box-shadow:0 18px 40px rgba(2,8,23,.25); }
+    .flow { display:grid; grid-template-columns: repeat(5, 1fr); gap: 18px; align-items:stretch; }
+    .flow-card { position:relative; border:1px solid #dbeafe; border-radius:14px; background:white; padding:18px 14px; min-height:150px; text-align:center; box-shadow:0 10px 24px rgba(37,99,235,.08); }
+    .flow-icon { color:var(--blue); font-size: 31px; display:block; margin: 4px 0 12px; }
+    .flow-card b { display:block; font-size:14px; margin-bottom:7px; }
+    .flow-card p { margin:0; color:#52637a; font-size:12px; }
+    .feature-strip { display:grid; grid-template-columns: repeat(4, 1fr); gap: 18px; background:white; border:1px solid #dbeafe; border-radius:16px; padding:18px; margin-top:28px; }
+    .strip-item { display:flex; gap:9px; align-items:flex-start; color:#334155; font-size:13px; }
+    .strip-item span { color:var(--green); font-weight:900; }
+    .bottom-tagline { color:var(--blue); text-align:center; font-size:25px; font-weight:900; letter-spacing:-.04em; margin-top:24px; }
+
+    .sections { padding: 78px 0; }
+    .section-header { max-width: 800px; margin: 0 auto 38px; text-align:center; }
+    .section-header h2 { font-size: clamp(34px, 4vw, 54px); line-height:1; letter-spacing:-.055em; margin: 0 0 16px; }
+    .section-header p { margin:0; color: var(--muted); font-size: 18px; }
+    .cards-3 { display:grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+    .info-card { background:white; border:1px solid var(--line); border-radius:20px; padding:28px; box-shadow:0 15px 40px rgba(15,23,42,.06); }
+    .info-card h3 { margin: 0 0 12px; font-size: 21px; letter-spacing:-.025em; }
+    .info-card p { color:var(--muted); margin:0 0 18px; }
+    .list { padding:0; margin:0; list-style:none; display:grid; gap:10px; }
+    .list li { display:flex; gap:10px; color:#334155; font-size:15px; }
+    .list li:before { content:"✓"; color:var(--green); font-weight:900; }
+
+    .pricing { background:#07111f; color:white; border-radius:30px; padding:46px; display:grid; grid-template-columns: 1.1fr .9fr; gap: 28px; align-items:center; box-shadow: var(--shadow); }
+    .pricing h2 { margin:0 0 16px; font-size: clamp(34px, 4vw, 52px); line-height:1; letter-spacing:-.05em; }
+    .pricing p { color:#cbd5e1; font-size:17px; margin:0 0 24px; }
+    .price-box { background:white; color:var(--text); border-radius:22px; padding:30px; }
+    .price { font-size: 58px; font-weight: 950; letter-spacing:-.06em; margin-bottom:5px; }
+    .price small { font-size:18px; color:var(--muted); font-weight:750; }
+
+    .faq { display:grid; grid-template-columns: .75fr 1.25fr; gap: 42px; align-items:start; }
+    .faq h2 { font-size: clamp(34px, 4vw, 52px); line-height:1; letter-spacing:-.05em; margin:0 0 14px; }
+    .faq p { color:var(--muted); }
+    details { background:white; border:1px solid var(--line); border-radius:16px; padding:18px 20px; margin-bottom:12px; }
+    summary { cursor:pointer; font-weight:850; }
+    details p { color:var(--muted); margin:13px 0 0; }
+
+    .final-cta { text-align:center; padding: 82px 0 92px; }
+    .final-cta h2 { font-size: clamp(38px, 5vw, 64px); line-height:1; letter-spacing:-.06em; margin:0 0 18px; }
+    .final-cta p { color:var(--muted); font-size:19px; max-width:720px; margin:0 auto; }
+    footer { border-top:1px solid var(--line); padding:30px 0; color:#64748b; font-size:14px; }
+    .footer-inner { display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+
+    @media (max-width: 1050px) {
+      .hero-grid, .pricing, .faq { grid-template-columns:1fr; }
+      .dashboard { transform:none; }
+      .split-section { grid-template-columns:1fr; }
+      .new-way { padding-left: max(28px, calc((100vw - var(--max)) / 2)); }
+      .arrow-badge { display:none; }
+      .old-cards, .flow { grid-template-columns: repeat(2, 1fr); }
+      .cards-3 { grid-template-columns:1fr; }
+    }
+
+    @media (max-width: 760px) {
+      .container { width: min(100% - 28px, var(--max)); }
+      .nav-links { display:none; }
+      .hero { padding-top:20px; }
+      .trust-row, .metric-grid, .dash-content, .module-grid, .feature-strip { grid-template-columns:1fr; }
+      .dashboard { grid-template-columns:1fr; }
+      .sidebar { display:none; }
+      .dash-main { padding:18px; }
+      .dash-top { align-items:flex-start; flex-direction:column; }
+      .search { width:100%; flex:auto; }
+      .old-cards, .flow { grid-template-columns:1fr; }
+      .pricing { padding:28px; border-radius:22px; }
+      h1 { font-size:44px; }
+      .scribble { display:none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="container nav">
+      <a href="#" class="brand" aria-label="DealerWyze home"><span class="logo"></span><span>DealerWyze</span></a>
+      <nav class="nav-links" aria-label="Main navigation">
+        <a href="#workflow">Workflow</a>
+        <a href="#features">Features</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#faq">FAQ</a>
+        <a class="nav-cta" href="#review">Book Review</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero container">
+        <div class="hero-grid">
+          <div>
+            <div class="eyebrow">The operating system for independent dealers</div>
+            <h1>One System for How a Small Dealership <span class="blue">Actually Runs.</span></h1>
+            <p class="hero-copy">DealerWyze replaces <strong>spreadsheets, notes, random texts, and scattered emails</strong> with one connected system for leads, vehicles, BHPH, receipts, inventory, advertising, and follow-up.</p>
+            <p class="hero-copy"><strong>Let the system handle the busy work</strong> while you run your business.</p>
+            <div class="cta-row">
+              <a class="btn btn-primary" href="#start">Start Free Beta <span>→</span></a>
+              <a class="btn btn-secondary" id="review" href="#book">Book a 15-Minute Workflow Review</a>
+            </div>
+            <div class="trust-row">
+              <div class="trust-item"><span class="icon-circle">✓</span><span><b>Free during beta</b>No credit card required</span></div>
+              <div class="trust-item"><span class="icon-circle">◷</span><span><b>Set up in minutes</b>Start seeing value today</span></div>
+              <div class="trust-item"><span class="icon-circle">◇</span><span><b>Built for small dealers</b>Not another bloated CRM</span></div>
+            </div>
+          </div>
+
+          <div class="dashboard-wrap" aria-label="DealerWyze product dashboard illustration">
+            <div class="scribble">Let the system take over<br />so you can run your business.</div>
+            <div class="dashboard">
+              <aside class="sidebar">
+                <div class="side-logo"><span class="mini-logo">D</span>DealerWyze</div>
+                <div class="side-item active">☰ Today</div>
+                <div class="side-item">👥 Leads</div>
+                <div class="side-item">🚗 Vehicles</div>
+                <div class="side-item">💬 Conversations</div>
+                <div class="side-item">🤝 Deals</div>
+                <div class="side-item">💵 BHPH</div>
+                <div class="side-item">🧾 Receipts</div>
+                <div class="side-item">📣 Marketing</div>
+                <div class="side-item">📊 Reports</div>
+              </aside>
+              <div class="dash-main">
+                <div class="dash-top"><h3>Today</h3><div class="search">Search leads, vehicles, deals...</div></div>
+                <div class="metric-grid">
+                  <div class="metric"><strong style="color:#dc2626">3</strong><span>Leads Need Attention</span></div>
+                  <div class="metric"><strong>2</strong><span>Appointments Today</span></div>
+                  <div class="metric"><strong>5</strong><span>Follow-ups Due</span></div>
+                  <div class="metric"><strong>12</strong><span>Vehicles Active</span></div>
+                </div>
+                <div class="dash-content">
+                  <div class="panel">
+                    <h4>Leads That Need Attention</h4>
+                    <div class="lead-row"><div class="avatar"></div><div><div class="lead-name">Marcus T. <span class="pill red">Hot Lead</span></div><div class="lead-note">2021 Camry SE · Asked 9:42pm</div></div><div class="time">2m ago</div></div>
+                    <div class="lead-row"><div class="avatar"></div><div><div class="lead-name">Sarah L. <span class="pill bluepill">Appointment</span></div><div class="lead-note">Test drive confirmed for 2:00pm</div></div><div class="time">15m ago</div></div>
+                    <div class="lead-row"><div class="avatar"></div><div><div class="lead-name">Devon W. <span class="pill orange">BHPH Follow-Up</span></div><div class="lead-note">Payment reminder needed</div></div><div class="time">1h ago</div></div>
+                  </div>
+                  <div class="panel">
+                    <h4>Recent Activity</h4>
+                    <div class="activity"><span>Receipt uploaded for Invoice #1847</span><span>11:24am</span></div>
+                    <div class="activity"><span>Payment received from Devon W.</span><span>10:15am</span></div>
+                    <div class="activity"><span>New lead from AutoTrader</span><span>9:08am</span></div>
+                  </div>
+                  <div class="module-grid">
+                    <div class="module"><span class="module-icon">💬</span>Leads & Messaging</div>
+                    <div class="module"><span class="module-icon">🚘</span>Inventory</div>
+                    <div class="module"><span class="module-icon">💵</span>BHPH</div>
+                    <div class="module"><span class="module-icon">🧾</span>Bookkeeping</div>
+                    <div class="module"><span class="module-icon">📣</span>Advertising</div>
+                    <div class="module"><span class="module-icon">📊</span>Analytics</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="split-section" id="workflow">
+        <div class="old-way">
+          <div class="section-kicker">The old way</div>
+          <h2>You handle everything. All day. Every day.</h2>
+          <div class="old-cards">
+            <div class="old-card"><span class="xmark">×</span><b>Spreadsheet</b><br><br>Name | Vehicle | Status<br>Marcus | Camry | Hot<br>Sarah | RAV4 | Appt<br>Devon | F-150 | Follow-up</div>
+            <div class="old-card sticky"><span class="xmark">×</span><b>Notepad</b><br>– Call Marcus<br>– Follow up Devon<br>– Price check<br>– Post 3 cars</div>
+            <div class="old-card"><span class="xmark">×</span><b>Text Messages</b><div class="chat-bubble">Hey, is the Camry still available?</div><div class="chat-bubble reply">Yes it is!</div><div class="chat-bubble">Can I see it tomorrow?</div></div>
+            <div class="old-card"><span class="xmark">×</span><b>Email Inbox</b><div class="mail-row">📩 AutoTrader Lead</div><div class="mail-row">📩 CarGurus Inquiry</div><div class="mail-row">📩 Customer Re: 2019 F-150</div></div>
+            <div class="old-card head-notes"><span class="xmark">×</span><div><b>Notes In Your Head</b><br><br>Too much to remember.</div></div>
+          </div>
+          <div class="old-foot">Leads get lost. Follow-ups slip. Deals fall through.</div>
+        </div>
+        <div class="new-way">
+          <div class="arrow-badge">→</div>
+          <div class="section-kicker">The DealerWyze way</div>
+          <h2>The system handles the busy work. You focus on what matters.</h2>
+          <div class="flow">
+            <div class="flow-card"><span class="checkmark">✓</span><span class="flow-icon">📥</span><b>Leads Captured</b><p>Automatically from websites, inboxes, and marketplaces.</p></div>
+            <div class="flow-card"><span class="checkmark">✓</span><span class="flow-icon">💬</span><b>Conversations Managed</b><p>Texts, calls, and emails are logged and organized.</p></div>
+            <div class="flow-card"><span class="checkmark">✓</span><span class="flow-icon">☑</span><b>Follow-ups Handled</b><p>The system reminds, follows up, and keeps you on top of mind.</p></div>
+            <div class="flow-card"><span class="checkmark">✓</span><span class="flow-icon">🚗</span><b>Everything Linked</b><p>Leads, vehicles, appointments, BHPH, payments, and notes.</p></div>
+            <div class="flow-card"><span class="checkmark">✓</span><span class="flow-icon">📈</span><b>You Get Control</b><p>More organization, faster response, less manual work.</p></div>
+          </div>
+          <div class="feature-strip">
+            <div class="strip-item"><span>✓</span>Instant lead capture and auto-responses</div>
+            <div class="strip-item"><span>✓</span>Smart follow-ups and reminders</div>
+            <div class="strip-item"><span>✓</span>Organized daily dealership workflow</div>
+            <div class="strip-item"><span>✓</span>Real-time activity and notifications</div>
+          </div>
+          <div class="bottom-tagline">Run your lot. We’ll run the rest.</div>
+        </div>
+      </section>
+
+      <section class="sections container" id="features">
+        <div class="section-header">
+          <h2>Not another CRM. A working system for the full dealership day.</h2>
+          <p>DealerWyze starts where small dealers actually are: inboxes, phones, spreadsheets, notes, and scattered tools. Then it connects the operation around the customer and the vehicle.</p>
+        </div>
+        <div class="cards-3">
+          <div class="info-card">
+            <h3>Leads and conversations</h3>
+            <p>Capture lead emails, organize conversations, and connect every interaction to the right vehicle.</p>
+            <ul class="list"><li>Gmail and IMAP lead import</li><li>AutoTrader and CarGurus parsing</li><li>Call, text, and email activity timeline</li></ul>
+          </div>
+          <div class="info-card">
+            <h3>Inventory and deal workflow</h3>
+            <p>Keep vehicle context visible so your team knows exactly what every buyer wanted.</p>
+            <ul class="list"><li>Vehicle-linked customer records</li><li>Daily Today list and follow-up queue</li><li>Smart pricing and recall checks</li></ul>
+          </div>
+          <div class="info-card">
+            <h3>Back-office and growth</h3>
+            <p>Bring the daily operational work into the same system instead of buying more disconnected tools.</p>
+            <ul class="list"><li>BHPH payment tracking</li><li>Receipt OCR and bookkeeping export</li><li>AI listing videos and social auto-posting</li></ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="sections container" id="pricing">
+        <div class="pricing">
+          <div>
+            <div class="eyebrow" style="background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.18);color:#93c5fd;">Free during beta</div>
+            <h2>Start with your current chaos. DealerWyze turns it into a system.</h2>
+            <p>Use the beta to replace spreadsheets, notes, scattered texts, and inbox follow-ups with one connected operating system. No credit card required.</p>
+            <div class="cta-row"><a class="btn btn-primary" href="#start">Start Free Beta →</a><a class="btn btn-secondary" href="#book" style="background:transparent;color:white;border-color:rgba(255,255,255,.38);">Book Workflow Review</a></div>
+          </div>
+          <div class="price-box">
+            <div class="price">$0 <small>/ beta</small></div>
+            <p style="color:var(--muted);margin-bottom:20px;">At least 30 days notice before any paid transition.</p>
+            <ul class="list"><li>Unlimited contacts and leads</li><li>Two-way SMS with dedicated number</li><li>Gmail and IMAP import</li><li>BHPH tracking</li><li>Receipts, bookkeeping, and CSV export</li><li>Pricing intelligence, videos, and auto-posting</li></ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="sections container" id="faq">
+        <div class="faq">
+          <div>
+            <h2>Questions before you switch from notes and spreadsheets.</h2>
+            <p>A paid-click visitor needs confidence that the system is practical, not bloated. These are the objections DealerWyze has to answer clearly.</p>
+          </div>
+          <div>
+            <details open><summary>Who is DealerWyze for?</summary><p>Independent and used-car dealers who are running daily operations through spreadsheets, notepads, random texts, inboxes, and disconnected tools.</p></details>
+            <details><summary>Is DealerWyze just a CRM?</summary><p>No. CRM is one part of the system. DealerWyze also connects inventory, vehicle-linked conversations, BHPH, receipt OCR, bookkeeping, pricing, advertising, analytics, and automated importing.</p></details>
+            <details><summary>Do I need to replace everything on day one?</summary><p>No. Start by replacing lead tracking and follow-ups. From there, inventory, BHPH, receipts, and marketing connect naturally around the same customer and vehicle records.</p></details>
+            <details><summary>Can I use it if my leads come through Gmail or marketplace emails?</summary><p>Yes. DealerWyze is designed to import leads from Gmail and IMAP inboxes and parse common dealership lead emails into organized customer and vehicle records.</p></details>
+            <details><summary>What should I do first: start free or book a workflow review?</summary><p>Start free if you want to test the system directly. Book a workflow review if you want help mapping your current process into DealerWyze before switching.</p></details>
+          </div>
+        </div>
+      </section>
+
+      <section class="final-cta container" id="start">
+        <h2>Run your lot. <span class="blue">Let the system run the busy work.</span></h2>
+        <p>Replace spreadsheets, notes, random texts, and scattered emails with one operating system built for independent used-car dealers.</p>
+        <div class="cta-row" style="justify-content:center;"><a class="btn btn-primary" href="#">Start Free Beta →</a><a class="btn btn-secondary" id="book" href="#">Book a 15-Minute Workflow Review</a></div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="container footer-inner">
+        <span>DealerWyze by KMA Auto Inc</span>
+        <span>Terms · Privacy · Sign In</span>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

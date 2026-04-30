@@ -24,7 +24,7 @@ interface Props {
 
 export default function BhphRecordPayment({
   accountId, monthlyPayment, paymentFrequency, paymentDayAnchor,
-  currentDueDate, loanAmount, totalPaid, customerId, accountBalance,
+  currentDueDate, loanAmount, totalPaid, customerId,
 }: Props) {
   const [amount, setAmount] = useState(monthlyPayment.toString())
   const [showForm, setShowForm] = useState(false)

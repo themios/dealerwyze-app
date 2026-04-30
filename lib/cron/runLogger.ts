@@ -18,7 +18,7 @@ export async function startCronRun(jobName: string): Promise<string | null> {
 /** Update the cron_runs row with the final status. */
 export async function finishCronRun(
   runId: string | null,
-  status: 'success' | 'error',
+  status: 'success' | 'partial_failure' | 'error',
   orgsProcessed?: number,
   errorMsg?: string,
 ): Promise<void> {

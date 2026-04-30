@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { seedStarterSequences } from '@/lib/sequences/seedStarterSequences'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 
 /**
  * POST /api/sequences/seed-starters
@@ -11,7 +11,7 @@ import { createServiceClient } from '@/lib/supabase/service'
  */
 export async function POST() {
   const profile = await requireProfile()
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   // Check first so we can return a helpful message in the UI
   const { count } = await supabase
@@ -26,6 +26,6 @@ export async function POST() {
     )
   }
 
-  const created = await seedStarterSequences(profile.org_id)
+  const created = await seedStarterSequences(profile.org_id, supabase)
   return NextResponse.json({ ok: true, created })
 }

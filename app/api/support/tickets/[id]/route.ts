@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 
 export async function GET(
   _req: NextRequest,
@@ -8,7 +8,7 @@ export async function GET(
 ) {
   const profile = await requireProfile()
   const { id } = await params
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   const { data: ticket } = await supabase
     .from('support_tickets')

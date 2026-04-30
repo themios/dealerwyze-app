@@ -52,14 +52,20 @@ const _orgAiBrief       = makeLimiter(redis, { requests: 10,  windowSeconds: 864
 const _orgReceiptScan   = makeLimiter(redis, { requests: 25,  windowSeconds: 86400 })  // Anthropic receipt OCR
 const _orgDocSummarize  = makeLimiter(redis, { requests: 10,  windowSeconds: 86400 })  // Anthropic vehicle doc
 const _orgContactScan   = makeLimiter(redis, { requests: 20,  windowSeconds: 86400 })  // Anthropic contact card
+const _orgDataExport    = makeLimiter(redis, { requests: 1,   windowSeconds: 86400 })  // Full ZIP export
 
 async function check(
   limiter: Ratelimit | null,
   key: string,
-): Promise<{ allowed: boolean; remaining: number }> {
-  if (!limiter) return { allowed: true, remaining: 99 }
+): Promise<{ allowed: boolean; remaining: number; retryAfterSeconds: number }> {
+  if (!limiter) return { allowed: true, remaining: 99, retryAfterSeconds: 0 }
   const result = await limiter.limit(key)
-  return { allowed: result.success, remaining: result.remaining }
+  const resetAtMs = typeof result.reset === 'number' ? result.reset : Date.now()
+  return {
+    allowed: result.success,
+    remaining: result.remaining,
+    retryAfterSeconds: Math.max(0, Math.ceil((resetAtMs - Date.now()) / 1000)),
+  }
 }
 
 // ── IP-based exports ──────────────────────────────────────────────────────────
@@ -90,6 +96,9 @@ export const orgDocSummarizeLimiter = (orgId: string) => check(_orgDocSummarize,
 
 /** 20 contact card AI scans per org per day. */
 export const orgContactScanLimiter  = (orgId: string) => check(_orgContactScan,  `org:${orgId}:contact`)
+
+/** One full dealership export ZIP per org per day. */
+export const orgDataExportLimiter   = (orgId: string) => check(_orgDataExport,   `org:${orgId}:dataexport`)
 
 // Temp media uploads (MMS attachments from device) — 20 per hour per org
 const _orgTempUploadLimiter = makeLimiter(redis, { requests: 20, windowSeconds: 3600 })

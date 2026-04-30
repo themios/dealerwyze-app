@@ -76,12 +76,21 @@ export default function WantListSheet({ customerId, customerName, prefillVehicle
 
   useEffect(() => {
     if (!open) return
-    setLoading(true)
+    let cancelled = false
+
     fetch(`/api/vehicle-wants?customer_id=${customerId}`)
       .then(r => r.json())
-      .then(data => setWants(Array.isArray(data) ? data.filter((w: VehicleWant) => w.status === 'active') : []))
+      .then(data => {
+        if (!cancelled) setWants(Array.isArray(data) ? data.filter((w: VehicleWant) => w.status === 'active') : [])
+      })
       .catch(() => {})
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [open, customerId])
 
   function openAddForm() {
@@ -143,7 +152,10 @@ export default function WantListSheet({ customerId, customerName, prefillVehicle
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setLoading(true)
+          setOpen(true)
+        }}
         className={`gap-1.5 ${hasActive ? 'text-blue-600' : 'text-muted-foreground'}`}
         title="Want list - keep customer informed when a matching vehicle arrives"
       >

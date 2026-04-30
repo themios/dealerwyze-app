@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import { DEFAULT_ORG_STAGES } from '@/lib/leads/states'
 import { dispatchWebhook } from '@/lib/webhooks/dispatch'
 
@@ -10,7 +10,7 @@ export async function PATCH(
 ) {
   const profile = await requireProfile()
   const { id: customerId } = await params
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   // Verify customer belongs to this org
   const { data: customer } = await supabase

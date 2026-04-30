@@ -28,9 +28,10 @@ export default function VinBarcodeScanner({ onDetected, onClose }: Props) {
 
   useEffect(() => {
     const reader = new BrowserMultiFormatReader()
+    const video = videoRef.current
 
     reader
-      .decodeFromVideoDevice(undefined, videoRef.current!, (result, err) => {
+      .decodeFromVideoDevice(undefined, video!, (result, err) => {
         if (detectedRef.current) return
 
         if (result) {
@@ -57,9 +58,9 @@ export default function VinBarcodeScanner({ onDetected, onClose }: Props) {
 
     return () => {
       try {
-        const stream = videoRef.current?.srcObject as MediaStream | null
+        const stream = video?.srcObject as MediaStream | null
         stream?.getTracks().forEach(t => t.stop())
-        if (videoRef.current) videoRef.current.srcObject = null
+        if (video) video.srcObject = null
       } catch { /* ignore */ }
     }
   }, [onDetected])

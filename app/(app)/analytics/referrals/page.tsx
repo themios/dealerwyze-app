@@ -1,6 +1,6 @@
 import { requireProfile } from '@/lib/auth/profile'
 import { canAccessReports } from '@/lib/auth/dealerRoles'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import ReferralsClient from './ReferralsClient'
 
@@ -8,7 +8,7 @@ export default async function ReferralsPage() {
   const profile = await requireProfile()
   if (!canAccessReports(profile.role)) redirect('/dashboard')
 
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   const { data: referred } = await supabase
     .from('customers')

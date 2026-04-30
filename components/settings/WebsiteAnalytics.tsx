@@ -3,6 +3,15 @@ import { requireProfile } from '@/lib/auth/profile'
 import { Eye, MessageSquare, TrendingUp } from 'lucide-react'
 import Link from 'next/link'
 
+interface PublishedVehicle {
+  id: string
+  year: number | null
+  make: string | null
+  model: string | null
+  views_count: number | null
+  public_slug: string | null
+}
+
 export default async function WebsiteAnalytics() {
   const profile = await requireProfile()
   const supabase = await createClientForRequest()
@@ -22,16 +31,16 @@ export default async function WebsiteAnalytics() {
       .eq('org_id', profile.org_id),
   ])
 
-  const publishedVehicles = vehiclesRes.status === 'fulfilled' ? (vehiclesRes.value.data ?? []) : []
+  const publishedVehicles: PublishedVehicle[] = vehiclesRes.status === 'fulfilled' ? ((vehiclesRes.value.data ?? []) as PublishedVehicle[]) : []
   const totalInquiries = inquiriesRes.status === 'fulfilled' ? (inquiriesRes.value.count ?? 0) : 0
-  const totalViews = publishedVehicles.reduce((sum: number, v: any) => sum + (v.views_count ?? 0), 0)
+  const totalViews = publishedVehicles.reduce((sum, v) => sum + (v.views_count ?? 0), 0)
 
   if (publishedVehicles.length === 0) {
     return (
       <div className="rounded-lg border border-dashed p-6 text-center">
         <TrendingUp className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
         <p className="text-sm text-muted-foreground">No published vehicles yet.</p>
-        <p className="text-xs text-muted-foreground mt-1">Enable a vehicle's public listing from the vehicle detail page to start tracking views.</p>
+        <p className="text-xs text-muted-foreground mt-1">Enable a vehicle&apos;s public listing from the vehicle detail page to start tracking views.</p>
       </div>
     )
   }
@@ -63,14 +72,14 @@ export default async function WebsiteAnalytics() {
       </div>
 
       {/* Top vehicles */}
-      {publishedVehicles.some((v: any) => (v.views_count ?? 0) > 0) && (
+      {publishedVehicles.some(v => (v.views_count ?? 0) > 0) && (
         <div>
           <p className="text-xs text-muted-foreground mb-2">Top viewed vehicles</p>
           <div className="space-y-2">
             {publishedVehicles
-              .filter((v: any) => (v.views_count ?? 0) > 0)
+              .filter(v => (v.views_count ?? 0) > 0)
               .slice(0, 5)
-              .map((v: any) => (
+              .map(v => (
                 <Link key={v.id} href={`/vehicles/${v.id}`} className="flex items-center justify-between p-2.5 rounded-lg border hover:bg-accent transition-colors">
                   <p className="text-sm font-medium truncate">{v.year} {v.make} {v.model}</p>
                   <div className="flex items-center gap-1 shrink-0 ml-2 text-muted-foreground">

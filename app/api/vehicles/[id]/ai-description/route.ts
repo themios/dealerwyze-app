@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClientForRequest } from '@/lib/supabase/forRequest'
-import { createServiceClient } from '@/lib/supabase/service'
 import Anthropic from '@anthropic-ai/sdk'
 
 interface Params { params: Promise<{ id: string }> }
+
+interface MarketInsight {
+  fairMarketPrice?: number
+  topProblems?: string[]
+}
+
+interface AnthropicTextBlock {
+  type: 'text'
+  text: string
+}
 
 export async function POST(_req: NextRequest, { params }: Params) {
   const { id } = await params
@@ -34,7 +43,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'AI not configured' }, { status: 503 })
     }
 
-    const mi: any = vehicle.market_data_json ?? {}
+    const mi = (vehicle.market_data_json ?? {}) as MarketInsight
 
     const vehicleLabel = [vehicle.year, vehicle.make, vehicle.model, vehicle.trim].filter(Boolean).join(' ')
     const pricingContext = mi.fairMarketPrice
@@ -71,23 +80,25 @@ Requirements:
       messages: [{ role: 'user', content: prompt }],
     })
 
-    const rawText = (response.content[0] as any)?.text?.trim() ?? ''
+    const firstBlock = response.content[0]
+    const rawText = firstBlock && firstBlock.type === 'text'
+      ? (firstBlock as AnthropicTextBlock).text.trim()
+      : ''
     // Strip any markdown header line (e.g. "# Title\n")
     const description = rawText.replace(/^#+\s+[^\r\n]+[\r\n]+/, '').trim()
     if (!description) {
       return NextResponse.json({ error: 'Generation failed' }, { status: 500 })
     }
 
-    // Persist to DB — service client: writing ai_description without re-checking ownership is safe here; vehicle was already verified above via the auth client.
-    const svc = createServiceClient()
-    await svc
+    await supabase
       .from('vehicles')
       .update({ ai_description: description })
       .eq('id', id)
+      .eq('user_id', profile.org_id)
 
     return NextResponse.json({ description })
-  } catch (err: any) {
-    console.error('[ai-description] error:', err?.message)
+  } catch (err: unknown) {
+    console.error('[ai-description] error:', err instanceof Error ? err.message : err)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 }

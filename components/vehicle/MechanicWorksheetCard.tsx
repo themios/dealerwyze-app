@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { ChevronDown, ChevronUp, Wrench } from 'lucide-react'
 
 interface MechanicNotes {
@@ -44,22 +44,26 @@ export default function MechanicWorksheetCard({ vehicleId, canEdit }: Props) {
   const [loading, setLoading] = useState(true)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const load = useCallback(async () => {
-    const res = await fetch(`/api/vehicles/${vehicleId}/mechanic-notes`)
-    if (res.ok) {
-      const data = await res.json()
-      // Normalize stored values to strings for text inputs
-      const raw = data.mechanic_notes ?? {}
-      const normalized: MechanicNotes = {}
-      for (const k of Object.keys(raw)) {
-        normalized[k as keyof MechanicNotes] = raw[k] != null ? String(raw[k]) : ''
-      }
-      setNotes(normalized)
-    }
-    setLoading(false)
-  }, [vehicleId])
+  useEffect(() => {
+    let cancelled = false
 
-  useEffect(() => { load() }, [load])
+    fetch(`/api/vehicles/${vehicleId}/mechanic-notes`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (cancelled || !data) return
+        const raw = data.mechanic_notes ?? {}
+        const normalized: MechanicNotes = {}
+        for (const k of Object.keys(raw)) {
+          normalized[k as keyof MechanicNotes] = raw[k] != null ? String(raw[k]) : ''
+        }
+        setNotes(normalized)
+        setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [vehicleId])
 
   function save(updated: MechanicNotes) {
     if (debounceRef.current) clearTimeout(debounceRef.current)

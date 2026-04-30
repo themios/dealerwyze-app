@@ -52,9 +52,9 @@ interface SalespersonDetail {
 
 type SortKey = 'risk' | 'inactive' | 'usage' | 'tickets' | 'name'
 
-function humanizeAgo(d: string | null) {
+function humanizeAgo(d: string | null, nowMs: number) {
   if (!d) return 'Never'
-  const days = Math.floor((Date.now() - new Date(d).getTime()) / 86400000)
+  const days = Math.floor((nowMs - new Date(d).getTime()) / 86400000)
   if (days === 0) return 'Today'
   if (days === 1) return '1d ago'
   if (days < 30)  return `${days}d ago`
@@ -74,6 +74,7 @@ function ScoreCircle({ score, tier }: { score: number; tier: string }) {
 }
 
 export default function SalespersonDetailPage() {
+  const [nowMs] = useState(() => Date.now())
   const { id } = useParams<{ id: string }>()
   const [salesperson, setSalesperson]   = useState<SalespersonDetail | null>(null)
   const [customers, setCustomers]       = useState<CustomerOrg[]>([])
@@ -104,8 +105,8 @@ export default function SalespersonDetailPage() {
       })
     } else if (sort === 'inactive') {
       list.sort((a, b) => {
-        const da = a.last_active_at ? (Date.now() - new Date(a.last_active_at).getTime()) : Infinity
-        const db = b.last_active_at ? (Date.now() - new Date(b.last_active_at).getTime()) : Infinity
+        const da = a.last_active_at ? (nowMs - new Date(a.last_active_at).getTime()) : Infinity
+        const db = b.last_active_at ? (nowMs - new Date(b.last_active_at).getTime()) : Infinity
         return db - da
       })
     } else if (sort === 'usage') {
@@ -116,7 +117,7 @@ export default function SalespersonDetailPage() {
       list.sort((a, b) => a.name.localeCompare(b.name))
     }
     return list
-  }, [customers, sort])
+  }, [customers, nowMs, sort])
 
   const stats = useMemo(() => ({
     total:    customers.length,
@@ -268,7 +269,7 @@ export default function SalespersonDetailPage() {
                           <TierBadge tier={org.tier} />
                         </div>
                         <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground flex-wrap">
-                          <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{humanizeAgo(org.last_active_at)}</span>
+                          <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{humanizeAgo(org.last_active_at, nowMs)}</span>
                           <span className="flex items-center gap-1"><MessageSquare className="h-3 w-3" />{org.sms_used_pct}% SMS</span>
                           {!org.has_active_email && <span className="text-yellow-500 text-[10px]">No email</span>}
                           {org.tickets_open > 0 && (

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import { canAccessReports } from '@/lib/auth/dealerRoles'
 
 export const dynamic = 'force-dynamic'
@@ -26,7 +26,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Date range invalid or exceeds 366 days' }, { status: 400 })
   }
 
-  const supabase = createServiceClient()
+  const supabase = await createClient()
   const orgId    = profile.org_id
 
   // ── Overview ──────────────────────────────────────────────────────────────

@@ -21,6 +21,11 @@ interface RenderResult {
   status: 'queued' | 'rendering'
 }
 
+type VideoRenderUpdate = {
+  narration_url: string
+  props_snapshot: VehicleVideoProps
+}
+
 export async function renderVehicleVideo(req: RenderRequest): Promise<RenderResult> {
   const supabase = createServiceClient()
 
@@ -143,8 +148,7 @@ export async function renderVehicleVideo(req: RenderRequest): Promise<RenderResu
       narration_url:        null,
       triggered_by:         req.triggeredByUser ? 'manual' : 'auto',
       triggered_by_user:    req.triggeredByUser ?? null,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      props_snapshot:       propsSnapshot as any,
+      props_snapshot:       propsSnapshot,
       selected_photo_urls:  selectedPhotos,
       voice_name:           selectedVoice,
       auto_post:            req.autoPost ?? false,
@@ -176,7 +180,7 @@ export async function renderVehicleVideo(req: RenderRequest): Promise<RenderResu
     propsSnapshot.narrationUrl = narrationUrl
     await supabase
       .from('video_renders')
-      .update({ narration_url: narrationUrl, props_snapshot: propsSnapshot as any })
+      .update({ narration_url: narrationUrl, props_snapshot: propsSnapshot } satisfies VideoRenderUpdate)
       .eq('id', renderId)
   }
 

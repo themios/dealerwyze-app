@@ -9,6 +9,12 @@ export interface SerpapiPricing {
   dealerRetailHigh: number | null
 }
 
+interface SerpapiResponse {
+  organic_results?: Array<{
+    snippet?: string
+  }>
+}
+
 /**
  * Fetches KBB/Edmunds pricing snippets from Google via SerpAPI.
  * Used as a fallback when MarketCheck returns 0 active comps.
@@ -40,7 +46,7 @@ export async function fetchSerpapiPricing(
       return null
     }
 
-    const data = await res.json()
+    const data = await res.json() as SerpapiResponse
     const snippets: string[] = (data.organic_results ?? [])
       .slice(0, 6)
       .map((r: { snippet?: string }) => r.snippet ?? '')
@@ -56,8 +62,8 @@ export async function fetchSerpapiPricing(
       dealerRetailLow:  extractLow(combined, 'dealer.?retail|dealership'),
       dealerRetailHigh: extractHigh(combined, 'dealer.?retail|dealership'),
     }
-  } catch (err: any) {
-    console.warn('[SerpAPI] fetch error:', err?.message)
+  } catch (err) {
+    console.warn('[SerpAPI] fetch error:', err instanceof Error ? err.message : err)
     return null
   }
 }

@@ -70,7 +70,15 @@ export default function FaxPage() {
   }
 
   useEffect(() => {
-    fetchHistory()
+    void (async () => {
+      try {
+        const r = await fetch('/api/fax')
+        if (r.ok) setHistory(await r.json())
+      } catch {
+        // Ignore initial history load failures
+      }
+      setLoading(false)
+    })()
     // Poll every 15s while any fax is in-progress
     const id = setInterval(() => {
       setHistory(prev => {

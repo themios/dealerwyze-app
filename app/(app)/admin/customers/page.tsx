@@ -5,8 +5,8 @@ import Link from 'next/link'
 import TopBar from '@/components/layout/TopBar'
 import {
   AlertCircle, CheckCircle2, ChevronRight, Clock,
-  MessageSquare, TicketCheck, Mail, Search, ArrowUpDown,
-  TrendingDown, Users, Briefcase, Filter,
+  TicketCheck, Mail, Search, ArrowUpDown,
+  Users, Briefcase, Filter,
 } from 'lucide-react'
 
 interface CustomerRow {

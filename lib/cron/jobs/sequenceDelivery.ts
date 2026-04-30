@@ -89,6 +89,15 @@ export async function runSequenceDelivery(
         continue
       }
 
+      // Atomic claim: only proceed if we set completed_at (guards against overlapping cron runs)
+      const { data: claimed } = await supabase
+        .from('activities')
+        .update({ completed_at: nowIso })
+        .eq('id', act.id)
+        .is('completed_at', null)
+        .select('id')
+      if (!claimed || claimed.length === 0) continue
+
       let parsed: { to?: string; subject?: string; body?: string; step_label?: string; customer_name?: string } = {}
       try { parsed = JSON.parse(act.body ?? '') } catch { continue }
       if (!parsed.to || !parsed.subject || !parsed.body) continue

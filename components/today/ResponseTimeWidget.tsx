@@ -6,7 +6,8 @@ interface Props {
 
 export default async function ResponseTimeWidget({ orgId }: Props) {
   const supabase = await createClient()
-  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString()
+  const renderNow = new Date()
+  const sevenDaysAgo = new Date(renderNow.getTime() - 7 * 86400000).toISOString()
 
   const { data } = await supabase
     .from('customers')

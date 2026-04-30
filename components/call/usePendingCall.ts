@@ -23,8 +23,9 @@ export function getPendingCall(): PendingCall | null {
 }
 
 export function usePendingCall() {
-  const [pendingCall, setPendingCallState] = useState<PendingCall | null>(null)
-  const [modalOpen, setModalOpen] = useState(false)
+  const initialPendingCall = typeof window === 'undefined' ? null : getPendingCall()
+  const [pendingCall, setPendingCallState] = useState<PendingCall | null>(initialPendingCall)
+  const [modalOpen, setModalOpen] = useState(Boolean(initialPendingCall))
 
   const checkForPendingCall = useCallback(() => {
     const call = getPendingCall()
@@ -35,9 +36,6 @@ export function usePendingCall() {
   }, [])
 
   useEffect(() => {
-    // Check on mount (in case app was relaunched)
-    checkForPendingCall()
-
     // Check when app regains focus (returning from dialer)
     function handleVisibilityChange() {
       if (!document.hidden) {

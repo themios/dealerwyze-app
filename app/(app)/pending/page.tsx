@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import { isDealerAdmin } from '@/types/index'
 
 export default async function PendingPage() {
@@ -12,8 +12,8 @@ export default async function PendingPage() {
   // Non-admin dealer roles shouldn't hit this either
   if (!isDealerAdmin(profile.role)) redirect('/today')
 
-  const service = createServiceClient()
-  const { data: org } = await service
+  const supabase = await createClient()
+  const { data: org } = await supabase
     .from('organizations')
     .select('name, approved_at, rejection_reason')
     .eq('id', profile.org_id)
@@ -52,7 +52,7 @@ export default async function PendingPage() {
         ) : (
           <div className="rounded-lg border bg-card p-6 space-y-4">
             <p className="text-sm text-muted-foreground">
-              Your DealerWyze account is pending review by our team. You'll receive an email once
+              Your DealerWyze account is pending review by our team. You&apos;ll receive an email once
               your account is approved — typically within 1 business day.
             </p>
             <div className="border-t pt-4 space-y-1 text-xs text-muted-foreground">

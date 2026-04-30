@@ -8,14 +8,11 @@ import {
   Img,
   Sequence,
   AbsoluteFill,
-  staticFile,
 } from 'remotion'
 import { VehicleVideoProps, DEFAULT_PROPS } from '../types'
 
 // 16:9, 40 seconds @ 30fps = 1200 frames
 export const TEMPLATE_DURATION = 1200
-const FPS = 30
-
 const DARK   = '#0d1b3e'
 const ORANGE = '#f97316'
 const WHITE  = '#ffffff'

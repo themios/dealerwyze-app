@@ -88,10 +88,11 @@ export async function DELETE(
   if (!canAccessLedger(profile.role)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
   }
-  const service = createServiceClient()
+  const supabase = await createClient()
+  const storage = createServiceClient()
 
   // Verify ownership
-  const { data: existing } = await service
+  const { data: existing } = await supabase
     .from('receipts')
     .select('id, storage_path')
     .eq('id', id)
@@ -101,15 +102,15 @@ export async function DELETE(
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // Delete linked ledger_transactions first
-  await service.from('ledger_transactions').delete().eq('receipt_id', id)
+  await supabase.from('ledger_transactions').delete().eq('receipt_id', id)
 
   // Delete the receipt row
-  const { error } = await service.from('receipts').delete().eq('id', id)
+  const { error } = await supabase.from('receipts').delete().eq('id', id)
   if (error) return NextResponse.json({ error: 'Delete failed' }, { status: 500 })
 
-  // Best-effort storage cleanup
+  // Best-effort storage cleanup (service role — storage bucket RLS)
   if (existing.storage_path) {
-    await service.storage.from('receipts').remove([existing.storage_path])
+    await storage.storage.from('receipts').remove([existing.storage_path])
   }
 
   return NextResponse.json({ ok: true })

@@ -26,13 +26,13 @@ Every dealership's data stays completely isolated from every other dealership's 
 ### Active (Milestone v1.1 — Enterprise Hardening)
 
 - [ ] Service-role blast radius reduced: scoped helpers enforce org filter at API shape level
-- [ ] Impersonation returns scoped client, not raw service role
+- [x] Impersonation returns scoped client, not raw service role
 - [ ] BHPH payment finalization is atomic (single DB transaction or RPC)
 - [ ] Payment idempotency enforced on stripe_payment_intent_id
 - [ ] Lint passes with zero errors in source (correctness issues fixed)
 - [ ] Integration test suite covers auth, tenancy, payments, webhooks, and public ingestion
 - [ ] Export cooldown moved from process-local Map to Upstash
-- [ ] Legacy Gmail PUBSUB_VERIFICATION_TOKEN path removed
+- [x] Legacy Gmail PUBSUB_VERIFICATION_TOKEN path removed
 - [ ] Email signature sanitized via vetted HTML sanitizer (DOMPurify)
 - [ ] CI gates: build + test + lint on every deploy
 - [ ] Audit logging for impersonation, payment mutations, exports, settings changes
@@ -52,19 +52,19 @@ Every dealership's data stays completely isolated from every other dealership's 
 **Audit baseline (2026-04-29):** Score 12/20.
 - Security: 2/4 — service-role blast radius and BHPH atomicity are open P1s
 - Reliability: 3/4 — BHPH payments lack DB-level transaction guarantees
-- Maintainability: 2/4 — 297 lint problems; no schema validation at boundaries
+- Maintainability: 2/4 — source lint currently clean; no schema validation at boundaries
 - QA/Testing: 1/4 — 4 test files, 38 tests against 218 API route files
 - Operability: 4/4 — build passes, deploy scripts exist, Upstash rate limiting in place
 
 **Target:** 18/20 (enterprise-acceptable for high-trust dealership rollout).
 
 **Key architectural facts:**
-- 339 usages of `createServiceClient()` or `createClientForRequest()` across app/ and lib/
+- Service-role triage inventory currently classifies 363 non-import call sites across `createServiceClient()` and `createClientForRequest()`
 - `customers` table has no `org_id` — org scoping relies on `user_id` and profile context
 - `activities` table has no `org_id` — inserting org_id breaks writes
 - Staff impersonation uses signed `dealerwyze_staff_org_id` cookie + `STAFF_SESSION_SECRET`
-- `forRequest.ts` currently upgrades impersonated requests to full service-role client
-- BHPH confirm flow: token update → activity insert → contract mutation (three separate writes)
+- `forRequest.ts` now returns an org-scoped privileged client for read-only impersonation; raw service role remains explicit for write-enabled remote admin sessions only
+- BHPH confirm route now delegates to `finalize_bhph_payment` RPC; remaining gap is DB-backed verification of atomic behavior
 
 ## Constraints
 
@@ -84,4 +84,4 @@ Every dealership's data stays completely isolated from every other dealership's 
 | Integration tests over unit tests for high-risk paths | Tests the actual security boundary, not mocked internals | — Pending |
 
 ---
-*Last updated: 2026-04-29 — milestone v1.1 Enterprise Hardening initialized*
+*Last updated: 2026-04-29 — planning reconciled and Phase 3 prep completed*

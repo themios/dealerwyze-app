@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClientForRequest } from '@/lib/supabase/forRequest'
 
 // GET /api/video-templates — list active templates
-export async function GET(_req: NextRequest) {
+export async function GET() {
   await requireProfile()
   const supabase = await createClientForRequest()
 

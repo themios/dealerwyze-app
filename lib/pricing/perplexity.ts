@@ -81,16 +81,6 @@ Use current actual dealer listing data from CarGurus, Cars.com, or AutoTrader. I
     if (!raw) return null
 
     // Flexible extraction — handles labeled format AND table/narrative formats
-    const firstDollarNum = (text: string): number | null => {
-      const m = text.match(/\$\s*([\d,]+)/)
-      return m ? parseInt(m[1].replace(/,/g, ''), 10) : null
-    }
-    const lastDollarNum = (text: string): number | null => {
-      const matches = [...text.matchAll(/\$\s*([\d,]+)/g)]
-      if (!matches.length) return null
-      return parseInt(matches[matches.length - 1][1].replace(/,/g, ''), 10)
-    }
-
     // Try exact label first, then broader keyword matches
     const extractPrice = (labels: string[]): number | null => {
       for (const label of labels) {

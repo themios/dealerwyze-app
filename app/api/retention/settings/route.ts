@@ -8,12 +8,12 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import { isDealerAdmin } from '@/lib/auth/dealerRoles'
 
 export async function GET() {
   const profile  = await requireProfile()
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   const { data } = await supabase
     .from('retention_settings')
@@ -30,7 +30,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   let body: Record<string, unknown>
   try {

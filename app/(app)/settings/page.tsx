@@ -2,10 +2,11 @@ import { createClientForRequest } from '@/lib/supabase/forRequest'
 import { requireProfile } from '@/lib/auth/profile'
 import TopBar from '@/components/layout/TopBar'
 import Link from 'next/link'
+import { isDealerAdmin } from '@/lib/auth/dealerRoles'
 import {
   BarChart2, Users, ChevronRight, ExternalLink, CreditCard, Building2,
   Target, BookOpen, Zap, MessageSquare, ClipboardList, ListOrdered,
-  Webhook, DollarSign, Layers, GitBranch, Video, Share2, Palette, Heart,
+  Webhook, DollarSign, Layers, GitBranch, Video, Share2, Palette, Heart, Shield,
   type LucideIcon,
 } from 'lucide-react'
 import FontSizeSetting from '@/components/settings/FontSizeSetting'
@@ -54,6 +55,12 @@ const ORG_LINKS: LinkCardDef[] = [
     icon: GitBranch,
     title: 'Pipeline Stages',
     description: 'Rename, reorder, and add custom stages to match your sales process',
+  },
+  {
+    href: '/settings/audit',
+    icon: Shield,
+    title: 'Audit Log',
+    description: 'Security event history — payments, exports, settings changes, and access events',
   },
 ]
 
@@ -173,6 +180,7 @@ function LinkGroup({ links }: { links: LinkCardDef[] }) {
 export default async function SettingsPage() {
   const profile = await requireProfile()
   const supabase = await createClientForRequest()
+  const canManageReconTemplate = isDealerAdmin(profile.role)
 
   const { data: orgSettings } = await supabase
     .from('org_settings')
@@ -254,6 +262,13 @@ export default async function SettingsPage() {
               </div>
             </section>
           </>
+        )}
+
+        {canManageReconTemplate && profile.role !== 'admin' && (
+          <section>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Inventory</p>
+            <LinkGroup links={INVENTORY_LINKS} />
+          </section>
         )}
 
         {/* Display */}

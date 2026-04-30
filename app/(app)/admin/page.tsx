@@ -19,9 +19,9 @@ interface PendingOrgRow { id: string; name: string; created_at: string }
 
 const PLAN_MRR: Record<string, number> = { tier1: 150, tier2: 200, tier3: 250 }
 
-function humanizeAgo(dateStr: string | null): string {
+function humanizeAgo(dateStr: string | null, nowMs: number): string {
   if (!dateStr) return 'Never'
-  const days = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000)
+  const days = Math.floor((nowMs - new Date(dateStr).getTime()) / 86400000)
   if (days === 0) return 'Today'
   if (days === 1) return '1d ago'
   if (days < 30)  return `${days}d ago`
@@ -67,6 +67,8 @@ export default async function AdminPage() {
     redirect('/admin/tickets')
   }
 
+  const renderNow = new Date()
+  const renderNowMs = renderNow.getTime()
   const service = createServiceClient()
 
   const [orgsRes, pendingRes, transfersRes, alertsRes, cronRes, ticketsRes, staffCountRes, emailRes, profilesRes] =
@@ -159,9 +161,9 @@ export default async function AdminPage() {
     const smsUsedPct = quota > 0 ? Math.round((msg / quota) * 100) : 0
     const lastActive = orgLastActiveMap.get(org.id) ?? null
     const trialDaysLeft = org.trial_ends_at
-      ? Math.ceil((new Date(org.trial_ends_at).getTime() - Date.now()) / 86400000) : null
+      ? Math.ceil((new Date(org.trial_ends_at).getTime() - renderNowMs) / 86400000) : null
     const pastDueDays = org.subscription_status === 'past_due' && org.current_period_end
-      ? Math.floor((Date.now() - new Date(org.current_period_end).getTime()) / 86400000) : 0
+      ? Math.floor((renderNowMs - new Date(org.current_period_end).getTime()) / 86400000) : 0
 
     const { score, tier } = computeAttritionScore({
       subscription_status:   org.subscription_status,
@@ -180,7 +182,7 @@ export default async function AdminPage() {
 
     if (!lastActive) neverLoggedIn++
     else {
-      const days = (Date.now() - new Date(lastActive).getTime()) / 86400000
+      const days = (renderNowMs - new Date(lastActive).getTime()) / 86400000
       if (days >= 30) dormant30++
     }
   }
@@ -207,7 +209,7 @@ export default async function AdminPage() {
   const CRON_JOBS = ['check-tasks', 'sync-leads', 'poll-reviews']
   const cronStatus = CRON_JOBS.map(job => {
     const latest = cronRuns.find(r => r.job_name === job)
-    const stale  = latest ? (Date.now() - new Date(latest.started_at).getTime()) > 25 * 3600000 : true
+    const stale  = latest ? (renderNowMs - new Date(latest.started_at).getTime()) > 25 * 3600000 : true
     return { job, latest, stale }
   })
 
@@ -243,10 +245,9 @@ export default async function AdminPage() {
   }
 
   // Weekly signup trend — last 8 weeks
-  const nowMs = Date.now()
   const weeklySignups = Array.from({ length: 8 }, (_, i) => {
-    const start = nowMs - (8 - i) * 7 * 86400000
-    const end   = nowMs - (7 - i) * 7 * 86400000
+    const start = renderNowMs - (8 - i) * 7 * 86400000
+    const end   = renderNowMs - (7 - i) * 7 * 86400000
     const label = new Date(start).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     const count = approvedRows.filter(o => {
       const t = new Date(o.created_at).getTime()
@@ -584,7 +585,7 @@ export default async function AdminPage() {
                   <span className="text-xs font-medium">{job}</span>
                 </div>
                 <span className="text-[10px] text-muted-foreground">
-                  {latest ? humanizeAgo(latest.started_at) : 'Never ran'}
+                  {latest ? humanizeAgo(latest.started_at, renderNowMs) : 'Never ran'}
                   {latest?.status === 'error' && ' · error'}
                 </span>
               </div>
@@ -662,7 +663,7 @@ export default async function AdminPage() {
                       </td>
                       <td className="py-2.5 pr-4"><StatusBadge status={status} /></td>
                       <td className="py-2.5 pr-4 text-muted-foreground uppercase text-xs">{org.plan}</td>
-                      <td className="py-2.5 pr-4 text-xs text-muted-foreground">{humanizeAgo(lastActive)}</td>
+                      <td className="py-2.5 pr-4 text-xs text-muted-foreground">{humanizeAgo(lastActive, renderNowMs)}</td>
                       <td className="py-2.5 text-xs text-muted-foreground">{formatDate(billingDate)}</td>
                     </tr>
                   )

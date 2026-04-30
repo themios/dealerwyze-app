@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 
 export async function GET() {
   const profile = await requireProfile()
-  const service = createServiceClient()
+  const service = await createClient()
 
   const { data: sequences, error } = await service
     .from('sequences')
@@ -19,7 +19,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const profile = await requireProfile()
-  const service = createServiceClient()
+  const service = await createClient()
 
   let body: Record<string, unknown>
   try {

@@ -1,10 +1,6 @@
 /** Renew expiring Gmail push watches so real-time email delivery stays uninterrupted. */
 
-import type { createServiceClient } from '@/lib/supabase/service'
-
-export async function runGmailWatchRenewal(
-  supabase: ReturnType<typeof createServiceClient>,
-): Promise<{ gmailWatchesRenewed: number; gmailWatchesFailed: number }> {
+export async function runGmailWatchRenewal(): Promise<{ gmailWatchesRenewed: number; gmailWatchesFailed: number }> {
   let gmailWatchesRenewed = 0
   let gmailWatchesFailed = 0
 

@@ -1,7 +1,7 @@
 // app/api/pulse/scores/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import { canManageUsers } from '@/lib/auth/dealerRoles'
 import type { UserRole } from '@/types/index'
 import { CATEGORY_LABELS } from '@/lib/pulse/questions'
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   const triggerType = url.searchParams.get('trigger_type') ?? null
   const since       = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
 
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   let q = supabase
     .from('pulse_surveys')

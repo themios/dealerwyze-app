@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClientForRequest } from '@/lib/supabase/forRequest'
-import { createServiceClient } from '@/lib/supabase/service'
 import { fetchMarketCheckStats } from '@/lib/pricing/marketCheck'
 import { fetchNhtsaRecalls } from '@/lib/pricing/nhtsa'
 import { fetchCompoundMarketIntel } from '@/lib/pricing/groqCompound'
@@ -13,6 +12,10 @@ import { orgMarketCheckLimiter } from '@/lib/rateLimit/upstash'
 export const maxDuration = 90
 
 const CACHE_TTL_HOURS = 168 // 7 days
+
+type CachedMarketData = {
+  marketIntelReport?: string
+} & Record<string, unknown>
 
 interface Params { params: Promise<{ id: string }> }
 
@@ -50,15 +53,13 @@ export async function GET(_req: NextRequest, { params }: Params) {
     // Return cached result if fresh AND compound report is present
     if (vehicle.market_checked_at && vehicle.market_data_json) {
       const ageHours = (Date.now() - new Date(vehicle.market_checked_at).getTime()) / 3_600_000
-      const hasReport = !!(vehicle.market_data_json as any)?.marketIntelReport
+      const hasReport = !!(vehicle.market_data_json as CachedMarketData | null)?.marketIntelReport
       if (ageHours < CACHE_TTL_HOURS && hasReport) {
         return NextResponse.json({ data: vehicle.market_data_json, cached: true })
       }
     }
 
-    // Service client: reading org_settings and writing market_data_json back to vehicles; vehicle ownership already verified above.
-    const svc = createServiceClient()
-    const { data: orgSettings } = await svc
+    const { data: orgSettings } = await supabase
       .from('org_settings')
       .select('zip_code')
       .eq('org_id', profile.org_id)
@@ -90,8 +91,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     // Determine reliability tier from NHTSA
     const reliabilityTier = deriveReliabilityTier(nhtsa.tier, null)
 
-    // Persist to DB using service client (bypasses RLS for update)
-    await svc
+    await supabase
       .from('vehicles')
       .update({
         market_data_json:   intelligence,
@@ -100,6 +100,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         reliability_tier:   reliabilityTier,
       })
       .eq('id', id)
+      .eq('user_id', profile.org_id)
 
     return NextResponse.json({ data: intelligence, cached: false })
   } catch (err) {

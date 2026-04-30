@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import Image from 'next/image'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   CheckCircle, ChevronDown, ChevronUp, AlertTriangle,
@@ -341,12 +342,17 @@ export default function ReviewForm({ receipt, categories, lotVehicles, soldVehic
             </button>
             {imageExpanded && (
               <div className="relative bg-muted">
-                <img
-                  src={receipt.signed_url}
-                  alt="Receipt"
-                  className="w-full max-h-72 object-contain cursor-zoom-in"
-                  onClick={() => setLightboxOpen(true)}
-                />
+                <div className="relative h-72 w-full">
+                  <Image
+                    src={receipt.signed_url}
+                    alt="Receipt"
+                    fill
+                    unoptimized
+                    className="cursor-zoom-in object-contain"
+                    sizes="100vw"
+                    onClick={() => setLightboxOpen(true)}
+                  />
+                </div>
                 <button
                   onClick={() => setLightboxOpen(true)}
                   className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1.5"
@@ -371,12 +377,17 @@ export default function ReviewForm({ receipt, categories, lotVehicles, soldVehic
               >
                 <X className="h-5 w-5" />
               </button>
-              <img
-                src={receipt.signed_url}
-                alt="Receipt full size"
-                className="max-w-full max-h-full object-contain"
-                onClick={e => e.stopPropagation()}
-              />
+              <div className="relative h-full w-full">
+                <Image
+                  src={receipt.signed_url}
+                  alt="Receipt full size"
+                  fill
+                  unoptimized
+                  className="object-contain"
+                  sizes="100vw"
+                  onClick={e => e.stopPropagation()}
+                />
+              </div>
             </div>
           )}
         </>

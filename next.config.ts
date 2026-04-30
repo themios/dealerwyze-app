@@ -1,15 +1,32 @@
 import type { NextConfig } from 'next'
 import path from 'path'
 import { withSentryConfig } from '@sentry/nextjs'
+import nextPwa from 'next-pwa'
+import type { Configuration } from 'webpack'
 
-const withPWA = require('next-pwa')({
+const withPWA = nextPwa({
   dest: 'public',
   register: true,
   skipWaiting: true,
   disable: process.env.NODE_ENV === 'development',
 })
 
+const securityHeaders = [
+  { key: 'X-Frame-Options', value: 'DENY' },
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+  {
+    key: 'Strict-Transport-Security',
+    value: 'max-age=63072000; includeSubDomains; preload',
+  },
+]
+
 const nextConfig: NextConfig = {
+  async headers() {
+    return [{ source: '/(.*)', headers: securityHeaders }]
+  },
+
   // Allow HMR WebSocket connections from the local network IP (for mobile/tablet testing).
   // Safe for dev only — next-pwa disables in production anyway.
   allowedDevOrigins: ['192.168.0.100'],
@@ -24,9 +41,9 @@ const nextConfig: NextConfig = {
   // next-pwa runs webpack alongside Turbopack. Webpack resolves CSS from ApolloCRM/
   // context (a parent dir), so it never finds tailwindcss/tw-animate-css/shadcn in
   // apollo-crm/node_modules. This prepends the correct node_modules to fix it.
-  webpack: (config: any) => {
+  webpack: (config: Configuration) => {
     config.resolve = config.resolve ?? {}
-    const existing: string[] = config.resolve.modules ?? ['node_modules']
+    const existing = Array.isArray(config.resolve.modules) ? config.resolve.modules : ['node_modules']
     config.resolve.modules = [path.join(__dirname, 'node_modules'), ...existing]
     return config
   },

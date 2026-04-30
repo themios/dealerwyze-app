@@ -1,7 +1,8 @@
 'use client'
 
+import Image from 'next/image'
 import { useState, useEffect } from 'react'
-import { Video, X, Loader2, Check, ChevronRight } from 'lucide-react'
+import { Video, X, Loader2, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { VOICE_OPTIONS } from '@/lib/remotion/selectDefaults'
 
@@ -181,7 +182,7 @@ export default function VideoOptionsSheet({
                           isSelected ? 'border-primary' : 'border-transparent'
                         }`}
                       >
-                        <img src={url} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+                        <Image src={url} alt={`Photo ${i + 1}`} fill unoptimized className="object-cover" sizes="25vw" />
                         {isSelected && (
                           <div className="absolute top-1 right-1 w-5 h-5 bg-primary rounded-full flex items-center justify-center">
                             <Check className="h-3 w-3 text-primary-foreground" />

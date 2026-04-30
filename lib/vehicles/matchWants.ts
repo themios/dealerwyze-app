@@ -98,7 +98,7 @@ export async function matchVehicleWants(vehicle: VehicleForMatch): Promise<numbe
       title: `${notified} Want List Match${notified !== 1 ? 'es' : ''}`,
       body: `${vehicleLabel} matches ${notified} customer${notified !== 1 ? 's' : ''} on your want list`,
       url: '/today',
-    }).catch(() => {})
+    }, vehicle.user_id).catch(() => {})
 
     sendTelegramMessage(
       `<b>Want List Match</b>\n` +

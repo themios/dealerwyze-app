@@ -3,6 +3,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 /**
  * Resolve an org_id from an inbound phone number (the Twilio/Retell "To" number).
  * Looks up org_settings.twilio_phone_number (stored with or without the leading +).
+ * Scans are limited to 50 rows to prevent abuse (slow query attack on full table scan).
  */
 export async function getOrgIdByPhone(toNumber: string): Promise<string | null> {
   const supabase = createServiceClient()
@@ -14,6 +15,7 @@ export async function getOrgIdByPhone(toNumber: string): Promise<string | null> 
     .from('org_settings')
     .select('org_id, twilio_phone_number')
     .not('twilio_phone_number', 'is', null)
+    .limit(50)  // Prevent full table scan abuse; most deployments have a small number of orgs
 
   const match = rows?.find(r => {
     const stored = (r.twilio_phone_number as string).replace(/\D/g, '')
@@ -26,6 +28,7 @@ export async function getOrgIdByPhone(toNumber: string): Promise<string | null> 
 /**
  * Get org_id for a leads source that doesn't have a phone number.
  * For Gmail-based leads (CarGurus) we rely on the Gmail address stored per org.
+ * Scans are limited to 50 rows to prevent abuse.
  */
 export async function getOrgIdByGmail(email: string): Promise<string | null> {
   const supabase = createServiceClient()
@@ -34,6 +37,7 @@ export async function getOrgIdByGmail(email: string): Promise<string | null> {
     .from('org_settings')
     .select('org_id, gmail_email')
     .not('gmail_email', 'is', null)
+    .limit(50)  // Prevent full table scan abuse
 
   const match = rows?.find(r => r.gmail_email === email)
   return match?.org_id ?? null

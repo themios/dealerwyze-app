@@ -6,6 +6,7 @@ import type { UserRole } from '@/types/index'
 import { APP_URL } from '@/lib/stripe'
 import { sendNotificationEmail } from '@/lib/email/notify'
 import { buildTeamInviteEmailHtml } from '@/lib/email/teamInvite'
+import { logOrgAudit } from '@/lib/audit/orgAudit'
 
 const ALLOWED_DEALER_ROLES: UserRole[] = [
   'dealer_admin',
@@ -140,6 +141,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: profileErr.message }, { status: 500 })
     }
 
+    void logOrgAudit({ org_id: auth.profile.org_id, actor_id: auth.user.id, actor_type: 'user',
+      action: 'user_invited', details: { email, role: assignedRole, method: 'password_create' } })
+
     return NextResponse.json({ id: created.user.id, email, display_name, role: assignedRole })
   }
 
@@ -182,11 +186,14 @@ export async function POST(req: NextRequest) {
     html: buildTeamInviteEmailHtml(finalDisplayName, APP_URL),
   })
 
+  void logOrgAudit({ org_id: auth.profile.org_id, actor_id: auth.user.id, actor_type: 'user',
+    action: 'user_invited', details: { email, role: assignedRole, method: 'invite_email' } })
+
   return NextResponse.json({ id: invited.user.id, email, display_name: finalDisplayName, role: assignedRole })
 }
 
 /** PATCH /api/admin/users — regenerate invite code for the calling admin */
-export async function PATCH(_req: NextRequest) {
+export async function PATCH() {
   const auth = await requireUserManager()
   if (!auth) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
@@ -231,6 +238,8 @@ export async function DELETE(req: NextRequest) {
     target_org_id: target.org_id,
     details: { deactivated_user_id: id },
   })
+  void logOrgAudit({ org_id: target.org_id, actor_id: auth.user.id, actor_type: 'user',
+    action: 'user_deactivated', details: { target_user_id: id } })
 
   // Invalidate all active sessions for this user
   await service.auth.admin.signOut(id, 'global').catch(() => {})

@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useState, useRef } from 'react'
 import { MessageSquarePlus, X, Send, Loader2, ImagePlus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -171,16 +172,12 @@ export default function FeedbackButton() {
                   </div>
                   {files.length > 0 && (
                     <ul className="flex flex-wrap gap-2 mt-2">
-                      {files.map(({ file, url }, i) => (
+                      {files.map(({ url }, i) => (
                         <li
                           key={i}
                           className="relative w-14 h-14 rounded-lg border border-gray-200 overflow-hidden bg-gray-50 flex-shrink-0"
                         >
-                          <img
-                            src={url}
-                            alt=""
-                            className="w-full h-full object-cover"
-                          />
+                          <Image src={url} alt="" fill unoptimized className="object-cover" sizes="56px" />
                           <button
                             type="button"
                             onClick={() => removeFile(i)}

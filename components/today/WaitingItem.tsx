@@ -61,7 +61,7 @@ export default function WaitingItem({ activity, onUpdate, hasResponded = false }
             {typeLabel} {formatRelativeTime(activity.created_at)} — no reply
           </p>
           {activity.body && (
-            <p className="text-xs text-muted-foreground mt-1 italic line-clamp-1">"{activity.body}"</p>
+            <p className="text-xs text-muted-foreground mt-1 italic line-clamp-1">&quot;{activity.body}&quot;</p>
           )}
         </div>
         {(() => { const b = lastContactBadge(activity.created_at); return (

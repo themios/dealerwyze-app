@@ -62,7 +62,6 @@ const DEALER = {
 const TEAL        = '#0d9488';
 const TEAL_LIGHT  = '#5eead4';
 const AMBER       = '#f59e0b';
-const RED_SOFT    = '#fca5a5';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -239,8 +238,6 @@ const SceneGallery: React.FC = () => {
 
 const SceneValueProps: React.FC = () => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-
   // Price comparison bar animation
   const avgBarW = interpolate(frame, [80, 130], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   const ourBarW = interpolate(frame, [100, 150], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
@@ -257,7 +254,7 @@ const SceneValueProps: React.FC = () => {
         {/* Left: selling points */}
         <div style={{ flex: 1 }}>
           <div style={{ opacity: fadeIn(frame, 0, 15), color: TEAL_LIGHT, fontSize: 15, textTransform: 'uppercase', letterSpacing: 4, marginBottom: 10 }}>
-            Why It's a Smart Choice
+            Why It&apos;s a Smart Choice
           </div>
           <div style={{ opacity: fadeIn(frame, 8, 20), color: WHITE, fontSize: 36, fontWeight: 900, marginBottom: 32 }}>
             A lot of car for $17,995.
@@ -442,4 +439,3 @@ export const VehicleShowcase: React.FC = () => (
     <ProgressBarInner totalFrames={SHOWCASE_DURATION} />
   </AbsoluteFill>
 );
-

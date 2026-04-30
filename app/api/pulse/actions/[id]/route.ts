@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import { canManageUsers } from '@/lib/auth/dealerRoles'
 import type { UserRole } from '@/types/index'
 
@@ -25,7 +25,7 @@ export async function PATCH(
   if (body.assigned_to !== undefined)                   updates.assigned_to = body.assigned_to
   if (body.due_at !== undefined)                        updates.due_at      = body.due_at
 
-  const supabase = createServiceClient()
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('pulse_actions')
     .update(updates)

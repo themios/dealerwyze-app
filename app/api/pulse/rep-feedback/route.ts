@@ -2,13 +2,13 @@
 // Returns the calling rep's own anonymous feedback (no customer names)
 import { NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import { CATEGORY_LABELS } from '@/lib/pulse/questions'
 import type { Category } from '@/lib/pulse/questions'
 
 export async function GET() {
   const profile  = await requireProfile()
-  const supabase = createServiceClient()
+  const supabase = await createClient()
   const since    = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
 
   const { data: surveys } = await supabase

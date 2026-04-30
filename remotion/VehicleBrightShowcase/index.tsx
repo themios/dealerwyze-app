@@ -15,10 +15,8 @@ import { VehicleVideoProps, DEFAULT_PROPS } from '../types'
 export const TEMPLATE_DURATION = 1050
 
 const WHITE  = '#ffffff'
-const LIGHT  = '#f0f9ff'
 const BLUE   = '#0ea5e9'
 const DARK   = '#0f172a'
-const GRAY   = '#f1f5f9'
 
 function formatPrice(p: number) {
   return `$${p.toLocaleString()}`

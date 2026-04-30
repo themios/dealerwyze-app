@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { Loader2, Download } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import ReportsClient from './ReportsClient'
@@ -147,18 +147,29 @@ export default function AnalyticsDashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState<string | null>(null)
 
-  const load = useCallback((days: number) => {
-    setLoading(true)
-    setData(null)    // Issue #10: clear stale data immediately to avoid stale flash
-    setError(null)
-    const { from, to } = buildRange(days)
+  useEffect(() => {
+    let cancelled = false
+    const { from, to } = buildRange(preset)
+
     fetch(`/api/analytics?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
       .then(r => r.ok ? r.json() : Promise.reject(r.statusText))
-      .then((d: AnalyticsData) => { setData(d); setLoading(false) })
-      .catch((e: unknown) => { setError(String(e)); setLoading(false) })
-  }, [])
+      .then((d: AnalyticsData) => {
+        if (!cancelled) {
+          setData(d)
+          setLoading(false)
+        }
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) {
+          setError(String(e))
+          setLoading(false)
+        }
+      })
 
-  useEffect(() => { load(preset) }, [load, preset])
+    return () => {
+      cancelled = true
+    }
+  }, [preset])
 
   const funnelMax = data?.funnel[0]?.count || 1
 
@@ -194,7 +205,12 @@ export default function AnalyticsDashboard() {
         {PRESETS.map(p => (
           <button
             key={p.label}
-            onClick={() => setPreset(p.days)}
+            onClick={() => {
+              setLoading(true)
+              setData(null)
+              setError(null)
+              setPreset(p.days)
+            }}
             className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
               preset === p.days
                 ? 'bg-[#0D2B55] text-white'

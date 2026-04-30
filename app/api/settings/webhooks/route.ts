@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import { isDealerAdmin } from '@/types/index'
+import { logOrgAudit } from '@/lib/audit/orgAudit'
 
 const ALLOWED_EVENTS = ['new_lead', 'stage_change', 'appointment_created', 'bhph_payment_received']
 
@@ -12,7 +13,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const supabase = createServiceClient()
+  const supabase = await createClient()
   const { data: hooks, error } = await supabase
     .from('org_webhooks')
     .select('id, url, events, active, created_at')
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest) {
   }
 
   const secret = crypto.randomBytes(32).toString('hex')
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   const { data: hook, error } = await supabase
     .from('org_webhooks')
@@ -67,6 +68,9 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: 'Failed to create webhook' }, { status: 500 })
 
+  void logOrgAudit({ org_id: profile.org_id, actor_id: profile.id, actor_type: 'user',
+    action: 'webhook_created', details: { url, events } })
+
   // Return secret ONCE — it will not be returned on future GETs
   return NextResponse.json({ webhook: { ...hook, secret } }, { status: 201 })
 }
@@ -80,7 +84,7 @@ export async function DELETE(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   // Verify org ownership before deleting
   const { data: existing } = await supabase
@@ -99,6 +103,9 @@ export async function DELETE(req: NextRequest) {
     .eq('org_id', profile.org_id)
 
   if (error) return NextResponse.json({ error: 'Failed to delete webhook' }, { status: 500 })
+
+  void logOrgAudit({ org_id: profile.org_id, actor_id: profile.id, actor_type: 'user',
+    action: 'webhook_deleted', details: { webhook_id: id } })
 
   return NextResponse.json({ ok: true })
 }

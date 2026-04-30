@@ -43,13 +43,11 @@ type EditState = {
 
 function TemplateCard({
   template,
-  channel,
   onEdit,
   onDelete,
   onFavorite,
 }: {
   template: Template
-  channel: TemplateChannel
   onEdit: (t: Template) => void
   onDelete: (id: string) => void
   onFavorite: (id: string, val: boolean) => void
@@ -181,7 +179,6 @@ function TemplateGroup({
   channel,
   label,
   templates,
-  userId,
   onSave,
   onDelete,
   onFavorite,
@@ -189,7 +186,6 @@ function TemplateGroup({
   channel: TemplateChannel
   label: string
   templates: Template[]
-  userId: string
   onSave: (edit: EditState) => Promise<void>
   onDelete: (id: string) => Promise<void>
   onFavorite: (id: string, val: boolean) => Promise<void>
@@ -262,7 +258,7 @@ function TemplateGroup({
                 {favorites.map(t => (
                   editing?.id === t.id
                     ? <TemplateForm key={t.id} editing={editing} channel={channel} saving={saving} onChange={setEditing} onSave={save} onCancel={cancelEdit} />
-                    : <TemplateCard key={t.id} template={t} channel={channel} onEdit={startEdit} onDelete={onDelete} onFavorite={onFavorite} />
+                    : <TemplateCard key={t.id} template={t} onEdit={startEdit} onDelete={onDelete} onFavorite={onFavorite} />
                 ))}
               </div>
             </div>
@@ -276,7 +272,7 @@ function TemplateGroup({
                 {categoryMap.get(cat)!.map(t => (
                   editing?.id === t.id
                     ? <TemplateForm key={t.id} editing={editing} channel={channel} saving={saving} onChange={setEditing} onSave={save} onCancel={cancelEdit} />
-                    : <TemplateCard key={t.id} template={t} channel={channel} onEdit={startEdit} onDelete={onDelete} onFavorite={onFavorite} />
+                    : <TemplateCard key={t.id} template={t} onEdit={startEdit} onDelete={onDelete} onFavorite={onFavorite} />
                 ))}
               </div>
             </div>
@@ -346,7 +342,7 @@ export default function TemplatesClient({ templates: initial, userId, channel: f
     setTemplates(prev => prev.map(t => t.id === id ? { ...t, is_favorite: val } : t))
   }
 
-  const commonProps = { userId, onSave: handleSave, onDelete: handleDelete, onFavorite: handleFavorite }
+  const commonProps = { onSave: handleSave, onDelete: handleDelete, onFavorite: handleFavorite }
 
   if (filterChannel === 'sms') {
     return <TemplateGroup channel="sms" label="SMS Response Templates" templates={smsTemplates} {...commonProps} />

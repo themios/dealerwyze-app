@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import { isDealerAdmin } from '@/lib/auth/dealerRoles'
+import { logOrgAudit } from '@/lib/audit/orgAudit'
 
 export async function GET() {
   const profile = await requireProfile()
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   const { data: org, error: orgErr } = await supabase
     .from('organizations')
@@ -59,7 +60,7 @@ export async function PATCH(req: NextRequest) {
   if (!isDealerAdmin(profile.role)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
   }
-  const supabase = createServiceClient()
+  const supabase = await createClient()
 
   const body: {
     name?: string
@@ -162,6 +163,11 @@ export async function PATCH(req: NextRequest) {
     .select('id')
     .eq('org_id', profile.org_id)
     .maybeSingle()
+
+  void logOrgAudit({
+    org_id: profile.org_id, actor_id: profile.id, actor_type: 'user',
+    action: 'org_settings_updated', details: { fields: Object.keys(settingsPayload) },
+  })
 
   return NextResponse.json({
     name: org?.name ?? '',

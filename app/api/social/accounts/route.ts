@@ -4,7 +4,7 @@ import { createClientForRequest } from '@/lib/supabase/forRequest'
 import { createServiceClient } from '@/lib/supabase/service'
 
 // GET /api/social/accounts — list connected social accounts (no tokens returned)
-export async function GET(_req: NextRequest) {
+export async function GET() {
   const profile = await requireProfile()
   const supabase = await createClientForRequest()
 

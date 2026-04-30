@@ -6,8 +6,6 @@ const TIKTOK_KEY      = process.env.TIKTOK_CLIENT_KEY ?? ''
 const TIKTOK_SECRET   = process.env.TIKTOK_CLIENT_SECRET ?? ''
 const YOUTUBE_ID      = process.env.YOUTUBE_CLIENT_ID ?? ''
 const YOUTUBE_SECRET  = process.env.YOUTUBE_CLIENT_SECRET ?? ''
-const APP_URL         = process.env.NEXT_PUBLIC_APP_URL ?? ''
-
 interface SocialAccount {
   id: string
   org_id: string
@@ -21,8 +19,9 @@ const DAYS_BEFORE_EXPIRY_TO_REFRESH = 7
 
 /**
  * Refresh a single social account token if it expires within 7 days.
+ * Pass orgId to verify the account belongs to the expected org (security guard).
  */
-export async function refreshSocialToken(accountId: string): Promise<void> {
+export async function refreshSocialToken(accountId: string, orgId?: string): Promise<void> {
   const supabase = createServiceClient()
 
   const { data: account } = await supabase
@@ -32,6 +31,11 @@ export async function refreshSocialToken(accountId: string): Promise<void> {
     .single()
 
   if (!account) return
+
+  // Security: if caller provided an orgId, verify the account belongs to that org
+  if (orgId && account.org_id !== orgId) {
+    throw new Error(`[tokenRefresh] Account ${accountId} belongs to org ${account.org_id}, but caller passed org ${orgId}`)
+  }
 
   const expiresAt = account.token_expires_at ? new Date(account.token_expires_at) : null
   const now       = new Date()

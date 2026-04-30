@@ -26,7 +26,6 @@ const RATE_ROUTES: Array<{ prefix: string; limiter: Ratelimit | null; retryAfter
   { prefix: '/api/twilio/inbound',          limiter: makeLimiter(60,  60),  retryAfter: 60  },
   { prefix: '/api/voice/retell-callback',   limiter: makeLimiter(30,  60),  retryAfter: 60  },
   { prefix: '/api/gmail/webhook',           limiter: makeLimiter(60,  60),  retryAfter: 60  },
-  { prefix: '/api/integrations/gmail/push', limiter: makeLimiter(60,  60),  retryAfter: 60  },
   // Data endpoints — secondary layer; routes also have per-org Upstash guards in handlers
   { prefix: '/api/customers',               limiter: makeLimiter(100, 60),  retryAfter: 60  },
   { prefix: '/api/vehicles',               limiter: makeLimiter(100, 60),  retryAfter: 60  },
@@ -258,7 +257,6 @@ export const config = {
     '/api/twilio/inbound',
     '/api/voice/retell-callback',
     '/api/gmail/webhook',
-    '/api/integrations/gmail/push',
     '/api/inventory/cargurus-feed',
     '/api/inventory/facebook-feed',
     // Auth + subscription gating for all app routes

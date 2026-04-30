@@ -13,9 +13,40 @@ export const TEST_ORG_ID   = 'test-org-00000000-0000-0000-0000-000000000001'
 export const TEST_ORG_B_ID = 'test-org-00000000-0000-0000-0000-000000000002'
 export const TEST_USER_ID  = 'test-user-0000-0000-0000-000000000001'
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type MockFn = ReturnType<typeof vi.fn<any>>
+
+export interface QueryBuilderStub {
+  select:      MockFn
+  insert:      MockFn
+  update:      MockFn
+  upsert:      MockFn
+  delete:      MockFn
+  eq:          MockFn
+  neq:         MockFn
+  in:          MockFn
+  is:          MockFn
+  not:         MockFn
+  lt:          MockFn
+  lte:         MockFn
+  gt:          MockFn
+  gte:         MockFn
+  ilike:       MockFn
+  contains:    MockFn
+  or:          MockFn
+  filter:      MockFn
+  range:       MockFn
+  order:       MockFn
+  limit:       MockFn
+  single:      MockFn
+  maybeSingle: MockFn
+  then:        MockFn
+  _chain:      () => QueryBuilderStub
+}
+
 /** Minimal chainable Supabase query builder stub. */
-function makeQueryBuilder(defaultResult = { data: [], error: null }) {
-  const stub: Record<string, unknown> = {}
+function makeQueryBuilder(defaultResult = { data: [], error: null }): QueryBuilderStub {
+  const stub = {} as QueryBuilderStub
   const chain = () => stub
   const terminal = vi.fn().mockResolvedValue(defaultResult)
 
@@ -29,6 +60,15 @@ function makeQueryBuilder(defaultResult = { data: [], error: null }) {
   stub.in           = vi.fn().mockReturnValue(stub)
   stub.is           = vi.fn().mockReturnValue(stub)
   stub.not          = vi.fn().mockReturnValue(stub)
+  stub.lt           = vi.fn().mockReturnValue(stub)
+  stub.lte          = vi.fn().mockReturnValue(stub)
+  stub.gt           = vi.fn().mockReturnValue(stub)
+  stub.gte          = vi.fn().mockReturnValue(stub)
+  stub.ilike        = vi.fn().mockReturnValue(stub)
+  stub.contains     = vi.fn().mockReturnValue(stub)
+  stub.or           = vi.fn().mockReturnValue(stub)
+  stub.filter       = vi.fn().mockReturnValue(stub)
+  stub.range        = vi.fn().mockReturnValue(stub)
   stub.order        = vi.fn().mockReturnValue(stub)
   stub.limit        = vi.fn().mockReturnValue(stub)
   stub.single       = vi.fn().mockResolvedValue(defaultResult)
@@ -91,10 +131,11 @@ export function makeTestClient() {
  */
 export function makeTestProfile(overrides: Partial<{ org_id: string; id: string; role: string }> = {}) {
   return {
-    id:      overrides.id      ?? TEST_USER_ID,
-    org_id:  overrides.org_id  ?? TEST_ORG_ID,
-    role:    overrides.role    ?? 'admin',
-    email:   'test@example.com',
+    id:           overrides.id      ?? TEST_USER_ID,
+    org_id:       overrides.org_id  ?? TEST_ORG_ID,
+    role:         overrides.role    ?? 'admin',
+    email:        'test@example.com',
     display_name: 'Test User',
+    created_at:   '2024-01-01T00:00:00Z',
   }
 }
