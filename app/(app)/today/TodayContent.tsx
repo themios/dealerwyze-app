@@ -792,7 +792,11 @@ export default function TodayContent({
     restoreSnapshot,
   ])
 
-  const runBulkAction = useCallback(async (action: BulkAction, ids = selectedIds) => {
+  const runBulkAction = useCallback(async (
+    action: BulkAction,
+    ids = selectedIds,
+    opts?: { archiveReason?: 'ghost' | 'manual' | 'post_last_ditch' | 'bulk' },
+  ) => {
     if (ids.length === 0) return
     if (action === 'archive' && !window.confirm(`Archive ${ids.length} leads from Today?`)) return
     setActionError(null)
@@ -825,10 +829,16 @@ export default function TodayContent({
       return Array.from(next)
     })
 
+    const body = {
+      activityIds: ids,
+      action,
+      ...(opts?.archiveReason ? { archiveReason: opts.archiveReason } : {}),
+    }
+
     const response = await fetch('/api/today/bulk-action', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ activityIds: ids, action }),
+      body: JSON.stringify(body),
     })
 
     if (!response.ok) {
@@ -1114,7 +1124,7 @@ export default function TodayContent({
             headerActions={section === 'low_roi' && lowRoiIds.length > 0 ? (
               <button
                 type="button"
-                onClick={() => void runBulkAction('archive', lowRoiIds)}
+                onClick={() => void runBulkAction('archive', lowRoiIds, { archiveReason: 'ghost' })}
                 className="rounded-full bg-destructive px-3 py-1.5 text-xs font-medium text-destructive-foreground"
               >
                 Archive All Low ROI

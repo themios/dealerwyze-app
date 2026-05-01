@@ -3,11 +3,13 @@ import { z } from 'zod'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 import { orgTodayActionLimiter } from '@/lib/rateLimit/upstash'
+import { buildLostLeadAuditRow, parseLossReason } from '@/lib/intelligence/lostLeadAudit'
 
 const actionSchema = z.object({
   activityId: z.string().uuid(),
   action: z.enum(['park', 'trust_sequence', 'low_roi', 'snooze', 'take_over', 'work_now', 'archive', 'restart']),
   snoozedUntil: z.string().datetime().optional(),
+  lossReason: z.enum(['price', 'timing', 'competitor', 'not_ready', 'no_contact', 'other']).optional(),
 })
 
 function defaultParkUntil(): string {
@@ -29,7 +31,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 })
   }
 
-  const { activityId, action, snoozedUntil } = parsed.data
+  const { activityId, action, snoozedUntil, lossReason } = parsed.data
   if (action === 'snooze') {
     if (!snoozedUntil || new Date(snoozedUntil).getTime() <= Date.now()) {
       return NextResponse.json({ error: 'Snooze time must be in the future.' }, { status: 400 })
@@ -51,6 +53,7 @@ export async function POST(req: NextRequest) {
   const nowIso = new Date().toISOString()
   const updates: Record<string, unknown> = {}
   let section: 'replied' | 'human_now' | 'ai_handling' | 'follow_up_later' | 'low_roi' | null = null
+  let insertedAuditId: string | null = null
 
   switch (action) {
     case 'park':
@@ -88,6 +91,26 @@ export async function POST(req: NextRequest) {
       section = null
       break
     case 'archive':
+      {
+        const auditRow = await buildLostLeadAuditRow({
+          activityId,
+          orgId: profile.org_id,
+          archivedBy: profile.id,
+          lossReason: parseLossReason(lossReason),
+        })
+        if (!auditRow) {
+          return NextResponse.json({ error: 'Failed to build audit snapshot.' }, { status: 500 })
+        }
+        const { data: auditInsert, error: auditError } = await supabase
+          .from('lost_lead_audit')
+          .insert(auditRow)
+          .select('id')
+          .single()
+        if (auditError) {
+          return NextResponse.json({ error: 'Failed to write audit snapshot.' }, { status: 500 })
+        }
+        insertedAuditId = auditInsert.id as string
+      }
       updates.completed_at = nowIso
       updates.today_section_override = null
       updates.today_park_until = null
@@ -102,6 +125,9 @@ export async function POST(req: NextRequest) {
     .eq('user_id', profile.org_id)
 
   if (error) {
+    if (insertedAuditId) {
+      await supabase.from('lost_lead_audit').delete().eq('id', insertedAuditId)
+    }
     return NextResponse.json({ error: 'Failed to update Today state.' }, { status: 500 })
   }
 

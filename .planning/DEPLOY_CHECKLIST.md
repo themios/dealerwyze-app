@@ -43,8 +43,6 @@ npm run build
 | `TWILIO_AUTH_TOKEN` | Yes | Used for webhook HMAC-SHA1 validation |
 | `STRIPE_SECRET_KEY` | Yes | Platform Stripe key |
 
-**Note:** `PUBSUB_VERIFICATION_TOKEN` should be removed after confirming OIDC push is working.
-
 ---
 
 ## Pre-Deploy Verification Steps

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 import { orgTodayBulkLimiter } from '@/lib/rateLimit/upstash'
+import { buildLostLeadAuditRow } from '@/lib/intelligence/lostLeadAudit'
 
 const bulkSchema = z.object({
   activityIds: z.array(z.string().uuid()).min(1).max(50),
@@ -42,6 +43,7 @@ export async function POST(req: NextRequest) {
 
   const nowIso = new Date().toISOString()
   const updates: Record<string, unknown> = {}
+  let insertedAuditIds: string[] = []
   switch (action) {
     case 'park':
       updates.today_section_override = 'follow_up_later'
@@ -62,6 +64,31 @@ export async function POST(req: NextRequest) {
       updates.snoozed_until = null
       break
     case 'archive':
+      {
+        const auditRows = await Promise.all(activityIds.map(activityId =>
+          buildLostLeadAuditRow({
+            activityId,
+            orgId: profile.org_id,
+            archivedBy: profile.id,
+            archiveReason: 'bulk',
+            lossReason: null,
+          }),
+        ))
+
+        if (auditRows.some(row => !row)) {
+          return NextResponse.json({ error: 'Failed to build audit snapshots.' }, { status: 500 })
+        }
+
+        const { data: inserted, error: insertError } = await supabase
+          .from('lost_lead_audit')
+          .insert(auditRows)
+          .select('id')
+
+        if (insertError) {
+          return NextResponse.json({ error: 'Failed to write audit snapshots.' }, { status: 500 })
+        }
+        insertedAuditIds = (inserted ?? []).map(row => row.id as string)
+      }
       updates.completed_at = nowIso
       updates.today_section_override = null
       updates.today_park_until = null
@@ -75,6 +102,9 @@ export async function POST(req: NextRequest) {
     .eq('user_id', profile.org_id)
 
   if (error) {
+    if (insertedAuditIds.length > 0) {
+      await supabase.from('lost_lead_audit').delete().in('id', insertedAuditIds)
+    }
     return NextResponse.json({ error: 'Failed to update Today state.' }, { status: 500 })
   }
 

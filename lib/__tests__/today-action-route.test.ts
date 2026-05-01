@@ -7,9 +7,10 @@ vi.mock('server-only', () => ({}))
 
 const { supabase } = makeTestClient()
 
-const { mockRequireProfile, mockLimiter } = vi.hoisted(() => ({
+const { mockRequireProfile, mockLimiter, mockBuildLostLeadAuditRow } = vi.hoisted(() => ({
   mockRequireProfile: vi.fn(),
   mockLimiter: vi.fn(),
+  mockBuildLostLeadAuditRow: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/profile', () => ({
@@ -22,6 +23,11 @@ vi.mock('@/lib/supabase/server', () => ({
 
 vi.mock('@/lib/rateLimit/upstash', () => ({
   orgTodayActionLimiter: mockLimiter,
+}))
+
+vi.mock('@/lib/intelligence/lostLeadAudit', () => ({
+  buildLostLeadAuditRow: mockBuildLostLeadAuditRow,
+  parseLossReason: (value: unknown) => value ?? null,
 }))
 
 function makeReq(body: unknown): NextRequest {
@@ -53,6 +59,25 @@ describe('POST /api/today/action', () => {
     supabase._table('customer_sequences').then = vi.fn().mockImplementation(
       (resolve: (value: unknown) => unknown) => resolve({ data: [], error: null }),
     )
+    supabase._table('lost_lead_audit').single.mockResolvedValue({
+      data: { id: 'audit-1' },
+      error: null,
+    })
+    mockBuildLostLeadAuditRow.mockResolvedValue({
+      org_id: makeTestProfile().org_id,
+      activity_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      customer_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      assigned_rep_id: 'rep-1',
+      last_human_actor_id: 'rep-2',
+      archived_by: makeTestProfile().id,
+      archive_reason: 'manual',
+      loss_reason: null,
+      intent_tier: 'warm',
+      intent_score: 70,
+      lead_source: 'email',
+      touches: 4,
+      last_inbound_at: '2026-04-30T00:00:00.000Z',
+    })
   })
 
   it('rejects invalid actions', async () => {
@@ -121,5 +146,23 @@ describe('POST /api/today/action', () => {
     }))
 
     expect(res.status).toBe(429)
+  })
+
+  it('writes an audit row when archiving', async () => {
+    const { POST } = await import('@/app/api/today/action/route')
+    const res = await POST(makeReq({
+      activityId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      action: 'archive',
+      lossReason: 'price',
+    }))
+
+    expect(res.status).toBe(200)
+    expect(mockBuildLostLeadAuditRow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activityId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        archivedBy: makeTestProfile().id,
+      }),
+    )
+    expect(supabase._table('lost_lead_audit').insert).toHaveBeenCalled()
   })
 })

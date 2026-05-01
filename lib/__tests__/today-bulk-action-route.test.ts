@@ -7,9 +7,10 @@ vi.mock('server-only', () => ({}))
 
 const { supabase } = makeTestClient()
 
-const { mockRequireProfile, mockLimiter } = vi.hoisted(() => ({
+const { mockRequireProfile, mockLimiter, mockBuildLostLeadAuditRow } = vi.hoisted(() => ({
   mockRequireProfile: vi.fn(),
   mockLimiter: vi.fn(),
+  mockBuildLostLeadAuditRow: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/profile', () => ({
@@ -22,6 +23,10 @@ vi.mock('@/lib/supabase/server', () => ({
 
 vi.mock('@/lib/rateLimit/upstash', () => ({
   orgTodayBulkLimiter: mockLimiter,
+}))
+
+vi.mock('@/lib/intelligence/lostLeadAudit', () => ({
+  buildLostLeadAuditRow: mockBuildLostLeadAuditRow,
 }))
 
 function makeReq(body: unknown): NextRequest {
@@ -50,6 +55,21 @@ describe('POST /api/today/bulk-action', () => {
     supabase._table('customer_sequences').then = vi.fn().mockImplementation(
       (resolve: (value: unknown) => unknown) => resolve({ data: [], error: null }),
     )
+    mockBuildLostLeadAuditRow.mockResolvedValue({
+      org_id: makeTestProfile().org_id,
+      activity_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      customer_id: 'cust-1',
+      assigned_rep_id: 'rep-1',
+      last_human_actor_id: 'rep-2',
+      archived_by: makeTestProfile().id,
+      archive_reason: 'bulk',
+      loss_reason: null,
+      intent_tier: 'warm',
+      intent_score: 70,
+      lead_source: 'email',
+      touches: 4,
+      last_inbound_at: '2026-04-30T00:00:00.000Z',
+    })
   })
 
   it('rejects payloads larger than 50 ids', async () => {
@@ -108,5 +128,23 @@ describe('POST /api/today/bulk-action', () => {
     }))
 
     expect(res.status).toBe(429)
+  })
+
+  it('writes audit rows on bulk archive', async () => {
+    const { POST } = await import('@/app/api/today/bulk-action/route')
+    const res = await POST(makeReq({
+      activityIds: [
+        'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      ],
+      action: 'archive',
+    }))
+
+    expect(res.status).toBe(200)
+    expect(mockBuildLostLeadAuditRow).toHaveBeenCalledTimes(2)
+    expect(mockBuildLostLeadAuditRow).toHaveBeenCalledWith(
+      expect.objectContaining({ archiveReason: 'bulk', lossReason: null }),
+    )
+    expect(supabase._table('lost_lead_audit').insert).toHaveBeenCalled()
   })
 })
