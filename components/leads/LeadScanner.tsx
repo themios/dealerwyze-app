@@ -31,6 +31,20 @@ interface Overrides {
   notes?:         string
 }
 
+async function readErrorMessage(res: Response, fallback: string): Promise<string> {
+  try {
+    const data = await res.json()
+    if (typeof data?.error === 'string' && data.error.trim()) return data.error
+  } catch {}
+
+  try {
+    const text = (await res.text()).trim()
+    if (text) return text
+  } catch {}
+
+  return fallback
+}
+
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function ConfBadge({ confidence }: { confidence: Confidence }) {
@@ -118,52 +132,61 @@ export default function LeadScanner({ onClose }: { onClose?: () => void }) {
     setError(null)
     setStage('scanning')
 
-    const form = new FormData()
-    form.append('file', file)
+    try {
+      const form = new FormData()
+      form.append('file', file)
 
-    const res = await fetch('/api/leads/scan', { method: 'POST', body: form })
-    if (res.status === 429) {
-      const d = await res.json()
-      setQuotaMsg(`You've used all your scans this month (${d.monthly_used} of ${d.monthly_limit}). Upgrade your plan to get more.`)
-      setStage('pick')
-      return
-    }
-    if (!res.ok) {
-      const d = await res.json().catch(() => ({}))
-      setError(d.error ?? 'Something went wrong. Please try again or use a different image.')
-      setStage('pick')
-      return
-    }
+      const res = await fetch('/api/leads/scan', { method: 'POST', body: form })
+      if (res.status === 429) {
+        const d = await res.json()
+        setQuotaMsg(`You've used all your scans this month (${d.monthly_used} of ${d.monthly_limit}). Upgrade your plan to get more.`)
+        setStage('pick')
+        return
+      }
+      if (!res.ok) {
+        setError(await readErrorMessage(res, 'Something went wrong. Please try again or use a different image.'))
+        setStage('pick')
+        return
+      }
 
-    const data = await res.json()
-    setScan(data.scan as LeadScanResult)
-    setDuplicate(data.duplicate ?? null)
-    setIsPdf(data.isPdf ?? false)
-    setOverrides({})
-    setIgnoreDup(false)
-    setStage('confirm')
+      const data = await res.json()
+      setScan(data.scan as LeadScanResult)
+      setDuplicate(data.duplicate ?? null)
+      setIsPdf(data.isPdf ?? false)
+      setOverrides({})
+      setIgnoreDup(false)
+      setStage('confirm')
+    } catch {
+      setError('Network error while scanning. Please try again.')
+      setStage('pick')
+    }
   }
 
   async function handleSave() {
     if (!scan) return
+    setError(null)
     setStage('saving')
 
-    const res = await fetch('/api/leads/create-from-scan', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ scan, isPdf, send_intro_sms: sendSms, overrides, link_vehicle_id: linkVehicleId }),
-    })
+    try {
+      const res = await fetch('/api/leads/create-from-scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scan, isPdf, send_intro_sms: sendSms, overrides, link_vehicle_id: linkVehicleId }),
+      })
 
-    if (!res.ok) {
-      const d = await res.json().catch(() => ({}))
-      setError(d.error ?? 'We couldn\'t save this lead. Please try again.')
+      if (!res.ok) {
+        setError(await readErrorMessage(res, 'We couldn\'t save this lead. Please try again.'))
+        setStage('confirm')
+        return
+      }
+
+      const data = await res.json()
+      router.push(`/customers/${data.customer_id}`)
+      onClose?.()
+    } catch {
+      setError('Network error while saving. Please try again.')
       setStage('confirm')
-      return
     }
-
-    const data = await res.json()
-    router.push(`/customers/${data.customer_id}`)
-    onClose?.()
   }
 
   const scanValue = <T,>(f: ScanField<T>): T | null => f.value

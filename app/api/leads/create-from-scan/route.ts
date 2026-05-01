@@ -6,6 +6,7 @@ import { incrementScanCount } from '@/lib/leads/scanQuota'
 import { ingestLead } from '@/lib/leads/ingest'
 import type { LeadScanResult } from '@/lib/leads/visionIngestTypes'
 import { sendOutboundSms, SmsSendError } from '@/lib/sms/sendOutbound'
+import { normalizePhone } from '@/lib/utils/phone'
 
 export interface CreateFromScanBody {
   scan:             LeadScanResult
@@ -56,6 +57,12 @@ export async function POST(req: NextRequest) {
 
     const { scanResultToParsedLead } = await import('@/lib/leads/visionIngest')
     const parsedLead = scanResultToParsedLead(merged)
+    if (!parsedLead.email && !normalizePhone(parsedLead.phone)) {
+      return NextResponse.json(
+        { error: 'Lead needs a valid phone number or email before it can be saved.' },
+        { status: 422 },
+      )
+    }
     const externalId = `scan-${orgId}-${Date.now()}`
 
     let result: Awaited<ReturnType<typeof ingestLead>>

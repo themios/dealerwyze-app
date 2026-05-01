@@ -1,6 +1,6 @@
 import 'server-only'
-import type { ParsedLead } from './parser'
 import type { LeadScanResult } from './visionIngestTypes'
+export { scanResultToParsedLead } from './scanResultToParsedLead'
 
 export type { Confidence, ScanField, LeadScanResult } from './visionIngestTypes'
 
@@ -184,49 +184,4 @@ export async function scanLeadPdf(pdfBase64: string): Promise<LeadScanResult> {
 
   const text = response.content[0]?.type === 'text' ? response.content[0].text : ''
   return parseResponse(text)
-}
-
-// ── Convert scan result → ParsedLead ─────────────────────────────────────────
-
-export function scanResultToParsedLead(scan: LeadScanResult): ParsedLead {
-  const firstName = scan.first_name.value ?? ''
-  const lastName  = scan.last_name.value  ?? ''
-  const name = `${firstName} ${lastName}`.trim() || 'Unknown'
-
-  const vehicleParts = [
-    scan.vehicle_year.value,
-    scan.vehicle_make.value,
-    scan.vehicle_model.value,
-    scan.vehicle_trim.value,
-  ].filter(Boolean).join(' ')
-
-  const noteParts = [
-    scan.notes.value,
-    scan.trade_in.value ? `Trade-in: ${scan.trade_in.value}` : null,
-    scan.budget.value   ? `Budget: $${scan.budget.value.toLocaleString()}` : null,
-    scan.urgency.value === 'high' ? 'Buyer marked as urgent' : null,
-  ].filter(Boolean).join('\n')
-
-  const src = scan.lead_source.value?.toLowerCase() ?? ''
-  let source: ParsedLead['source'] = 'other'
-  if (src.includes('cargurus'))     source = 'cargurus'
-  else if (src.includes('autotrader')) source = 'autotrader'
-  else if (src.includes('offerup'))    source = 'offerup'
-  else if (src.includes('facebook'))   source = 'facebook'
-  else if (src.includes('kbb'))        source = 'kbb'
-  else if (src.includes('autolist'))   source = 'autolist'
-  else if (src.includes('carsforsale')) source = 'carsforsale'
-
-  return {
-    name,
-    email:        scan.email.value        ?? '',
-    phone:        scan.phone.value        ?? '',
-    zip:          scan.zip.value          ?? '',
-    vehicle:      vehicleParts,
-    vin:          scan.vehicle_vin.value  ?? '',
-    listed_price: null,
-    comments:     noteParts,
-    source,
-    raw_text:     '[scanned]',
-  }
 }

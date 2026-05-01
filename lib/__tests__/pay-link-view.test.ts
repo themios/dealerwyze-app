@@ -22,22 +22,22 @@ describe('GET /api/pay/[token] tracking', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    ;(supabase._table('bhph_payment_tokens').maybeSingle as MockOnce)
-      .mockResolvedValueOnce({
-        data: {
-          id: 'token-id-1',
-          amount: 250,
-          status: 'pending',
-          expires_at: '2099-01-01T00:00:00Z',
-          org_id: 'org-1',
-          customer_id: 'cust-1',
-          bhph_contract_id: 'bhph-1',
-          customers: { name: 'Jane Buyer' },
-          bhph_payments: { monthly_payment: 250, next_due_date: '2099-01-01', vehicles: { year: 2019, make: 'Honda', model: 'Civic' } },
-        },
-        error: null,
-      })
-      .mockResolvedValueOnce({ data: { view_count: 1 }, error: null })
+    const paymentTokensMaybeSingle = supabase._table('bhph_payment_tokens').maybeSingle as MockOnce
+    paymentTokensMaybeSingle.mockResolvedValueOnce({
+      data: {
+        id: 'token-id-1',
+        amount: 250,
+        status: 'pending',
+        expires_at: '2099-01-01T00:00:00Z',
+        org_id: 'org-1',
+        customer_id: 'cust-1',
+        bhph_contract_id: 'bhph-1',
+        customers: { name: 'Jane Buyer' },
+        bhph_payments: { monthly_payment: 250, next_due_date: '2099-01-01', vehicles: { year: 2019, make: 'Honda', model: 'Civic' } },
+      },
+      error: null,
+    })
+    paymentTokensMaybeSingle.mockResolvedValueOnce({ data: { view_count: 1 }, error: null })
 
     ;(supabase._table('org_settings').maybeSingle as MockOnce)
       .mockResolvedValueOnce({

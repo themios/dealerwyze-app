@@ -5,7 +5,6 @@ import { createLeadResponseTask } from '@/lib/tasks/auto'
 import { sendTelegramMessage } from '@/lib/notifications/telegram'
 import { sendSmsConsentRequest } from '@/lib/sms/sendConsent'
 import { resolveLeadAssignee } from '@/lib/leads/assignLead'
-import { sendAutoResponseStep1 } from '@/lib/sequences/sendAutoResponseStep1'
 import { detectAppointmentIntent } from '@/lib/leads/detectAppointmentIntent'
 import { normalizePhone } from '@/lib/utils/phone'
 import { deriveLeadIntentFromLead, mergeLeadIntent } from '@/lib/leads/intent'
@@ -311,25 +310,29 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId: s
     .maybeSingle()
 
   if (autoSettings?.auto_respond_email_sequence_id && lead.email) {
-    sendAutoResponseStep1({
-      orgId:         userId,
-      customerId,
-      sequenceId:    autoSettings.auto_respond_email_sequence_id,
-      channel:       'email',
-      customerEmail: lead.email,
-      customerName:  lead.name,
-    }).catch(() => {})
+    import('@/lib/sequences/sendAutoResponseStep1')
+      .then(({ sendAutoResponseStep1 }) => sendAutoResponseStep1({
+        orgId:         userId,
+        customerId,
+        sequenceId:    autoSettings.auto_respond_email_sequence_id,
+        channel:       'email',
+        customerEmail: lead.email,
+        customerName:  lead.name,
+      }))
+      .catch(() => {})
   }
 
   if (autoSettings?.auto_respond_sms_sequence_id && lead.phone) {
-    sendAutoResponseStep1({
-      orgId:         userId,
-      customerId,
-      sequenceId:    autoSettings.auto_respond_sms_sequence_id,
-      channel:       'sms',
-      customerPhone: lead.phone,
-      customerName:  lead.name,
-    }).catch(() => {})
+    import('@/lib/sequences/sendAutoResponseStep1')
+      .then(({ sendAutoResponseStep1 }) => sendAutoResponseStep1({
+        orgId:         userId,
+        customerId,
+        sequenceId:    autoSettings.auto_respond_sms_sequence_id,
+        channel:       'sms',
+        customerPhone: lead.phone,
+        customerName:  lead.name,
+      }))
+      .catch(() => {})
   }
 
   // Detect appointment intent in lead comments — creates a Today card for the dealer

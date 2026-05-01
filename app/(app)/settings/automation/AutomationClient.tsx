@@ -6,7 +6,7 @@ import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { CheckCircle, MessageSquare, Mail, Zap } from 'lucide-react'
-import { sanitizeEmailSignatureHtml } from '@/lib/security/html'
+import { sanitizeEmailSignatureHtmlPreview } from '@/lib/security/htmlPreview'
 
 type AutoMode = 'manual' | 'semi_auto' | 'full_auto'
 
@@ -200,7 +200,7 @@ export default function AutomationClient({ initial, sequences }: Props) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const sanitizedEmailSignature = sanitizeEmailSignatureHtml(settings.email_signature)
+  const sanitizedEmailSignature = sanitizeEmailSignatureHtmlPreview(settings.email_signature)
   const [tab, setTab] = useState<'sms' | 'email'>('sms')
   const isDirty = JSON.stringify(settings) !== JSON.stringify(initial)
 

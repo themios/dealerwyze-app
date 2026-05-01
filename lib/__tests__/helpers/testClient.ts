@@ -13,8 +13,7 @@ export const TEST_ORG_ID   = 'test-org-00000000-0000-0000-0000-000000000001'
 export const TEST_ORG_B_ID = 'test-org-00000000-0000-0000-0000-000000000002'
 export const TEST_USER_ID  = 'test-user-0000-0000-0000-000000000001'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type MockFn = ReturnType<typeof vi.fn<any>>
+type MockFn = ReturnType<typeof vi.fn>
 
 export interface QueryBuilderStub {
   select:      MockFn
@@ -40,7 +39,7 @@ export interface QueryBuilderStub {
   limit:       MockFn
   single:      MockFn
   maybeSingle: MockFn
-  then:        MockFn
+  then:        (onFulfilled?: (value: unknown) => unknown, onRejected?: (reason: unknown) => unknown) => Promise<unknown>
   _chain:      () => QueryBuilderStub
 }
 
@@ -48,9 +47,9 @@ export interface QueryBuilderStub {
 function makeQueryBuilder(defaultResult = { data: [], error: null }): QueryBuilderStub {
   const stub = {} as QueryBuilderStub
   const chain = () => stub
-  const terminal = vi.fn((onFulfilled?: (value: typeof defaultResult) => unknown, onRejected?: (reason: unknown) => unknown) =>
+  const terminal = (onFulfilled?: (value: typeof defaultResult) => unknown, onRejected?: (reason: unknown) => unknown) =>
     Promise.resolve(defaultResult).then(onFulfilled, onRejected)
-  )
+  
 
   stub.select       = vi.fn().mockReturnValue(stub)
   stub.insert       = vi.fn().mockReturnValue(stub)

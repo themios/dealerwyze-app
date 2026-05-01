@@ -18,7 +18,6 @@
 
 import { createServiceClient } from '@/lib/supabase/service'
 import { enrollCustomer } from '@/lib/sequences/enrollCustomer'
-import { sendSequenceEmail } from '@/lib/email/sendSequenceEmail'
 import { checkQuota, incrementUsage } from '@/lib/sms/quota'
 
 interface AutoResponseArgs {
@@ -161,6 +160,7 @@ export async function sendAutoResponseStep1(args: AutoResponseArgs): Promise<voi
         return
       }
 
+      const { sendSequenceEmail } = await import('@/lib/email/sendSequenceEmail')
       const result = await sendSequenceEmail({
         orgId,
         customerId,
