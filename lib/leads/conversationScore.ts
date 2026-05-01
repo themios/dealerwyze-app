@@ -178,28 +178,22 @@ async function acquireLock(
   supabase: SupabaseClient,
   customerId: string,
 ): Promise<boolean> {
-  const { data: row } = await supabase
-    .from('customers')
-    .select('conversation_score_locked_until')
-    .eq('id', customerId)
-    .maybeSingle()
-
-  const untilStr = (row as { conversation_score_locked_until?: string } | null)?.conversation_score_locked_until
-  if (untilStr && new Date(untilStr) > new Date()) {
-    return false
-  }
-
+  const now = new Date().toISOString()
   const newUntil = new Date(Date.now() + LOCK_MS).toISOString()
-  const { error } = await supabase
+  // Atomic: UPDATE only succeeds if no active lock exists. Prevents TOCTOU race
+  // between concurrent inbound webhook + batch cron scoring the same customer.
+  const { data, error } = await supabase
     .from('customers')
     .update({ conversation_score_locked_until: newUntil })
     .eq('id', customerId)
+    .or(`conversation_score_locked_until.is.null,conversation_score_locked_until.lt.${now}`)
+    .select('id')
 
   if (error) {
     console.warn('[conversationScore] lock error:', error.message)
     return false
   }
-  return true
+  return Array.isArray(data) && data.length > 0
 }
 
 async function releaseLock(supabase: SupabaseClient, customerId: string): Promise<void> {
@@ -349,16 +343,17 @@ export async function scoreCustomerConversation(args: {
       return { ok: false, skipped: 'no_api_key' }
     }
 
-    const { count: inboundCount } = await supabase
+    const { count: inboundCount, error: inboundErr } = await supabase
       .from('activities')
       .select('*', { count: 'exact', head: true })
       .eq('customer_id', customerId)
       .eq('direction', 'inbound')
 
+    if (inboundErr) console.warn('[conversationScore] inboundCount error:', inboundErr.message)
     const isReinquiry = (inboundCount ?? 0) >= 2
 
     const { default: Groq } = await import('groq-sdk')
-    const groq = new Groq({ apiKey })
+    const groq = new Groq({ apiKey, timeout: 20_000 })
 
     const completion = await groq.chat.completions.create({
       model: GROQ_MODEL,

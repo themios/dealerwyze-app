@@ -64,9 +64,7 @@ export async function POST(req: NextRequest) {
 
   if (deliveryStatus === 'failed' || deliveryStatus === 'undelivered') {
     updatePayload.status = 'failed'
-    if (!updatePayload.error_message) {
-      updatePayload.error_message = params.ErrorMessage || `Twilio status ${deliveryStatus}`
-    }
+    updatePayload.error_message = params.ErrorMessage || `Twilio status: ${deliveryStatus}`
   }
 
   const supabase = createServiceClient()
@@ -74,6 +72,8 @@ export async function POST(req: NextRequest) {
     .from('payment_reminder_log')
     .update(updatePayload)
     .eq('twilio_sid', messageSid)
+    // Don't overwrite a confirmed delivered state with a late failed callback
+    .not('delivery_status', 'eq', 'delivered')
 
   return new NextResponse(null, { status: 204 })
 }

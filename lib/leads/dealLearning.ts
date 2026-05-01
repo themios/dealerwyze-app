@@ -56,6 +56,7 @@ export async function recomputeOrgLeadIntentWeights(
     .select('lead_intent_tier, is_buyer')
     .eq('org_id', orgId)
     .gte('sold_at', since)
+    .limit(500)
 
   if (!rows?.length) return null
 

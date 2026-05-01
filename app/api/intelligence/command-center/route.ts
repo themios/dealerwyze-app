@@ -1,14 +1,10 @@
 import { NextResponse } from 'next/server'
-import { getProfile } from '@/lib/auth/profile'
+import { requireProfile } from '@/lib/auth/profile'
 import { createClientForRequest } from '@/lib/supabase/forRequest'
 import { buildCommandCenterPayload } from '@/lib/intelligence/commandCenter'
 
 export async function GET() {
-  const profile = await getProfile()
-  if (!profile?.org_id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+  const profile = await requireProfile()
   const supabase = await createClientForRequest()
   const orgId = profile.org_id
 

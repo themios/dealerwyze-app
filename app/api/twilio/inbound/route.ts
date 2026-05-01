@@ -309,11 +309,14 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Find customer by phone number, scoped to org
+  // Find customer by phone number, scoped to org.
+  // TODO: add index on (user_id, primary_phone) and (user_id, secondary_phone) to
+  // replace this full-org scan with two targeted lookups.
   const { data: allCustomers } = await supabase
     .from('customers')
     .select('id, name, user_id, primary_phone, secondary_phone, sms_opt_out, unsubscribe_sms, sms_consent_status')
     .eq('user_id', orgId)
+    .limit(500)
 
   const customer = allCustomers?.find(c => {
     const primary   = normalizePhone(c.primary_phone || '')

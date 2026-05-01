@@ -18,12 +18,14 @@ export async function runDailyIntelligenceJob(options: {
   const errors: string[] = []
   const { generateBriefings = false } = options
 
+  // Limit guards against unbounded read; paginate before reaching 200 orgs.
   const { data: orgs, error: orgErr } = await supabase
     .from('organizations')
     .select('id, name, subscription_status')
     .or(
       'subscription_status.is.null,subscription_status.eq.active,subscription_status.eq.trialing,subscription_status.eq.past_due',
     )
+    .limit(200)
 
   if (orgErr) {
     errors.push(orgErr.message)
@@ -73,21 +75,19 @@ export async function runDailyIntelligenceJob(options: {
         const payload = await computePayload(supabase, orgId, dealerName, forDate, signals)
         const { generateBriefing } = await import('@/lib/intelligence/claude')
         const result = await generateBriefing(payload)
-        await supabase
-          .from('briefings')
-          .delete()
-          .eq('org_id', orgId)
-          .eq('for_date', forDate)
-          .eq('report_type', 'daily')
-        await supabase.from('briefings').insert({
-          org_id: orgId,
-          for_date: forDate,
-          report_type: 'daily',
-          payload_json: payload as unknown as Record<string, unknown>,
-          report_json: result.report_json as unknown as Record<string, unknown>,
-          tokens_used: result.tokens_used,
-          generated_at: new Date().toISOString(),
-        })
+        // Upsert avoids a delete+insert window where the briefing is missing
+        await supabase.from('briefings').upsert(
+          {
+            org_id: orgId,
+            for_date: forDate,
+            report_type: 'daily',
+            payload_json: payload as unknown as Record<string, unknown>,
+            report_json: result.report_json as unknown as Record<string, unknown>,
+            tokens_used: result.tokens_used,
+            generated_at: new Date().toISOString(),
+          },
+          { onConflict: 'org_id,for_date,report_type' },
+        )
       } catch (e) {
         errors.push(`briefing ${orgId}: ${e}`)
       }
