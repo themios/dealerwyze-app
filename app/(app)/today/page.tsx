@@ -49,7 +49,7 @@ export default async function TodayPage({
       lead_intent_score, lead_intent_tier, lead_intent_summary,
       lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
       lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count,
-      last_inbound_at, last_outbound_at
+      last_inbound_at, last_outbound_at, last_ditch_sent_at
     )`)
     .eq('user_id', orgId)
     .eq('type', 'email')
@@ -74,7 +74,7 @@ export default async function TodayPage({
       lead_intent_score, lead_intent_tier, lead_intent_summary,
       lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
       lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count,
-      last_inbound_at, last_outbound_at
+      last_inbound_at, last_outbound_at, last_ditch_sent_at
     )`)
     .eq('user_id', orgId)
     .in('type', ['task', 'appointment', 'call', 'sms', 'email', 'email_followup', 'sms_followup'])
@@ -99,7 +99,7 @@ export default async function TodayPage({
       lead_intent_score, lead_intent_tier, lead_intent_summary,
       lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
       lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count,
-      last_inbound_at, last_outbound_at
+      last_inbound_at, last_outbound_at, last_ditch_sent_at
     )`)
     .eq('user_id', orgId)
     .eq('direction', 'outbound')
@@ -252,7 +252,7 @@ export default async function TodayPage({
       lead_intent_score, lead_intent_tier, lead_intent_summary,
       lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
       lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count,
-      last_inbound_at, last_outbound_at
+      last_inbound_at, last_outbound_at, last_ditch_sent_at
     )`)
     .eq('org_id', orgId)
     .eq('status', 'completed')
@@ -282,7 +282,7 @@ export default async function TodayPage({
       lead_intent_score, lead_intent_tier, lead_intent_summary,
       lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
       lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count,
-      last_inbound_at, last_outbound_at
+      last_inbound_at, last_outbound_at, last_ditch_sent_at
     ), vehicle:vehicles(id, year, make, model, demand_signal, lead_count_30d)`)
     .eq('user_id', orgId)
     .eq('type', 'vehicle_match')
@@ -304,7 +304,7 @@ export default async function TodayPage({
       lead_intent_score, lead_intent_tier, lead_intent_summary,
       lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
       lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count,
-      last_inbound_at, last_outbound_at
+      last_inbound_at, last_outbound_at, last_ditch_sent_at
     )`)
     .eq('user_id', orgId)
     .eq('type', 'appointment')

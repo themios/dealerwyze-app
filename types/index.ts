@@ -74,6 +74,7 @@ export interface Customer {
   inbound_message_count?: number
   last_inbound_at?: string | null
   last_outbound_at?: string | null
+  last_ditch_sent_at?: string | null
   prior_purchase_count?: number
   repeat_lead?: boolean
   address?: string | null

@@ -68,6 +68,8 @@ export interface SequenceStatusLite {
   next_step_due?: string | null
 }
 
+export type LastDitchState = 'waiting' | 'archive_recommended' | null
+
 export interface QueueItem {
   key: string
   type: QueueItemType
@@ -79,6 +81,7 @@ export interface QueueItem {
   hasResponded: boolean
   hasActiveSequence: boolean
   takeoverSignal?: TakeoverSignal | null
+  lastDitchState?: LastDitchState
 }
 
 export interface BuildQueueOptions {
@@ -382,6 +385,15 @@ function compareQueueItems(a: QueueItem, b: QueueItem): number {
   return b.decision.priorityScore - a.decision.priorityScore
 }
 
+function computeLastDitchState(data: Activity | VoiceCall, section: TodaySection): LastDitchState {
+  if (section !== 'low_roi' || 'from_number' in data) return null
+  const customer = (data as Activity).customer
+  const sentAt = customer?.last_ditch_sent_at
+  if (!sentAt) return null
+  const elapsedMs = Date.now() - new Date(sentAt).getTime()
+  return elapsedMs < 48 * 3_600_000 ? 'waiting' : 'archive_recommended'
+}
+
 export function buildQueue(
   newLeads: Activity[],
   apptRequests: Activity[],
@@ -453,6 +465,8 @@ export function buildQueue(
       decision,
     })
 
+    const lastDitchState = computeLastDitchState(data, section)
+
     const queueItem: QueueItem = {
       key: `${type}-${data.id}`,
       type,
@@ -464,6 +478,7 @@ export function buildQueue(
       hasResponded,
       hasActiveSequence,
       takeoverSignal,
+      lastDitchState,
     }
 
     const withReason = addLowRoiReason(queueItem)

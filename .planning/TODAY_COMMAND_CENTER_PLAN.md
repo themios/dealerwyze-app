@@ -316,6 +316,78 @@
 
 ---
 
+## Phase 5 — Last-Ditch Campaign + Recommended Archive
+**Goal:** Before a lead is archived, fire one final breakup message. If they reply, pull them back. If not, make archiving a one-tap confirm.
+**Status:** [x] Complete
+
+### Workflow
+```
+Low ROI card → [Send Last-Ditch] → card enters "Waiting for reply" sub-state (48h)
+  ├─ Customer replies → takeover detector fires → card moves to Replied / Take Over
+  └─ 48h elapsed, no reply → card shows "Archive recommended" CTA → one-tap confirm
+```
+
+### 5.1 — Migration 120: last_ditch tracking on customers
+**File:** `supabase/migrations/120_last_ditch_campaign.sql`
+
+- [x] `last_ditch_sent_at TIMESTAMPTZ` on `customers` — cooldown anchor (30-day default)
+- [x] Index on `(user_id, last_ditch_sent_at)` for cron/query use
+
+### 5.2 — sendLastDitchMessage()
+**File:** `lib/leads/lastDitch.ts`
+
+- [x] Validates: has phone, SMS consent, not opted out, no active sequence, cooldown not active
+- [x] Sends via Twilio with StatusCallback to `/api/twilio/status`
+- [x] Logs activity row (outbound SMS, type = `sms`)
+- [x] Sets `last_ditch_sent_at` on customer record
+- [x] Returns typed result: `sent | skipped_consent | skipped_sequence | skipped_cooldown | skipped_no_phone | failed`
+
+### 5.3 — POST /api/today/last-ditch
+**File:** `app/api/today/last-ditch/route.ts`
+
+- [x] `requireProfile()` first
+- [x] Body: `{ activityId: uuid }` — Zod validated
+- [x] Ownership check: fetch activity, assert `user_id === org_id`
+- [x] Calls `sendLastDitchMessage()` with customer data from activity join
+- [x] On send: sets `today_section_override = 'low_roi'`, `today_park_until = now + 48h`
+- [x] Rate limit: reuses `orgTodayActionLimiter`
+- [x] Error responses: never expose raw DB errors or Twilio errors
+
+### 5.4 — Recommended Archive sub-state in classifier
+**File:** `lib/today/queueSort.ts`
+
+- [x] `QueueItem` gets `lastDitchState?: 'waiting' | 'archive_recommended' | null`
+- [x] `waiting`: `last_ditch_sent_at` set AND `last_ditch_sent_at + 48h > now`
+- [x] `archive_recommended`: `last_ditch_sent_at` set AND 48h elapsed AND no inbound reply since send
+- [x] Both states only appear on leads already in `low_roi` section
+
+### 5.5 — UI: Low ROI section last-ditch states
+**Files:** `components/today/TodaySection.tsx`, `app/(app)/today/TodayContent.tsx`
+
+- [x] Low ROI cards get contextual action: "Send Last-Ditch Text" (replaces "Archive" as primary)
+- [x] After send: card shows "Waiting for reply · 48h" sub-label, send button disabled
+- [x] After 48h: card shows "No reply · Archive recommended" with green "Archive" CTA
+- [x] Confirm dialog before archive (one sentence: "This lead will be removed from Today.")
+- [x] Optimistic UI: button disables immediately, rolls back on error
+
+### 5.6 — Tests
+**File:** `lib/__tests__/lastDitch.test.ts`, `lib/__tests__/last-ditch-route.test.ts`
+
+- [x] `sendLastDitchMessage`: skips on no consent, active sequence, cooldown active, no phone
+- [x] Route: 401 unauthenticated, 403 cross-tenant, 400 invalid body, 200 valid send
+- [x] Classifier: `lastDitchState = 'waiting'` within 48h, `archive_recommended` after 48h
+
+**Security checklist — Phase 5:**
+- [x] `requireProfile()` gates route
+- [x] Ownership verified before any Twilio call or DB write
+- [x] SMS consent + opt-out checked before every send
+- [x] Cooldown prevents spam (30-day minimum between last-ditch messages per customer)
+- [x] No active sequence check (don't compete with automation)
+- [x] Rate limited via existing `orgTodayActionLimiter`
+- [x] Twilio errors logged server-side, generic message returned to client
+
+---
+
 ## Cross-Cutting Enterprise Requirements (all phases)
 
 ### Security (every phase must pass before merge)
