@@ -388,6 +388,188 @@ Low ROI card → [Send Last-Ditch] → card enters "Waiting for reply" sub-state
 
 ---
 
+## Phase 6 — Sales Performance Intelligence, Root Cause Analysis & Coaching
+**Goal:** Turn every lost lead, closed deal, and rep interaction into structured intelligence. Admin gets a coaching dashboard. AI identifies why leads fail — at the rep level and at the process level.
+**Status:** [ ] Not started. Requires Phase 5 complete.
+
+**Design principle:** Reps see their own scorecard (transparency beats surveillance). Admins see all reps. AI analysis runs as a weekly batch — no real-time LLM cost per lead.
+
+---
+
+### 6.1 — Lost Lead Audit Table + Archive Governance
+**Files:** `supabase/migrations/121_lost_lead_audit.sql`, `app/api/today/action/route.ts` (update)
+
+- [ ] New table `lost_lead_audit`:
+  ```sql
+  CREATE TABLE public.lost_lead_audit (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id          UUID NOT NULL,           -- tenant scope
+    activity_id     UUID,                    -- source activity (nullable post-delete)
+    customer_id     UUID,                    -- customer record
+    archived_by     UUID NOT NULL,           -- profile_id of rep who archived
+    archive_reason  TEXT NOT NULL,           -- 'ghost' | 'manual' | 'post_last_ditch' | 'bulk'
+    intent_tier     TEXT,                    -- lead_intent_tier at time of archive
+    intent_score    INT,                     -- lead_intent_score at time of archive
+    lead_source     TEXT,                    -- activity type / origin
+    touches         INT,                     -- outbound touch count before archive
+    last_inbound_at TIMESTAMPTZ,             -- last customer reply before archive
+    archived_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    reinstated_at   TIMESTAMPTZ,             -- set by admin on reinstate
+    reinstated_by   UUID,                    -- admin profile_id
+    root_cause      TEXT,                    -- AI-generated, filled by batch job
+    root_cause_ran_at TIMESTAMPTZ
+  );
+  ```
+- [ ] RLS: SELECT scoped to org via `get_org_id()`; INSERT from authenticated org users; UPDATE (reinstate) admin-only enforced at route level
+- [ ] Indexes: `(org_id, archived_at DESC)`, `(org_id, archived_by, archived_at DESC)`, `(org_id, archive_reason)`
+- [ ] Update `POST /api/today/action` archive path:
+  - On archive, insert `lost_lead_audit` row with full context (intent tier/score at snapshot time, touch count, last_inbound_at)
+  - `archived_by = profile.id` (the individual rep's profile, not org_id)
+  - `archive_reason` derived from `lastDitchState` on QueueItem or `'manual'`
+- [ ] `POST /api/today/bulk-action` archive path: same audit insert per activity, `archive_reason = 'bulk'`
+
+### 6.2 — Admin Reinstate Route
+**File:** `app/api/admin/leads/reinstate/route.ts`
+
+- [ ] `requireProfile()` + assert `profile.role` is `owner` or `manager` (use `canManageLeads()` helper or existing role check)
+- [ ] Body: `{ auditId: uuid }` — Zod validated
+- [ ] Clears `completed_at` on original activity (puts lead back in Today classifier)
+- [ ] Sets `reinstated_at`, `reinstated_by` on audit row
+- [ ] Returns `{ ok: true }` — no internal state exposed
+- [ ] Tests: 403 for rep role, 200 for owner, lead reappears in classifier after reinstate
+
+### 6.3 — Rep Performance Data Model
+**Files:** `supabase/migrations/121_lost_lead_audit.sql` (views section)
+
+Postgres views derived from existing tables — no new data collection:
+
+- [ ] `v_rep_response_times`: first outbound activity timestamp minus activity created_at, per rep per lead
+- [ ] `v_rep_reply_rates`: outbound count vs. inbound replies per rep per 30-day window
+- [ ] `v_rep_conversion_funnel`: leads worked → appointments set → sold, per rep
+- [ ] `v_rep_ghost_rates`: leads that hit ghost threshold vs. total leads worked, per rep
+- [ ] `v_sequence_step_dropoff`: which sequence step has highest subsequent silence rate across org
+
+These are read-only views — no new writes. Admin queries them; rep queries with `WHERE archived_by = profile.id` filter enforced at route level.
+
+### 6.4 — Admin Lost Leads Dashboard
+**Files:** `app/(app)/admin/performance/lost-leads/page.tsx`, `app/api/admin/performance/lost-leads/route.ts`
+
+- [ ] Auth: `requireProfile()` + owner/manager role gate
+- [ ] Filters: date range (max 90 days, enforced server-side), rep, archive reason, intent tier
+- [ ] Table: customer name, vehicle interest, rep, archived date, reason, intent score at archive, touches, days since last reply, AI root cause (when available)
+- [ ] Per-row: "Reinstate" action (admin only)
+- [ ] Summary strip: total lost, avg intent score at loss, most common reason, reinstate rate
+- [ ] Export: CSV download of filtered results (no PII beyond what's in the dashboard already)
+- [ ] Pagination: cursor-based, max 100 rows per page
+
+### 6.5 — Rep Scorecards
+**Files:** `app/(app)/admin/performance/scorecards/page.tsx`, `app/api/admin/performance/scorecards/route.ts`, `app/(app)/settings/my-performance/page.tsx`
+
+- [ ] Admin view: all reps side-by-side, sortable by any metric
+- [ ] Rep self-view: own scorecard only (`WHERE archived_by = profile.id`)
+- [ ] Metrics displayed:
+  - Avg speed to first response (minutes)
+  - Reply rate (% outbound messages that get a reply)
+  - Conversion rate (leads worked → sold)
+  - Ghost rate (% leads that went cold)
+  - Avg touches before close vs. before loss
+  - Lost leads this period vs. prior period (trend arrow)
+- [ ] Time period selector: 7d / 30d / 90d
+- [ ] No absolute lead counts for reps viewing their own card — percentages and trends only (avoids gaming)
+
+### 6.6 — Messaging Pattern Analysis (Descriptive, No LLM)
+**Files:** `lib/intelligence/messagingPatterns.ts`, `app/api/cron/weekly-performance/route.ts`
+
+Weekly batch job (Sunday night, low-traffic):
+
+- [ ] **Response time bucketing**: group outbound messages by hour sent, compute reply rate per bucket → "Tuesday 10-11am gets 28% reply rate, Sunday evening gets 4%"
+- [ ] **Message length vs. reply rate**: bucket outbound SMS by character count (0-50, 51-100, 101+), compute reply rate per bucket
+- [ ] **First-touch phrase analysis**: extract first 10 words of first outbound to each lead, group by common openings, rank by reply rate
+- [ ] **Sequence step dropoff**: for each sequence, count leads enrolled vs. leads silent after each step → identify the weakest step
+- [ ] **Channel effectiveness**: SMS vs. email reply rates per lead intent tier
+- [ ] Results stored in `org_settings.performance_cache` JSONB — read by dashboard on next load
+- [ ] Cron auth: `validateCronAuth(req)`, no user session
+- [ ] No LLM calls — pure SQL aggregations
+
+### 6.7 — Root Cause Analysis (AI Batch)
+**Files:** `lib/intelligence/rootCause.ts`, `app/api/cron/weekly-performance/route.ts` (extend)
+
+Weekly batch, runs after messaging pattern analysis:
+
+- [ ] For each lead archived in the past 7 days that has `root_cause IS NULL`:
+  - Fetch last 20 activities (the conversation thread)
+  - Build a compact transcript (direction + body + timestamp, no PII beyond content)
+  - Call Groq Llama 3.1 70B with structured prompt:
+    - Classify failure mode: `no_response_first_touch | price_objection_unaddressed | timing_mismatch | wrong_channel | sequence_dropout | unknown`
+    - Identify inflection point: which message was the last engaged one
+    - Was failure rep-controllable or external?
+    - One-sentence coaching note
+  - Write structured result to `lost_lead_audit.root_cause` (JSON string)
+  - Log to `ai_usage_log` with `event_type = 'root_cause_analysis'`
+- [ ] Daily budget cap: max 50 root cause analyses per org per week (configurable)
+- [ ] Skip leads with no conversation (nothing to analyze)
+- [ ] Failure handling: if Groq fails, log error, leave `root_cause = null`, retry next week
+
+**Failure mode taxonomy:**
+```
+no_response_first_touch    — lead never replied to any message
+price_objection_missed     — customer mentioned price/payment, no follow-up
+timing_mismatch            — customer indicated future timing, rep kept pushing now
+wrong_channel              — customer preferred phone, rep only texted (or vice versa)
+sequence_dropout           — lead went silent mid-sequence, no human intervention
+objection_unaddressed      — customer raised concern that was never answered
+competitor_lost            — customer mentioned another dealer or buying elsewhere
+natural_end                — customer explicitly said not interested (clean loss)
+unknown                    — insufficient conversation data to classify
+```
+
+### 6.8 — Coaching Digest (Weekly Email to Admin)
+**Files:** `lib/intelligence/coachingDigest.ts`, `app/api/cron/weekly-performance/route.ts` (extend)
+
+- [ ] Runs after root cause batch completes
+- [ ] Aggregates week's findings into 3–5 actionable insights:
+  - Top failure mode this week and which rep it hit most
+  - Best-performing time window for outbound contact
+  - Sequence step with highest dropoff rate
+  - Rep with fastest avg response time (positive callout)
+  - Rep whose root cause analysis shows a correctable pattern
+- [ ] Sent via Resend to org owner email
+- [ ] Plain English, no jargon, no raw numbers — conversational tone
+- [ ] Opt-out: `org_settings.coaching_digest_enabled` flag (default true)
+- [ ] No PII in subject line; body limited to org's own data
+
+### 6.9 — Tests
+**Files:** `lib/__tests__/rootCause.test.ts`, `lib/__tests__/admin-lost-leads-route.test.ts`, `lib/__tests__/reinstate-route.test.ts`
+
+- [ ] Lost lead audit insert fires on archive action (unit test action route)
+- [ ] Reinstate route: 403 for rep role, 200 for owner, activity.completed_at cleared
+- [ ] Root cause classifier: correct failure mode returned for sample transcripts
+- [ ] Lost leads route: date range capped at 90 days server-side
+- [ ] Lost leads route: rep can only see own records (ownership filter enforced)
+- [ ] Coaching digest: renders without error on empty week (no crashes on zero data)
+
+**Security checklist — Phase 6:**
+- [ ] All admin routes: owner/manager role asserted, not just authentication
+- [ ] Rep self-view: `WHERE archived_by = profile.id` enforced server-side, never client-supplied
+- [ ] Lost lead audit: no cross-tenant reads possible (RLS + org scoping)
+- [ ] Root cause AI output: stored as structured JSON, never executed, never returned raw to client
+- [ ] Coaching email: sent to verified org owner email only, no forwarding tokens
+- [ ] Date range cap: 90 days enforced server-side on all analytics queries
+- [ ] Export: rate limited, max 1 export per 60 seconds per org
+- [ ] `archived_by` is always `profile.id` (individual rep), never client-supplied
+
+**Definition of done — Phase 6:**
+- [ ] Archive creates audit record with full context snapshot
+- [ ] Admin can see all lost leads filtered by rep, reason, date
+- [ ] Admin can reinstate any lead; rep role cannot
+- [ ] Rep can see own scorecard; cannot see other reps
+- [ ] Weekly batch runs without error on empty data
+- [ ] Root cause populated for archived leads with conversation history
+- [ ] Coaching digest sent to admin email with ≥1 insight
+- [ ] All tests pass, lint clean, build clean
+
+---
+
 ## Cross-Cutting Enterprise Requirements (all phases)
 
 ### Security (every phase must pass before merge)
