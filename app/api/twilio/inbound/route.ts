@@ -309,20 +309,24 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Find customer by phone number, scoped to org.
-  // TODO: add index on (user_id, primary_phone) and (user_id, secondary_phone) to
-  // replace this full-org scan with two targeted lookups.
-  const { data: allCustomers } = await supabase
-    .from('customers')
-    .select('id, name, user_id, primary_phone, secondary_phone, sms_opt_out, unsubscribe_sms, sms_consent_status')
-    .eq('user_id', orgId)
-    .limit(500)
-
-  const customer = allCustomers?.find(c => {
-    const primary   = normalizePhone(c.primary_phone || '')
-    const secondary = normalizePhone(c.secondary_phone || '')
-    return primary === fromNorm || secondary === fromNorm
-  })
+  // Two indexed lookups against generated normalized-phone columns (migration 118).
+  // Replaces the prior full-org table scan.
+  const CUSTOMER_SELECT = 'id, name, user_id, primary_phone, secondary_phone, sms_opt_out, unsubscribe_sms, sms_consent_status'
+  const [{ data: byPrimary }, { data: bySecondary }] = await Promise.all([
+    supabase
+      .from('customers')
+      .select(CUSTOMER_SELECT)
+      .eq('user_id', orgId)
+      .eq('primary_phone_norm', fromNorm)
+      .limit(1),
+    supabase
+      .from('customers')
+      .select(CUSTOMER_SELECT)
+      .eq('user_id', orgId)
+      .eq('secondary_phone_norm', fromNorm)
+      .limit(1),
+  ])
+  const customer = byPrimary?.[0] ?? bySecondary?.[0] ?? null
 
   // Fetch org name for TCPA compliance messages
   let tcpaBizName = 'this service'
