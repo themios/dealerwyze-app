@@ -4,6 +4,12 @@ Strategic ideas captured here. Promote to ROADMAP.md when ready to schedule.
 
 ---
 
+## Done — 2026-04-30: Phase A conversation intent re-scorer
+
+Groq-backed rescoring on lead ingest, inbound SMS (Twilio), and inbound customer email (Gmail history); `queueSort` uses stored intent + shows reasons on Today cards. Migration `116_conversation_intent_scoring.sql`. See repo root `enhancements.md`.
+
+---
+
 ## Done — 2026-04-29: PLAN-D & PLAN-E service-role remediation
 
 Support, pulse (authenticated routes), sales rep APIs, onboarding GET/PATCH, push subscribe, auth/me, vehicle PATCH + AI description + market-check, split email/fax as documented; eight RSC settings/analytics pages use `await createClient()`; `lib/sms/quota.ts` threads one service client through `checkQuota` helpers. See repo root `enhancements.md` and `.planning/service-role-remediation/PLAN-D-support-pulse-misc.md`, `PLAN-E-pages-lib.md`.

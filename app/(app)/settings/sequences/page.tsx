@@ -1,7 +1,7 @@
 import { requireProfile } from '@/lib/auth/profile'
 import { createClientForRequest } from '@/lib/supabase/forRequest'
-import TopBar from '@/components/layout/TopBar'
 import SequencesClient from './SequencesClient'
+import SettingsPageShell from '@/components/settings/SettingsPageShell'
 
 export default async function SequencesPage() {
   const profile = await requireProfile()
@@ -14,11 +14,14 @@ export default async function SequencesPage() {
     .order('created_at', { ascending: true })
 
   return (
-    <div>
-      <TopBar title="Sequences" />
-      <div className="px-4 py-4">
+    <SettingsPageShell
+      title="Sequences"
+      description="Create and manage reusable SMS and email follow-up cadences."
+      type="ops"
+    >
+      <div>
         <SequencesClient initialSequences={sequences ?? []} />
       </div>
-    </div>
+    </SettingsPageShell>
   )
 }

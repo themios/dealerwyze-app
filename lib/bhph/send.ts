@@ -7,6 +7,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { ReminderType, buildSmsMessage, buildEmailSubject, buildEmailBody, MessageVars } from './messages'
 import { isWithinSendHours } from './schedule'
 import { getOrCreatePaymentToken, buildPayUrl } from './paymentToken'
+import { getTwilioWebhookBase } from '@/lib/twilio/signature'
 
 interface SendResult {
   sms: 'sent' | 'skipped_optout' | 'skipped_hours' | 'failed' | 'unconfigured'
@@ -39,11 +40,15 @@ export async function sendBhphReminder(params: {
 
   // For due_day reminders, try to attach a Stripe payment link
   let paymentUrl: string | null = null
+  let paymentTokenId: string | null = null
   if (reminderType === 'due_day' && amount) {
     const token = await getOrCreatePaymentToken({
       orgId: userId, customerId, bhphContractId: bhphId, amount,
     }).catch(() => null)
-    if (token) paymentUrl = buildPayUrl(token)
+    if (token) {
+      paymentTokenId = token.id
+      paymentUrl = buildPayUrl(token.token)
+    }
   }
 
   const service = createServiceClient()
@@ -66,7 +71,7 @@ export async function sendBhphReminder(params: {
       const digits = customerPhone.replace(/\D/g, '')
       const to = digits.length === 10 ? `+1${digits}` : `+${digits}`
       const baseBody = buildSmsMessage(reminderType, messageVars)
-      const body = paymentUrl ? `${baseBody}\nPay online: ${paymentUrl}` : baseBody
+      const smsBody = paymentUrl ? `${baseBody}\nPay online: ${paymentUrl}` : baseBody
 
       try {
         const twilioRes = await fetch(
@@ -77,7 +82,12 @@ export async function sendBhphReminder(params: {
               Authorization: `Basic ${Buffer.from(`${twilioSid}:${twilioToken}`).toString('base64')}`,
               'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: new URLSearchParams({ To: to, From: twilioFrom, Body: body }),
+            body: new URLSearchParams({
+              To: to,
+              From: twilioFrom,
+              Body: smsBody,
+              StatusCallback: `${getTwilioWebhookBase()}/api/twilio/status`,
+            }),
           }
         )
         const twilioData = await twilioRes.json()
@@ -92,7 +102,7 @@ export async function sendBhphReminder(params: {
             customer_id: customerId,
             type: 'sms',
             direction: 'outbound',
-            body,
+            body: smsBody,
             priority: 'high',
             completed_at: new Date().toISOString(),
           })
@@ -165,10 +175,12 @@ export async function sendBhphReminder(params: {
       reminder_type: reminderType,
       channel: 'sms',
       status: result.sms,
+      payment_token_id: paymentTokenId,
       twilio_sid: result.twilioSid ?? null,
       error_code: result.errorCode ?? null,
       error_message: result.errorMessage ?? null,
-      message_body: buildSmsMessage(reminderType, messageVars),
+      delivery_status: result.twilioSid ? 'queued' : null,
+      message_body: paymentUrl ? `${buildSmsMessage(reminderType, messageVars)}\nPay online: ${paymentUrl}` : buildSmsMessage(reminderType, messageVars),
       scheduled_for: new Date().toISOString(),
       sent_at: result.sms === 'sent' ? new Date().toISOString() : null,
     }] : []),

@@ -1,15 +1,14 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import TopBar from '@/components/layout/TopBar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { Plus, UserX, ArrowLeft, Copy, Check, RefreshCw } from 'lucide-react'
-import Link from 'next/link'
+import { Plus, UserX, Copy, Check, RefreshCw } from 'lucide-react'
 import ConfirmActionDialog from '@/components/settings/ConfirmActionDialog'
+import SettingsPageShell from '@/components/settings/SettingsPageShell'
 
 type UserRole = 'dealer_admin' | 'dealer_manager' | 'dealer_finance' | 'dealer_rep' | 'dealer_staff' | 'admin' | 'agent'
 
@@ -178,22 +177,18 @@ export default function UsersPage() {
   }
 
   return (
-    <div>
-      <TopBar
+    <>
+      <SettingsPageShell
         title="Team"
-        right={
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" onClick={() => setInviteOpen(true)} title="Add team member">
-              <Plus className="h-4 w-4" />
-            </Button>
-            <Link href="/settings">
-              <Button variant="ghost" size="sm" title="Back to settings"><ArrowLeft className="h-4 w-4" /></Button>
-            </Link>
-          </div>
-        }
-      />
-
-      <div className="px-4 py-3 space-y-4">
+        description="Invite staff, assign roles, and configure new lead assignment behavior."
+        type="ops"
+        headerActions={(
+          <Button variant="ghost" size="sm" onClick={() => setInviteOpen(true)} title="Add team member">
+            <Plus className="h-4 w-4" />
+          </Button>
+        )}
+      >
+        <div className="space-y-4">
         {/* Lead Assignment Mode */}
         <div className="rounded-xl border bg-card p-4 space-y-3">
           <div>
@@ -350,7 +345,8 @@ export default function UsersPage() {
             )}
           </div>
         )}
-      </div>
+        </div>
+      </SettingsPageShell>
 
       <Sheet open={inviteOpen} onOpenChange={setInviteOpen}>
         <SheetContent side="bottom" className="rounded-t-2xl h-auto">
@@ -416,6 +412,6 @@ export default function UsersPage() {
           </form>
         </SheetContent>
       </Sheet>
-    </div>
+    </>
   )
 }

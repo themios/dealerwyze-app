@@ -1,8 +1,8 @@
 import { requireProfile } from '@/lib/auth/profile'
 import { createClientForRequest } from '@/lib/supabase/forRequest'
-import TopBar from '@/components/layout/TopBar'
 import AutomationClient from './AutomationClient'
 import TemplatesClient from '../TemplatesClient'
+import SettingsPageShell from '@/components/settings/SettingsPageShell'
 
 export default async function AutomationSettingsPage() {
   const profile = await requireProfile()
@@ -42,9 +42,12 @@ export default async function AutomationSettingsPage() {
   }
 
   return (
-    <div>
-      <TopBar title="Automation & Timings" />
-      <div className="px-4 py-4 space-y-8">
+    <SettingsPageShell
+      title="Automation & Timings"
+      description="Lead response timing, autoresponder behavior, and shared message templates."
+      type="form"
+    >
+      <div className="space-y-8">
 
         <AutomationClient initial={initial} sequences={sequences ?? []} />
 
@@ -64,6 +67,6 @@ export default async function AutomationSettingsPage() {
         </section>
 
       </div>
-    </div>
+    </SettingsPageShell>
   )
 }

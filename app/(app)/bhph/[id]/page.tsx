@@ -36,7 +36,7 @@ export default async function BhphDetailPage({ params }: Props) {
   // Fetch recent reminder log for payment history context
   const { data: reminderLog } = await service
     .from('payment_reminder_log')
-    .select('id, reminder_type, channel, status, scheduled_for, sent_at, created_at')
+    .select('id, reminder_type, channel, status, delivery_status, scheduled_for, sent_at, delivered_at, clicked_at, click_count, paid_at, created_at')
     .eq('bhph_id', id)
     .order('scheduled_for', { ascending: false })
     .limit(50)

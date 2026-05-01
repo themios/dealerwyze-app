@@ -22,13 +22,13 @@ export async function getOrCreatePaymentToken(opts: {
   customerId:     string
   bhphContractId: string
   amount:         number
-}): Promise<string | null> {
+}): Promise<{ id: string; token: string } | null> {
   const supabase = createServiceClient()
 
   // Reuse existing pending token if not expired
   const { data: existing } = await supabase
     .from('bhph_payment_tokens')
-    .select('token')
+    .select('id, token')
     .eq('bhph_contract_id', opts.bhphContractId)
     .eq('status', 'pending')
     .gt('expires_at', new Date().toISOString())
@@ -36,16 +36,16 @@ export async function getOrCreatePaymentToken(opts: {
     .limit(1)
     .maybeSingle()
 
-  if (existing) return existing.token
+  if (existing) return existing
 
   const token = generateToken()
-  const { error } = await supabase.from('bhph_payment_tokens').insert({
+  const { data, error } = await supabase.from('bhph_payment_tokens').insert({
     org_id:          opts.orgId,
     customer_id:     opts.customerId,
     bhph_contract_id: opts.bhphContractId,
     amount:          opts.amount,
     token,
-  })
+  }).select('id, token').single()
 
-  return error ? null : token
+  return error ? null : data
 }

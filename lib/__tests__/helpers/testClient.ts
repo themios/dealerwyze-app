@@ -48,7 +48,9 @@ export interface QueryBuilderStub {
 function makeQueryBuilder(defaultResult = { data: [], error: null }): QueryBuilderStub {
   const stub = {} as QueryBuilderStub
   const chain = () => stub
-  const terminal = vi.fn().mockResolvedValue(defaultResult)
+  const terminal = vi.fn((onFulfilled?: (value: typeof defaultResult) => unknown, onRejected?: (reason: unknown) => unknown) =>
+    Promise.resolve(defaultResult).then(onFulfilled, onRejected)
+  )
 
   stub.select       = vi.fn().mockReturnValue(stub)
   stub.insert       = vi.fn().mockReturnValue(stub)

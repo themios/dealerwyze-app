@@ -5,6 +5,7 @@ import { Globe, Copy, Check, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard'
 
 interface Props {
   slug: string
@@ -20,12 +21,17 @@ export default function WebsiteSettingsClient({ slug, initialEnabled, initialTag
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const publicUrl = `https://dealerwyze.com/${slug}/inventory`
+  const isDirty = enabled !== initialEnabled || tagline !== initialTagline || domain !== initialDomain
+
+  useUnsavedChangesGuard(isDirty)
 
   const save = async () => {
     setSaving(true)
     setSaved(false)
+    setError(null)
     try {
       const res = await fetch('/api/settings/website', {
         method: 'PATCH',
@@ -36,6 +42,11 @@ export default function WebsiteSettingsClient({ slug, initialEnabled, initialTag
           custom_domain: domain || null,
         }),
       })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setError((data as { error?: string }).error ?? 'Could not save website settings.')
+        return
+      }
       if (res.ok) {
         setSaved(true)
         setTimeout(() => setSaved(false), 3000)
@@ -121,6 +132,7 @@ export default function WebsiteSettingsClient({ slug, initialEnabled, initialTag
         <p className="text-xs text-muted-foreground">Contact support to activate a custom domain after entering it here.</p>
       </div>
 
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
       <Button onClick={save} disabled={saving} className="w-full">
         {saving ? 'Saving...' : saved ? 'Saved' : 'Save settings'}
       </Button>

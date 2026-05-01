@@ -13,36 +13,14 @@ import { stopSequenceOnReply, cancelSequenceOnUnsubscribe } from '@/lib/sequence
 import { dispatchWebhook } from '@/lib/webhooks/dispatch'
 import crypto from 'crypto'
 import { normalizePhone } from '@/lib/utils/phone'
+import { getTwilioWebhookBase, validateTwilioSignature } from '@/lib/twilio/signature'
+import { enqueueConversationRescore } from '@/lib/leads/conversationScore'
 
 // Twilio sends form-encoded POST to this endpoint when a customer texts your number.
 // Webhook URL to set in Twilio console (no ?secret= needed — we use HMAC-SHA1 now):
 //   https://dealerwyze.com/api/twilio/inbound
 
 const TWIML_EMPTY = '<Response/>'
-
-/**
- * Validate Twilio's X-Twilio-Signature using HMAC-SHA1.
- * Spec: https://www.twilio.com/docs/usage/security#validating-signatures-from-twilio
- */
-function validateTwilioSignature(
-  authToken: string,
-  signature: string,
-  url: string,
-  params: Record<string, string>
-): boolean {
-  // Build the signed string: URL + sorted param key-value pairs concatenated
-  const sortedParams = Object.keys(params).sort().reduce((s, k) => s + k + params[k], '')
-  const expected = crypto
-    .createHmac('sha1', authToken)
-    .update(url + sortedParams)
-    .digest('base64')
-  // Constant-time comparison to prevent timing attacks
-  try {
-    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature))
-  } catch {
-    return false
-  }
-}
 
 // TCPA: keywords that trigger opt-out (case-insensitive, exact word)
 const OPT_OUT_KEYWORDS  = new Set(['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT'])
@@ -62,7 +40,7 @@ export async function POST(req: NextRequest) {
   // during the transition period. Remove the fallback once HMAC is confirmed working in production.
   const authToken   = process.env.TWILIO_AUTH_TOKEN ?? ''
   const signature   = req.headers.get('x-twilio-signature') ?? ''
-  const webhookUrl  = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://dealerwyze.com'}/api/twilio/inbound`
+  const webhookUrl  = `${getTwilioWebhookBase()}/api/twilio/inbound`
 
   // Legacy fallback reads secret from Authorization: Bearer header (not URL query param)
   const legacyAuthHeader = req.headers.get('authorization')
@@ -531,6 +509,12 @@ export async function POST(req: NextRequest) {
       `<b>${hint.detected ? '📅 Appt request' : 'Inbound text'}</b> from ${customer.name}\n` +
       (body.length > 160 ? body.slice(0, 157) + '...' : body)
     ).catch(() => {})
+
+    enqueueConversationRescore({
+      customerId: customer.id,
+      orgId: customer.user_id,
+      trigger: 'inbound_sms',
+    })
   } else {
     // Unknown number — new potential lead
     sendTelegramMessage(

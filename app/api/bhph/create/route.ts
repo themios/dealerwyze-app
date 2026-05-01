@@ -10,6 +10,7 @@ import { requireProfile } from '@/lib/auth/profile'
 import { CONSENT_DISCLOSURE } from '@/lib/bhph/schedule'
 import { canAccessBhph } from '@/lib/auth/dealerRoles'
 import { deliverPulseSurvey } from '@/lib/pulse/deliver'
+import { recordDealIntentOutcome } from '@/lib/leads/dealLearning'
 import type { UserRole } from '@/types/index'
 
 export async function POST(req: NextRequest) {
@@ -98,6 +99,19 @@ export async function POST(req: NextRequest) {
 
   if (finalizeError) return NextResponse.json({ error: finalizeError.message }, { status: 500 })
 
+  if (customer_id) {
+    try {
+      await recordDealIntentOutcome(supabase, {
+        orgId,
+        customerId: customer_id,
+        vehicleId: vehicle_id,
+        isBuyer: true,
+      })
+    } catch (e) {
+      console.error('[bhph/create] recordDealIntentOutcome buyer', e)
+    }
+  }
+
   // Trigger pulse survey for the buyer (non-blocking)
   if (customer_id) {
     deliverPulseSurvey({
@@ -158,6 +172,22 @@ export async function POST(req: NextRequest) {
       email: (c as Record<string, string | null>).email ?? null,
     })
   }
+
+  const learningTasks: Promise<void>[] = []
+  for (const ic of interestedCustomers) {
+    if (ic.is_buyer) continue
+    learningTasks.push(
+      recordDealIntentOutcome(supabase, {
+        orgId,
+        customerId: ic.customer_id,
+        vehicleId: vehicle_id,
+        isBuyer: false,
+      }).catch(err => {
+        console.error('[bhph/create] recordDealIntentOutcome interested', ic.customer_id, err)
+      }),
+    )
+  }
+  await Promise.all(learningTasks)
 
   return NextResponse.json({ success: true, interestedCustomers })
 }

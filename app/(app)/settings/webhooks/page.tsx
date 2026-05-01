@@ -2,10 +2,8 @@ import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
 import { isDealerAdmin } from '@/types/index'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
-import TopBar from '@/components/layout/TopBar'
-import { ChevronLeft } from 'lucide-react'
 import WebhooksClient from './WebhooksClient'
+import SettingsPageShell from '@/components/settings/SettingsPageShell'
 
 export default async function WebhooksPage() {
   const profile = await requireProfile()
@@ -18,19 +16,15 @@ export default async function WebhooksPage() {
     .eq('org_id', profile.org_id)
     .order('created_at', { ascending: false })
 
-  const back = (
-    <Link href="/settings" className="flex items-center gap-1 text-white text-sm">
-      <ChevronLeft className="h-4 w-4" />
-      Settings
-    </Link>
-  )
-
   return (
-    <div>
-      <TopBar title="Webhooks" left={back} />
-      <div className="px-4 py-4">
+    <SettingsPageShell
+      title="Webhooks"
+      description="Push CRM events to external systems in real time."
+      type="ops"
+    >
+      <div>
         <WebhooksClient initialWebhooks={webhooks ?? []} />
       </div>
-    </div>
+    </SettingsPageShell>
   )
 }

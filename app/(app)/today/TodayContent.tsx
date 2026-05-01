@@ -20,6 +20,8 @@ import VehicleMatchCard from '@/components/leads/VehicleMatchCard'
 import EmailFollowUpItem from '@/components/leads/EmailFollowUpItem'
 import AppointmentRequestCard from '@/components/today/AppointmentRequestCard'
 import UpcomingAppointmentsList, { type UpcomingAppointmentItem } from '@/components/appointments/UpcomingAppointmentsList'
+import type { AtRiskLeadItem } from '@/lib/today/atRisk'
+import Link from 'next/link'
 
 const MOTIVATIONAL_MESSAGES = [
   'Every call could be your next deal.',
@@ -67,9 +69,11 @@ interface TodayContentProps {
   businessName?: string
   respondedCustomerIds?: string[]
   sequenceStatusMap?: Record<string, SequenceStatus>
+  leadWeights?: { hotBoost?: number; warmBoost?: number }
+  atRiskItems?: AtRiskLeadItem[]
 }
 
-export default function TodayContent({ initialNewLeads, initialTasks, initialWaiting, initialApptRequests, initialVoiceLeads, initialVehicleMatches = [], upcomingAppointments = [], respondedCustomerIds = [], sequenceStatusMap = {} }: TodayContentProps) {
+export default function TodayContent({ initialNewLeads, initialTasks, initialWaiting, initialApptRequests, initialVoiceLeads, initialVehicleMatches = [], upcomingAppointments = [], respondedCustomerIds = [], sequenceStatusMap = {}, leadWeights, atRiskItems = [] }: TodayContentProps) {
   const [newLeads, setNewLeads] = useState<Activity[]>(initialNewLeads)
   const [tasks, setTasks] = useState<Activity[]>(initialTasks)
   const [waiting, setWaiting] = useState<Activity[]>(initialWaiting)
@@ -133,7 +137,12 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
     const [{ data: leads }, { data: t }, { data: w }] = await Promise.all([
       supabase
         .from('activities')
-        .select('*, customer:customers(id, name, primary_phone, email, archived)')
+        .select(`*, customer:customers(
+          id, name, primary_phone, email, archived, sms_opt_out, unsubscribe_email, unsubscribe_sms,
+          lead_intent_score, lead_intent_tier, lead_intent_summary,
+          lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
+          lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count
+        )`)
         .eq('type', 'email')
         .eq('direction', 'inbound')
         .eq('outcome', 'pending')
@@ -143,7 +152,12 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
         .order('created_at', { ascending: false }),
       supabase
         .from('activities')
-        .select('*, customer:customers(id, name, primary_phone, email, archived)')
+        .select(`*, customer:customers(
+          id, name, primary_phone, email, archived,
+          lead_intent_score, lead_intent_tier, lead_intent_summary,
+          lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
+          lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count
+        )`)
         .in('type', ['task', 'appointment', 'call', 'sms', 'email', 'email_followup', 'sms_followup'])
         .is('completed_at', null)
         .not('direction', 'eq', 'inbound')
@@ -154,7 +168,12 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
         .order('due_at', { ascending: true }),
       supabase
         .from('activities')
-        .select('*, customer:customers(id, name, primary_phone, archived)')
+        .select(`*, customer:customers(
+          id, name, primary_phone, archived,
+          lead_intent_score, lead_intent_tier, lead_intent_summary,
+          lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
+          lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count
+        )`)
         .eq('direction', 'outbound')
         .in('type', ['call', 'sms', 'email'])
         .not('outcome', 'eq', 'pending')
@@ -187,7 +206,12 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
 
     const { data: appts } = await supabase
       .from('activities')
-      .select('*, customer:customers(id, name, primary_phone, archived)')
+      .select(`*, customer:customers(
+        id, name, primary_phone, archived,
+        lead_intent_score, lead_intent_tier, lead_intent_summary,
+        lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
+        lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count
+      )`)
       .eq('type', 'appointment')
       .eq('direction', 'inbound')
       .eq('outcome', 'pending')
@@ -200,7 +224,12 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
     todayStart.setHours(0, 0, 0, 0)
     const { data: voices } = await supabase
       .from('voice_calls')
-      .select('*, customer:customers(id, name, primary_phone), linked_task:tasks(id, status)')
+      .select(`*, customer:customers(
+        id, name, primary_phone,
+        lead_intent_score, lead_intent_tier, lead_intent_summary,
+        lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
+        lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count
+      ), linked_task:tasks(id, status)`)
       .eq('status', 'completed')
       .gte('created_at', todayStart.toISOString())
       .order('created_at', { ascending: false })
@@ -228,7 +257,12 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
     // Refresh vehicle matches
     const { data: vMatches } = await supabase
       .from('activities')
-      .select('*, customer:customers(id, name, primary_phone, archived), vehicle:vehicles(id, year, make, model)')
+      .select(`*, customer:customers(
+        id, name, primary_phone, archived,
+        lead_intent_score, lead_intent_tier, lead_intent_summary,
+        lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
+        lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count
+      ), vehicle:vehicles(id, year, make, model, demand_signal, lead_count_30d)`)
       .eq('type', 'vehicle_match')
       .eq('direction', 'inbound')
       .eq('outcome', 'pending')
@@ -312,7 +346,7 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
   }, [supabase, refresh])
 
   // ── Build the unified priority queue ────────────────────────────────────────
-  const queue = buildQueue(newLeads, apptRequests, voiceLeads, tasks, waiting, responded, vehicleMatches)
+  const queue = buildQueue(newLeads, apptRequests, voiceLeads, tasks, waiting, responded, vehicleMatches, { leadWeights })
 
   // Group by tier for rendering
   const tierGroups = new Map<number, typeof queue>()
@@ -349,6 +383,26 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
           title="Today & Tomorrow Appointments"
           appointments={upcomingAppointments}
         />
+
+        {atRiskItems.length > 0 && (
+          <section className="rounded-xl border border-amber-200/80 dark:border-amber-900/50 bg-amber-50/40 dark:bg-amber-950/20 p-3 space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200">At risk — stale leads</p>
+            <p className="text-xs text-muted-foreground">Pending inbound email with no dealer response in 48+ hours.</p>
+            <ul className="space-y-1.5">
+              {atRiskItems.map(item => (
+                <li key={item.activity_id}>
+                  <Link
+                    href={`/customers/${item.customer_id}?activity=${item.activity_id}`}
+                    className="text-sm font-medium text-foreground hover:underline"
+                  >
+                    {item.customer_name}
+                  </Link>
+                  <span className="text-xs text-muted-foreground ml-2">{item.reason}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {queue.length === 0 && (
           <div className="text-center py-16 text-muted-foreground flex flex-col items-center gap-2">
@@ -390,6 +444,9 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
                       }}
                       hasResponded={responded.includes(item.customerId ?? '')}
                       sequenceStatus={item.customerId ? sequenceStatusMap[item.customerId] ?? null : null}
+                      queueReasons={item.decision.reasons}
+                      intentTierBadge={item.decision.intentTierBadge}
+                      nextActionLabel={item.decision.nextActionLabel}
                     />
                   )
                 } else if (type === 'vehicle_match') {
@@ -422,6 +479,9 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
                       activity={data as Activity}
                       onUpdate={refresh}
                       hasResponded={type === 'waiting_responded'}
+                      queueReasons={item.decision.reasons}
+                      intentTierBadge={item.decision.intentTierBadge}
+                      nextActionLabel={item.decision.nextActionLabel}
                     />
                   )
                 } else {

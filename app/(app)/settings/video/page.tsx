@@ -1,12 +1,9 @@
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
-import TopBar from '@/components/layout/TopBar'
-import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import VideoSettingsForm from '@/components/settings/VideoSettingsForm'
 import { isDealerAdmin } from '@/lib/auth/dealerRoles'
 import { redirect } from 'next/navigation'
+import SettingsPageShell from '@/components/settings/SettingsPageShell'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,22 +40,18 @@ export default async function VideoSettingsPage() {
   const planLimit = PLAN_RENDER_QUOTA[(org?.plan ?? 'growth').toLowerCase()] ?? 25
 
   return (
-    <div>
-      <TopBar
-        title="Video Settings"
-        right={
-          <Link href="/settings">
-            <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4" /></Button>
-          </Link>
-        }
-      />
-      <div className="px-4 py-4">
+    <SettingsPageShell
+      title="Video Settings"
+      description="Control templates, voice, and autopost defaults for inventory video generation."
+      type="form"
+    >
+      <div>
         <VideoSettingsForm
           initialSettings={videoSettings}
           templates={templates ?? []}
           planLimit={planLimit}
         />
       </div>
-    </div>
+    </SettingsPageShell>
   )
 }

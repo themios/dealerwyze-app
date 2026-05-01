@@ -19,6 +19,65 @@ interface StripePaymentIntentResponse {
   metadata?: Record<string, string>
 }
 
+async function recordPaymentLinkView(supabase: ReturnType<typeof createServiceClient>, tokenId: string) {
+  const now = new Date().toISOString()
+
+  await supabase
+    .from('bhph_payment_tokens')
+    .update({
+      last_viewed_at: now,
+      first_viewed_at: now,
+    })
+    .eq('id', tokenId)
+    .is('first_viewed_at', null)
+
+  const { data: tokenRow } = await supabase
+    .from('bhph_payment_tokens')
+    .select('view_count')
+    .eq('id', tokenId)
+    .maybeSingle()
+
+  await supabase
+    .from('bhph_payment_tokens')
+    .update({
+      last_viewed_at: now,
+      view_count: ((tokenRow?.view_count as number | null) ?? 0) + 1,
+    })
+    .eq('id', tokenId)
+
+  const { data: latestReminder } = await supabase
+    .from('payment_reminder_log')
+    .select('id, click_count')
+    .eq('payment_token_id', tokenId)
+    .eq('channel', 'sms')
+    .eq('status', 'sent')
+    .order('sent_at', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (!latestReminder?.id) return
+
+  await supabase
+    .from('payment_reminder_log')
+    .update({
+      clicked_at: now,
+      click_count: ((latestReminder.click_count as number | null) ?? 0) + 1,
+    })
+    .eq('id', latestReminder.id)
+}
+
+async function markReminderTokenPaid(
+  supabase: ReturnType<typeof createServiceClient>,
+  tokenId: string,
+  paidAt: string
+) {
+  await supabase
+    .from('payment_reminder_log')
+    .update({ paid_at: paidAt })
+    .eq('payment_token_id', tokenId)
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ token: string }> }
@@ -46,6 +105,8 @@ export async function GET(
   if (!pt)                              return NextResponse.json({ error: 'Not found' },  { status: 404 })
   if (pt.status === 'paid')             return NextResponse.json({ error: 'Already paid' }, { status: 410 })
   if (new Date(pt.expires_at) < new Date()) return NextResponse.json({ error: 'Expired' }, { status: 410 })
+
+  await recordPaymentLinkView(supabase, pt.id)
 
   // Fetch org settings — dealer name + Stripe publishable key (safe to expose)
   const { data: org } = await supabase
@@ -207,10 +268,13 @@ export async function POST(
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null
 
     if (result?.already_processed) {
+      await markReminderTokenPaid(supabase, pt.id, paidAt)
       void logOrgAudit({ org_id: pt.org_id, actor_type: 'system', action: 'bhph_payment_idempotent',
         ip, details: { token_id: pt.id, payment_intent_id } })
       return NextResponse.json({ ok: true, already_processed: true })
     }
+
+    await markReminderTokenPaid(supabase, pt.id, paidAt)
 
     void logOrgAudit({ org_id: pt.org_id, actor_type: 'system', action: 'bhph_payment_confirmed',
       ip, details: { token_id: pt.id, payment_intent_id, amount: pt.amount } })

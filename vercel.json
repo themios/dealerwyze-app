@@ -35,6 +35,10 @@
     {
       "path": "/api/cron/account-lifecycle",
       "schedule": "0 11 * * *"
+    },
+    {
+      "path": "/api/cron/daily-intelligence",
+      "schedule": "0 11 * * *"
     }
   ],
   "functions": {
@@ -48,6 +52,9 @@
       "maxDuration": 30
     },
     "app/api/cron/process-render-queue/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/cron/daily-intelligence/route.ts": {
       "maxDuration": 300
     }
   }

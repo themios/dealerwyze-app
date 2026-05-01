@@ -17,6 +17,7 @@ import { stopSequenceOnReply } from '@/lib/sequences/stopSequenceOnReply'
 import { parseAnyLead, parseCarGurusDigest } from '@/lib/leads/parser'
 import { ingestLead } from '@/lib/leads/ingest'
 import { getLeadSourceEmailMatchers, matchesLeadSourceEmail } from '@/lib/leads/sourceMatchers'
+import { enqueueConversationRescore } from '@/lib/leads/conversationScore'
 
 // Keywords that suggest an inbound inquiry from an unknown sender
 const LEAD_KEYWORDS = ['price', 'interested', 'available', 'how much', 'financing', 'finance', 'cost', 'inquiry', 'asking', 'payment']
@@ -191,6 +192,12 @@ export async function processGmailHistory(
         customerId: match.customer_id,
         customerName: match.customer_name,
         channel: 'email',
+      })
+
+      enqueueConversationRescore({
+        customerId: match.customer_id,
+        orgId,
+        trigger: 'inbound_email',
       })
 
       // Mark as read to keep inbox clean

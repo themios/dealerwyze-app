@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import TopBar from '@/components/layout/TopBar'
 import { CheckCircle, Edit2, Plus, Trash2 } from 'lucide-react'
 import ConfirmActionDialog from '@/components/settings/ConfirmActionDialog'
+import SettingsPageShell from '@/components/settings/SettingsPageShell'
 
 type Period = 'today' | 'weekly' | 'monthly' | 'annual'
 
@@ -98,16 +98,22 @@ export default function GoalsPage() {
   }
 
   if (loading) return (
-    <div>
-      <TopBar title="Goals" />
-      <div className="p-4 text-sm text-muted-foreground">Loading…</div>
-    </div>
+    <SettingsPageShell
+      title="Goals"
+      description="Targets used by the AI dealer brief and internal team reporting."
+      type="form"
+    >
+      <div className="text-sm text-muted-foreground">Loading…</div>
+    </SettingsPageShell>
   )
 
   return (
-    <div>
-      <TopBar title="Goals" />
-      <div className="p-4 space-y-5">
+    <SettingsPageShell
+      title="Goals"
+      description="Targets used by the AI dealer brief and internal team reporting."
+      type="form"
+    >
+      <div className="space-y-5">
         <p className="text-sm text-muted-foreground">
           Set your targets here. The AI dealer brief reports against these goals daily.
         </p>
@@ -220,6 +226,6 @@ export default function GoalsPage() {
           </div>
         )}
       </div>
-    </div>
+    </SettingsPageShell>
   )
 }

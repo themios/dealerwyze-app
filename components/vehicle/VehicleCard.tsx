@@ -8,6 +8,7 @@ import { formatCurrency } from '@/lib/utils'
 import { Paperclip, ChevronDown, ChevronUp, ChevronRight, Flame } from 'lucide-react'
 import VehicleQuickUploadSheet from './VehicleQuickUploadSheet'
 import { assessPricing, RATING_COLOR } from '@/lib/pricing/pricingAssessment'
+import { demandSignalShortLabel } from '@/lib/intelligence/demandLabels'
 
 interface InvestmentSummary {
   purchase_price: number | null
@@ -118,6 +119,16 @@ export default function VehicleCard({ vehicle, reconStatus, investmentSummary }:
                   {vehicle.lead_rating === 'hot' && (
                     <span className="flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-semibold bg-red-100 text-red-700">
                       <Flame className="h-3 w-3" />Hot
+                    </span>
+                  )}
+                  {!isSold && !isStaging && vehicle.demand_signal && (
+                    <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200 border border-amber-200/60 dark:border-amber-800/50">
+                      {demandSignalShortLabel(vehicle.demand_signal)}
+                    </span>
+                  )}
+                  {!isSold && !isStaging && !vehicle.demand_signal && (vehicle.lead_count_30d ?? 0) > 0 && (
+                    <span className="rounded-full px-2 py-0.5 text-[11px] font-medium bg-muted text-muted-foreground">
+                      {vehicle.lead_count_30d} leads (30d)
                     </span>
                   )}
                 </div>

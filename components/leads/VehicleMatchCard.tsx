@@ -4,9 +4,13 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Bell, ChevronRight, X } from 'lucide-react'
 import { Activity } from '@/types'
+import { demandSignalShortLabel } from '@/lib/intelligence/demandLabels'
 
 interface Props {
-  activity: Activity & { customer?: { id: string; name: string; primary_phone?: string | null } | null }
+  activity: Activity & {
+    customer?: { id: string; name: string; primary_phone?: string | null } | null
+    vehicle?: { demand_signal?: string | null; lead_count_30d?: number } | null
+  }
   onUpdate: () => void
 }
 
@@ -15,6 +19,9 @@ export default function VehicleMatchCard({ activity, onUpdate }: Props) {
 
   const customer = activity.customer
   const customerName = customer?.name ?? 'Unknown'
+  const demandKey = activity.vehicle?.demand_signal ?? null
+  const demandLabel = demandKey ? demandSignalShortLabel(demandKey) : null
+  const leadCount = activity.vehicle?.lead_count_30d
 
   // Parse vehicle info and want criteria from activity body
   const bodyLines = (activity.body ?? '').split('\n')
@@ -39,6 +46,14 @@ export default function VehicleMatchCard({ activity, onUpdate }: Props) {
           <div className="min-w-0">
             <p className="text-sm font-semibold truncate">{vehicleLine}</p>
             <p className="text-xs text-muted-foreground">Want list match</p>
+            {(demandLabel || (leadCount != null && leadCount > 0)) && (
+              <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-0.5">
+                {demandLabel && <span className="font-medium">{demandLabel}</span>}
+                {leadCount != null && leadCount > 0 && (
+                  <span className={demandLabel ? ' ml-1' : ''}>· {leadCount} leads (30d)</span>
+                )}
+              </p>
+            )}
           </div>
         </div>
         <button

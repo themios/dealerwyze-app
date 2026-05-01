@@ -1,4 +1,4 @@
-import TopBar from '@/components/layout/TopBar'
+import SettingsPageShell from '@/components/settings/SettingsPageShell'
 import BasicInfoSection            from './sections/BasicInfoSection'
 import PhoneSection                from './sections/PhoneSection'
 import EmailLeadSyncSection        from './sections/EmailLeadSyncSection'
@@ -11,9 +11,12 @@ import DangerZoneSection           from './sections/DangerZoneSection'
 
 export default function OrganizationSettingsPage() {
   return (
-    <div className="flex flex-col h-screen">
-      <TopBar title="Organization" />
-      <div className="flex-1 overflow-y-auto px-0 py-0 space-y-0">
+    <SettingsPageShell
+      title="Organization"
+      description="Business profile, intake channels, integrations, and advanced controls."
+      type="form"
+    >
+      <div className="space-y-4">
         <BasicInfoSection />
         <PhoneSection />
         <EmailLeadSyncSection />
@@ -24,6 +27,6 @@ export default function OrganizationSettingsPage() {
         <EmailFromDomainSection />
         <DangerZoneSection />
       </div>
-    </div>
+    </SettingsPageShell>
   )
 }

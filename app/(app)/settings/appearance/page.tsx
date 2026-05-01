@@ -1,7 +1,7 @@
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
-import TopBar from '@/components/layout/TopBar'
 import AppearanceClient from './AppearanceClient'
+import SettingsPageShell from '@/components/settings/SettingsPageShell'
 
 export default async function AppearancePage() {
   const profile = await requireProfile()
@@ -24,9 +24,12 @@ export default async function AppearancePage() {
   const isPaid = plan === 'growth' || plan === 'pro'
 
   return (
-    <div className="page-enter">
-      <TopBar title="Appearance" />
-      <div className="p-4 max-w-2xl mx-auto pb-12">
+    <SettingsPageShell
+      title="Appearance"
+      description="Theme and typography preferences for your workspace."
+      type="form"
+    >
+      <div className="page-enter pb-12">
         <AppearanceClient
           initialPreset={settings?.theme_preset ?? 'dealerwyze'}
           initialPrimary={settings?.theme_primary ?? null}
@@ -36,6 +39,6 @@ export default async function AppearancePage() {
           plan={plan}
         />
       </div>
-    </div>
+    </SettingsPageShell>
   )
 }

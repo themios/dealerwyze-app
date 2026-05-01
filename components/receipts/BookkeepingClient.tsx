@@ -5,6 +5,7 @@ import { Plus, Pencil, Trash2, X, Check, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import ConfirmActionDialog from '@/components/settings/ConfirmActionDialog'
 
 interface Category {
   id: string
@@ -34,12 +35,15 @@ export default function BookkeepingClient({ categories: initial }: Props) {
   const [form, setForm] = useState<FormState>(emptyForm)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   function openAdd() {
     setEditingId(null)
     setForm(emptyForm)
     setShowForm(true)
     setError(null)
+    setDeleteError(null)
   }
 
   function openEdit(cat: Category) {
@@ -51,6 +55,7 @@ export default function BookkeepingClient({ categories: initial }: Props) {
     })
     setShowForm(true)
     setError(null)
+    setDeleteError(null)
   }
 
   function cancel() {
@@ -99,17 +104,20 @@ export default function BookkeepingClient({ categories: initial }: Props) {
   }
 
   async function deleteCategory(id: string) {
-    if (!confirm('Delete this category? Existing transactions will keep it.')) return
+    setDeletingId(id)
+    setDeleteError(null)
     try {
       const res = await fetch(`/api/receipts/categories/${id}`, { method: 'DELETE' })
       if (!res.ok) {
         const data = await res.json()
-        alert(data.error ?? 'Delete failed')
-        return
+        throw new Error(data.error ?? 'Delete failed')
       }
       setCategories(prev => prev.filter(c => c.id !== id))
     } catch (e) {
-      alert(String(e))
+      setDeleteError(e instanceof Error ? e.message : 'Delete failed')
+      throw e
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -118,6 +126,7 @@ export default function BookkeepingClient({ categories: initial }: Props) {
       <p className="text-sm text-muted-foreground">
         Categories used for receipt classification. Map to QuickBooks account names for export.
       </p>
+      {deleteError ? <p className="text-sm text-destructive">{deleteError}</p> : null}
 
       {/* Category list */}
       <div className="divide-y rounded-xl border bg-card overflow-hidden">
@@ -142,12 +151,21 @@ export default function BookkeepingClient({ categories: initial }: Props) {
                 <Pencil className="h-3.5 w-3.5" />
               </button>
               {!cat.is_default && (
-                <button
-                  onClick={() => deleteCategory(cat.id)}
-                  className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-500 transition-colors"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                <ConfirmActionDialog
+                  title="Delete this category?"
+                  description="Existing transactions will keep their current category, but you will not be able to use this category again."
+                  confirmLabel={deletingId === cat.id ? 'Deleting...' : 'Delete category'}
+                  confirmVariant="destructive"
+                  onConfirm={() => deleteCategory(cat.id)}
+                  trigger={(
+                    <button
+                      className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-500 transition-colors"
+                      disabled={deletingId === cat.id}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                />
               )}
             </div>
           </div>

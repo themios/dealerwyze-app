@@ -3,9 +3,9 @@ import { requireProfile } from '@/lib/auth/profile'
 import { isDealerAdmin } from '@/types/index'
 import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
-import TopBar from '@/components/layout/TopBar'
 import WebsiteSettingsClient from '@/components/settings/WebsiteSettingsClient'
 import WebsiteAnalytics from '@/components/settings/WebsiteAnalytics'
+import SettingsPageShell from '@/components/settings/SettingsPageShell'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,9 +25,12 @@ export default async function WebsiteSettingsPage() {
     .single()
 
   return (
-    <div>
-      <TopBar title="Website Settings" />
-      <div className="px-4 py-4 max-w-lg space-y-8">
+    <SettingsPageShell
+      title="Website Settings"
+      description="Public inventory page, custom domain details, and customer-facing website controls."
+      type="form"
+    >
+      <div className="max-w-lg space-y-8">
         <WebsiteSettingsClient
           slug={org?.slug ?? ''}
           initialEnabled={org?.public_inventory_enabled ?? false}
@@ -39,6 +42,6 @@ export default async function WebsiteSettingsPage() {
           <WebsiteAnalytics />
         </Suspense>
       </div>
-    </div>
+    </SettingsPageShell>
   )
 }

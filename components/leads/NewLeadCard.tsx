@@ -37,6 +37,7 @@ type LeadCustomer = {
   unsubscribe_email?: boolean
   unsubscribe_sms?: boolean
   lead_source?: string | null
+  repeat_lead?: boolean
 }
 
 interface NewLeadCardProps {
@@ -47,6 +48,12 @@ interface NewLeadCardProps {
   onAddressed?: () => void   // optimistic: called immediately when card is opened or marked done
   hasResponded?: boolean
   sequenceStatus?: SequenceStatus | null
+  /** From queue sort — why this lead ranks where it does */
+  queueReasons?: string[]
+  /** LLM / manual intent tier from queue */
+  intentTierBadge?: 'HOT' | 'WARM' | 'COLD' | null
+  /** Recommended next step label */
+  nextActionLabel?: string
 }
 
 function parseLead(body: string) {
@@ -83,7 +90,7 @@ function ScoreBadge({ score }: { score: number }) {
   )
 }
 
-export default function NewLeadCard({ activity, onUpdate, onAddressed, hasResponded, sequenceStatus }: NewLeadCardProps) {
+export default function NewLeadCard({ activity, onUpdate, onAddressed, hasResponded, sequenceStatus, queueReasons, intentTierBadge, nextActionLabel }: NewLeadCardProps) {
   const lead = parseLead(activity.body || '')
 
   const [loading, setLoading] = useState<string | null>(null)
@@ -283,10 +290,35 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <Badge variant="default" className="text-xs">New Lead</Badge>
+              {customer.repeat_lead && (
+                <span className="rounded-full px-2 py-0.5 text-[11px] font-bold bg-violet-100 text-violet-800 dark:bg-violet-950/50 dark:text-violet-200 border border-violet-200/70 dark:border-violet-800/60">
+                  Repeat lead
+                </span>
+              )}
               <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${sourceBadgeClass}`}>{sourceLabel}</span>
               <ScoreBadge score={score} />
+              {intentTierBadge && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border border-primary/40 text-primary bg-primary/5">
+                  {intentTierBadge}
+                </span>
+              )}
             </div>
+            {nextActionLabel && (
+              <p className="text-[11px] text-muted-foreground mb-1">
+                Suggested: <span className="font-medium text-foreground">{nextActionLabel}</span>
+              </p>
+            )}
             <p className={`font-[family-name:var(--font-display)] font-bold text-[17px] leading-tight ${stale ? 'text-red-600' : 'text-foreground'}`}>{customer.name}</p>
+            {queueReasons && queueReasons.length > 0 && (
+              <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground list-none pl-0">
+                {queueReasons.slice(0, 3).map((r, i) => (
+                  <li key={i} className="flex gap-1.5">
+                    <span className="text-foreground/40 shrink-0" aria-hidden>▸</span>
+                    <span>{r}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           {(() => { const b = leadAgeBadge(activity.created_at); return (
             <span suppressHydrationWarning className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${b.cls}`}>

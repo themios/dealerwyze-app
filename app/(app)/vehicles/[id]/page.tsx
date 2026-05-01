@@ -21,6 +21,7 @@ import VehicleRestoreButton from '@/components/vehicle/VehicleRestoreButton'
 import { canAccessLedger, isDealerAdmin } from '@/lib/auth/dealerRoles'
 import VehicleVideoSection from '@/components/vehicles/VehicleVideoSection'
 import InlinePriceEdit from '@/components/vehicle/InlinePriceEdit'
+import { demandSignalShortLabel } from '@/lib/intelligence/demandLabels'
 
 export const dynamic = 'force-dynamic'
 
@@ -147,6 +148,37 @@ export default async function VehicleDetailPage({ params }: PageProps) {
             </div>
           )
         })()}
+
+        {vehicle.status !== 'sold' &&
+          vehicle.status !== 'staging' &&
+          (vehicle.demand_signal || (vehicle.lead_count_30d ?? 0) > 0) && (
+          <div className="rounded-lg border border-amber-200/70 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/25 px-3 py-2 text-sm">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Lead intelligence</p>
+            <p className="text-foreground">
+              {vehicle.demand_signal ? (
+                <span className="font-medium text-amber-900 dark:text-amber-100">
+                  {demandSignalShortLabel(vehicle.demand_signal)}
+                </span>
+              ) : (
+                <span className="text-muted-foreground">Demand rollup</span>
+              )}
+              {(vehicle.lead_count_30d ?? 0) > 0 && (
+                <span className="text-muted-foreground"> · {vehicle.lead_count_30d} leads (30d)</span>
+              )}
+              {vehicle.avg_intent_score != null && (
+                <span className="text-muted-foreground">
+                  {' '}
+                  · Avg intent {vehicle.avg_intent_score.toFixed(0)}
+                </span>
+              )}
+            </p>
+            {vehicle.demand_updated_at && (
+              <p className="text-[10px] text-muted-foreground mt-1" suppressHydrationWarning>
+                Updated {formatDate(vehicle.demand_updated_at)}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Price + Status + Market Intelligence */}
         <div className="flex items-center justify-between">

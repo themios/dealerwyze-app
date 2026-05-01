@@ -2,11 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import TopBar from '@/components/layout/TopBar'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, Plus, Trash2, GripVertical } from 'lucide-react'
-import Link from 'next/link'
+import { Plus, Trash2, GripVertical } from 'lucide-react'
 import ConfirmActionDialog from '@/components/settings/ConfirmActionDialog'
+import SettingsPageShell from '@/components/settings/SettingsPageShell'
 
 interface TemplateItem {
   label: string
@@ -79,17 +78,12 @@ export default function ReconTemplatePage() {
   }
 
   return (
-    <div>
-      <TopBar
-        title="Recon Checklist Template"
-        right={
-          <Link href="/settings">
-            <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4" /></Button>
-          </Link>
-        }
-      />
-
-      <div className="px-4 py-4 space-y-4">
+    <SettingsPageShell
+      title="Recon Checklist Template"
+      description="Set the default staging checklist applied to new vehicles."
+      type="form"
+    >
+      <div className="space-y-4">
         <p className="text-sm text-muted-foreground">
           This template is applied when a new vehicle is added in Staging status. Changes here do not affect existing vehicles.
         </p>
@@ -173,6 +167,6 @@ export default function ReconTemplatePage() {
 
         <p className="text-[10px] text-muted-foreground">Max 30 items. Each item max 120 characters.</p>
       </div>
-    </div>
+    </SettingsPageShell>
   )
 }

@@ -14,6 +14,7 @@ import OnboardingChecklist from '@/components/today/OnboardingChecklist'
 import ReviewsSection from '@/components/today/ReviewsSection'
 import PulseScoreWidget from '@/components/today/PulseScoreWidget'
 import type { UpcomingAppointmentItem } from '@/components/appointments/UpcomingAppointmentsList'
+import { fetchAtRiskLeads } from '@/lib/today/atRisk'
 
 export default async function TodayPage() {
   const profile = await requireProfile()
@@ -34,7 +35,12 @@ export default async function TodayPage() {
 
   const { data: newLeads } = await supabase
     .from('activities')
-    .select('*, customer:customers(id, name, primary_phone, email, sms_opt_out, unsubscribe_email, unsubscribe_sms, archived)')
+    .select(`*, customer:customers(
+      id, name, primary_phone, email, sms_opt_out, unsubscribe_email, unsubscribe_sms, archived,
+      lead_intent_score, lead_intent_tier, lead_intent_summary,
+      lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
+      lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count
+    )`)
     .eq('user_id', orgId)
     .eq('type', 'email')
     .eq('direction', 'inbound')
@@ -53,7 +59,12 @@ export default async function TodayPage() {
 
   const { data: tasksRaw } = await supabase
     .from('activities')
-    .select('*, customer:customers(id, name, primary_phone, email, archived)')
+    .select(`*, customer:customers(
+      id, name, primary_phone, email, archived,
+      lead_intent_score, lead_intent_tier, lead_intent_summary,
+      lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
+      lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count
+    )`)
     .eq('user_id', orgId)
     .in('type', ['task', 'appointment', 'call', 'sms', 'email', 'email_followup', 'sms_followup'])
     .is('completed_at', null)
@@ -72,7 +83,12 @@ export default async function TodayPage() {
 
   const { data: waitingRaw } = await supabase
     .from('activities')
-    .select('*, customer:customers(id, name, primary_phone, archived)')
+    .select(`*, customer:customers(
+      id, name, primary_phone, archived,
+      lead_intent_score, lead_intent_tier, lead_intent_summary,
+      lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
+      lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count
+    )`)
     .eq('user_id', orgId)
     .eq('direction', 'outbound')
     .in('type', ['call', 'sms', 'email'])
@@ -190,7 +206,12 @@ export default async function TodayPage() {
   // Voice leads: completed calls from today with pending tasks
   const { data: voiceLeadsRaw } = await supabase
     .from('voice_calls')
-    .select('*, customer:customers(id, name, primary_phone)')
+    .select(`*, customer:customers(
+      id, name, primary_phone,
+      lead_intent_score, lead_intent_tier, lead_intent_summary,
+      lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
+      lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count
+    )`)
     .eq('org_id', orgId)
     .eq('status', 'completed')
     .gte('created_at', todayStart.toISOString())
@@ -204,7 +225,7 @@ export default async function TodayPage() {
     { count: teamCount },
     { data: emailAccounts },
   ] = await Promise.all([
-    supabase.from('org_settings').select('onboarding_completed_at, business_name').eq('org_id', orgId).maybeSingle(),
+    supabase.from('org_settings').select('onboarding_completed_at, business_name, lead_intent_weights').eq('org_id', orgId).maybeSingle(),
     supabase.from('organizations').select('stripe_customer_id').eq('id', orgId).maybeSingle(),
     supabase.from('customers').select('id', { count: 'exact', head: true }).eq('user_id', orgId),
     supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('org_id', orgId),
@@ -214,7 +235,12 @@ export default async function TodayPage() {
   // Vehicle want-list matches — inbound, pending, not yet addressed
   const { data: vehicleMatchesRaw } = await supabase
     .from('activities')
-    .select('*, customer:customers(id, name, primary_phone, archived), vehicle:vehicles(id, year, make, model)')
+    .select(`*, customer:customers(
+      id, name, primary_phone, archived,
+      lead_intent_score, lead_intent_tier, lead_intent_summary,
+      lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
+      lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count
+    ), vehicle:vehicles(id, year, make, model, demand_signal, lead_count_30d)`)
     .eq('user_id', orgId)
     .eq('type', 'vehicle_match')
     .eq('direction', 'inbound')
@@ -230,7 +256,12 @@ export default async function TodayPage() {
   // Appointment requests: inbound appointment activities not yet confirmed (direction=inbound)
   const { data: apptRequests } = await supabase
     .from('activities')
-    .select('*, customer:customers(id, name, primary_phone, archived)')
+    .select(`*, customer:customers(
+      id, name, primary_phone, archived,
+      lead_intent_score, lead_intent_tier, lead_intent_summary,
+      lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
+      lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count
+    )`)
     .eq('user_id', orgId)
     .eq('type', 'appointment')
     .eq('direction', 'inbound')
@@ -245,6 +276,9 @@ export default async function TodayPage() {
   const safeApptRequests = (apptRequests || []).filter(
     a => a.customer != null && !(a.customer as { archived?: boolean | null }).archived && shouldShowAddressedActivity(a, todayRef)
   )
+
+  const atRiskItems = await fetchAtRiskLeads(supabase, orgId)
+  const leadWeights = orgSettings?.lead_intent_weights as { hotBoost?: number; warmBoost?: number } | undefined
 
   const { data: upcomingAppointmentsRaw } = await supabase
     .from('activities')
@@ -346,6 +380,8 @@ export default async function TodayPage() {
             businessName={orgSettings?.business_name ?? undefined}
             respondedCustomerIds={respondedCustomerIds}
             sequenceStatusMap={sequenceStatusMap}
+            leadWeights={leadWeights}
+            atRiskItems={atRiskItems}
           />
         </div>
 

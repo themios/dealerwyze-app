@@ -2,11 +2,8 @@ import { requireProfile } from '@/lib/auth/profile'
 import { createClientForRequest } from '@/lib/supabase/forRequest'
 import { createServiceClient } from '@/lib/supabase/service'
 import { notFound } from 'next/navigation'
-import TopBar from '@/components/layout/TopBar'
-import Link from 'next/link'
-import { Button } from '@/components/ui/button'
-import { ArrowLeft } from 'lucide-react'
 import SequenceEditor from './SequenceEditor'
+import SettingsPageShell from '@/components/settings/SettingsPageShell'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -27,22 +24,19 @@ export default async function SequenceEditorPage({ params }: PageProps) {
   if (!sequence) notFound()
 
   return (
-    <div>
-      <TopBar
-        title={sequence.name}
-        left={
-          <Link href="/settings/sequences">
-            <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4" /></Button>
-          </Link>
-        }
-      />
-      <div className="px-4 py-4">
+    <SettingsPageShell
+      title={sequence.name}
+      description="Manage steps, timing, and templates for this sequence."
+      backHref="/settings/sequences"
+      type="ops"
+    >
+      <div>
         <SequenceEditor
           sequence={sequence}
           initialSteps={steps ?? []}
           templates={(templates ?? []).filter(t => t.channel === sequence.channel)}
         />
       </div>
-    </div>
+    </SettingsPageShell>
   )
 }

@@ -10,6 +10,8 @@ import { detectAppointmentIntent } from '@/lib/leads/detectAppointmentIntent'
 import { normalizePhone } from '@/lib/utils/phone'
 import { deriveLeadIntentFromLead, mergeLeadIntent } from '@/lib/leads/intent'
 import { pickReInquiryCandidate } from '@/lib/leads/reinquiry'
+import { enqueueConversationRescore } from '@/lib/leads/conversationScore'
+import { refreshCustomerEngagement } from '@/lib/customers/engagement'
 
 function normalizeName(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
@@ -164,6 +166,9 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId: s
   const customerPatch: Record<string, unknown> = {}
   if (shouldMarkHot) {
     customerPatch.lead_rating = 'hot'
+  }
+  if (isReInquiry) {
+    customerPatch.repeat_lead = true
   }
   if (intentSnapshot) {
     const mergedIntent = mergeLeadIntent({
@@ -354,6 +359,15 @@ export async function ingestLead(lead: ParsedLead, external_id: string, orgId: s
       }
     }).catch((err: unknown) => console.error('[ingest] appointment intent check failed:', err))
   }
+
+  enqueueConversationRescore({
+    customerId,
+    orgId: userId,
+    trigger: 'ingest',
+    force: true,
+  })
+
+  void refreshCustomerEngagement(supabase, customerId)
 
   return { status: 'created', customer_id: customerId, vehicle_id: vehicleId, activity_id: activity.id }
 }

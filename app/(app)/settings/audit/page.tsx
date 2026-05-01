@@ -1,11 +1,10 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import TopBar from '@/components/layout/TopBar'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Shield, RefreshCw, ChevronLeft } from 'lucide-react'
-import Link from 'next/link'
+import { Shield, RefreshCw } from 'lucide-react'
+import SettingsPageShell from '@/components/settings/SettingsPageShell'
 
 interface AuditEntry {
   id: string
@@ -130,14 +129,13 @@ export default function AuditLogPage() {
   }
 
   return (
-    <div>
-      <TopBar title="Audit Log" />
-
-      <div className="px-4 py-4 space-y-4">
+    <SettingsPageShell
+      title="Audit Log"
+      description="Security, billing, export, and settings-change history for this dealership."
+      type="ops"
+    >
+      <div className="space-y-4">
         <div className="flex items-center gap-2">
-          <Link href="/settings" className="text-muted-foreground hover:text-foreground">
-            <ChevronLeft className="h-4 w-4" />
-          </Link>
           <div className="flex items-center gap-2 text-muted-foreground">
             <Shield className="h-4 w-4" />
             <span className="text-sm">Security event history for your dealership</span>
@@ -228,6 +226,6 @@ export default function AuditLogPage() {
           </div>
         )}
       </div>
-    </div>
+    </SettingsPageShell>
   )
 }

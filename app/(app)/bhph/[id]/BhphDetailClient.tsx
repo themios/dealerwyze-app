@@ -42,8 +42,13 @@ interface ReminderLog {
   reminder_type: string
   channel: string
   status: string
+  delivery_status: string | null
   scheduled_for: string
   sent_at: string | null
+  delivered_at: string | null
+  clicked_at: string | null
+  click_count: number
+  paid_at: string | null
 }
 
 interface Props {
@@ -69,8 +74,46 @@ function formatDateShort(dateStr: string) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+function formatTimestampShort(iso: string) {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 function getInitials(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+}
+
+function reminderLabel(type: string) {
+  switch (type) {
+    case 'pre_3day': return '3-day reminder'
+    case 'due_day': return 'Due today'
+    case 'late_2day': return '2 days late'
+    case 'late_7day': return '7 days late'
+    default: return type
+  }
+}
+
+function statusBadgeClasses(status: string) {
+  switch (status) {
+    case 'paid':
+      return 'bg-green-500/10 text-green-700 dark:text-green-400'
+    case 'delivered':
+      return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+    case 'clicked':
+      return 'bg-blue-500/10 text-blue-700 dark:text-blue-400'
+    case 'failed':
+    case 'undelivered':
+      return 'bg-red-500/10 text-red-700 dark:text-red-400'
+    default:
+      return 'bg-muted text-muted-foreground'
+  }
+}
+
+function deriveReminderOutcome(log: ReminderLog) {
+  if (log.paid_at) return 'paid'
+  if (log.clicked_at) return 'clicked'
+  if (log.delivery_status === 'delivered' || log.delivery_status === 'read') return 'delivered'
+  if (log.delivery_status === 'failed' || log.delivery_status === 'undelivered' || log.status === 'failed') return 'failed'
+  return log.status
 }
 
 /**
@@ -189,7 +232,7 @@ function RecordPaymentForm({
 
 // ── Main Component ─────────────────────────────────────────────
 
-export default function BhphDetailClient({ account: acct, deferredPayments }: Props) {
+export default function BhphDetailClient({ account: acct, reminderLog, deferredPayments }: Props) {
   const [showRecordForm, setShowRecordForm] = useState(false)
 
   const customer = acct.customer
@@ -225,6 +268,7 @@ export default function BhphDetailClient({ account: acct, deferredPayments }: Pr
     : 'Unknown vehicle'
 
   const isOnTrack = !isOverdue
+  const recentReminderLog = reminderLog.slice(0, 6)
 
   return (
     <div className="min-h-screen bg-background">
@@ -578,6 +622,50 @@ export default function BhphDetailClient({ account: acct, deferredPayments }: Pr
               </div>
             </div>
           )}
+
+          <div className="bg-card border border-border rounded-[10px] p-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Reminder funnel</p>
+              <span className="text-xs text-muted-foreground">{recentReminderLog.length} recent</span>
+            </div>
+
+            {recentReminderLog.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No payment reminders logged yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {recentReminderLog.map(log => {
+                  const outcome = deriveReminderOutcome(log)
+                  return (
+                    <div key={log.id} className="rounded-lg border border-border px-3 py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium text-foreground">
+                            {reminderLabel(log.reminder_type)}
+                          </p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {log.channel.toUpperCase()} • scheduled {formatTimestampShort(log.scheduled_for)}
+                          </p>
+                        </div>
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusBadgeClasses(outcome)}`}>
+                          {outcome}
+                        </span>
+                      </div>
+
+                      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                        <span>{log.sent_at ? 'Sent' : 'Not sent'}</span>
+                        {log.delivered_at ? <span>Delivered</span> : null}
+                        {log.clicked_at ? <span>Clicked{log.click_count > 1 ? ` ${log.click_count}x` : ''}</span> : null}
+                        {log.paid_at ? <span>Paid</span> : null}
+                        {log.delivery_status && !log.delivered_at && !log.clicked_at && !log.paid_at ? (
+                          <span>Provider: {log.delivery_status}</span>
+                        ) : null}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

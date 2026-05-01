@@ -12,9 +12,12 @@ interface WaitingItemProps {
   activity: Activity
   onUpdate: () => void
   hasResponded?: boolean
+  queueReasons?: string[]
+  intentTierBadge?: 'HOT' | 'WARM' | 'COLD' | null
+  nextActionLabel?: string
 }
 
-export default function WaitingItem({ activity, onUpdate, hasResponded = false }: WaitingItemProps) {
+export default function WaitingItem({ activity, onUpdate, hasResponded = false, queueReasons, intentTierBadge, nextActionLabel }: WaitingItemProps) {
   const [loading, setLoading] = useState<string | null>(null)
   const supabase = createClient()
   const openCustomer = useOpenCustomer()
@@ -57,11 +60,35 @@ export default function WaitingItem({ activity, onUpdate, hasResponded = false }
           ) : (
             <p className="font-medium text-sm">Unknown customer</p>
           )}
+          {(intentTierBadge || nextActionLabel) && (
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              {intentTierBadge && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border border-primary/40 text-primary bg-primary/5">
+                  {intentTierBadge}
+                </span>
+              )}
+              {nextActionLabel && (
+                <span className="text-[11px] text-muted-foreground">
+                  Next: <span className="font-medium text-foreground">{nextActionLabel}</span>
+                </span>
+              )}
+            </div>
+          )}
           <p className="text-xs text-muted-foreground mt-0.5" suppressHydrationWarning>
             {typeLabel} {formatRelativeTime(activity.created_at)} — no reply
           </p>
           {activity.body && (
             <p className="text-xs text-muted-foreground mt-1 italic line-clamp-1">&quot;{activity.body}&quot;</p>
+          )}
+          {queueReasons && queueReasons.length > 0 && (
+            <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground list-none pl-0">
+              {queueReasons.slice(0, 3).map((r, i) => (
+                <li key={i} className="flex gap-1.5">
+                  <span className="text-foreground/40 shrink-0" aria-hidden>▸</span>
+                  <span>{r}</span>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
         {(() => { const b = lastContactBadge(activity.created_at); return (

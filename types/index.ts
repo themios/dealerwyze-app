@@ -63,6 +63,18 @@ export interface Customer {
   lead_intent_source?: string | null
   lead_intent_manual_note?: string | null
   lead_intent_updated_at?: string | null
+  lead_intent_scored_at?: string | null
+  lead_intent_input_hash?: string | null
+  lead_intent_score_error?: boolean
+  lead_intent_score_failures?: number
+  lead_intent_manual_tier?: LeadIntentTier | null
+  lead_intent_manual_expires_at?: string | null
+  lead_intent_next_action?: string | null
+  avg_reply_speed_minutes?: number | null
+  inbound_message_count?: number
+  last_inbound_at?: string | null
+  prior_purchase_count?: number
+  repeat_lead?: boolean
   address?: string | null
   city?: string | null
   state?: string | null
@@ -113,6 +125,11 @@ export interface Vehicle {
   purchase_price?: number | null
   purchased_at?: string | null
   purchased_from?: string | null
+  lead_count_30d?: number
+  appt_conversion_rate?: number | null
+  avg_intent_score?: number | null
+  demand_signal?: 'high_demand' | 'needs_price_drop' | 'needs_financing_push' | 'buy_signal' | null
+  demand_updated_at?: string | null
   created_at: string
 }
 
