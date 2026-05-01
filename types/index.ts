@@ -73,6 +73,7 @@ export interface Customer {
   avg_reply_speed_minutes?: number | null
   inbound_message_count?: number
   last_inbound_at?: string | null
+  last_outbound_at?: string | null
   prior_purchase_count?: number
   repeat_lead?: boolean
   address?: string | null
@@ -195,6 +196,8 @@ export interface Activity {
   due_at?: string
   completed_at?: string
   snoozed_until?: string
+  today_section_override?: 'replied' | 'human_now' | 'ai_handling' | 'follow_up_later' | 'low_roi' | null
+  today_park_until?: string | null
   addressed_at?: string | null
   duration_seconds?: number
   priority: ActivityPriority

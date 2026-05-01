@@ -16,6 +16,12 @@ vi.mock('@/lib/bhph/paymentToken', () => ({
   buildPayUrl: vi.fn().mockReturnValue('https://dealerwyze.com/pay/test-token'),
 }))
 
+// Bypass business-hours gate so tests don't depend on wall-clock time
+vi.mock('@/lib/bhph/schedule', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/bhph/schedule')>()),
+  isWithinSendHours: () => true,
+}))
+
 describe('sendBhphReminder observability', () => {
   beforeEach(() => {
     vi.clearAllMocks()

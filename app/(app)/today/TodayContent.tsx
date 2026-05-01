@@ -1,15 +1,22 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { motion } from 'framer-motion'
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { Sparkles } from 'lucide-react'
 
-import { Activity, VoiceCall } from '@/types'
-import { SequenceStatus } from '@/components/leads/NewLeadCard'
+import { Activity, VoiceCall, type Customer } from '@/types'
+import type { SequenceStatus } from '@/components/leads/NewLeadCard'
 import { createClient } from '@/lib/supabase/client'
 import { shouldShowAddressedActivity } from '@/lib/utils'
-import { buildQueue, TIER_LABELS } from '@/lib/today/queueSort'
+import {
+  buildQueue,
+  TODAY_SECTION_LABELS,
+  type QueueItem,
+  type TodaySection as TodaySectionKey,
+} from '@/lib/today/queueSort'
 import TaskItem from '@/components/today/TaskItem'
 import WaitingItem from '@/components/today/WaitingItem'
 import AfterCallModal from '@/components/call/AfterCallModal'
@@ -21,7 +28,12 @@ import EmailFollowUpItem from '@/components/leads/EmailFollowUpItem'
 import AppointmentRequestCard from '@/components/today/AppointmentRequestCard'
 import UpcomingAppointmentsList, { type UpcomingAppointmentItem } from '@/components/appointments/UpcomingAppointmentsList'
 import type { AtRiskLeadItem } from '@/lib/today/atRisk'
-import Link from 'next/link'
+import TodaySummaryStrip from '@/components/today/TodaySummaryStrip'
+import TodayFilterChips, { type TodayFilter } from '@/components/today/TodayFilterChips'
+import TodaySection from '@/components/today/TodaySection'
+import TodayBulkBar from '@/components/today/TodayBulkBar'
+import FocusSession from '@/components/today/FocusSession'
+import type { TakeoverSignal } from '@/lib/today/takeoverDetector'
 
 const MOTIVATIONAL_MESSAGES = [
   'Every call could be your next deal.',
@@ -56,12 +68,31 @@ const MOTIVATIONAL_MESSAGES = [
   'Great service is your best ad.',
 ]
 
+const FILTER_ALLOWLIST = new Set<TodayFilter>([
+  'hot',
+  'warm',
+  'repeat',
+  'appointment',
+  'phone',
+  'silent7',
+  'no_automation',
+])
+
+const SECTION_ORDER: TodaySectionKey[] = [
+  'replied',
+  'human_now',
+  'ai_handling',
+  'follow_up_later',
+  'low_roi',
+]
+
+type TodayAction = 'park' | 'trust_sequence' | 'low_roi' | 'take_over' | 'work_now' | 'archive' | 'restart'
+type BulkAction = 'park' | 'trust_sequence' | 'archive'
 
 interface TodayContentProps {
   initialNewLeads: Activity[]
   initialTasks: Activity[]
   initialWaiting: Activity[]
-
   initialApptRequests: Activity[]
   initialVoiceLeads: VoiceCall[]
   initialVehicleMatches?: Activity[]
@@ -69,11 +100,174 @@ interface TodayContentProps {
   businessName?: string
   respondedCustomerIds?: string[]
   sequenceStatusMap?: Record<string, SequenceStatus>
+  initialTakeoverSignals?: Record<string, TakeoverSignal | null>
   leadWeights?: { hotBoost?: number; warmBoost?: number }
   atRiskItems?: AtRiskLeadItem[]
+  initialFocusN?: number | null
 }
 
-export default function TodayContent({ initialNewLeads, initialTasks, initialWaiting, initialApptRequests, initialVoiceLeads, initialVehicleMatches = [], upcomingAppointments = [], respondedCustomerIds = [], sequenceStatusMap = {}, leadWeights, atRiskItems = [] }: TodayContentProps) {
+function parseFilters(raw: string | null): TodayFilter[] {
+  if (!raw) return []
+  return raw
+    .split(',')
+    .map(value => value.trim())
+    .filter((value): value is TodayFilter => FILTER_ALLOWLIST.has(value as TodayFilter))
+}
+
+function nextParkIso(): string {
+  const next = new Date()
+  next.setDate(next.getDate() + 1)
+  next.setHours(8, 0, 0, 0)
+  return next.toISOString()
+}
+
+function getCustomer(item: QueueItem): Partial<Customer> | null {
+  if ('customer' in item.data && item.data.customer) return item.data.customer as Partial<Customer>
+  return null
+}
+
+function getActivity(item: QueueItem): Activity | null {
+  return 'from_number' in item.data ? null : item.data
+}
+
+function getActivityId(item: QueueItem): string | null {
+  return getActivity(item)?.id ?? null
+}
+
+function formatNextStep(iso: string | null | undefined): string | null {
+  if (!iso) return null
+  const date = new Date(iso)
+  return date.toLocaleString('en-US', {
+    weekday: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+function activitySupportsSelection(item: QueueItem): boolean {
+  return getActivity(item) != null
+}
+
+function itemMatchesFilter(item: QueueItem, filter: TodayFilter): boolean {
+  const customer = getCustomer(item)
+  const intentBadge = item.decision.intentTierBadge
+  switch (filter) {
+    case 'hot':
+      return intentBadge === 'HOT'
+    case 'warm':
+      return intentBadge === 'WARM'
+    case 'repeat':
+      return !!customer?.repeat_lead || (customer?.prior_purchase_count ?? 0) > 0
+    case 'appointment':
+      return item.type === 'appt_request' || item.takeoverSignal?.trigger === 'appointment' || item.takeoverSignal?.trigger === 'coming_today'
+    case 'phone':
+      return !!customer?.primary_phone && !customer?.email
+    case 'silent7': {
+      const lastInboundAt = customer?.last_inbound_at
+      if (!lastInboundAt) return true
+      return Date.now() - new Date(lastInboundAt).getTime() >= 7 * 86_400_000
+    }
+    case 'no_automation':
+      return !item.hasActiveSequence
+    default:
+      return true
+  }
+}
+
+function groupAiHandling(items: QueueItem[], sequenceStatusMap: Record<string, SequenceStatus>) {
+  const grouped = new Map<string, { key: string; label: string; count: number; nextStep: string | null; reasons: string[] }>()
+  for (const item of items) {
+    const customerId = item.customerId ?? ''
+    const sequence = customerId ? sequenceStatusMap[customerId] : null
+    const label = sequence?.sequence_name?.trim() || 'Autopilot'
+    const existing = grouped.get(label)
+    const nextStepDue = sequence?.next_step_due ?? null
+    if (existing) {
+      existing.count += 1
+      if (!existing.nextStep || (nextStepDue && new Date(nextStepDue).getTime() < new Date(existing.nextStep).getTime())) {
+        existing.nextStep = nextStepDue
+      }
+      if (existing.reasons.length < 3) {
+        for (const reason of item.decision.reasons) {
+          if (!existing.reasons.includes(reason) && existing.reasons.length < 3) existing.reasons.push(reason)
+        }
+      }
+      continue
+    }
+    grouped.set(label, {
+      key: label,
+      label,
+      count: 1,
+      nextStep: nextStepDue,
+      reasons: item.decision.reasons.slice(0, 3),
+    })
+  }
+  return Array.from(grouped.values()).sort((a, b) => {
+    if (!a.nextStep && !b.nextStep) return a.label.localeCompare(b.label)
+    if (!a.nextStep) return 1
+    if (!b.nextStep) return -1
+    return new Date(a.nextStep).getTime() - new Date(b.nextStep).getTime()
+  })
+}
+
+function patchActivityState(activity: Activity, action: TodayAction): Activity | null {
+  switch (action) {
+    case 'park':
+      return { ...activity, today_section_override: 'follow_up_later', today_park_until: nextParkIso() }
+    case 'trust_sequence':
+      return { ...activity, today_section_override: 'ai_handling', today_park_until: null, snoozed_until: undefined }
+    case 'low_roi':
+      return { ...activity, today_section_override: 'low_roi', today_park_until: null }
+    case 'take_over':
+      return { ...activity, today_section_override: 'human_now', today_park_until: null }
+    case 'work_now':
+    case 'restart':
+      return { ...activity, today_section_override: null, today_park_until: null, snoozed_until: undefined }
+    case 'archive':
+      return null
+  }
+}
+
+function applyActionToActivityArray(items: Activity[], ids: Set<string>, action: TodayAction): Activity[] {
+  const next: Activity[] = []
+  for (const item of items) {
+    if (!ids.has(item.id)) {
+      next.push(item)
+      continue
+    }
+    const patched = patchActivityState(item, action)
+    if (patched) next.push(patched)
+  }
+  return next
+}
+
+function countFilters(items: QueueItem[]): Record<TodayFilter, number> {
+  return {
+    hot: items.filter(item => itemMatchesFilter(item, 'hot')).length,
+    warm: items.filter(item => itemMatchesFilter(item, 'warm')).length,
+    repeat: items.filter(item => itemMatchesFilter(item, 'repeat')).length,
+    appointment: items.filter(item => itemMatchesFilter(item, 'appointment')).length,
+    phone: items.filter(item => itemMatchesFilter(item, 'phone')).length,
+    silent7: items.filter(item => itemMatchesFilter(item, 'silent7')).length,
+    no_automation: items.filter(item => itemMatchesFilter(item, 'no_automation')).length,
+  }
+}
+
+export default function TodayContent({
+  initialNewLeads,
+  initialTasks,
+  initialWaiting,
+  initialApptRequests,
+  initialVoiceLeads,
+  initialVehicleMatches = [],
+  upcomingAppointments = [],
+  respondedCustomerIds = [],
+  sequenceStatusMap: initialSequenceStatusMap = {},
+  initialTakeoverSignals = {},
+  leadWeights,
+  atRiskItems = [],
+  initialFocusN = null,
+}: TodayContentProps) {
   const [newLeads, setNewLeads] = useState<Activity[]>(initialNewLeads)
   const [tasks, setTasks] = useState<Activity[]>(initialTasks)
   const [waiting, setWaiting] = useState<Activity[]>(initialWaiting)
@@ -81,13 +275,22 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
   const [voiceLeads, setVoiceLeads] = useState<VoiceCall[]>(initialVoiceLeads)
   const [vehicleMatches, setVehicleMatches] = useState<Activity[]>(initialVehicleMatches)
   const [responded, setResponded] = useState<string[]>(respondedCustomerIds)
-  // Track locally dismissed activity IDs so refresh() can't un-dismiss them
+  const [sequenceState, setSequenceState] = useState<Record<string, SequenceStatus>>(initialSequenceStatusMap)
+  const [takeoverSignals, setTakeoverSignals] = useState<Record<string, TakeoverSignal | null>>(initialTakeoverSignals)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [focusOpen, setFocusOpen] = useState(initialFocusN != null)
+  const [focusCompletedKeys, setFocusCompletedKeys] = useState<string[]>([])
+  const [dateLabel, setDateLabel] = useState('')
+  const [motivationalMsg, setMotivationalMsg] = useState('')
   const dismissedIds = useRef<Set<string>>(new Set())
   const { pendingCall, modalOpen, dismissModal } = usePendingCall()
   const supabase = createClient()
   const router = useRouter()
-  const [dateLabel, setDateLabel] = useState('')
-  const [motivationalMsg, setMotivationalMsg] = useState('')
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const [activeFilters, setActiveFilters] = useState<TodayFilter[]>(() => parseFilters(searchParams.get('filter')))
+
   useEffect(() => {
     const now = new Date()
     setDateLabel(now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }))
@@ -95,35 +298,37 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
     setMotivationalMsg(MOTIVATIONAL_MESSAGES[dayOfYear % MOTIVATIONAL_MESSAGES.length])
   }, [])
 
-  // ── Lead notification sound (synthesized) ───────────────────────────────────
+  useEffect(() => {
+    setActiveFilters(parseFilters(searchParams.get('filter')))
+  }, [searchParams])
+
   function playLeadSound() {
     try {
-      const ctx = new (window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
+      const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
       const notes = [880, 1320]
-      notes.forEach((freq, i) => {
-        const osc  = ctx.createOscillator()
+      notes.forEach((freq, index) => {
+        const osc = ctx.createOscillator()
         const gain = ctx.createGain()
         osc.connect(gain)
         gain.connect(ctx.destination)
         osc.type = 'sine'
         osc.frequency.value = freq
-        const t = ctx.currentTime + i * 0.18
+        const t = ctx.currentTime + index * 0.18
         gain.gain.setValueAtTime(0, t)
         gain.gain.linearRampToValueAtTime(0.35, t + 0.01)
         gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35)
         osc.start(t)
         osc.stop(t + 0.35)
       })
-      setTimeout(() => ctx.close(), 1200)
+      setTimeout(() => void ctx.close(), 1200)
     } catch {
-      // audio blocked — silent fail
+      return
     }
   }
 
   useEffect(() => {
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-      Notification.requestPermission()
+      void Notification.requestPermission()
     }
   }, [])
 
@@ -131,17 +336,29 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
     const now = new Date().toISOString()
     const todayEnd = new Date()
     todayEnd.setHours(23, 59, 59, 999)
+    const todayStart = new Date()
+    todayStart.setHours(0, 0, 0, 0)
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
     const last48h = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
 
-    const [{ data: leads }, { data: t }, { data: w }] = await Promise.all([
+    const [
+      { data: leads },
+      { data: taskRows },
+      { data: waitingRows },
+      { data: appts },
+      { data: voices },
+      { data: inbound },
+      { data: vMatches },
+      { data: seqEnrollments },
+    ] = await Promise.all([
       supabase
         .from('activities')
         .select(`*, customer:customers(
           id, name, primary_phone, email, archived, sms_opt_out, unsubscribe_email, unsubscribe_sms,
-          lead_intent_score, lead_intent_tier, lead_intent_summary,
+          lead_intent_score, lead_intent_tier, lead_intent_summary, lead_intent_flags,
           lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
-          lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count
+          lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count,
+          last_inbound_at, last_outbound_at
         )`)
         .eq('type', 'email')
         .eq('direction', 'inbound')
@@ -154,9 +371,10 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
         .from('activities')
         .select(`*, customer:customers(
           id, name, primary_phone, email, archived,
-          lead_intent_score, lead_intent_tier, lead_intent_summary,
+          lead_intent_score, lead_intent_tier, lead_intent_summary, lead_intent_flags,
           lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
-          lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count
+          lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count,
+          last_inbound_at, last_outbound_at
         )`)
         .in('type', ['task', 'appointment', 'call', 'sms', 'email', 'email_followup', 'sms_followup'])
         .is('completed_at', null)
@@ -169,10 +387,11 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
       supabase
         .from('activities')
         .select(`*, customer:customers(
-          id, name, primary_phone, archived,
-          lead_intent_score, lead_intent_tier, lead_intent_summary,
+          id, name, primary_phone, email, archived, sms_opt_out,
+          lead_intent_score, lead_intent_tier, lead_intent_summary, lead_intent_flags,
           lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
-          lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count
+          lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count,
+          last_inbound_at, last_outbound_at
         )`)
         .eq('direction', 'outbound')
         .in('type', ['call', 'sms', 'email'])
@@ -180,123 +399,191 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
         .lt('created_at', yesterday)
         .is('completed_at', null)
         .order('created_at', { ascending: false }),
+      supabase
+        .from('activities')
+        .select(`*, customer:customers(
+          id, name, primary_phone, archived,
+          lead_intent_score, lead_intent_tier, lead_intent_summary, lead_intent_flags,
+          lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
+          lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count,
+          last_inbound_at, last_outbound_at
+        )`)
+        .eq('type', 'appointment')
+        .eq('direction', 'inbound')
+        .eq('outcome', 'pending')
+        .is('completed_at', null)
+        .is('addressed_at', null)
+        .or(`snoozed_until.is.null,snoozed_until.lt.${now}`)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('voice_calls')
+        .select(`*, customer:customers(
+          id, name, primary_phone,
+          lead_intent_score, lead_intent_tier, lead_intent_summary, lead_intent_flags,
+          lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
+          lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count,
+          last_inbound_at, last_outbound_at
+        ), linked_task:tasks(id, status)`)
+        .eq('status', 'completed')
+        .gte('created_at', todayStart.toISOString())
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('activities')
+        .select('customer_id')
+        .in('type', ['sms', 'email'])
+        .eq('direction', 'inbound')
+        .gte('created_at', last48h)
+        .not('customer_id', 'is', null),
+      supabase
+        .from('activities')
+        .select(`*, customer:customers(
+          id, name, primary_phone, email, archived,
+          lead_intent_score, lead_intent_tier, lead_intent_summary, lead_intent_flags,
+          lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
+          lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count,
+          last_inbound_at, last_outbound_at
+        ), vehicle:vehicles(id, year, make, model, demand_signal, lead_count_30d)`)
+        .eq('type', 'vehicle_match')
+        .eq('direction', 'inbound')
+        .eq('outcome', 'pending')
+        .is('completed_at', null)
+        .is('addressed_at', null)
+        .or(`snoozed_until.is.null,snoozed_until.lt.${now}`)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('customer_sequences')
+        .select('id, customer_id, status, sequence_id, sequences!inner(name, channel)')
+        .in('status', ['active', 'paused']),
     ])
 
-    const seenCustomers = new Set<string>()
-    const dedupedWaiting = (w || []).filter(a => {
-      if (dismissed.has(a.id)) return false
-      if (!a.customer_id || seenCustomers.has(a.customer_id)) return false
-      const c = (a as { customer?: { archived?: boolean | null } | null }).customer
-      if (c?.archived) return false
-      seenCustomers.add(a.customer_id)
-      return true
-    })
-
-    const todayRef = new Date()
     const dismissed = dismissedIds.current
-    const safeLeads = (leads || []).filter(
-      a => !dismissed.has(a.id) && a.customer != null && !(a.customer as { archived?: boolean | null }).archived && shouldShowAddressedActivity(a, todayRef)
-    )
-    const tasksFiltered = (t || []).filter(a => {
-      if (dismissed.has(a.id)) return false
-      const c = (a as { customer?: { archived?: boolean | null } | null }).customer
-      if (c?.archived) return false
-      return shouldShowAddressedActivity(a, todayRef)
+    const todayRef = new Date()
+    const waitingTouchCounts = new Map<string, number>()
+    for (const row of waitingRows ?? []) {
+      if (!row.customer_id) continue
+      waitingTouchCounts.set(row.customer_id, (waitingTouchCounts.get(row.customer_id) ?? 0) + 1)
+    }
+
+    const seenCustomers = new Set<string>()
+    const dedupedWaiting = (waitingRows || []).flatMap(activity => {
+      if (dismissed.has(activity.id)) return []
+      if (!activity.customer_id || seenCustomers.has(activity.customer_id)) return []
+      const customer = (activity as { customer?: { archived?: boolean | null } | null }).customer
+      if (customer?.archived || !shouldShowAddressedActivity(activity, todayRef)) return []
+      seenCustomers.add(activity.customer_id)
+      return [{
+        ...activity,
+        outbound_touch_count: waitingTouchCounts.get(activity.customer_id) ?? 0,
+      }]
     })
 
-    const { data: appts } = await supabase
-      .from('activities')
-      .select(`*, customer:customers(
-        id, name, primary_phone, archived,
-        lead_intent_score, lead_intent_tier, lead_intent_summary,
-        lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
-        lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count
-      )`)
-      .eq('type', 'appointment')
-      .eq('direction', 'inbound')
-      .eq('outcome', 'pending')
-      .is('completed_at', null)
-      .is('addressed_at', null)
-      .or(`snoozed_until.is.null,snoozed_until.lt.${now}`)
-      .order('created_at', { ascending: false })
-
-    const todayStart = new Date()
-    todayStart.setHours(0, 0, 0, 0)
-    const { data: voices } = await supabase
-      .from('voice_calls')
-      .select(`*, customer:customers(
-        id, name, primary_phone,
-        lead_intent_score, lead_intent_tier, lead_intent_summary,
-        lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
-        lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count
-      ), linked_task:tasks(id, status)`)
-      .eq('status', 'completed')
-      .gte('created_at', todayStart.toISOString())
-      .order('created_at', { ascending: false })
-
-    const activeVoices = (voices || []).filter(
-      (v: { task_id?: string | null; linked_task?: { status: string } | null }) =>
-        !v.task_id || v.linked_task?.status !== 'done'
+    const safeLeads = (leads || []).filter(
+      activity =>
+        !dismissed.has(activity.id) &&
+        activity.customer != null &&
+        !(activity.customer as { archived?: boolean | null }).archived &&
+        shouldShowAddressedActivity(activity, todayRef),
     )
+
+    const tasksFiltered = (taskRows || []).filter(activity => {
+      if (dismissed.has(activity.id)) return false
+      const customer = (activity as { customer?: { archived?: boolean | null } | null }).customer
+      if (customer?.archived) return false
+      return shouldShowAddressedActivity(activity, todayRef)
+    })
 
     const apptsFiltered = (appts || []).filter(
-      a => !dismissed.has(a.id) && a.customer != null && !(a.customer as { archived?: boolean | null }).archived && shouldShowAddressedActivity(a, todayRef)
+      activity =>
+        !dismissed.has(activity.id) &&
+        activity.customer != null &&
+        !(activity.customer as { archived?: boolean | null }).archived &&
+        shouldShowAddressedActivity(activity, todayRef),
     )
 
-    // Refresh responded customer IDs (inbound sms/email in last 48h)
-    const { data: inbound } = await supabase
-      .from('activities')
-      .select('customer_id')
-      .in('type', ['sms', 'email'])
-      .eq('direction', 'inbound')
-      .gte('created_at', last48h)
-      .not('customer_id', 'is', null)
+    const activeVoices = (voices || []).filter(
+      (voice: { task_id?: string | null; linked_task?: { status: string } | null }) =>
+        !voice.task_id || voice.linked_task?.status !== 'done',
+    )
 
-    const respondedIds = [...new Set((inbound || []).map(a => a.customer_id as string))]
+    const respondedIds = [...new Set((inbound || []).map(row => row.customer_id as string))]
+    const matchesFiltered = (vMatches || []).filter(
+      activity =>
+        !dismissed.has(activity.id) &&
+        activity.customer != null &&
+        !(activity.customer as { archived?: boolean | null }).archived &&
+        shouldShowAddressedActivity(activity, todayRef),
+    )
 
-    // Refresh vehicle matches
-    const { data: vMatches } = await supabase
-      .from('activities')
-      .select(`*, customer:customers(
-        id, name, primary_phone, archived,
-        lead_intent_score, lead_intent_tier, lead_intent_summary,
-        lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
-        lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count
-      ), vehicle:vehicles(id, year, make, model, demand_signal, lead_count_30d)`)
-      .eq('type', 'vehicle_match')
-      .eq('direction', 'inbound')
-      .eq('outcome', 'pending')
-      .is('completed_at', null)
-      .is('addressed_at', null)
-      .or(`snoozed_until.is.null,snoozed_until.lt.${now}`)
-      .order('created_at', { ascending: false })
-    setVehicleMatches((vMatches || []).filter(
-      a => !dismissed.has(a.id) && a.customer != null && !(a.customer as { archived?: boolean | null }).archived && shouldShowAddressedActivity(a, todayRef)
-    ))
+    const nextSequenceState: Record<string, SequenceStatus> = {}
+    for (const enrollment of seqEnrollments ?? []) {
+      const rawSequence = Array.isArray(enrollment.sequences) ? enrollment.sequences[0] : enrollment.sequences
+      nextSequenceState[enrollment.customer_id] = {
+        id: enrollment.id,
+        status: enrollment.status as SequenceStatus['status'],
+        sequence_name: rawSequence?.name ?? '',
+      }
+    }
+
+    const sequenceCustomerIds = Object.keys(nextSequenceState)
+    if (sequenceCustomerIds.length > 0) {
+      const [{ data: pendingSteps }, { data: inboundBodies }] = await Promise.all([
+        supabase
+          .from('activities')
+          .select('customer_id, due_at, customer_sequence_id')
+          .in('customer_id', sequenceCustomerIds)
+          .is('completed_at', null)
+          .not('customer_sequence_id', 'is', null)
+          .in('type', ['email_followup', 'sms_followup', 'email', 'sms'])
+          .order('due_at', { ascending: true }),
+        supabase
+          .from('activities')
+          .select('customer_id, body, created_at')
+          .eq('direction', 'inbound')
+          .in('type', ['sms', 'email'])
+          .in('customer_id', sequenceCustomerIds)
+          .order('created_at', { ascending: false }),
+      ])
+
+      for (const step of pendingSteps ?? []) {
+        const entry = nextSequenceState[step.customer_id]
+        if (entry && !entry.next_step_due) entry.next_step_due = step.due_at
+      }
+
+      const detector = await import('@/lib/today/takeoverDetector')
+      const seenInbound = new Set<string>()
+      const nextSignals: Record<string, TakeoverSignal | null> = {}
+      for (const row of inboundBodies ?? []) {
+        if (!row.customer_id || seenInbound.has(row.customer_id)) continue
+        seenInbound.add(row.customer_id)
+        nextSignals[row.customer_id] = detector.detectTakeoverSignal(row.body ?? '')
+      }
+      setTakeoverSignals(nextSignals)
+    } else {
+      setTakeoverSignals({})
+    }
 
     setNewLeads(safeLeads)
     setTasks(tasksFiltered)
-    setWaiting(dedupedWaiting)
+    setWaiting(dedupedWaiting as Activity[])
     setApptRequests(apptsFiltered)
     setVoiceLeads(activeVoices)
     setResponded(respondedIds)
+    setVehicleMatches(matchesFiltered)
+    setSequenceState(nextSequenceState)
   }, [supabase])
 
-  // Re-fetch on every mount — catches the case where the user navigated to a customer page,
-  // sent a reply, and came back. The Next.js router cache may serve stale initial props,
-  // so we always pull fresh data from Supabase as soon as Today renders.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { refresh() }, [])
+  useEffect(() => {
+    void refresh()
+  }, [refresh])
 
-  // Re-fetch when the tab regains focus — covers mobile background/foreground and multi-tab usage.
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
         router.refresh()
-        refresh()
+        void refresh()
       }
     }
-    const handleFocus = () => { refresh() }
+    const handleFocus = () => { void refresh() }
     document.addEventListener('visibilitychange', handleVisibility)
     window.addEventListener('focus', handleFocus)
     return () => {
@@ -305,208 +592,605 @@ export default function TodayContent({ initialNewLeads, initialTasks, initialWai
     }
   }, [refresh, router])
 
-  // ── Supabase Realtime ────────────────────────────────────────────────────────
   useEffect(() => {
     const channel = supabase
       .channel('new-leads-notify')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'activities' },
-        (payload) => {
-          const row = payload.new as Activity
-          if (row.type === 'email' && row.direction === 'inbound' && row.outcome === 'pending') {
-            // New inbound lead — play sound and notify
-            playLeadSound()
-            if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-              new Notification('New lead just came in', {
-                body: 'Tap to open DealerWyze and respond now.',
-                icon: '/favicon.ico',
-                tag: 'new-lead',
-              })
-            }
-            refresh()
-          } else if (row.direction === 'outbound') {
-            // Rep responded from another page (Leads, customer detail, etc.)
-            // Refresh so the original inbound card is removed from Today queue
-            refresh()
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activities' }, payload => {
+        const row = payload.new as Activity
+        if (row.type === 'email' && row.direction === 'inbound' && row.outcome === 'pending') {
+          playLeadSound()
+          if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+            new Notification('New lead just came in', {
+              body: 'Tap to open DealerWyze and respond now.',
+              icon: '/favicon.ico',
+              tag: 'new-lead',
+            })
           }
         }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'activities' },
-        (payload) => {
-          const row = payload.new as Activity
-          // Re-sort/remove when a lead is addressed or completed
-          if (row.addressed_at || row.completed_at) refresh()
-        }
-      )
+        void refresh()
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'activities' }, payload => {
+        const row = payload.new as Activity
+        if (row.addressed_at || row.completed_at) void refresh()
+      })
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+
+    return () => { void supabase.removeChannel(channel) }
   }, [supabase, refresh])
 
-  // ── Build the unified priority queue ────────────────────────────────────────
-  const queue = buildQueue(newLeads, apptRequests, voiceLeads, tasks, waiting, responded, vehicleMatches, { leadWeights })
+  const queueResult = useMemo(
+    () => buildQueue(newLeads, apptRequests, voiceLeads, tasks, waiting, responded, vehicleMatches, {
+      leadWeights,
+      sequenceStatusMap: sequenceState,
+      takeoverSignalsByCustomer: takeoverSignals,
+    }),
+    [newLeads, apptRequests, voiceLeads, tasks, waiting, responded, vehicleMatches, leadWeights, sequenceState, takeoverSignals],
+  )
 
-  // Group by tier for rendering
-  const tierGroups = new Map<number, typeof queue>()
-  for (const item of queue) {
-    if (!tierGroups.has(item.tier)) tierGroups.set(item.tier, [])
-    tierGroups.get(item.tier)!.push(item)
-  }
+  const filterCounts = useMemo(() => countFilters(queueResult.items), [queueResult.items])
+  const filteredItems = useMemo(() => {
+    if (activeFilters.length === 0) return queueResult.items
+    return queueResult.items.filter(item => activeFilters.every(filter => itemMatchesFilter(item, filter)))
+  }, [queueResult.items, activeFilters])
 
-  // Tier header styles: { bar color, text color, badge bg }
-  const tierStyle: Record<number, { bar: string; text: string; badge: string }> = {
-    1: { bar: 'bg-primary',       text: 'text-primary',           badge: 'bg-primary/10 text-primary' },
-    2: { bar: 'bg-orange-500',    text: 'text-orange-600',        badge: 'bg-orange-500/10 text-orange-600' },
-    3: { bar: 'bg-destructive',   text: 'text-destructive',       badge: 'bg-destructive/10 text-destructive' },
-    4: { bar: 'bg-blue-500',      text: 'text-blue-600',          badge: 'bg-blue-500/10 text-blue-600' },
-    5: { bar: 'bg-muted-foreground', text: 'text-muted-foreground', badge: 'bg-muted text-muted-foreground' },
-  }
+  const filteredCounts = useMemo(() => {
+    const counts: Record<TodaySectionKey, number> = {
+      replied: 0,
+      human_now: 0,
+      ai_handling: 0,
+      follow_up_later: 0,
+      low_roi: 0,
+    }
+    for (const item of filteredItems) counts[item.section]++
+    return counts
+  }, [filteredItems])
+
+  const sectionItems = useMemo(() => {
+    return SECTION_ORDER.reduce<Record<TodaySectionKey, QueueItem[]>>((acc, section) => {
+      acc[section] = filteredItems.filter(item => item.section === section)
+      return acc
+    }, {
+      replied: [],
+      human_now: [],
+      ai_handling: [],
+      follow_up_later: [],
+      low_roi: [],
+    })
+  }, [filteredItems])
+
+  const focusItems = useMemo(() => {
+    const base = filteredItems.filter(item => item.section === 'replied' || item.section === 'human_now')
+    const n = initialFocusN ?? 5
+    return base.slice(0, n)
+  }, [filteredItems, initialFocusN])
+
+  const aiGroups = useMemo(() => groupAiHandling(sectionItems.ai_handling, sequenceState), [sectionItems.ai_handling, sequenceState])
+
+  const updateFilterUrl = useCallback((filters: TodayFilter[]) => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (filters.length === 0) params.delete('filter')
+    else params.set('filter', filters.join(','))
+    const query = params.toString()
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
+  }, [pathname, router, searchParams])
+
+  const toggleFilter = useCallback((filter: TodayFilter) => {
+    setActiveFilters(current => {
+      const next = current.includes(filter)
+        ? current.filter(value => value !== filter)
+        : [...current, filter]
+      updateFilterUrl(next)
+      return next
+    })
+  }, [updateFilterUrl])
+
+  const toggleSelected = useCallback((activityId: string) => {
+    setSelectedIds(current => (
+      current.includes(activityId)
+        ? current.filter(id => id !== activityId)
+        : current.length >= 50
+          ? current
+          : [...current, activityId]
+    ))
+  }, [])
+
+  const restoreSnapshot = useCallback((snapshot: {
+    newLeads: Activity[]
+    tasks: Activity[]
+    waiting: Activity[]
+    apptRequests: Activity[]
+    voiceLeads: VoiceCall[]
+    vehicleMatches: Activity[]
+    responded: string[]
+    sequenceState: Record<string, SequenceStatus>
+    takeoverSignals: Record<string, TakeoverSignal | null>
+    selectedIds: string[]
+  }) => {
+    setNewLeads(snapshot.newLeads)
+    setTasks(snapshot.tasks)
+    setWaiting(snapshot.waiting)
+    setApptRequests(snapshot.apptRequests)
+    setVoiceLeads(snapshot.voiceLeads)
+    setVehicleMatches(snapshot.vehicleMatches)
+    setResponded(snapshot.responded)
+    setSequenceState(snapshot.sequenceState)
+    setTakeoverSignals(snapshot.takeoverSignals)
+    setSelectedIds(snapshot.selectedIds)
+  }, [])
+
+  const applyLocalAction = useCallback((activityIds: string[], action: TodayAction) => {
+    const ids = new Set(activityIds)
+    setNewLeads(current => applyActionToActivityArray(current, ids, action))
+    setTasks(current => applyActionToActivityArray(current, ids, action))
+    setWaiting(current => applyActionToActivityArray(current, ids, action))
+    setApptRequests(current => applyActionToActivityArray(current, ids, action))
+    setVehicleMatches(current => applyActionToActivityArray(current, ids, action))
+  }, [])
+
+  const applySequenceMutation = useCallback((items: QueueItem[], action: TodayAction) => {
+    if (action !== 'take_over' && action !== 'trust_sequence' && action !== 'restart') return
+    setSequenceState(current => {
+      const next = { ...current }
+      for (const item of items) {
+        if (!item.customerId || !next[item.customerId]) continue
+        if (action === 'take_over') next[item.customerId] = { ...next[item.customerId], status: 'paused' }
+        if (action === 'trust_sequence' || action === 'restart') next[item.customerId] = { ...next[item.customerId], status: 'active' }
+      }
+      return next
+    })
+  }, [])
+
+  const runSingleAction = useCallback(async (item: QueueItem, action: TodayAction) => {
+    const activityId = getActivityId(item)
+    if (!activityId) return
+    setActionError(null)
+    const snapshot = {
+      newLeads,
+      tasks,
+      waiting,
+      apptRequests,
+      voiceLeads,
+      vehicleMatches,
+      responded,
+      sequenceState,
+      takeoverSignals,
+      selectedIds,
+    }
+
+    applyLocalAction([activityId], action)
+    applySequenceMutation([item], action)
+    setSelectedIds(current => current.filter(id => id !== activityId))
+    setFocusCompletedKeys(current => current.includes(item.key) ? current : [...current, item.key])
+
+    const response = await fetch('/api/today/action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ activityId, action }),
+    })
+
+    if (!response.ok) {
+      restoreSnapshot(snapshot)
+      const json = await response.json().catch(() => ({})) as { error?: string }
+      setActionError(json.error ?? 'Unable to update Today right now.')
+      return
+    }
+
+    if (action === 'archive') dismissedIds.current.add(activityId)
+  }, [
+    newLeads,
+    tasks,
+    waiting,
+    apptRequests,
+    voiceLeads,
+    vehicleMatches,
+    responded,
+    sequenceState,
+    takeoverSignals,
+    selectedIds,
+    applyLocalAction,
+    applySequenceMutation,
+    restoreSnapshot,
+  ])
+
+  const runBulkAction = useCallback(async (action: BulkAction, ids = selectedIds) => {
+    if (ids.length === 0) return
+    if (action === 'archive' && !window.confirm(`Archive ${ids.length} leads from Today?`)) return
+    setActionError(null)
+
+    const itemsById = new Map(filteredItems.flatMap(item => {
+      const activityId = getActivityId(item)
+      return activityId ? [[activityId, item] as const] : []
+    }))
+    const touchedItems = ids.map(id => itemsById.get(id)).filter(Boolean) as QueueItem[]
+    const snapshot = {
+      newLeads,
+      tasks,
+      waiting,
+      apptRequests,
+      voiceLeads,
+      vehicleMatches,
+      responded,
+      sequenceState,
+      takeoverSignals,
+      selectedIds,
+    }
+
+    const localAction: TodayAction = action
+    applyLocalAction(ids, localAction)
+    applySequenceMutation(touchedItems, localAction)
+    setSelectedIds([])
+    setFocusCompletedKeys(current => {
+      const next = new Set(current)
+      for (const item of touchedItems) next.add(item.key)
+      return Array.from(next)
+    })
+
+    const response = await fetch('/api/today/bulk-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ activityIds: ids, action }),
+    })
+
+    if (!response.ok) {
+      restoreSnapshot(snapshot)
+      const json = await response.json().catch(() => ({})) as { error?: string }
+      setActionError(json.error ?? 'Unable to update those leads right now.')
+      return
+    }
+
+    if (action === 'archive') {
+      ids.forEach(id => dismissedIds.current.add(id))
+    }
+  }, [
+    selectedIds,
+    filteredItems,
+    newLeads,
+    tasks,
+    waiting,
+    apptRequests,
+    voiceLeads,
+    vehicleMatches,
+    responded,
+    sequenceState,
+    takeoverSignals,
+    applyLocalAction,
+    applySequenceMutation,
+    restoreSnapshot,
+  ])
+
+  const jumpToSection = useCallback((section: TodaySectionKey) => {
+    document.getElementById(`today-section-${section}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
+
+  const sectionActions = useCallback((item: QueueItem): Array<{ label: string; action: TodayAction; tone?: 'primary' | 'muted' | 'danger' }> => {
+    switch (item.section) {
+      case 'replied':
+        return [
+          { label: 'Trust Sequence', action: 'trust_sequence' },
+          { label: 'Park', action: 'park', tone: 'muted' },
+        ]
+      case 'human_now':
+        return [
+          { label: 'Trust Sequence', action: 'trust_sequence' },
+          { label: 'Park', action: 'park', tone: 'muted' },
+        ]
+      case 'ai_handling':
+        return [
+          { label: 'Take Over', action: 'take_over', tone: 'primary' },
+          { label: 'Park', action: 'park', tone: 'muted' },
+        ]
+      case 'follow_up_later':
+        return [
+          { label: 'Work Now', action: 'work_now', tone: 'primary' },
+          { label: 'Archive', action: 'archive', tone: 'danger' },
+        ]
+      case 'low_roi':
+        return [
+          { label: 'Archive', action: 'archive', tone: 'danger' },
+          { label: 'Restart', action: 'restart', tone: 'muted' },
+        ]
+    }
+  }, [])
+
+  const renderCard = useCallback((item: QueueItem): ReactNode => {
+    const activityId = getActivityId(item)
+    const customerId = item.customerId ?? ''
+    const sequenceStatus = customerId ? sequenceState[customerId] ?? null : null
+    const customer = getCustomer(item)
+    const meta = (
+      <div className="mb-2 flex flex-wrap items-center gap-2 px-1">
+        {activityId && activitySupportsSelection(item) && (
+          <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={selectedIds.includes(activityId)}
+              onChange={() => toggleSelected(activityId)}
+              aria-label={`Select ${customer?.name ?? 'lead'} for bulk action`}
+              className="h-4 w-4 rounded border-border"
+            />
+            Select
+          </label>
+        )}
+        {sequenceStatus?.status === 'active' && (
+          <span className="rounded-full bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-700">
+            AI working{sequenceStatus.sequence_name ? ` · ${sequenceStatus.sequence_name}` : ''}{sequenceStatus.next_step_due ? ` · next ${formatNextStep(sequenceStatus.next_step_due)}` : ''}
+          </span>
+        )}
+        {item.takeoverSignal && (
+          <span className="rounded-full bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-800">
+            {item.takeoverSignal.reason}
+          </span>
+        )}
+        <span className="text-xs text-muted-foreground">{item.decision.reasons[0]}</span>
+      </div>
+    )
+
+    const actions = activityId ? (
+      <div className="mt-2 flex flex-wrap gap-2 px-1">
+        {sectionActions(item).map(button => (
+          <button
+            key={`${item.key}-${button.action}`}
+            type="button"
+            aria-label={`${button.label} for ${customer?.name ?? 'lead'}`}
+            onClick={() => void runSingleAction(item, button.action)}
+            className={
+              button.tone === 'danger'
+                ? 'rounded-full bg-destructive px-3 py-1.5 text-xs font-medium text-destructive-foreground'
+                : button.tone === 'primary'
+                  ? 'rounded-full bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground'
+                  : 'rounded-full bg-muted px-3 py-1.5 text-xs font-medium text-foreground'
+            }
+          >
+            {button.label}
+          </button>
+        ))}
+      </div>
+    ) : null
+
+    let body: ReactNode
+    if (item.type === 'new_lead') {
+      const actId = (item.data as Activity).id
+      body = (
+        <NewLeadCard
+          activity={item.data as Parameters<typeof NewLeadCard>[0]['activity']}
+          onUpdate={refresh}
+          onAddressed={() => {
+            dismissedIds.current.add(actId)
+            setNewLeads(current => current.filter(activity => activity.id !== actId))
+            setFocusCompletedKeys(current => current.includes(item.key) ? current : [...current, item.key])
+          }}
+          hasResponded={item.hasResponded}
+          sequenceStatus={sequenceStatus}
+          queueReasons={item.decision.reasons}
+          intentTierBadge={item.decision.intentTierBadge}
+          nextActionLabel={item.decision.nextActionLabel}
+        />
+      )
+    } else if (item.type === 'vehicle_match') {
+      body = (
+        <VehicleMatchCard
+          activity={item.data as Parameters<typeof VehicleMatchCard>[0]['activity']}
+          onUpdate={refresh}
+        />
+      )
+    } else if (item.type === 'appt_request') {
+      body = (
+        <AppointmentRequestCard
+          activity={item.data as Parameters<typeof AppointmentRequestCard>[0]['activity']}
+          onUpdate={refresh}
+        />
+      )
+    } else if (item.type === 'voice_lead') {
+      body = <VoiceLeadCard call={item.data as VoiceCall} onUpdate={refresh} />
+    } else if (item.type === 'overdue_followup' || item.type === 'today_followup') {
+      body = (
+        <EmailFollowUpItem
+          activity={item.data as Parameters<typeof EmailFollowUpItem>[0]['activity']}
+          onUpdate={refresh}
+          hasResponded={item.hasResponded}
+        />
+      )
+    } else {
+      body = (
+        <WaitingItem
+          activity={item.data as Activity}
+          onUpdate={refresh}
+          hasResponded={item.hasResponded}
+          queueReasons={item.decision.reasons}
+          intentTierBadge={item.decision.intentTierBadge}
+          nextActionLabel={item.decision.nextActionLabel}
+          sequenceStatus={sequenceStatus}
+        />
+      )
+    }
+
+    return (
+      <motion.div
+        key={item.key}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: 0.24 }}
+      >
+        {meta}
+        {body}
+        {actions}
+      </motion.div>
+    )
+  }, [refresh, runSingleAction, sectionActions, selectedIds, sequenceState, toggleSelected])
+
+  const queueLength = filteredItems.length
+  const lowRoiIds = sectionItems.low_roi.map(getActivityId).filter(Boolean) as string[]
 
   return (
     <div className="page-enter">
-      <div className="gradient-sunset px-4 py-2 text-white flex items-center gap-2.5">
+      <div className="gradient-sunset flex items-center gap-2.5 px-4 py-2 text-white">
         <Image src="/logo-mark.png" alt="DealerWyze" width={28} height={28} className="rounded-md flex-shrink-0 opacity-90" />
-        <span className="text-xs font-medium opacity-80 flex-1 min-w-0 truncate" suppressHydrationWarning>
+        <span className="min-w-0 flex-1 truncate text-xs font-medium opacity-80" suppressHydrationWarning>
           {dateLabel || '…'}
         </span>
-        {queue.length > 0 && (
-          <span className="bg-[#F07018] text-white rounded-full px-2 py-0.5 text-xs font-semibold flex-shrink-0">
-            {queue.length} in queue
+        {queueLength > 0 && (
+          <span className="rounded-full bg-[#F07018] px-2 py-0.5 text-xs font-semibold text-white">
+            {queueLength} active
           </span>
         )}
       </div>
 
-      <div className="px-4 py-2 space-y-6">
+      <div className="space-y-6 px-4 py-2">
         <UpcomingAppointmentsList
           title="Today & Tomorrow Appointments"
           appointments={upcomingAppointments}
         />
 
         {atRiskItems.length > 0 && (
-          <section className="rounded-xl border border-amber-200/80 dark:border-amber-900/50 bg-amber-50/40 dark:bg-amber-950/20 p-3 space-y-2">
+          <section className="space-y-2 rounded-xl border border-amber-200/80 bg-amber-50/40 p-3 dark:border-amber-900/50 dark:bg-amber-950/20">
             <p className="text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200">At risk — stale leads</p>
             <p className="text-xs text-muted-foreground">Pending inbound email with no dealer response in 48+ hours.</p>
             <ul className="space-y-1.5">
               {atRiskItems.map(item => (
                 <li key={item.activity_id}>
-                  <Link
-                    href={`/customers/${item.customer_id}?activity=${item.activity_id}`}
-                    className="text-sm font-medium text-foreground hover:underline"
-                  >
+                  <Link href={`/customers/${item.customer_id}?activity=${item.activity_id}`} className="text-sm font-medium text-foreground hover:underline">
                     {item.customer_name}
                   </Link>
-                  <span className="text-xs text-muted-foreground ml-2">{item.reason}</span>
+                  <span className="ml-2 text-xs text-muted-foreground">{item.reason}</span>
                 </li>
               ))}
             </ul>
           </section>
         )}
 
-        {queue.length === 0 && (
-          <div className="text-center py-16 text-muted-foreground flex flex-col items-center gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-30 mb-1"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-            <p className="font-semibold text-base text-foreground">You&apos;re all caught up</p>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Today Command Center</p>
+              <h2 className="text-lg font-semibold">Work the right leads, ignore the noise</h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFocusOpen(true)}
+              className="inline-flex items-center gap-2 rounded-full bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
+            >
+              <Sparkles className="h-4 w-4" />
+              Focus Session
+            </button>
+          </div>
+
+          <TodaySummaryStrip counts={filteredCounts} onJump={jumpToSection} />
+          <TodayFilterChips active={activeFilters} counts={filterCounts} onToggle={toggleFilter} />
+          {activeFilters.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {activeFilters.length} filter{activeFilters.length === 1 ? '' : 's'} active.
+            </p>
+          )}
+          {actionError && (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {actionError}
+            </div>
+          )}
+        </div>
+
+        {queueLength === 0 && (
+          <div className="flex flex-col items-center gap-2 py-16 text-center text-muted-foreground">
+            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mb-1 opacity-30"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+            <p className="text-base font-semibold text-foreground">You&apos;re all caught up</p>
             <p className="text-sm">Nothing pending for today.</p>
           </div>
         )}
 
-        {Array.from(tierGroups.entries()).map(([tier, items]) => (
-          <section key={tier}>
-            <div className="sticky top-0 z-10 flex items-center gap-2 py-1.5 mb-2 bg-background/95 backdrop-blur-sm">
-              <div className={`w-1 h-4 rounded-full flex-shrink-0 ${tierStyle[tier].bar}`} />
-              <span className={`text-xs font-semibold uppercase tracking-wide ${tierStyle[tier].text}`}>
-                {TIER_LABELS[tier]}
-              </span>
-              <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${tierStyle[tier].badge}`}>
-                {items.length}
-              </span>
-            </div>
-            <motion.div
-              className="space-y-2"
-              initial="hidden"
-              animate="visible"
-              variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.04 } } }}
-            >
-              {items.map(item => {
-                const { key, type, data } = item
-                let card: React.ReactNode
-                if (type === 'new_lead') {
-                  const actId = (data as Activity).id
-                  card = (
-                    <NewLeadCard
-                      activity={data as Parameters<typeof NewLeadCard>[0]['activity']}
-                      onUpdate={refresh}
-                      onAddressed={() => {
-                        dismissedIds.current.add(actId)
-                        setNewLeads(prev => prev.filter(a => a.id !== actId))
-                      }}
-                      hasResponded={responded.includes(item.customerId ?? '')}
-                      sequenceStatus={item.customerId ? sequenceStatusMap[item.customerId] ?? null : null}
-                      queueReasons={item.decision.reasons}
-                      intentTierBadge={item.decision.intentTierBadge}
-                      nextActionLabel={item.decision.nextActionLabel}
-                    />
-                  )
-                } else if (type === 'vehicle_match') {
-                  card = (
-                    <VehicleMatchCard
-                      activity={data as Parameters<typeof VehicleMatchCard>[0]['activity']}
-                      onUpdate={refresh}
-                    />
-                  )
-                } else if (type === 'appt_request') {
-                  card = (
-                    <AppointmentRequestCard
-                      activity={data as Parameters<typeof AppointmentRequestCard>[0]['activity']}
-                      onUpdate={refresh}
-                    />
-                  )
-                } else if (type === 'voice_lead') {
-                  card = <VoiceLeadCard call={data as VoiceCall} onUpdate={refresh} />
-                } else if (type === 'overdue_followup' || type === 'today_followup') {
-                  card = (
-                    <EmailFollowUpItem
-                      activity={data as Parameters<typeof EmailFollowUpItem>[0]['activity']}
-                      onUpdate={refresh}
-                      hasResponded={responded.includes(item.customerId ?? '')}
-                    />
-                  )
-                } else if (type === 'waiting_responded' || type === 'waiting') {
-                  card = (
-                    <WaitingItem
-                      activity={data as Activity}
-                      onUpdate={refresh}
-                      hasResponded={type === 'waiting_responded'}
-                      queueReasons={item.decision.reasons}
-                      intentTierBadge={item.decision.intentTierBadge}
-                      nextActionLabel={item.decision.nextActionLabel}
-                    />
-                  )
-                } else {
-                  // overdue_task, today_task (includes scheduled appointments in tier 2)
-                  card = <TaskItem activity={data as Activity} onUpdate={refresh} />
-                }
-
-                return (
-                  <motion.div
-                    key={key}
-                    variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.16, 1, 0.3, 1] } } }}
-                  >
-                    {card}
-                  </motion.div>
-                )
-              })}
-            </motion.div>
-          </section>
+        {SECTION_ORDER.map(section => (
+          <TodaySection
+            key={section}
+            sectionKey={section}
+            title={TODAY_SECTION_LABELS[section]}
+            count={filteredCounts[section]}
+            defaultOpen={section === 'replied' || section === 'human_now'}
+            emptyMessage={
+              section === 'ai_handling'
+                ? 'Automation has nothing active right now.'
+                : section === 'low_roi'
+                  ? 'No low-return leads right now.'
+                  : 'Nothing in this section right now.'
+            }
+            headerActions={section === 'low_roi' && lowRoiIds.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => void runBulkAction('archive', lowRoiIds)}
+                className="rounded-full bg-destructive px-3 py-1.5 text-xs font-medium text-destructive-foreground"
+              >
+                Archive All Low ROI
+              </button>
+            ) : undefined}
+          >
+            {section === 'ai_handling' ? (
+              <div className="space-y-2">
+                {aiGroups.map(group => (
+                  <div key={group.key} className="rounded-xl border bg-card px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold">{group.label}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {group.count} lead{group.count === 1 ? '' : 's'} covered
+                          {group.nextStep ? ` · next touch ${formatNextStep(group.nextStep)}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                    {group.reasons.length > 0 && (
+                      <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                        {group.reasons.map(reason => (
+                          <li key={reason}>{reason}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : section === 'replied' || section === 'human_now' || section === 'follow_up_later' || section === 'low_roi' ? (
+              <div className="space-y-3">
+                {sectionItems[section].map(item => renderCard(item))}
+              </div>
+            ) : null}
+          </TodaySection>
         ))}
+
+        {tasks.length > 0 && (
+          <TodaySection
+            sectionKey="manual-tasks"
+            title="Manual Tasks"
+            count={tasks.length}
+            defaultOpen={false}
+            emptyMessage="No manual tasks due right now."
+          >
+            <div className="space-y-2">
+              {tasks
+                .filter(task => task.type === 'task' || task.type === 'appointment' || task.type === 'call' || task.type === 'sms' || task.type === 'email')
+                .slice(0, 10)
+                .map(task => (
+                  <TaskItem key={task.id} activity={task} onUpdate={refresh} />
+                ))}
+            </div>
+          </TodaySection>
+        )}
+
         {motivationalMsg && (
-          <p className="text-xs italic opacity-60 text-muted-foreground text-center mt-4 pb-2" suppressHydrationWarning>
+          <p className="mt-4 pb-2 text-center text-xs italic text-muted-foreground opacity-60" suppressHydrationWarning>
             {motivationalMsg}
           </p>
         )}
       </div>
+
+      <TodayBulkBar
+        selectedCount={selectedIds.length}
+        onAction={action => void runBulkAction(action)}
+        onClear={() => setSelectedIds([])}
+      />
+
+      <FocusSession
+        open={focusOpen}
+        items={focusItems}
+        completedKeys={focusCompletedKeys}
+        onClose={() => setFocusOpen(false)}
+        renderItem={item => renderCard(item)}
+      />
 
       <AfterCallModal open={modalOpen} pendingCall={pendingCall} onDismiss={dismissModal} />
     </div>

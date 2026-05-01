@@ -7,7 +7,8 @@ vi.mock('server-only', () => ({}))
 const { mockFrom } = vi.hoisted(() => ({
   mockFrom: vi.fn().mockReturnValue({
     update: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockResolvedValue({ error: null }),
+    eq: vi.fn().mockReturnThis(),
+    not: vi.fn().mockResolvedValue({ error: null }),
   }),
 }))
 

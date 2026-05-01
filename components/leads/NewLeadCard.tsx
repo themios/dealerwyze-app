@@ -90,6 +90,15 @@ function ScoreBadge({ score }: { score: number }) {
   )
 }
 
+function formatNextStep(iso: string | null | undefined): string | null {
+  if (!iso) return null
+  return new Date(iso).toLocaleString('en-US', {
+    weekday: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
 export default function NewLeadCard({ activity, onUpdate, onAddressed, hasResponded, sequenceStatus, queueReasons, intentTierBadge, nextActionLabel }: NewLeadCardProps) {
   const lead = parseLead(activity.body || '')
 
@@ -236,7 +245,7 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
               }`}>
                 <Zap className={`h-2.5 w-2.5 ${hasActiveSeq ? 'fill-green-500 text-green-500' : hasPausedSeq ? 'text-yellow-500' : 'text-muted-foreground'}`} />
                 {hasActiveSeq
-                  ? `Day ${sequenceStatus.step_number ?? 1} · ${sequenceStatus.sequence_name}`
+                  ? `AI working${sequenceStatus.sequence_name ? ` · ${sequenceStatus.sequence_name}` : ''}${sequenceStatus.next_step_due ? ` · next ${formatNextStep(sequenceStatus.next_step_due)}` : ''}`
                   : hasPausedSeq ? `Paused · ${sequenceStatus.sequence_name}`
                   : sequenceStatus.status === 'completed' ? 'Sequence done' : 'Sequence stopped'}
               </span>

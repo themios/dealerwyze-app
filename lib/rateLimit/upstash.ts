@@ -53,6 +53,8 @@ const _orgReceiptScan   = makeLimiter(redis, { requests: 25,  windowSeconds: 864
 const _orgDocSummarize  = makeLimiter(redis, { requests: 10,  windowSeconds: 86400 })  // Anthropic vehicle doc
 const _orgContactScan   = makeLimiter(redis, { requests: 20,  windowSeconds: 86400 })  // Anthropic contact card
 const _orgDataExport    = makeLimiter(redis, { requests: 1,   windowSeconds: 86400 })  // Full ZIP export
+const _orgTodayAction   = makeLimiter(redis, { requests: 60,  windowSeconds: 60 })
+const _orgTodayBulk     = makeLimiter(redis, { requests: 10,  windowSeconds: 60 })
 
 async function check(
   limiter: Ratelimit | null,
@@ -99,6 +101,8 @@ export const orgContactScanLimiter  = (orgId: string) => check(_orgContactScan, 
 
 /** One full dealership export ZIP per org per day. */
 export const orgDataExportLimiter   = (orgId: string) => check(_orgDataExport,   `org:${orgId}:dataexport`)
+export const orgTodayActionLimiter  = (orgId: string) => check(_orgTodayAction,  `org:${orgId}:todayaction`)
+export const orgTodayBulkLimiter    = (orgId: string) => check(_orgTodayBulk,    `org:${orgId}:todaybulk`)
 
 // Temp media uploads (MMS attachments from device) — 20 per hour per org
 const _orgTempUploadLimiter = makeLimiter(redis, { requests: 20, windowSeconds: 3600 })

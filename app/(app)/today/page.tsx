@@ -15,11 +15,20 @@ import ReviewsSection from '@/components/today/ReviewsSection'
 import PulseScoreWidget from '@/components/today/PulseScoreWidget'
 import type { UpcomingAppointmentItem } from '@/components/appointments/UpcomingAppointmentsList'
 import { fetchAtRiskLeads } from '@/lib/today/atRisk'
+import { detectTakeoverSignal } from '@/lib/today/takeoverDetector'
 
-export default async function TodayPage() {
+export default async function TodayPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}) {
   const profile = await requireProfile()
   const supabase = await createClientForRequest()
   const orgId = profile.org_id
+  const resolvedSearchParams = await searchParams
+  const focusRaw = Array.isArray(resolvedSearchParams?.focus) ? resolvedSearchParams?.focus[0] : resolvedSearchParams?.focus
+  const parsedFocus = focusRaw ? Number.parseInt(focusRaw, 10) : null
+  const initialFocusN = parsedFocus && parsedFocus >= 1 && parsedFocus <= 25 ? parsedFocus : null
 
   const renderNow = new Date()
   const renderNowMs = renderNow.getTime()
@@ -39,7 +48,8 @@ export default async function TodayPage() {
       id, name, primary_phone, email, sms_opt_out, unsubscribe_email, unsubscribe_sms, archived,
       lead_intent_score, lead_intent_tier, lead_intent_summary,
       lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
-      lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count
+      lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count,
+      last_inbound_at, last_outbound_at
     )`)
     .eq('user_id', orgId)
     .eq('type', 'email')
@@ -63,7 +73,8 @@ export default async function TodayPage() {
       id, name, primary_phone, email, archived,
       lead_intent_score, lead_intent_tier, lead_intent_summary,
       lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
-      lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count
+      lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count,
+      last_inbound_at, last_outbound_at
     )`)
     .eq('user_id', orgId)
     .in('type', ['task', 'appointment', 'call', 'sms', 'email', 'email_followup', 'sms_followup'])
@@ -87,7 +98,8 @@ export default async function TodayPage() {
       id, name, primary_phone, archived,
       lead_intent_score, lead_intent_tier, lead_intent_summary,
       lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
-      lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count
+      lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count,
+      last_inbound_at, last_outbound_at
     )`)
     .eq('user_id', orgId)
     .eq('direction', 'outbound')
@@ -126,14 +138,23 @@ export default async function TodayPage() {
     .limit(200)
   const respondedCustomerIds = [...new Set((inboundReplies || []).map(a => a.customer_id as string))]
 
+  const waitingTouchCounts = new Map<string, number>()
+  for (const row of waitingRaw || []) {
+    if (!row.customer_id) continue
+    waitingTouchCounts.set(row.customer_id, (waitingTouchCounts.get(row.customer_id) ?? 0) + 1)
+  }
+
   const seenCustomers = new Set<string>()
-  const waiting = (waitingRaw || []).filter(a => {
-    if (!a.customer_id || seenCustomers.has(a.customer_id)) return false
+  const waiting = (waitingRaw || []).flatMap(a => {
+    if (!a.customer_id || seenCustomers.has(a.customer_id)) return []
     const c = (a as { customer?: { archived?: boolean | null } | null }).customer
-    if (c?.archived) return false
-    if (!shouldShowAddressedActivity(a, todayRef)) return false
+    if (c?.archived) return []
+    if (!shouldShowAddressedActivity(a, todayRef)) return []
     seenCustomers.add(a.customer_id)
-    return true
+    return [{
+      ...a,
+      outbound_touch_count: waitingTouchCounts.get(a.customer_id) ?? 0,
+    }]
   })
 
   const { data: leadTemplates } = await supabase
@@ -192,6 +213,26 @@ export default async function TodayPage() {
     }
   }
 
+  const takeoverSignalsByCustomer: Record<string, ReturnType<typeof detectTakeoverSignal>> = {}
+  const sequenceCustomerIds = Object.keys(sequenceStatusMap)
+  if (sequenceCustomerIds.length > 0) {
+    const { data: lastInboundBodies } = await supabase
+      .from('activities')
+      .select('customer_id, body, created_at')
+      .eq('user_id', orgId)
+      .eq('direction', 'inbound')
+      .in('type', ['sms', 'email'])
+      .in('customer_id', sequenceCustomerIds)
+      .order('created_at', { ascending: false })
+
+    const seenInbound = new Set<string>()
+    for (const row of lastInboundBodies ?? []) {
+      if (!row.customer_id || seenInbound.has(row.customer_id)) continue
+      seenInbound.add(row.customer_id)
+      takeoverSignalsByCustomer[row.customer_id] = detectTakeoverSignal(row.body ?? '')
+    }
+  }
+
   // GBP reviews: last 30 days, most recent first
   const thirtyDaysAgo = new Date(renderNowMs - 30 * 86400000).toISOString()
   const { data: gbpReviews, error: gbpReviewsError } = await supabase
@@ -210,7 +251,8 @@ export default async function TodayPage() {
       id, name, primary_phone,
       lead_intent_score, lead_intent_tier, lead_intent_summary,
       lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
-      lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count
+      lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count,
+      last_inbound_at, last_outbound_at
     )`)
     .eq('org_id', orgId)
     .eq('status', 'completed')
@@ -239,7 +281,8 @@ export default async function TodayPage() {
       id, name, primary_phone, archived,
       lead_intent_score, lead_intent_tier, lead_intent_summary,
       lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
-      lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count
+      lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count,
+      last_inbound_at, last_outbound_at
     ), vehicle:vehicles(id, year, make, model, demand_signal, lead_count_30d)`)
     .eq('user_id', orgId)
     .eq('type', 'vehicle_match')
@@ -260,7 +303,8 @@ export default async function TodayPage() {
       id, name, primary_phone, archived,
       lead_intent_score, lead_intent_tier, lead_intent_summary,
       lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
-      lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count
+      lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count,
+      last_inbound_at, last_outbound_at
     )`)
     .eq('user_id', orgId)
     .eq('type', 'appointment')
@@ -380,8 +424,10 @@ export default async function TodayPage() {
             businessName={orgSettings?.business_name ?? undefined}
             respondedCustomerIds={respondedCustomerIds}
             sequenceStatusMap={sequenceStatusMap}
+            initialTakeoverSignals={takeoverSignalsByCustomer}
             leadWeights={leadWeights}
             atRiskItems={atRiskItems}
+            initialFocusN={initialFocusN}
           />
         </div>
 

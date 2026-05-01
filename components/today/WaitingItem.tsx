@@ -7,6 +7,7 @@ import { formatRelativeTime, formatPhoneForTel, lastContactBadge } from '@/lib/u
 import { Button } from '@/components/ui/button'
 import { Phone, MessageSquare, CheckSquare } from 'lucide-react'
 import { useOpenCustomer } from '@/components/today/useOpenCustomer'
+import type { SequenceStatus } from '@/components/leads/NewLeadCard'
 
 interface WaitingItemProps {
   activity: Activity
@@ -15,9 +16,19 @@ interface WaitingItemProps {
   queueReasons?: string[]
   intentTierBadge?: 'HOT' | 'WARM' | 'COLD' | null
   nextActionLabel?: string
+  sequenceStatus?: SequenceStatus | null
 }
 
-export default function WaitingItem({ activity, onUpdate, hasResponded = false, queueReasons, intentTierBadge, nextActionLabel }: WaitingItemProps) {
+function formatNextStep(iso: string | null | undefined): string | null {
+  if (!iso) return null
+  return new Date(iso).toLocaleString('en-US', {
+    weekday: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+export default function WaitingItem({ activity, onUpdate, hasResponded = false, queueReasons, intentTierBadge, nextActionLabel, sequenceStatus }: WaitingItemProps) {
   const [loading, setLoading] = useState<string | null>(null)
   const supabase = createClient()
   const openCustomer = useOpenCustomer()
@@ -44,6 +55,15 @@ export default function WaitingItem({ activity, onUpdate, hasResponded = false, 
         <div className="flex items-center gap-1.5 text-green-600 dark:text-green-400">
           <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
           <span className="text-xs font-semibold">Replied</span>
+        </div>
+      )}
+      {sequenceStatus?.status === 'active' && (
+        <div className="flex items-center gap-1.5 text-blue-700 dark:text-blue-300">
+          <span className="inline-block h-2 w-2 rounded-full bg-blue-500" />
+          <span className="text-xs font-semibold">
+            AI working{sequenceStatus.sequence_name ? ` · ${sequenceStatus.sequence_name}` : ''}
+            {sequenceStatus.next_step_due ? ` · next ${formatNextStep(sequenceStatus.next_step_due)}` : ''}
+          </span>
         </div>
       )}
       <div
