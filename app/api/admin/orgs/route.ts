@@ -39,21 +39,21 @@ export async function GET() {
   ] = await Promise.all([
     service
       .from('organizations')
-      .select('id, name, plan, subscription_status, trial_ends_at, current_period_end, approved_at, created_at, stripe_customer_id, suspended_at')
+      .select('id, name, plan, subscription_status, trial_ends_at, current_period_end, approved_at, created_at, stripe_customer_id, suspended_at, sms_plan, sms_quota, monthly_message_count, last_active_at')
       .order('created_at', { ascending: false }),
 
     service
       .from('org_settings')
-      .select('org_id, business_phone, monthly_message_count, sms_quota, onboarding_completed_at'),
+      .select('org_id, business_phone, onboarding_completed_at, dealer_website_url'),
 
     service
       .from('email_accounts')
       .select('org_id, status'),
 
-    // Get last sign-in per user by joining profiles → auth.users
+    // Get profiles to map org_id → user ids (admin = org owner)
     service
       .from('profiles')
-      .select('org_id, id'),
+      .select('org_id, id, role'),
   ])
 
   if (orgsError) {
@@ -62,7 +62,7 @@ export async function GET() {
   }
 
   // Build org_settings lookup map
-  const settingsMap = new Map<string, { business_phone: string | null; monthly_message_count: number | null; sms_quota: number | null; onboarding_completed_at: string | null }>()
+  const settingsMap = new Map<string, { business_phone: string | null; onboarding_completed_at: string | null; dealer_website_url: string | null }>()
   for (const s of orgSettingsRows ?? []) {
     settingsMap.set(s.org_id, s)
   }
@@ -73,38 +73,23 @@ export async function GET() {
     if (ea.status === 'active') emailMap.set(ea.org_id, true)
   }
 
-  // Build per-org latest profile map (we can't get last_sign_in from anon client,
-  // but we can store a proxy: newest profile created_at as a minimum bound)
-  // For last_active_at we use the most recently created profile as a proxy here.
-  // A deeper join to auth.users requires a separate service admin call.
+  // Build org member map for email lookup only
   const profileOrgMap = new Map<string, string[]>()
   for (const p of authUsers ?? []) {
     if (!profileOrgMap.has(p.org_id)) profileOrgMap.set(p.org_id, [])
     profileOrgMap.get(p.org_id)!.push(p.id)
   }
 
-  // Fetch auth.users last_sign_in_at for all profile IDs in batch
-  const allProfileIds = (authUsers ?? []).map(p => p.id)
-  const lastSignInMap = new Map<string, string>()
-
-  if (allProfileIds.length > 0) {
-    try {
-      const { data } = await service.auth.admin.listUsers({ perPage: 1000 })
-      for (const u of data?.users ?? []) {
-        if (u.last_sign_in_at) lastSignInMap.set(u.id, u.last_sign_in_at)
-      }
-    } catch { /* non-fatal */ }
-  }
-
-  // Compute per-org last_active_at (latest sign-in across all org members)
-  const orgLastActiveMap = new Map<string, string>()
-  for (const [orgId, profileIds] of profileOrgMap) {
-    let latest: string | null = null
-    for (const pid of profileIds) {
-      const t = lastSignInMap.get(pid)
-      if (t && (!latest || t > latest)) latest = t
+  // Fetch auth.users emails. org.id === auth_user.id for owners.
+  const authEmailMap = new Map<string, string>()
+  try {
+    const { data, error } = await service.auth.admin.listUsers({ perPage: 1000 })
+    if (error) console.error('[admin/orgs] listUsers error:', error.message)
+    for (const u of data?.users ?? []) {
+      if (u.email) authEmailMap.set(u.id, u.email)
     }
-    if (latest) orgLastActiveMap.set(orgId, latest)
+  } catch (e) {
+    console.error('[admin/orgs] listUsers threw:', e)
   }
 
 
@@ -124,11 +109,14 @@ export async function GET() {
   const result = (orgs ?? []).map(org => {
     const settings = settingsMap.get(org.id) ?? null
 
-    const monthly  = settings?.monthly_message_count ?? 0
-    const quota    = settings?.sms_quota ?? 1
+    // SMS fields live on organizations (not org_settings)
+    const orgAny   = org as Record<string, unknown>
+    const monthly  = (orgAny.monthly_message_count as number | null) ?? 0
+    const quota    = (orgAny.sms_quota as number | null) ?? 1000
     const sms_used_pct = quota > 0 ? Math.round((monthly / quota) * 100) : 0
 
-    const last_active_at  = orgLastActiveMap.get(org.id) ?? null
+    const orgAny2 = org as Record<string, unknown>
+    const last_active_at = (orgAny2.last_active_at as string | null) ?? null
     const has_active_email = emailMap.get(org.id) ?? false
     const onboarding_done  = !!settings?.onboarding_completed_at
 
@@ -159,6 +147,8 @@ export async function GET() {
       health_score,
       assigned_staff_id:   orgStaffMap.get(org.id) ?? null,
       assigned_staff_name: orgStaffMap.has(org.id) ? (staffNameMap.get(orgStaffMap.get(org.id)!) ?? null) : null,
+      signup_email:        authEmailMap.get(org.id) ?? null,
+      dealer_website_url:  settings?.dealer_website_url ?? null,
     }
   })
 

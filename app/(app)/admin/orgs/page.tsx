@@ -3,7 +3,8 @@
 import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import TopBar from '@/components/layout/TopBar'
-import { Search, Filter, ChevronRight, UserCheck, Check } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Search, Filter, ChevronRight, UserCheck, Check, Mail, Phone, Globe } from 'lucide-react'
 
 interface OrgRow {
   id: string
@@ -17,6 +18,8 @@ interface OrgRow {
   suspended_at: string | null
   stripe_customer_id: string | null
   business_phone: string | null
+  signup_email: string | null
+  dealer_website_url: string | null
   sms_used_pct: number
   last_active_at: string | null
   has_active_email: boolean
@@ -60,6 +63,66 @@ function humanizeAgo(d: string | null, nowMs: number) {
   if (days === 1) return '1d ago'
   if (days < 30)  return `${days}d ago`
   return `${Math.floor(days / 30)}mo ago`
+}
+
+type EngagementTier = 'hot' | 'active' | 'onboarding' | 'slowing' | 'at_risk' | 'dormant'
+
+interface TierMeta {
+  tier: EngagementTier
+  label: string
+  dot: string          // tailwind bg color
+  badge: string        // badge classes
+  row: string          // row bg tint
+  borderLeft: string   // left accent
+}
+
+const TIER_META: Record<EngagementTier, TierMeta> = {
+  hot:        { tier: 'hot',        label: 'Hot',        dot: 'bg-emerald-500', badge: 'bg-emerald-100 text-emerald-700 border-emerald-200',  row: 'bg-emerald-50/40',  borderLeft: 'border-l-2 border-l-emerald-500' },
+  active:     { tier: 'active',     label: 'Active',     dot: 'bg-green-400',   badge: 'bg-green-100 text-green-700 border-green-200',         row: '',                  borderLeft: 'border-l-2 border-l-green-400' },
+  onboarding: { tier: 'onboarding', label: 'New',        dot: 'bg-blue-400',    badge: 'bg-blue-100 text-blue-700 border-blue-200',            row: 'bg-blue-50/30',     borderLeft: 'border-l-2 border-l-blue-400' },
+  slowing:    { tier: 'slowing',    label: 'Slowing',    dot: 'bg-yellow-500',  badge: 'bg-yellow-100 text-yellow-700 border-yellow-200',      row: 'bg-yellow-50/30',   borderLeft: 'border-l-2 border-l-yellow-400' },
+  at_risk:    { tier: 'at_risk',    label: 'At Risk',    dot: 'bg-orange-500',  badge: 'bg-orange-100 text-orange-700 border-orange-200',      row: 'bg-orange-50/30',   borderLeft: 'border-l-2 border-l-orange-500' },
+  dormant:    { tier: 'dormant',    label: 'Dormant',    dot: 'bg-red-400',     badge: 'bg-red-100 text-red-600 border-red-200',               row: 'bg-red-50/20',      borderLeft: 'border-l-2 border-l-red-400' },
+}
+
+function getEngagementTier(org: OrgRow, nowMs: number): TierMeta {
+  const daysSinceSignup = Math.floor((nowMs - new Date(org.created_at).getTime()) / 86400000)
+  const daysSinceActive = org.last_active_at
+    ? Math.floor((nowMs - new Date(org.last_active_at).getTime()) / 86400000)
+    : null
+
+  // New dealers (≤ 7 days) who haven't had meaningful activity yet → Onboarding
+  if (daysSinceSignup <= 7 && (daysSinceActive === null || daysSinceActive >= daysSinceSignup)) {
+    return TIER_META.onboarding
+  }
+
+  // Active today or yesterday → Hot
+  if (daysSinceActive !== null && daysSinceActive <= 1) return TIER_META.hot
+
+  // Active within the week → Active
+  if (daysSinceActive !== null && daysSinceActive <= 7) return TIER_META.active
+
+  // Active 8–21 days ago → Slowing
+  if (daysSinceActive !== null && daysSinceActive <= 21) return TIER_META.slowing
+
+  // Active 22–60 days ago OR signed up > 14 days with no activity → At Risk
+  if (daysSinceActive !== null && daysSinceActive <= 60) return TIER_META.at_risk
+  if (daysSinceActive === null && daysSinceSignup > 14)  return TIER_META.at_risk
+
+  // Signed up ≤ 14 days, no activity yet → still Onboarding
+  if (daysSinceActive === null && daysSinceSignup <= 14) return TIER_META.onboarding
+
+  // Active > 60 days ago or never active after 60+ days → Dormant
+  return TIER_META.dormant
+}
+
+function EngagementBadge({ tier }: { tier: TierMeta }) {
+  return (
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-semibold ${tier.badge}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${tier.dot}`} />
+      {tier.label}
+    </span>
+  )
 }
 
 function formatDate(d: string | null) {
@@ -130,7 +193,11 @@ export default function AdminOrgsPage() {
 
     if (search.trim()) {
       const q = search.toLowerCase()
-      list = list.filter(o => o.name.toLowerCase().includes(q) || (o.business_phone ?? '').includes(q))
+      list = list.filter(o =>
+        o.name.toLowerCase().includes(q) ||
+        (o.business_phone ?? '').includes(q) ||
+        (o.signup_email ?? '').toLowerCase().includes(q)
+      )
     }
     return list
   }, [orgs, filter, search])
@@ -275,6 +342,17 @@ export default function AdminOrgsPage() {
           </div>
         )}
 
+        {/* Engagement legend */}
+        <div className="flex flex-wrap items-center gap-2">
+          {(Object.values(TIER_META) as TierMeta[]).map(t => (
+            <span key={t.tier} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[10px] font-semibold ${t.badge}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${t.dot}`} />
+              {t.label}
+            </span>
+          ))}
+          <span className="text-[10px] text-muted-foreground ml-1">Hot = daily · Active = weekly · Slowing = 8–21d · At Risk = 22–60d · Dormant = 60d+</span>
+        </div>
+
         {loading ? (
           <p className="text-sm text-muted-foreground text-center py-8">Loading dealerships…</p>
         ) : (
@@ -285,13 +363,14 @@ export default function AdminOrgsPage() {
                 <thead className="sticky top-0 z-10 bg-card">
                   <tr className="border-b bg-muted/30 text-xs text-muted-foreground font-semibold uppercase tracking-wide">
                     {selecting && <th className="py-3 px-3 w-8"></th>}
-                    <th className="py-3 px-4 w-5 text-left"></th>
                     <th className="py-3 px-4 text-left">Dealership</th>
+                    <th className="py-3 px-4 text-left">Engagement</th>
                     <th className="py-3 px-4 text-left">Status</th>
                     <th className="py-3 px-4 text-left">Plan</th>
                     <th className="py-3 px-4 text-left">Assigned To</th>
                     <th className="py-3 px-4 text-left">SMS</th>
                     <th className="py-3 px-4 text-left">Last Active</th>
+                    <th className="py-3 px-4 text-left">Signed Up</th>
                     <th className="py-3 px-4 text-left">Billing</th>
                     <th className="py-3 px-4 w-8"></th>
                   </tr>
@@ -302,10 +381,15 @@ export default function AdminOrgsPage() {
                       ? org.trial_ends_at
                       : org.current_period_end
                     const isSelected = selected.has(org.id)
+                    const tier = getEngagementTier(org, nowMs)
                     return (
                       <tr
                         key={org.id}
-                        className={`border-b transition-colors ${isSelected ? 'bg-blue-50' : 'hover:bg-accent/40'}`}
+                        className={cn(
+                          'border-b transition-colors',
+                          tier.borderLeft,
+                          isSelected ? 'bg-blue-50' : `${tier.row} hover:bg-accent/40`,
+                        )}
                         onClick={selecting ? () => toggleSelect(org.id) : undefined}
                         style={selecting ? { cursor: 'pointer' } : undefined}
                       >
@@ -318,7 +402,6 @@ export default function AdminOrgsPage() {
                             </div>
                           </td>
                         )}
-                        <td className="py-3 px-4"><HealthDot score={org.health_score ?? 50} /></td>
                         <td className="py-3 px-4">
                           <Link
                             href={`/admin/orgs/${org.id}`}
@@ -333,7 +416,25 @@ export default function AdminOrgsPage() {
                             )}
                             {org.name || 'Unnamed'}
                           </Link>
+                          <div className="mt-0.5 space-y-0.5">
+                            {org.signup_email && (
+                              <a href={`mailto:${org.signup_email}`} onClick={e => e.stopPropagation()} className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">
+                                <Mail className="h-3 w-3 shrink-0" />{org.signup_email}
+                              </a>
+                            )}
+                            {org.business_phone && (
+                              <a href={`tel:${org.business_phone}`} onClick={e => e.stopPropagation()} className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">
+                                <Phone className="h-3 w-3 shrink-0" />{org.business_phone}
+                              </a>
+                            )}
+                            {org.dealer_website_url && (
+                              <a href={org.dealer_website_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground truncate max-w-[200px]">
+                                <Globe className="h-3 w-3 shrink-0" />{org.dealer_website_url.replace(/^https?:\/\//, '')}
+                              </a>
+                            )}
+                          </div>
                         </td>
+                        <td className="py-3 px-4"><EngagementBadge tier={tier} /></td>
                         <td className="py-3 px-4"><StatusBadge status={org.subscription_status} /></td>
                         <td className="py-3 px-4 text-muted-foreground uppercase text-xs">{org.plan}</td>
                         <td className="py-3 px-4 text-xs">
@@ -360,6 +461,7 @@ export default function AdminOrgsPage() {
                           </div>
                         </td>
                         <td className="py-3 px-4 text-xs text-muted-foreground">{humanizeAgo(org.last_active_at, nowMs)}</td>
+                        <td className="py-3 px-4 text-xs text-muted-foreground">{formatDate(org.created_at)}</td>
                         <td className="py-3 px-4 text-xs text-muted-foreground">{formatDate(billingDate ?? null)}</td>
                         <td className="py-3 px-4">
                           <Link
@@ -375,7 +477,7 @@ export default function AdminOrgsPage() {
                   })}
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={selecting ? 10 : 9} className="py-10 text-center text-sm text-muted-foreground">
+                      <td colSpan={selecting ? 11 : 10} className="py-10 text-center text-sm text-muted-foreground">
                         No dealerships match this filter.
                       </td>
                     </tr>
@@ -391,11 +493,17 @@ export default function AdminOrgsPage() {
                   ? org.trial_ends_at
                   : org.current_period_end
                 const isSelected = selected.has(org.id)
+                const tier = getEngagementTier(org, nowMs)
                 return (
                   <div
                     key={org.id}
                     onClick={selecting ? () => toggleSelect(org.id) : undefined}
-                    className={`rounded-xl border bg-card overflow-hidden ${selecting ? 'cursor-pointer' : ''} ${isSelected ? 'border-blue-400 bg-blue-50' : ''}`}
+                    className={cn(
+                      'rounded-xl border overflow-hidden',
+                      tier.borderLeft,
+                      selecting ? 'cursor-pointer' : '',
+                      isSelected ? 'border-blue-400 bg-blue-50' : tier.row || 'bg-card',
+                    )}
                   >
                     <Link
                       href={selecting ? '#' : `/admin/orgs/${org.id}`}
@@ -413,6 +521,7 @@ export default function AdminOrgsPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-medium text-sm truncate">{org.name || 'Unnamed'}</p>
+                          <EngagementBadge tier={tier} />
                           <StatusBadge status={org.subscription_status} />
                           {org.suspended_at && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">Suspended</span>
@@ -424,6 +533,13 @@ export default function AdminOrgsPage() {
                           {!org.has_active_email && ' · No email'}
                           {billingDate && ` · ${formatDate(billingDate)}`}
                         </p>
+                        {(org.signup_email || org.business_phone) && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {org.signup_email && org.signup_email}
+                            {org.signup_email && org.business_phone && ' · '}
+                            {org.business_phone && org.business_phone}
+                          </p>
+                        )}
                       </div>
                       {!selecting && <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
                     </Link>

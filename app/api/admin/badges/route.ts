@@ -11,7 +11,9 @@ export async function GET() {
 
   const supabase = createServiceClient()
 
-  const [alertsRes, ticketsRes] = await Promise.all([
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+
+  const [alertsRes, ticketsRes, newOrgsRes] = await Promise.all([
     supabase
       .from('admin_alerts')
       .select('id', { count: 'exact', head: true })
@@ -20,10 +22,15 @@ export async function GET() {
       .from('support_tickets')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'open'),
+    supabase
+      .from('organizations')
+      .select('id', { count: 'exact', head: true })
+      .gte('created_at', thirtyDaysAgo),
   ])
 
   return NextResponse.json({
     alerts: alertsRes.count ?? 0,
     tickets: ticketsRes.count ?? 0,
+    new_orgs: newOrgsRes.count ?? 0,
   })
 }

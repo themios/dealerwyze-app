@@ -3,6 +3,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import crypto from 'crypto'
 import { sendNotificationEmail } from '@/lib/email/notify'
 import { buildWelcomeEmailHtml } from '@/lib/email/onboarding'
+import { sendTelegramMessage } from '@/lib/notifications/telegram'
 import { normalizePhone } from '@/lib/utils/phone'
 import { registrationLimiter } from '@/lib/rateLimit/upstash'
 
@@ -201,6 +202,19 @@ export async function POST(req: NextRequest) {
       subject: "You're in. Let's get your dealership ready today.",
       html: buildWelcomeEmailHtml(display_name, appUrl),
     })
+
+    // Platform owner notifications
+    const ownerEmail = process.env.PLATFORM_OWNER_EMAIL
+    if (ownerEmail) {
+      void sendNotificationEmail({
+        to: ownerEmail,
+        subject: `New signup: ${display_name}`,
+        html: `<p><strong>${display_name}</strong> just signed up${email ? ` (${email})` : ''}${phoneNorm ? `, ${phoneNorm}` : ''}.</p><p><a href="${appUrl}/admin/orgs">View in admin panel</a></p>`,
+      })
+    }
+    void sendTelegramMessage(
+      `🆕 <b>New signup:</b> ${display_name}${email ? `\n📧 ${email}` : ''}${phoneNorm ? `\n📞 ${phoneNorm}` : ''}${churnRiskFlagged ? '\n⚠️ Churn risk flagged' : ''}${disposableDomain ? '\n⚠️ Disposable email' : ''}`
+    )
 
     // If referred by an existing active dealer, activate their 5% referral discount
     if (referredByOrgId) {

@@ -29,15 +29,26 @@ export async function GET(
     { data: team },
     { data: voiceCalls },
     { count: leadsCount },
+    { data: adminProfile },
   ] = await Promise.all([
     supabase.from('organizations').select('*').eq('id', orgId).single(),
     supabase.from('org_settings').select('*').eq('org_id', orgId).maybeSingle(),
     supabase.from('profiles').select('id, display_name, role, created_at').eq('org_id', orgId),
     supabase.from('voice_calls').select('duration').eq('org_id', orgId).gte('created_at', since30d),
     supabase.from('customers').select('id', { count: 'exact', head: true }).eq('user_id', orgId).gte('created_at', since30d),
+    supabase.from('profiles').select('id').eq('org_id', orgId).eq('role', 'admin').maybeSingle(),
   ])
 
   if (!org) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Fetch signup email from auth.users for the org owner
+  let signup_email: string | null = null
+  if (adminProfile?.id) {
+    try {
+      const { data: authUser } = await supabase.auth.admin.getUserById(adminProfile.id)
+      signup_email = authUser?.user?.email ?? null
+    } catch { /* non-fatal */ }
+  }
 
   const voiceMinutes = Math.round(
     (voiceCalls?.reduce((s, c) => s + (c.duration ?? 0), 0) ?? 0) / 60,
@@ -66,6 +77,7 @@ export async function GET(
   return NextResponse.json({
     org,
     settings,
+    signup_email,
     team: team ?? [],
     stats: {
       voice_calls_30d:   voiceCalls?.length ?? 0,

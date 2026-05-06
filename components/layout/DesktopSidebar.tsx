@@ -39,12 +39,14 @@ function WebLeadsBadge() {
   )
 }
 
-function OpenTicketsBadge() {
+function AdminPanelBadge() {
   const [count, setCount] = useState(0)
   useEffect(() => {
-    fetch('/api/admin/tickets/count')
+    fetch('/api/admin/badges')
       .then(r => r.ok ? r.json() : null)
-      .then((d: { open?: number } | null) => setCount(d?.open ?? 0))
+      .then((d: { alerts?: number; tickets?: number; new_orgs?: number } | null) => {
+        setCount((d?.alerts ?? 0) + (d?.tickets ?? 0) + (d?.new_orgs ?? 0))
+      })
       .catch(() => {})
   }, [])
   if (!count) return null
@@ -83,7 +85,7 @@ interface AdminNavItem {
   href: string
   label: string
   icon: React.ComponentType<{ className?: string }>
-  badge?: 'alerts' | 'retention' | 'tickets'
+  badge?: 'alerts' | 'retention' | 'tickets' | 'new_orgs'
   area?: string
 }
 
@@ -99,7 +101,7 @@ const ADMIN_NAV_GROUPS: { section: string; items: AdminNavItem[] }[] = [
     section: 'DEALERS',
     items: [
       { href: '/admin/customers',  label: 'All Customers', icon: Contact,     area: 'dealers' },
-      { href: '/admin/orgs',       label: 'Dealerships',   icon: Building2,   area: 'dealers' },
+      { href: '/admin/orgs',       label: 'Dealerships',   icon: Building2,   badge: 'new_orgs', area: 'dealers' },
       { href: '/admin/retention',  label: 'Retention',     icon: TrendingDown, badge: 'retention', area: 'retention' },
     ],
   },
@@ -145,19 +147,21 @@ interface AdminBadgeCounts {
   alerts: number
   tickets: number
   retention: number
+  new_orgs: number
 }
 
 function useAdminBadges(): AdminBadgeCounts {
-  const [counts, setCounts] = useState<AdminBadgeCounts>({ alerts: 0, tickets: 0, retention: 0 })
+  const [counts, setCounts] = useState<AdminBadgeCounts>({ alerts: 0, tickets: 0, retention: 0, new_orgs: 0 })
   useEffect(() => {
     Promise.all([
       fetch('/api/admin/badges').then(r => r.ok ? r.json() : null),
       fetch('/api/admin/retention?count=1').then(r => r.ok ? r.json() : null),
-    ]).then(([badges, retention]: [{ alerts?: number; tickets?: number } | null, { at_risk?: number } | null]) => {
+    ]).then(([badges, retention]: [{ alerts?: number; tickets?: number; new_orgs?: number } | null, { at_risk?: number } | null]) => {
       setCounts({
         alerts: badges?.alerts ?? 0,
         tickets: badges?.tickets ?? 0,
         retention: retention?.at_risk ?? 0,
+        new_orgs: badges?.new_orgs ?? 0,
       })
     }).catch(() => {})
   }, [])
@@ -240,6 +244,7 @@ function AdminSidebar({ platformRole, platformPermissions, isSuperAdmin }: {
                       {badge === 'alerts'    && <BadgeCount count={badges.alerts}    color="bg-red-500" />}
                       {badge === 'retention' && <BadgeCount count={badges.retention} color="bg-orange-500" />}
                       {badge === 'tickets'   && <BadgeCount count={badges.tickets}   color="bg-blue-500" />}
+                      {badge === 'new_orgs'  && <BadgeCount count={badges.new_orgs}  color="bg-green-500" />}
                     </Link>
                   )
                 })}
@@ -320,7 +325,7 @@ function DealerSidebar({ orgName, role, isPlatformAdmin }: { orgName?: string | 
               <Icon className="h-4.5 w-4.5 shrink-0" />
               {label}
               {badge === 'webleads' && <WebLeadsBadge />}
-              {href === '/admin' && isPlatformAdmin && <OpenTicketsBadge />}
+              {href === '/admin' && isPlatformAdmin && <AdminPanelBadge />}
             </Link>
           )
         })}

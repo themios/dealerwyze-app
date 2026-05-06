@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ArrowLeft, Phone, Mic, Users, Loader2, RefreshCw, Eye, ExternalLink, AlertOctagon, Pencil, MessageSquarePlus, Clock } from 'lucide-react'
+import { ArrowLeft, Phone, Mic, Users, Loader2, RefreshCw, Eye, ExternalLink, AlertOctagon, Pencil, MessageSquarePlus, Clock, CheckCircle2, Circle, Mail, Globe, MapPin } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -45,13 +45,21 @@ interface OrgDetail {
     suspended_at: string | null
     suspension_reason: string | null
     created_at: string
+    business_address: string | null
+    website_contact_email: string | null
   }
   settings: {
     business_phone: string | null
+    business_name: string | null
+    city: string | null
+    state: string | null
+    zip_code: string | null
+    dealer_website_url: string | null
     twilio_phone_number: string | null
     retell_agent_id: string | null
     timezone: string | null
   } | null
+  signup_email: string | null
   team: { id: string; display_name: string; role: string; created_at: string }[]
   stats: { voice_calls_30d: number; voice_minutes_30d: number; leads_30d: number }
   stripe_invoices: StripeInvoice[]
@@ -239,7 +247,7 @@ export default function AdminOrgDetailPage() {
     )
   }
 
-  const { org, settings, team, stats, stripe_invoices } = data
+  const { org, settings, team, stats, stripe_invoices, signup_email } = data
   const voiceMinsMo = Math.round((org.monthly_voice_seconds ?? 0) / 60)
 
   return (
@@ -277,6 +285,54 @@ export default function AdminOrgDetailPage() {
           ))}
         </div>
 
+        {/* Contact information */}
+        {(() => {
+          const email   = signup_email || org.website_contact_email
+          const phone   = settings?.business_phone
+          const website = settings?.dealer_website_url
+          const address = [
+            settings?.business_name !== org.name ? settings?.business_name : null,
+            org.business_address,
+            [settings?.city, settings?.state].filter(Boolean).join(', '),
+            settings?.zip_code,
+          ].filter(Boolean).join(' · ')
+
+          if (!email && !phone && !website && !address) return null
+          return (
+            <section className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Contact</p>
+              <div className="rounded-xl border bg-card divide-y text-sm">
+                {email && (
+                  <div className="flex items-center gap-3 px-3 py-2.5">
+                    <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <a href={`mailto:${email}`} className="text-sm text-primary hover:underline truncate">{email}</a>
+                  </div>
+                )}
+                {phone && (
+                  <div className="flex items-center gap-3 px-3 py-2.5">
+                    <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <a href={`tel:${phone}`} className="text-sm hover:underline">{fmtPhone(phone) ?? phone}</a>
+                  </div>
+                )}
+                {website && (
+                  <div className="flex items-center gap-3 px-3 py-2.5">
+                    <Globe className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <a href={website} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline truncate">
+                      {website.replace(/^https?:\/\//, '')}
+                    </a>
+                  </div>
+                )}
+                {address && (
+                  <div className="flex items-center gap-3 px-3 py-2.5">
+                    <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="text-sm text-muted-foreground">{address}</span>
+                  </div>
+                )}
+              </div>
+            </section>
+          )
+        })()}
+
         {/* Feature heatmap */}
         {activity?.feature_heatmap && (
           <section className="space-y-2">
@@ -293,6 +349,50 @@ export default function AdminOrgDetailPage() {
             </div>
           </section>
         )}
+
+        {/* Onboarding checklist */}
+        {(() => {
+          const anyFeature = activity?.feature_heatmap
+            ? Object.values(activity.feature_heatmap).some(Boolean)
+            : false
+          const steps: { label: string; done: boolean; tip: string }[] = [
+            { label: 'SMS number provisioned',   done: !!settings?.twilio_phone_number, tip: 'Settings → Phone Number' },
+            { label: 'Business phone set',        done: !!settings?.business_phone,     tip: 'Settings → Business Info' },
+            { label: 'Voice agent configured',    done: !!settings?.retell_agent_id,    tip: 'Settings → AI Voice' },
+            { label: 'First lead added',          done: stats.leads_30d > 0,            tip: 'Leads → Add Lead' },
+            { label: 'Team member invited',       done: team.length > 1,                tip: 'Settings → Team' },
+            { label: 'At least one feature used', done: anyFeature,                     tip: 'Pipeline, BHPH, Analytics, etc.' },
+          ]
+          const done = steps.filter(s => s.done).length
+          const allDone = done === steps.length
+          return (
+            <section className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Onboarding</p>
+                <span className={`text-xs font-medium ${allDone ? 'text-green-600' : 'text-orange-600'}`}>
+                  {done}/{steps.length} complete
+                </span>
+              </div>
+              <div className="rounded-xl border bg-card divide-y">
+                {steps.map(step => (
+                  <div key={step.label} className="flex items-center gap-3 px-3 py-2.5">
+                    {step.done
+                      ? <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+                      : <Circle className="h-4 w-4 text-muted-foreground/40 shrink-0" />}
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs font-medium ${step.done ? 'line-through text-muted-foreground' : ''}`}>
+                        {step.label}
+                      </p>
+                      {!step.done && (
+                        <p className="text-[10px] text-muted-foreground">{step.tip}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )
+        })()}
 
         {/* Overview */}
         <section className="space-y-2">

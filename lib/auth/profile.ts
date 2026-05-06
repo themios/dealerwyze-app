@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import type { UserRole } from '@/types/index'
@@ -58,5 +59,13 @@ export async function requireProfile(): Promise<Profile> {
   if (staffSession?.orgId) {
     return normalizeOwnerRole({ ...profile, org_id: staffSession.orgId })
   }
+
+  // Stamp last_active_at so the admin panel reflects real usage.
+  // Awaited so it completes before the serverless function exits.
+  await createServiceClient()
+    .from('organizations')
+    .update({ last_active_at: new Date().toISOString() })
+    .eq('id', profile.org_id)
+
   return normalizeOwnerRole(profile)
 }
