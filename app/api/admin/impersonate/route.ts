@@ -5,6 +5,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { canAccessAdminArea, isPlatformSuperAdmin } from '@/lib/auth/platform'
 import { buildStaffOrgCookie, clearStaffOrgCookie, getStaffSessionInfo } from '@/lib/auth/staffSession'
 import { logOrgAudit } from '@/lib/audit/orgAudit'
+import { writeAuditLog } from '@/lib/audit/log'
 
 /**
  * POST /api/admin/impersonate { org_id, write_mode? }
@@ -53,6 +54,15 @@ export async function POST(req: NextRequest) {
   void logOrgAudit({ org_id, actor_id: user.id, actor_type: 'staff', action, ip,
     details: { org_name: org.name, write_mode: !!write_mode } })
 
+  void writeAuditLog({
+    orgId:     org_id,
+    actorId:   user.id,
+    actorType: 'staff',
+    action:    'impersonation_start',
+    metadata:  { write_mode: !!write_mode, org_name: org.name },
+    ipAddress: ip,
+  })
+
   const cookie = buildStaffOrgCookie(org_id, !!write_mode)
   const res = NextResponse.json({ success: true, org_id, org_name: org.name, write_mode: !!write_mode })
   res.cookies.set(cookie)
@@ -81,6 +91,14 @@ export async function DELETE() {
     void logOrgAudit({ org_id: staffSession.orgId, actor_id: user.id, actor_type: 'staff',
       action: 'staff_impersonate_end', details: { write_mode: staffSession.writeMode ?? false } })
   }
+
+  void writeAuditLog({
+    orgId:     staffSession?.orgId ?? null,
+    actorId:   user.id,
+    actorType: 'staff',
+    action:    'impersonation_end',
+    metadata:  { write_mode: staffSession?.writeMode ?? false },
+  })
 
   const cookie = clearStaffOrgCookie()
   const res = NextResponse.json({ success: true })

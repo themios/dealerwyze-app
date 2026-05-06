@@ -1,9 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Video, Download, X } from 'lucide-react'
+import { Video, Download, X, LayoutGrid } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import VideoOptionsSheet from './VideoOptionsSheet'
+import CarouselSheet from './CarouselSheet'
+import FacebookSheet from './FacebookSheet'
 import VideoPreviewPlayer from './VideoPreviewPlayer'
 import RenderStatusBadge from './RenderStatusBadge'
 import SocialPostStatus from './SocialPostStatus'
@@ -11,7 +14,10 @@ import SocialPostStatus from './SocialPostStatus'
 interface VehicleVideoSectionProps {
   vehicleId: string
   vehicleLabel: string
-  photos: string[]
+  /** Same URLs as the listing gallery (`vehicle_photos`), maintained by `VehiclePhotos` */
+  listingPhotoUrls: string[]
+  /** Listing gallery fetch in progress — video picker waits for fresh URLs when true */
+  listingPhotosLoading?: boolean
 }
 
 interface RenderInfo {
@@ -32,11 +38,20 @@ function formatRelativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
-export default function VehicleVideoSection({ vehicleId, vehicleLabel, photos }: VehicleVideoSectionProps) {
-  const [showSheet, setShowSheet]     = useState(false)
+export default function VehicleVideoSection({
+  vehicleId,
+  vehicleLabel,
+  listingPhotoUrls,
+  listingPhotosLoading = false,
+}: VehicleVideoSectionProps) {
+  const [showSheet, setShowSheet]                 = useState(false)
+  const [showCarouselSheet, setShowCarouselSheet] = useState(false)
+  const [showFacebookSheet, setShowFacebookSheet] = useState(false)
   const [render, setRender]           = useState<RenderInfo | null>(null)
   const [loading, setLoading]         = useState(true)
   const [cancelling, setCancelling]   = useState(false)
+  const [socialLogRevision, setSocialLogRevision] = useState(0)
+  const [postingSocial, setPostingSocial] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -82,7 +97,7 @@ export default function VehicleVideoSection({ vehicleId, vehicleLabel, photos }:
 
   return (
     <>
-      <div className="border rounded-xl p-4 space-y-3">
+      <div className="space-y-3 px-4 pb-4 pt-1 sm:px-5 border-t-0">
         <div className="flex items-center justify-between">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Video</p>
           <div className="flex items-center gap-2">
@@ -96,7 +111,29 @@ export default function VehicleVideoSection({ vehicleId, vehicleLabel, photos }:
             <Button
               size="sm"
               variant="outline"
+              onClick={() => setShowFacebookSheet(true)}
+              className="flex items-center gap-1.5"
+              title="Post to Facebook"
+            >
+              <span className="h-3.5 w-3.5 rounded bg-[#1877F2] flex items-center justify-center text-white text-[9px] font-bold shrink-0">f</span>
+              Facebook
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowCarouselSheet(true)}
+              disabled={listingPhotosLoading || listingPhotoUrls.length === 0}
+              className="flex items-center gap-1.5"
+              title="Post Instagram Carousel"
+            >
+              <LayoutGrid className="h-3.5 w-3.5 text-pink-500" />
+              Carousel
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
               onClick={() => setShowSheet(true)}
+              disabled={listingPhotosLoading || listingPhotoUrls.length === 0}
               className="flex items-center gap-1.5"
             >
               <Video className="h-3.5 w-3.5" />
@@ -105,11 +142,22 @@ export default function VehicleVideoSection({ vehicleId, vehicleLabel, photos }:
           </div>
         </div>
 
-        {!loading && !render && (
+        {!loading && !render && listingPhotosLoading && (
+          <p className="text-sm text-muted-foreground">Loading listing photos for video selection…</p>
+        )}
+        {!loading && !render && !listingPhotosLoading && listingPhotoUrls.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            Create a branded video for this vehicle to share on social media.
+            Add photos above to create a video — clips use your website gallery images.
           </p>
         )}
+        {!loading &&
+          !render &&
+          !listingPhotosLoading &&
+          listingPhotoUrls.length > 0 && (
+            <p className="text-sm text-muted-foreground">
+              Use the gallery photos above as video clips. Tap Generate Video to choose order, template, and voice.
+            </p>
+          )}
 
         {render?.output_url && (
           <div className="space-y-3">
@@ -127,18 +175,53 @@ export default function VehicleVideoSection({ vehicleId, vehicleLabel, photos }:
               <Button
                 size="sm"
                 variant="outline"
+                disabled={postingSocial}
                 onClick={async () => {
-                  await fetch(`/api/vehicles/${vehicleId}/post`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ renderId: render.id }),
-                  })
+                  setPostingSocial(true)
+                  try {
+                    const res = await fetch(`/api/vehicles/${vehicleId}/post`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ renderId: render.id }),
+                    })
+                    let data: {
+                      ok?: boolean
+                      partial?: boolean
+                      failed?: boolean
+                      error?: string
+                      results?: { ok: boolean; message?: string; platform?: string }[]
+                    } = {}
+                    try {
+                      data = await res.json()
+                    } catch {
+                      // Ignore
+                    }
+                    if (!res.ok) {
+                      toast.error(typeof data.error === 'string' ? data.error : 'Could not post to social.')
+                      return
+                    }
+                    if (data.ok) {
+                      toast.success('Posted to your connected feeds.')
+                    } else if (data.partial) {
+                      toast.warning('Some platforms posted; check Social Posts below.')
+                    } else {
+                      const firstMsg =
+                        Array.isArray(data.results) &&
+                        typeof data.results[0]?.message === 'string'
+                          ? data.results[0].message
+                          : undefined
+                      toast.error(firstMsg ?? 'Nothing was posted — check Organization → Social posting.')
+                    }
+                    setSocialLogRevision(prev => prev + 1)
+                  } finally {
+                    setPostingSocial(false)
+                  }
                 }}
               >
-                Post to Social
+                {postingSocial ? 'Posting…' : 'Post to Social'}
               </Button>
             </div>
-            <SocialPostStatus vehicleId={vehicleId} />
+            <SocialPostStatus vehicleId={vehicleId} revision={socialLogRevision} />
           </div>
         )}
 
@@ -180,9 +263,28 @@ export default function VehicleVideoSection({ vehicleId, vehicleLabel, photos }:
         <VideoOptionsSheet
           vehicleId={vehicleId}
           vehicleLabel={vehicleLabel}
-          availablePhotos={photos}
+          availablePhotos={listingPhotoUrls}
           onClose={() => setShowSheet(false)}
           onRenderStarted={handleRenderStarted}
+        />
+      )}
+
+      {showCarouselSheet && (
+        <CarouselSheet
+          vehicleId={vehicleId}
+          vehicleLabel={vehicleLabel}
+          availablePhotos={listingPhotoUrls}
+          onClose={() => setShowCarouselSheet(false)}
+        />
+      )}
+
+      {showFacebookSheet && (
+        <FacebookSheet
+          vehicleId={vehicleId}
+          vehicleLabel={vehicleLabel}
+          availablePhotos={listingPhotoUrls}
+          existingVideoUrl={render?.status === 'complete' ? (render.output_url ?? null) : null}
+          onClose={() => setShowFacebookSheet(false)}
         />
       )}
     </>

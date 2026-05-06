@@ -66,13 +66,13 @@ describe('createClientForRequest', () => {
     expect(client).toEqual({ kind: 'scoped' })
   })
 
-  it('returns raw service role only for write-enabled remote admin sessions', async () => {
+  it('returns org-scoped impersonation client for write-enabled staff sessions (no service role)', async () => {
     getStaffSessionInfoMock.mockReturnValue({ orgId: 'org-admin', writeMode: true })
 
     const client = await createClientForRequest()
 
-    expect(createServiceClientMock).toHaveBeenCalledTimes(1)
-    expect(createScopedImpersonationClientMock).not.toHaveBeenCalled()
-    expect(client).toEqual({ kind: 'service' })
+    expect(createScopedImpersonationClientMock).toHaveBeenCalledWith('org-admin')
+    expect(createServiceClientMock).not.toHaveBeenCalled()
+    expect(client).toEqual({ kind: 'scoped' })
   })
 })

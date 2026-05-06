@@ -1,5 +1,5 @@
 import { requireProfile } from '@/lib/auth/profile'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import { isDealerAdmin } from '@/types/index'
 import { redirect } from 'next/navigation'
 import WebhooksClient from './WebhooksClient'
@@ -9,7 +9,7 @@ export default async function WebhooksPage() {
   const profile = await requireProfile()
   if (!isDealerAdmin(profile.role)) redirect('/settings')
 
-  const supabase = createServiceClient()
+  const supabase = await createClient()
   const { data: webhooks } = await supabase
     .from('org_webhooks')
     .select('id, url, events, active, created_at')

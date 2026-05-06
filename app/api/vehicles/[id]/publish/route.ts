@@ -4,10 +4,12 @@
  * Dealer admin only.
  */
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { isDealerAdmin } from '@/types/index'
 import { generatePublicSlug } from '@/lib/vdp/generateSlug'
+import { assertCanUseFeature, BillingError } from '@/lib/billing/assertFeature'
 
 export async function PATCH(
   req: NextRequest,
@@ -24,6 +26,17 @@ export async function PATCH(
 
   if (typeof published !== 'boolean') {
     return NextResponse.json({ error: 'published must be boolean' }, { status: 400 })
+  }
+
+  if (published === true) {
+    try {
+      await assertCanUseFeature(profile.org_id, 'public_website')
+    } catch (err) {
+      if (err instanceof BillingError) {
+        return NextResponse.json({ error: err.message }, { status: 402 })
+      }
+      throw err
+    }
   }
 
   // Auth client: RLS enforces org isolation for vehicle read and publish update.
@@ -65,5 +78,19 @@ export async function PATCH(
     return NextResponse.json({ error: 'Update failed' }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, public_slug: updates.public_slug ?? vehicle.public_slug })
+  const publicSlug = (updates.public_slug as string | undefined) ?? vehicle.public_slug ?? null
+  const { data: orgRow } = await supabase
+    .from('organizations')
+    .select('slug')
+    .eq('id', profile.org_id)
+    .maybeSingle()
+
+  if (orgRow?.slug) {
+    revalidatePath(`/${orgRow.slug}/inventory`, 'page')
+    if (publicSlug) {
+      revalidatePath(`/${orgRow.slug}/inventory/${publicSlug}`, 'page')
+    }
+  }
+
+  return NextResponse.json({ ok: true, public_slug: publicSlug })
 }

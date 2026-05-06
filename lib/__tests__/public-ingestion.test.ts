@@ -65,9 +65,9 @@ describe('web lead capture — happy path', () => {
     supabase._table('activities').then = vi.fn().mockImplementation((r: (v: unknown) => void) => r({ data: {}, error: null }))
   })
 
-  it('returns 200 with ok:true for valid submission', async () => {
+  it('returns 201 with ok:true for valid submission', async () => {
     const res = await POST(makeReq(VALID_BODY))
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(201)
     const json = await res.json() as { ok: boolean }
     expect(json.ok).toBe(true)
   })
@@ -104,8 +104,9 @@ describe('web lead capture — Zod validation', () => {
   it('returns 400 when name is missing', async () => {
     const res = await POST(makeReq({ slug: 'apollo-auto', phone: '5551234567' }))
     expect(res.status).toBe(400)
-    const json = await res.json() as { error: string; fields?: unknown[] }
+    const json = await res.json() as { error: string; fields?: Record<string, string> }
     expect(json.error).toBe('Validation failed')
+    expect(json.fields?.name).toBeDefined()
   })
 
   it('returns 400 when slug is missing', async () => {

@@ -16,7 +16,6 @@ import PulseScoreWidget from '@/components/today/PulseScoreWidget'
 import type { UpcomingAppointmentItem } from '@/components/appointments/UpcomingAppointmentsList'
 import { fetchAtRiskLeads } from '@/lib/today/atRisk'
 import { detectTakeoverSignal } from '@/lib/today/takeoverDetector'
-
 export default async function TodayPage({
   searchParams,
 }: {
@@ -62,10 +61,16 @@ export default async function TodayPage({
 
   // Filter out activities whose customer join returned null (orphaned activities)
   // Hide addressed cards until next day or follow-up due date
+  // Deduplicate: show only one card per customer (most recent inbound — query is DESC)
   const todayRef = new Date(renderNow)
-  const safeNewLeads = (newLeads || []).filter(
-    a => a.customer != null && !(a.customer as { archived?: boolean | null }).archived && shouldShowAddressedActivity(a, todayRef)
-  )
+  const seenLeadCustomers = new Set<string>()
+  const safeNewLeads = (newLeads || []).filter(a => {
+    if (a.customer == null || (a.customer as { archived?: boolean | null }).archived) return false
+    if (!shouldShowAddressedActivity(a, todayRef)) return false
+    if (a.customer_id && seenLeadCustomers.has(a.customer_id)) return false
+    if (a.customer_id) seenLeadCustomers.add(a.customer_id)
+    return true
+  })
 
   const { data: tasksRaw } = await supabase
     .from('activities')

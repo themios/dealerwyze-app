@@ -52,10 +52,12 @@ const _orgAiBrief       = makeLimiter(redis, { requests: 10,  windowSeconds: 864
 const _orgReceiptScan   = makeLimiter(redis, { requests: 25,  windowSeconds: 86400 })  // Anthropic receipt OCR
 const _orgDocSummarize  = makeLimiter(redis, { requests: 10,  windowSeconds: 86400 })  // Anthropic vehicle doc
 const _orgContactScan   = makeLimiter(redis, { requests: 20,  windowSeconds: 86400 })  // Anthropic contact card
-const _orgDataExport    = makeLimiter(redis, { requests: 1,   windowSeconds: 86400 })  // Full ZIP export
+/** Full ZIP export — one per org per hour (distributed via Upstash; replaces legacy in-memory Map). */
+const _orgExport        = makeLimiter(redis, { requests: 1,   windowSeconds: 3600 })
 const _orgTodayAction   = makeLimiter(redis, { requests: 60,  windowSeconds: 60 })
 const _orgTodayBulk     = makeLimiter(redis, { requests: 10,  windowSeconds: 60 })
 const _orgLostLeadExport = makeLimiter(redis, { requests: 1, windowSeconds: 60 })
+const _orgSocialPost    = makeLimiter(redis, { requests: 40, windowSeconds: 3600 })
 
 async function check(
   limiter: Ratelimit | null,
@@ -100,11 +102,14 @@ export const orgDocSummarizeLimiter = (orgId: string) => check(_orgDocSummarize,
 /** 20 contact card AI scans per org per day. */
 export const orgContactScanLimiter  = (orgId: string) => check(_orgContactScan,  `org:${orgId}:contact`)
 
-/** One full dealership export ZIP per org per day. */
-export const orgDataExportLimiter   = (orgId: string) => check(_orgDataExport,   `org:${orgId}:dataexport`)
+/** One full dealership export ZIP per org per hour. */
+export const orgExportLimiter = (orgId: string) => check(_orgExport, `org:${orgId}:export`)
 export const orgTodayActionLimiter  = (orgId: string) => check(_orgTodayAction,  `org:${orgId}:todayaction`)
 export const orgTodayBulkLimiter    = (orgId: string) => check(_orgTodayBulk,    `org:${orgId}:todaybulk`)
 export const orgLostLeadExportLimiter = (orgId: string) => check(_orgLostLeadExport, `org:${orgId}:lostleadexport`)
+
+/** ~40 Meta listing/video publish attempts per org per hour — abuse / incident containment. */
+export const orgSocialPostLimiter = (orgId: string) => check(_orgSocialPost, `org:${orgId}:socialpost`)
 
 // Temp media uploads (MMS attachments from device) — 20 per hour per org
 const _orgTempUploadLimiter = makeLimiter(redis, { requests: 20, windowSeconds: 3600 })

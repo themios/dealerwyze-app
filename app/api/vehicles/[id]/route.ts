@@ -3,11 +3,15 @@ import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 import { canAccessLedger } from '@/lib/auth/dealerRoles'
 import type { UserRole } from '@/types/index'
+import { emitEvent } from '@/lib/intelligence/emitEvent'
 
 const EDITABLE_FIELDS = [
   'stock_no', 'year', 'make', 'model', 'trim', 'color',
   'mileage', 'price', 'vin', 'status', 'notes', 'listing_url', 'body_style',
 ] as const
+
+const MAX_AI_DESCRIPTION = 24_000
+const MAX_OVERVIEW_ENRICHMENT = 32_000
 
 export async function PATCH(
   req: NextRequest,
@@ -25,6 +29,28 @@ export async function PATCH(
   const patch: Record<string, unknown> = {}
   for (const field of EDITABLE_FIELDS) {
     if (field in body) patch[field] = body[field]
+  }
+
+  if ('ai_description' in body) {
+    const v = body.ai_description
+    if (v !== null && typeof v !== 'string') {
+      return NextResponse.json({ error: 'Invalid ai_description' }, { status: 400 })
+    }
+    if (typeof v === 'string' && v.length > MAX_AI_DESCRIPTION) {
+      return NextResponse.json({ error: 'Overview is too long' }, { status: 400 })
+    }
+    patch.ai_description = v === null || v === '' ? null : v
+  }
+
+  if ('overview_enrichment_text' in body) {
+    const v = body.overview_enrichment_text
+    if (v !== null && typeof v !== 'string') {
+      return NextResponse.json({ error: 'Invalid overview_enrichment_text' }, { status: 400 })
+    }
+    if (typeof v === 'string' && v.length > MAX_OVERVIEW_ENRICHMENT) {
+      return NextResponse.json({ error: 'Reference notes are too long' }, { status: 400 })
+    }
+    patch.overview_enrichment_text = v === null || v === '' ? null : v
   }
 
   if (typeof patch.vin === 'string') {
@@ -51,6 +77,17 @@ export async function PATCH(
 
   if (error || !vehicle) {
     return NextResponse.json({ error: 'Update failed' }, { status: 400 })
+  }
+
+  if (patch.status === 'sold') {
+    emitEvent({
+      orgId:      profile.org_id,
+      eventType:  'vehicle_sold',
+      entityType: 'vehicle',
+      entityId:   id,
+      actorId:    profile.id,
+      metadata:   { price: patch.price ?? null },
+    }).catch(() => {})
   }
 
   return NextResponse.json({ ok: true })

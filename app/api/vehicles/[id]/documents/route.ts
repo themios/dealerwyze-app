@@ -6,6 +6,7 @@ import { getOrgStorageQuota, checkFreeTierAttachmentLimit } from '@/lib/storage/
 import { summarizeVehicleDoc } from '@/lib/voice/summarizeVehicleDoc'
 import { orgDocSummarizeLimiter } from '@/lib/rateLimit/upstash'
 import { VehicleDocument } from '@/types'
+import { recomputeVehicleVoiceSummary } from '@/lib/vehicles/recomputeVoiceSummary'
 
 export const maxDuration = 60 // allow time for AI summarization
 
@@ -17,6 +18,8 @@ const ALLOWED_TYPES = new Set([
   'image/webp',
   'application/pdf',
 ])
+
+// Storage: service role required — Supabase Storage ignores session-level RLS
 
 function sanitizeFilename(name: string): string {
   return name
@@ -34,7 +37,6 @@ export async function GET(
   const profile = await requireProfile()
   // Auth client: RLS enforces org isolation for the vehicle_documents DB query.
   const supabase = await createClient()
-  // Service client: Supabase Storage requires service key to generate signed URLs outside of RLS.
   const storage = createServiceClient()
 
   const { data: docs, error } = await supabase
@@ -82,7 +84,6 @@ export async function POST(
     const profile = await requireProfile()
     // Auth client: RLS enforces org isolation for all vehicle_documents and vehicles DB operations.
     const supabase = await createClient()
-    // Service client: Supabase Storage does not respect session-level RLS — service key required for uploads and signed URL generation.
     const storage = createServiceClient()
 
     let formData: FormData
@@ -94,6 +95,8 @@ export async function POST(
 
     const file  = formData.get('file')
     const label = formData.get('label')
+    const scopeRaw = formData.get('document_scope')
+    const document_scope = scopeRaw === 'inventory' ? 'inventory' : 'website'
 
     if (!(file instanceof File)) {
       return NextResponse.json({ error: 'file field is required' }, { status: 400 })
@@ -155,11 +158,12 @@ export async function POST(
       return NextResponse.json({ error: 'Storage upload failed', detail: storageError.message }, { status: 500 })
     }
 
-    // AI summarize (best-effort, rate-limited to 10/day per org)
+    // AI summarize only for customer/website docs (listing context). Private inventory files are not sent to summarization.
     const { allowed: canSummarize } = await orgDocSummarizeLimiter(profile.org_id)
-    const ai_summary = canSummarize
-      ? await summarizeVehicleDoc(file_key, BUCKET, file.type)
-      : null
+    const ai_summary =
+      document_scope === 'website' && canSummarize
+        ? await summarizeVehicleDoc(file_key, BUCKET, file.type)
+        : null
 
     const { data: doc, error: dbError } = await supabase
       .from('vehicle_documents')
@@ -172,6 +176,7 @@ export async function POST(
         file_size:  file.size,
         mime_type:  file.type,
         ai_summary,
+        document_scope,
       })
       .select('*')
       .single()
@@ -183,25 +188,7 @@ export async function POST(
       return NextResponse.json({ error: 'Failed to save document record' }, { status: 500 })
     }
 
-    // Recompute voice_summary = concat of all doc ai_summaries for this vehicle
-    const { data: allDocs } = await supabase
-      .from('vehicle_documents')
-      .select('label, ai_summary')
-      .eq('vehicle_id', vehicleId)
-      .eq('user_id', profile.org_id)
-      .not('ai_summary', 'is', null)
-
-    if (allDocs && allDocs.length > 0) {
-      const voice_summary = allDocs
-        .map(d => `[${d.label}]\n${d.ai_summary}`)
-        .join('\n\n')
-
-      await supabase
-        .from('vehicles')
-        .update({ voice_summary })
-        .eq('id', vehicleId)
-        .eq('user_id', profile.org_id)
-    }
+    await recomputeVehicleVoiceSummary(supabase, vehicleId, profile.org_id)
 
     const { data: signed } = await storage.storage
       .from(BUCKET)

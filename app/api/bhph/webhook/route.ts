@@ -10,11 +10,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getOrgIdByPhone } from '@/lib/orgs/lookup'
+import { sendTwilioSms, toE164Us } from '@/lib/bhph/twilioOutbound'
 import crypto from 'crypto'
 
 const STOP_KEYWORDS  = ['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT']
 const START_KEYWORDS = ['START', 'UNSTOP', 'YES']
 const HELP_KEYWORDS  = ['HELP', 'INFO']
+
+/** Inbound keywords: customer says they sent Zelle/Venmo/Cash App payment */
+const PAID_KEYWORDS = ['PAID', 'PAID!', 'I PAID', 'SENT']
+
+function isPaidKeyword(raw: string): boolean {
+  const norm = raw.replace(/\s+/g, ' ').trim().toUpperCase()
+  return PAID_KEYWORDS.includes(norm)
+}
+
+function escapeXml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
 
 function validateTwilioSignature(
   authToken: string,
@@ -44,7 +61,8 @@ export async function POST(req: NextRequest) {
   }
   const from = params.get('From') ?? ''
   const to   = params.get('To')   ?? ''
-  const msgBody = (params.get('Body') ?? '').trim().toUpperCase()
+  const rawMsg = (params.get('Body') ?? '').trim()
+  const msgBody = rawMsg.toUpperCase()
 
   if (!from) {
     return new NextResponse('<?xml version="1.0"?><Response/>', {
@@ -108,6 +126,114 @@ export async function POST(req: NextRequest) {
     twiml = `<Response>
   <Message>Payment reminders only. Approx 4-6 msg/month. Msg&amp;data rates may apply. STOP to cancel.</Message>
 </Response>`
+
+  } else if (isPaidKeyword(rawMsg)) {
+    const { data: customers } = await service
+      .from('customers')
+      .select('id, name')
+      .eq('user_id', orgId)
+      .or(`primary_phone.ilike.%${digits.slice(-10)}%,secondary_phone.ilike.%${digits.slice(-10)}%`)
+
+    const customerIds = customers?.map(c => c.id as string) ?? []
+
+    const { data: bhphRows } = customerIds.length
+      ? await service
+        .from('bhph_payments')
+        .select(`
+          id, user_id, customer_id, monthly_payment,
+          customer:customers(name),
+          vehicle:vehicles(year, make, model)
+        `)
+        .eq('user_id', orgId)
+        .eq('status', 'active')
+        .in('customer_id', customerIds)
+        .order('next_due_date', { ascending: true })
+        .limit(1)
+      : { data: null }
+
+    const bhph = bhphRows?.[0] as {
+      id: string
+      monthly_payment: number
+      customer_id: string
+      customer: { name?: string } | { name?: string }[] | null
+      vehicle: { year: number; make: string; model: string } | { year: number; make: string; model: string }[] | null
+    } | undefined
+
+    const { data: orgSettings } = await service
+      .from('org_settings')
+      .select('dealer_cell_number, business_phone, business_name')
+      .eq('org_id', orgId)
+      .maybeSingle()
+
+    const dealerName = (orgSettings?.business_name as string | null) ?? 'the dealership'
+    const settingsPhone =
+      (orgSettings?.dealer_cell_number as string | null)?.trim() ||
+      (orgSettings?.business_phone as string | null)?.trim() ||
+      ''
+    const dealerPhoneDisplay =
+      settingsPhone || process.env.DEALER_PHONE || process.env.DEALERSHIP_PHONE || 'the dealership'
+
+    if (!bhph) {
+      twiml = `<Response>
+  <Message>${escapeXml(
+    `We couldn't find an active payment account for this number. Please call ${dealerPhoneDisplay} for assistance. Reply STOP to opt out.`,
+  )}</Message>
+</Response>`
+    } else {
+      const nowIso = new Date().toISOString()
+      const monthly = Number(bhph.monthly_payment)
+      await service
+        .from('bhph_payments')
+        .update({
+          pending_manual_payment_at: nowIso,
+          pending_manual_payment_amount: monthly,
+        })
+        .eq('id', bhph.id)
+        .eq('user_id', orgId)
+
+      const rawCust = bhph.customer as unknown
+      const custName = (Array.isArray(rawCust) ? rawCust[0] : rawCust) as { name?: string } | null
+      const rawVeh = bhph.vehicle as unknown
+      const veh = (Array.isArray(rawVeh) ? rawVeh[0] : rawVeh) as { year: number; make: string; model: string } | null
+      const vehicleLabel = veh ? `${veh.year} ${veh.make} ${veh.model}` : 'vehicle'
+      const firstName = (custName?.name ?? 'there').split(/\s+/)[0] ?? 'there'
+
+      twiml = `<Response>
+  <Message>${escapeXml(
+    `Thanks ${firstName}! We received your message. Your payment will be confirmed by ${dealerName} within 24 hours. Reply STOP to opt out.`,
+  )}</Message>
+</Response>`
+
+      const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://dealerwyze.com'
+      const confirmLink = `${base}/bhph/${bhph.id}?confirm_payment=1`
+      const custDisplay = custName?.name ?? 'A customer'
+      const dealerSmsBody =
+        `${custDisplay} says they paid their ${vehicleLabel} payment of $${monthly.toFixed(2)} via Zelle/Venmo/Cash App. Tap to confirm: ${confirmLink}`
+
+      const rawDealerPhone =
+        (orgSettings?.dealer_cell_number as string | null)?.trim() ||
+        (orgSettings?.business_phone as string | null)?.trim()
+
+      if (rawDealerPhone) {
+        const toDealer = toE164Us(rawDealerPhone)
+        if (toDealer) {
+          void sendTwilioSms(toDealer, dealerSmsBody).then(r => {
+            if (!r.ok) console.error('[bhph/webhook] dealer notify PAID', r.error)
+          })
+        }
+      } else {
+        await service.from('activities').insert({
+          user_id: orgId,
+          customer_id: bhph.customer_id,
+          type: 'note',
+          direction: 'inbound',
+          body:
+            `BHPH: ${custDisplay} replied PAID for ${vehicleLabel} ($${monthly.toFixed(2)}). Dealer SMS skipped (no phone on file). Confirm: ${confirmLink}`,
+          priority: 'high',
+          completed_at: new Date().toISOString(),
+        })
+      }
+    }
   }
 
   return new NextResponse(twiml, {

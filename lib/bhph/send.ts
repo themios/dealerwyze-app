@@ -4,7 +4,14 @@
  * and email via Resend (optional — only if RESEND_API_KEY is set).
  */
 import { createServiceClient } from '@/lib/supabase/service'
-import { ReminderType, buildSmsMessage, buildEmailSubject, buildEmailBody, MessageVars } from './messages'
+import {
+  ReminderType,
+  buildSmsMessage,
+  buildTwoTierSmsMessage,
+  buildEmailSubject,
+  buildEmailBody,
+  MessageVars,
+} from './messages'
 import { isWithinSendHours } from './schedule'
 import { getOrCreatePaymentToken, buildPayUrl } from './paymentToken'
 import { getTwilioWebhookBase } from '@/lib/twilio/signature'
@@ -15,6 +22,16 @@ interface SendResult {
   twilioSid?: string
   errorCode?: number
   errorMessage?: string
+}
+
+export type BhphReminderTwoTier = {
+  achVerified: boolean
+  achSetupUrl: string | null
+  achPromptsEnabled: boolean
+  manualInstructionsEnabled: boolean
+  zelle: string | null
+  venmo: string | null
+  cashapp: string | null
 }
 
 export async function sendBhphReminder(params: {
@@ -30,18 +47,22 @@ export async function sendBhphReminder(params: {
   dealerTimezone: string
   dealerPhone: string
   messageVars: MessageVars
-  amount?: number  // used to generate payment link for due_day
+  amount?: number  // used to generate payment link when not prebuilt
+  /** Pre-created card pay URL + token row (cron two-tier); overrides due_day-only token creation */
+  paymentUrl?: string | null
+  paymentTokenId?: string | null
+  twoTier?: BhphReminderTwoTier | null
 }): Promise<SendResult> {
   const {
     bhphId, userId, customerId, customerPhone, customerEmail,
     customerSmsOptedOut, smsConsent, emailConsent, reminderType, dealerTimezone,
-    messageVars, amount,
+    messageVars, amount, twoTier,
   } = params
 
-  // For due_day reminders, try to attach a Stripe payment link
-  let paymentUrl: string | null = null
-  let paymentTokenId: string | null = null
-  if (reminderType === 'due_day' && amount) {
+  let paymentUrl: string | null = params.paymentUrl ?? null
+  let paymentTokenId: string | null = params.paymentTokenId ?? null
+
+  if (!paymentUrl && reminderType === 'due_day' && amount) {
     const token = await getOrCreatePaymentToken({
       orgId: userId, customerId, bhphContractId: bhphId, amount,
     }).catch(() => null)
@@ -49,6 +70,37 @@ export async function sendBhphReminder(params: {
       paymentTokenId = token.id
       paymentUrl = buildPayUrl(token.token)
     }
+  }
+
+  const extendedVars: MessageVars = {
+    ...messageVars,
+    ...(twoTier
+      ? {
+          paymentLink: paymentUrl ?? undefined,
+          achSetupLink: twoTier.achSetupUrl ?? undefined,
+          achVerified: twoTier.achVerified,
+          achPromptsEnabled: twoTier.achPromptsEnabled,
+          manualInstructionsEnabled: twoTier.manualInstructionsEnabled,
+          zelle: twoTier.zelle ?? undefined,
+          venmo: twoTier.venmo ?? undefined,
+          cashapp: twoTier.cashapp ?? undefined,
+        }
+      : {}),
+  }
+
+  const useTwoTier =
+    !!twoTier &&
+    (twoTier.achVerified ||
+      !!(paymentUrl?.trim()) ||
+      !!(twoTier.achSetupUrl?.trim() && twoTier.achPromptsEnabled !== false))
+
+  let smsBody: string
+  if (useTwoTier) {
+    smsBody = buildTwoTierSmsMessage(reminderType, extendedVars)
+  } else if (paymentUrl) {
+    smsBody = `${buildSmsMessage(reminderType, messageVars)}\nPay online: ${paymentUrl}`
+  } else {
+    smsBody = buildSmsMessage(reminderType, messageVars)
   }
 
   const service = createServiceClient()
@@ -70,8 +122,6 @@ export async function sendBhphReminder(params: {
     } else {
       const digits = customerPhone.replace(/\D/g, '')
       const to = digits.length === 10 ? `+1${digits}` : `+${digits}`
-      const baseBody = buildSmsMessage(reminderType, messageVars)
-      const smsBody = paymentUrl ? `${baseBody}\nPay online: ${paymentUrl}` : baseBody
 
       try {
         const twilioRes = await fetch(
@@ -96,7 +146,6 @@ export async function sendBhphReminder(params: {
           result.sms = 'sent'
           result.twilioSid = twilioData.sid
 
-          // Log as activity
           await service.from('activities').insert({
             user_id: userId,
             customer_id: customerId,
@@ -111,7 +160,6 @@ export async function sendBhphReminder(params: {
           result.errorCode = twilioData.code
           result.errorMessage = twilioData.message
 
-          // Error 21610 = recipient opted out via STOP to Twilio
           if (twilioData.code === 21610) {
             await service
               .from('customers')
@@ -166,7 +214,8 @@ export async function sendBhphReminder(params: {
     }
   }
 
-  // ── Log to payment_reminder_log ──────────────────────────────────────────────
+  const logSmsBody = smsBody
+
   await service.from('payment_reminder_log').insert([
     ...(twilioSid ? [{
       user_id: userId,
@@ -180,7 +229,7 @@ export async function sendBhphReminder(params: {
       error_code: result.errorCode ?? null,
       error_message: result.errorMessage ?? null,
       delivery_status: result.twilioSid ? 'queued' : null,
-      message_body: paymentUrl ? `${buildSmsMessage(reminderType, messageVars)}\nPay online: ${paymentUrl}` : buildSmsMessage(reminderType, messageVars),
+      message_body: logSmsBody,
       scheduled_for: new Date().toISOString(),
       sent_at: result.sms === 'sent' ? new Date().toISOString() : null,
     }] : []),

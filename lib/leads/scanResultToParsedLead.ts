@@ -15,19 +15,17 @@ function extractEmail(value: string | null | undefined): string {
   return match?.[0]?.toLowerCase() ?? ''
 }
 
-function normalizeScannedPhone(value: string | null | undefined): string {
-  const raw = cleanInline(value)
-  if (!raw) return ''
-  const digits = normalizePhone(raw)
-  return digits.length === 10 ? digits : raw
-}
-
 export function scanResultToParsedLead(scan: LeadScanResult): ParsedLead {
   const firstName = cleanInline(scan.first_name.value)
   const lastName = cleanInline(scan.last_name.value)
   const name = `${firstName} ${lastName}`.trim() || 'Unknown'
   const email = extractEmail(scan.email.value)
-  const phone = normalizeScannedPhone(scan.phone.value)
+  // Only persist digits that form a valid 10-digit US number. Never put `name` in `phone`:
+  // ingest dedupes by normalizePhone(lead.phone); a bogus "phone" of the person's name
+  // normalizes to "" and falsely matches every customer with a blank phone.
+  const rawPhone = cleanInline(scan.phone.value)
+  const phoneDigits = normalizePhone(rawPhone)
+  const phone = phoneDigits.length === 10 ? phoneDigits : ''
   const zip = cleanInline(scan.zip.value)
   const vin = cleanInline(scan.vehicle_vin.value).toUpperCase()
 
@@ -58,7 +56,7 @@ export function scanResultToParsedLead(scan: LeadScanResult): ParsedLead {
   return {
     name,
     email,
-    phone: phone || (email ? name : ''),
+    phone,
     zip,
     vehicle: vehicleParts,
     vin,
@@ -68,3 +66,4 @@ export function scanResultToParsedLead(scan: LeadScanResult): ParsedLead {
     raw_text: '[scanned]',
   }
 }
+

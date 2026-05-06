@@ -1,4 +1,4 @@
-import { createServiceClient } from '@/lib/supabase/service'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { VehicleVideoProps, OrgVideoSettings, VideoTemplate } from './types'
 import { checkRenderQuota } from './quotaCheck'
 import { selectPhotos, selectTemplate, selectVoice } from './selectDefaults'
@@ -14,11 +14,17 @@ interface RenderRequest {
   voice?: string
   autoPost?: boolean
   platforms?: string[]
+  /** Optional dealer-written narration script. Skips AI script generation when provided. */
+  customScript?: string
 }
 
+/**
+ * Returned as soon as the `video_renders` row exists (`status: queued` in DB).
+ * Narration + Lambda run in the background; poll GET `/api/vehicles/[id]/render` for `rendering` / completion.
+ */
 interface RenderResult {
   renderId: string
-  status: 'queued' | 'rendering'
+  status: 'queued'
 }
 
 type VideoRenderUpdate = {
@@ -26,11 +32,9 @@ type VideoRenderUpdate = {
   props_snapshot: VehicleVideoProps
 }
 
-export async function renderVehicleVideo(req: RenderRequest): Promise<RenderResult> {
-  const supabase = createServiceClient()
-
+export async function renderVehicleVideo(supabase: SupabaseClient, req: RenderRequest): Promise<RenderResult> {
   // 1. Check quota (throws QuotaError if over limit)
-  await checkRenderQuota(req.orgId)
+  await checkRenderQuota(supabase, req.orgId)
 
   // 2. Fetch vehicle
   const { data: vehicle, error: vehicleError } = await supabase
@@ -136,6 +140,9 @@ export async function renderVehicleVideo(req: RenderRequest): Promise<RenderResu
     showWatermark: videoSettings?.watermark_enabled ?? true,
   }
 
+  // Sanitise custom script — strip leading/trailing whitespace, enforce 1500-char max.
+  const customScript = req.customScript?.trim().slice(0, 1500) || undefined
+
   // 9. Create video_renders row first so it always exists
   const { data: render, error: renderError } = await supabase
     .from('video_renders')
@@ -153,6 +160,7 @@ export async function renderVehicleVideo(req: RenderRequest): Promise<RenderResu
       voice_name:           selectedVoice,
       auto_post:            req.autoPost ?? false,
       auto_post_platforms:  req.platforms ?? [],
+      custom_script:        customScript ?? null,
     })
     .select('id')
     .single()
@@ -163,67 +171,69 @@ export async function renderVehicleVideo(req: RenderRequest): Promise<RenderResu
 
   const renderId = render.id
 
-  // 10. Generate narration (after DB row created so failures don't block record creation)
-  let narrationUrl = ''
-  try {
-    narrationUrl = await generateVehicleNarrationWithVoice(
-      req.orgId,
-      req.vehicleId,
-      propsSnapshot,
-      selectedVoice,
-    )
-  } catch (err) {
-    console.error('[renderVehicleVideo] Narration generation failed:', err)
-  }
-
-  if (narrationUrl) {
-    propsSnapshot.narrationUrl = narrationUrl
-    await supabase
-      .from('video_renders')
-      .update({ narration_url: narrationUrl, props_snapshot: propsSnapshot } satisfies VideoRenderUpdate)
-      .eq('id', renderId)
-  }
-
-  // 11. Trigger Remotion Lambda (if configured)
   const lambdaFunctionName = process.env.REMOTION_LAMBDA_FUNCTION_NAME
-  const awsRegion          = (process.env.AWS_REGION ?? 'us-east-1') as AwsRegion
-  const serveUrl           = process.env.REMOTION_SERVE_URL
+  const awsRegion = (process.env.AWS_REGION ?? 'us-east-1') as AwsRegion
+  const serveUrl = process.env.REMOTION_SERVE_URL
 
-  if (lambdaFunctionName && serveUrl) {
-    try {
-      const lambdaResult = await renderMediaOnLambda({
-        region: awsRegion,
-        functionName:  lambdaFunctionName,
-        serveUrl,
-        composition:   selectedTemplate.composition_id,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        inputProps:    propsSnapshot as any,
-        codec:         'h264',
-        imageFormat:   'jpeg',
-        maxRetries:    1,
-        framesPerLambda: 120, // ~11 render workers + 1 orchestrator (Lambda limit raised to 1000)
-        privacy:       'public',
-        outName:       `videos/${req.orgId}/${req.vehicleId}/${renderId}.mp4`,
-        webhook: process.env.NEXT_PUBLIC_APP_URL
-          ? {
-              url:    `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/render-complete`,
-              secret: process.env.RENDER_WEBHOOK_SECRET ?? '',
-            }
-          : undefined,
-      })
+  // Return the renderId immediately — narration and Lambda run async (same invocation lifetime on Vercel).
+  const backgroundWork = async () => {
+    const [narrationUrl] = await Promise.all([
+      generateVehicleNarrationWithVoice(
+        req.orgId,
+        req.vehicleId,
+        propsSnapshot,
+        selectedVoice,
+        customScript,
+      ).catch((err: unknown) => {
+        console.error('[renderVehicleVideo] Narration failed:', err)
+        return ''
+      }),
+    ])
 
-      // Update with Lambda render ID
+    if (narrationUrl) {
+      propsSnapshot.narrationUrl = narrationUrl
       await supabase
         .from('video_renders')
-        .update({ status: 'rendering', lambda_render_id: lambdaResult.renderId })
+        .update({ narration_url: narrationUrl, props_snapshot: propsSnapshot } satisfies VideoRenderUpdate)
         .eq('id', renderId)
+    }
 
-      return { renderId, status: 'rendering' }
-    } catch (err) {
-      console.error('[renderVehicleVideo] Lambda trigger failed:', err)
-      // Fall through to queued state — will need manual retry
+    // Trigger Lambda after narration (Lambda needs narrationUrl in props when available).
+    if (lambdaFunctionName && serveUrl) {
+      try {
+        propsSnapshot.narrationUrl = narrationUrl || undefined
+        const lambdaResult = await renderMediaOnLambda({
+          region: awsRegion,
+          functionName: lambdaFunctionName,
+          serveUrl,
+          composition: selectedTemplate.composition_id,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          inputProps: propsSnapshot as any,
+          codec: 'h264',
+          imageFormat: 'jpeg',
+          maxRetries: 1,
+          framesPerLambda: 120, // ~11 render workers + 1 orchestrator (Lambda limit raised to 1000)
+          privacy: 'public',
+          outName: `videos/${req.orgId}/${req.vehicleId}/${renderId}.mp4`,
+          webhook: process.env.NEXT_PUBLIC_APP_URL
+            ? {
+                url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/render-complete`,
+                secret: process.env.RENDER_WEBHOOK_SECRET ?? '',
+              }
+            : undefined,
+        })
+
+        await supabase
+          .from('video_renders')
+          .update({ status: 'rendering', lambda_render_id: lambdaResult.renderId })
+          .eq('id', renderId)
+      } catch (err) {
+        console.error('[renderVehicleVideo] Lambda trigger failed:', err)
+      }
     }
   }
+
+  void backgroundWork()
 
   return { renderId, status: 'queued' }
 }

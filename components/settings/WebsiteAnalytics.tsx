@@ -58,7 +58,7 @@ export default async function WebsiteAnalytics() {
         <div className="bg-muted/50 rounded-lg p-3 text-center">
           <div className="flex items-center justify-center gap-1">
             <Eye className="h-4 w-4 text-muted-foreground" />
-            <p className="text-2xl font-bold">{totalViews.toLocaleString()}</p>
+            <p className="text-2xl font-bold">{totalViews.toLocaleString('en-US')}</p>
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">Total views</p>
         </div>
@@ -84,7 +84,7 @@ export default async function WebsiteAnalytics() {
                   <p className="text-sm font-medium truncate">{v.year} {v.make} {v.model}</p>
                   <div className="flex items-center gap-1 shrink-0 ml-2 text-muted-foreground">
                     <Eye className="h-3.5 w-3.5" />
-                    <span className="text-sm">{(v.views_count ?? 0).toLocaleString()}</span>
+                    <span className="text-sm">{(v.views_count ?? 0).toLocaleString('en-US')}</span>
                   </div>
                 </Link>
               ))}

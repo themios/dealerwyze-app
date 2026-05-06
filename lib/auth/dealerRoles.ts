@@ -7,6 +7,11 @@ export function canManageUsers(role: UserRole): boolean {
   return isDealerAdmin(role)
 }
 
+/** Dealer org security audit (Phase 5 `audit_log`) — admin + manager only */
+export function canViewDealerSecurityAudit(role: UserRole): boolean {
+  return isDealerAdmin(role) || role === 'dealer_manager'
+}
+
 export function canAccessBilling(role: UserRole): boolean {
   return isDealerAdmin(role)
 }

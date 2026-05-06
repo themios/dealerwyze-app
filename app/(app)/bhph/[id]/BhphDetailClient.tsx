@@ -1,19 +1,36 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, useTransition } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetFooter,
+} from '@/components/ui/sheet'
 import TopBar from '@/components/layout/TopBar'
-import { nextDueDate } from '@/lib/bhph/schedule'
 import type { PaymentFrequency } from '@/lib/bhph/schedule'
+import type { BhphPaymentLedgerEntry } from '@/types/index'
 import DeferredPaymentManager, { type DeferredPaymentRow } from './DeferredPaymentManager'
 import {
   CheckCircle, AlertTriangle, ChevronLeft, Phone, Mail,
-  History, Link2, DollarSign, MoreVertical,
+  History, Link2, DollarSign, MoreVertical, ChevronDown,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -33,7 +50,17 @@ interface Account {
   notes: string | null
   status: string
   customer_email: string | null
-  customer: { id: string; name: string; primary_phone: string; email: string | null; sms_opted_out: boolean } | null
+  interest_rate?: number
+  principal_balance?: number | null
+  total_interest_paid?: number
+  last_payment_date?: string | null
+  payment_method_type?: string | null
+  bank_verification_status?: string | null
+  stripe_payment_method_id?: string | null
+  pending_manual_payment_at?: string | null
+  pending_manual_payment_amount?: number | null
+  manual_payment_confirmed_at?: string | null
+  customer: { id: string; name: string; primary_phone: string; email: string | null; sms_opt_out: boolean } | null
   vehicle: { id: string; year: number; make: string; model: string; stock_no: string | null; vin: string | null } | null
 }
 
@@ -55,6 +82,12 @@ interface Props {
   account: Account
   reminderLog: ReminderLog[]
   deferredPayments: DeferredPaymentRow[]
+  canRecordManualPayment: boolean
+  defaultAchMethod?: {
+    bank_name: string | null
+    last4: string | null
+    verification_status: string
+  } | null
 }
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -62,6 +95,20 @@ interface Props {
 function fmt(n: number | null | undefined) {
   if (n == null) return '—'
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function formatAprRate(rate: number | undefined) {
+  if (rate == null || rate <= 0) return 'None'
+  const pct = rate * 100
+  return `${pct.toFixed(2)}% APR`
+}
+
+function localTodayYmd() {
+  const d = new Date()
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
 function formatDate(dateStr: string) {
@@ -116,6 +163,42 @@ function deriveReminderOutcome(log: ReminderLog) {
   return log.status
 }
 
+function truncNote(s: string | null, max: number) {
+  if (!s) return '—'
+  const t = s.trim()
+  if (t.length <= max) return t
+  return `${t.slice(0, max)}…`
+}
+
+function ledgerTypeLabel(t: string) {
+  switch (t) {
+    case 'regular': return 'Regular'
+    case 'partial': return 'Partial'
+    case 'extra': return 'Extra'
+    case 'payoff': return 'Payoff'
+    case 'failed_ach': return 'Failed ACH'
+    case 'manual': return 'Manual (P2P)'
+    default: return t
+  }
+}
+
+function ledgerTypeBadgeClass(t: string) {
+  switch (t) {
+    case 'payoff':
+      return 'bg-violet-500/15 text-violet-700 dark:text-violet-300'
+    case 'partial':
+      return 'bg-amber-500/15 text-amber-800 dark:text-amber-300'
+    case 'extra':
+      return 'bg-sky-500/15 text-sky-800 dark:text-sky-300'
+    case 'failed_ach':
+      return 'bg-red-500/15 text-red-700 dark:text-red-400'
+    case 'manual':
+      return 'bg-teal-500/15 text-teal-800 dark:text-teal-300'
+    default:
+      return 'bg-muted text-muted-foreground'
+  }
+}
+
 /**
  * Reconstruct the payment schedule backwards from next_due_date.
  * We know total_paid / monthly_payment = number of payments made.
@@ -128,14 +211,11 @@ function buildSchedule(acct: Account) {
   const totalPayments = loanAmount > 0 ? Math.ceil(loanAmount / pmtAmount) : 24
   const paymentsMade = Math.floor((acct.total_paid ?? 0) / pmtAmount)
 
-  // Build list of due dates going back from next_due_date
   const dates: string[] = []
   let current = acct.next_due_date
 
-  // next_due_date is the NEXT payment — go backwards to reconstruct history
   for (let i = 0; i < Math.min(paymentsMade + 4, totalPayments); i++) {
     dates.unshift(current)
-    // Go backwards one period
     const d = new Date(current + 'T12:00:00Z')
     if (freq === 'weekly') d.setUTCDate(d.getUTCDate() - 7)
     else if (freq === 'biweekly') d.setUTCDate(d.getUTCDate() - 14)
@@ -165,75 +245,456 @@ function buildSchedule(acct: Account) {
       isOverdue,
       isNext,
     }
-  }).reverse() // newest first
+  }).reverse()
 }
 
-// ── Record Payment Form ────────────────────────────────────────
+// ── Record payment (API + modal) ────────────────────────────────
 
-function RecordPaymentForm({
-  accountId, defaultAmount, paymentFrequency, paymentDayAnchor,
-  currentDueDate, loanAmount, totalPaid, onClose,
+type PayType = 'regular' | 'partial' | 'extra' | 'payoff'
+
+function RecordPaymentSheet({
+  open,
+  onOpenChange,
+  accountId,
+  defaultAmount,
+  onRecorded,
 }: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
   accountId: string
   defaultAmount: number
-  paymentFrequency: PaymentFrequency
-  paymentDayAnchor: number | null
-  currentDueDate: string
-  loanAmount: number | null
-  totalPaid: number
-  onClose: () => void
+  onRecorded: () => void
 }) {
-  const [amount, setAmount] = useState(defaultAmount.toString())
-  const [isPending, startTransition] = useTransition()
+  const [paymentDate, setPaymentDate] = useState(() => localTodayYmd())
+  const [amount, setAmount] = useState(() => String(defaultAmount))
+  const [paymentType, setPaymentType] = useState<PayType>('regular')
+  const [notes, setNotes] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<{
+    interest: number
+    principal: number
+    remaining: number
+    paidOff: boolean
+  } | null>(null)
+  const [pending, startTransition] = useTransition()
   const router = useRouter()
 
-  function record() {
+  function submit() {
+    setError(null)
+    const amt = parseFloat(amount)
+    if (!Number.isFinite(amt) || amt <= 0) {
+      setError('Enter an amount greater than zero.')
+      return
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) {
+      setError('Invalid payment date.')
+      return
+    }
+    if (paymentDate > localTodayYmd()) {
+      setError('Payment date cannot be in the future.')
+      return
+    }
+
     startTransition(async () => {
-      const supabase = createClient()
-      const paid = parseFloat(amount)
-      if (!paid) return
-      const newTotal = totalPaid + paid
-      const paidOff = loanAmount != null && newTotal >= loanAmount
-      const next = nextDueDate(currentDueDate, paymentFrequency, paymentDayAnchor ?? undefined)
-      await supabase.from('bhph_payments').update({
-        total_paid: newTotal,
-        next_due_date: next,
-        status: paidOff ? 'paid_off' : 'active',
-        last_reminder_type: null,
-        last_reminder_at: null,
-        reminder_sequence_status: paidOff ? 'completed' : 'active',
-      }).eq('id', accountId)
-      await supabase.from('payment_reminder_log')
-        .update({ status: 'cancelled' })
-        .eq('bhph_id', accountId)
-        .eq('status', 'pending')
-      onClose()
-      router.refresh()
+      try {
+        const res = await fetch(`/api/bhph/${accountId}/payment`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: amt,
+            paymentDate,
+            paymentType,
+            notes: notes.trim() || undefined,
+          }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          setError(typeof data.error === 'string' ? data.error : 'Could not record payment')
+          return
+        }
+        const interest = Number(data.ledgerEntry?.interestPortion ?? 0)
+        const principal = Number(data.ledgerEntry?.principalPortion ?? 0)
+        const remaining = data.newBalance != null ? Number(data.newBalance) : NaN
+        setSuccess({
+          interest,
+          principal,
+          remaining: Number.isFinite(remaining) ? remaining : 0,
+          paidOff: !!data.paidOff,
+        })
+        onRecorded()
+        router.refresh()
+      } catch {
+        setError('Could not record payment')
+      }
     })
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <Input
-        type="number"
-        value={amount}
-        onChange={e => setAmount(e.target.value)}
-        className="h-9 text-sm"
-      />
-      <Button size="sm" onClick={record} disabled={isPending} className="flex-shrink-0">
-        {isPending ? '…' : 'Record'}
-      </Button>
-      <Button size="sm" variant="ghost" onClick={onClose} className="flex-shrink-0 text-muted-foreground">
-        Cancel
-      </Button>
-    </div>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto sm:max-w-lg sm:mx-auto rounded-t-xl">
+        <SheetHeader>
+          <SheetTitle>Record payment</SheetTitle>
+          <SheetDescription>
+            Cash, check, or in-person payment. Allocates interest and principal using your contract rate.
+          </SheetDescription>
+        </SheetHeader>
+
+        {success ? (
+          <div className="space-y-4 px-4">
+            <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
+              <p className="text-foreground">
+                Interest: {fmt(success.interest)} · Principal: {fmt(success.principal)} · Remaining balance:{' '}
+                {fmt(success.remaining)}
+              </p>
+            </div>
+            {success.paidOff && (
+              <span className="inline-flex text-[11px] font-semibold px-2 py-1 rounded-full bg-green-500/15 text-green-700 dark:text-green-400">
+                Contract paid off
+              </span>
+            )}
+            <SheetFooter className="px-0 sm:justify-end">
+              <Button type="button" onClick={() => onOpenChange(false)}>
+                Done
+              </Button>
+            </SheetFooter>
+          </div>
+        ) : (
+          <div className="space-y-4 px-4 pb-6">
+            <div className="space-y-1.5">
+              <Label htmlFor="pay-date">Payment date</Label>
+              <Input
+                id="pay-date"
+                type="date"
+                value={paymentDate}
+                max={localTodayYmd()}
+                onChange={e => setPaymentDate(e.target.value)}
+                className="h-11"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="pay-amt">Amount</Label>
+              <Input
+                id="pay-amt"
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+                className="h-11 tabular-nums"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Payment type</Label>
+              <Select value={paymentType} onValueChange={v => setPaymentType(v as PayType)}>
+                <SelectTrigger className="h-11">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="regular">Regular</SelectItem>
+                  <SelectItem value="partial">Partial</SelectItem>
+                  <SelectItem value="extra">Extra</SelectItem>
+                  <SelectItem value="payoff">Payoff</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="pay-notes">Notes (optional)</Label>
+              <Textarea
+                id="pay-notes"
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                rows={3}
+                className="resize-none"
+                placeholder="Check #, receipt, etc."
+              />
+            </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <SheetFooter className="px-0 flex-col gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
+                Cancel
+              </Button>
+              <Button type="button" className="bg-[var(--brand-orange)] hover:bg-[var(--brand-orange)]/90 text-white" onClick={submit} disabled={pending}>
+                {pending ? 'Recording…' : 'Record payment'}
+              </Button>
+            </SheetFooter>
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
+  )
+}
+
+function ConfirmManualPaymentSheet({
+  open,
+  onOpenChange,
+  accountId,
+  defaultAmount,
+  defaultPaymentDateYmd,
+  onConfirmed,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  accountId: string
+  defaultAmount: number
+  defaultPaymentDateYmd: string
+  onConfirmed: () => void
+}) {
+  const [paymentDate, setPaymentDate] = useState(defaultPaymentDateYmd)
+  const [amount, setAmount] = useState(() => String(defaultAmount))
+  const [notes, setNotes] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [pending, startTransition] = useTransition()
+  const router = useRouter()
+
+  function submit() {
+    setError(null)
+    const amt = parseFloat(amount)
+    if (!Number.isFinite(amt) || amt <= 0) {
+      setError('Enter an amount greater than zero.')
+      return
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) {
+      setError('Invalid payment date.')
+      return
+    }
+    if (paymentDate > localTodayYmd()) {
+      setError('Payment date cannot be in the future.')
+      return
+    }
+
+    startTransition(async () => {
+      try {
+        const res = await fetch(`/api/bhph/${accountId}/confirm-manual-payment`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: amt,
+            paymentDate,
+            notes: notes.trim() || undefined,
+          }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          setError(typeof data.error === 'string' ? data.error : 'Could not confirm payment')
+          return
+        }
+        toast.success('Payment confirmed.')
+        onConfirmed()
+        onOpenChange(false)
+        router.replace(`/bhph/${accountId}`, { scroll: false })
+        router.refresh()
+      } catch {
+        setError('Could not confirm payment.')
+      }
+    })
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="bottom" className="sm:max-w-lg sm:mx-auto rounded-t-xl max-h-[90vh] overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle>Confirm manual payment</SheetTitle>
+          <SheetDescription>
+            Record the Zelle, Venmo, or Cash App payment the customer said they sent.
+          </SheetDescription>
+        </SheetHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="confirm-amt">Amount</Label>
+            <Input
+              id="confirm-amt"
+              inputMode="decimal"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              className="h-11"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="confirm-date">Payment date</Label>
+            <Input
+              id="confirm-date"
+              type="date"
+              value={paymentDate}
+              onChange={e => setPaymentDate(e.target.value)}
+              className="h-11"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="confirm-notes">Notes (optional)</Label>
+            <Textarea
+              id="confirm-notes"
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              rows={2}
+              className="resize-none"
+              placeholder="Confirmation #, app used, etc."
+            />
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <SheetFooter className="px-0 flex-col gap-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="bg-[var(--brand-orange)] hover:bg-[var(--brand-orange)]/90 text-white"
+              onClick={submit}
+              disabled={pending}
+            >
+              {pending ? 'Confirming…' : 'Confirm payment'}
+            </Button>
+          </SheetFooter>
+        </div>
+      </SheetContent>
+    </Sheet>
+  )
+}
+
+function PaymentHistorySection({ contractId, reloadToken }: { contractId: string; reloadToken: number }) {
+  const [entries, setEntries] = useState<BhphPaymentLedgerEntry[] | null>(null)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch(`/api/bhph/${contractId}/ledger`, { credentials: 'same-origin' })
+        if (!res.ok) {
+          if (!cancelled) {
+            setFailed(true)
+            setEntries([])
+          }
+          return
+        }
+        const data = await res.json()
+        if (!cancelled) {
+          setEntries(Array.isArray(data.entries) ? data.entries : [])
+          setFailed(false)
+        }
+      } catch {
+        if (!cancelled) {
+          setFailed(true)
+          setEntries([])
+        }
+      }
+    })()
+    return () => { cancelled = true }
+  }, [contractId, reloadToken])
+
+  return (
+    <details open className="group mt-6 rounded-[10px] border border-border bg-card [&_summary::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3">
+        <span className="text-[15px] font-semibold text-foreground">Payment History</span>
+        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="border-t border-border px-2 pb-4 pt-2">
+        {entries === null && !failed && (
+          <p className="px-2 py-4 text-sm text-muted-foreground">Loading…</p>
+        )}
+        {failed && (
+          <p className="px-2 py-4 text-sm text-destructive">Could not load payment history.</p>
+        )}
+        {entries && entries.length === 0 && !failed && (
+          <p className="px-2 py-4 text-sm text-muted-foreground">No payments recorded yet.</p>
+        )}
+        {entries && entries.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <th className="px-2 py-2">Date</th>
+                  <th className="px-2 py-2 text-right">Amount</th>
+                  <th className="px-2 py-2 text-right">Interest</th>
+                  <th className="px-2 py-2 text-right">Principal</th>
+                  <th className="px-2 py-2 text-right">Balance after</th>
+                  <th className="px-2 py-2">Type</th>
+                  <th className="px-2 py-2">Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {entries.map(row => (
+                  <tr key={row.id} className="border-b border-border/80 last:border-0">
+                    <td className="px-2 py-2 whitespace-nowrap">{formatDateShort(row.payment_date)}</td>
+                    <td className="px-2 py-2 text-right tabular-nums">{fmt(row.amount_paid)}</td>
+                    <td className="px-2 py-2 text-right tabular-nums">{fmt(row.interest_portion)}</td>
+                    <td className="px-2 py-2 text-right tabular-nums">{fmt(row.principal_portion)}</td>
+                    <td className="px-2 py-2 text-right tabular-nums">{fmt(row.principal_balance_after)}</td>
+                    <td className="px-2 py-2">
+                      <span className={`inline-flex text-[10px] font-semibold px-2 py-0.5 rounded-full ${ledgerTypeBadgeClass(row.payment_type)}`}>
+                        {ledgerTypeLabel(row.payment_type)}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2 max-w-[140px] truncate text-muted-foreground" title={row.notes ?? undefined}>
+                      {truncNote(row.notes, 48)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </details>
   )
 }
 
 // ── Main Component ─────────────────────────────────────────────
 
-export default function BhphDetailClient({ account: acct, reminderLog, deferredPayments }: Props) {
-  const [showRecordForm, setShowRecordForm] = useState(false)
+export default function BhphDetailClient({
+  account: acct,
+  reminderLog,
+  deferredPayments,
+  canRecordManualPayment,
+  defaultAchMethod,
+}: Props) {
+  const searchParams = useSearchParams()
+  const [recordOpen, setRecordOpen] = useState(false)
+  const [recordSheetKey, setRecordSheetKey] = useState(0)
+  const [ledgerReload, setLedgerReload] = useState(0)
+  const [achPromptBusy, setAchPromptBusy] = useState(false)
+  const [confirmManualOpen, setConfirmManualOpen] = useState(false)
+
+  function openRecordPayment() {
+    setRecordSheetKey(k => k + 1)
+    setRecordOpen(true)
+  }
+
+  const pendingManual = !!acct.pending_manual_payment_at && !acct.manual_payment_confirmed_at
+  const pendingManualYmd = acct.pending_manual_payment_at
+    ? acct.pending_manual_payment_at.slice(0, 10)
+    : localTodayYmd()
+  const pendingManualAmt = acct.pending_manual_payment_amount ?? acct.monthly_payment
+  const pendingStale =
+    pendingManual &&
+    acct.pending_manual_payment_at &&
+    Date.now() - new Date(acct.pending_manual_payment_at).getTime() > 24 * 60 * 60 * 1000
+
+  useEffect(() => {
+    if (
+      searchParams.get('confirm_payment') === '1' &&
+      pendingManual &&
+      canRecordManualPayment
+    ) {
+      setConfirmManualOpen(true)
+    }
+  }, [searchParams, pendingManual, canRecordManualPayment])
+
+  async function sendAchSetupPrompt() {
+    setAchPromptBusy(true)
+    try {
+      const res = await fetch(`/api/bhph/${acct.id}/send-ach-prompt`, { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(typeof data.error === 'string' ? data.error : 'Could not send setup text.')
+        return
+      }
+      toast.success('ACH setup link sent to the customer.')
+    } catch {
+      toast.error('Could not send setup text.')
+    } finally {
+      setAchPromptBusy(false)
+    }
+  }
 
   const customer = acct.customer
   const vehicle  = acct.vehicle
@@ -243,9 +704,12 @@ export default function BhphDetailClient({ account: acct, reminderLog, deferredP
   const daysUntilNext = Math.round((nextDue.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
   const isOverdue = daysUntilNext < 0
 
-  const balance = acct.loan_amount != null
-    ? Math.max(0, acct.loan_amount - (acct.total_paid ?? 0))
-    : null
+  const balance =
+    acct.principal_balance != null
+      ? Math.max(0, acct.principal_balance)
+      : acct.loan_amount != null
+        ? Math.max(0, acct.loan_amount - (acct.total_paid ?? 0))
+        : null
 
   const paidPct = acct.loan_amount && acct.loan_amount > 0
     ? Math.min(100, Math.round(((acct.total_paid ?? 0) / acct.loan_amount) * 100))
@@ -269,9 +733,29 @@ export default function BhphDetailClient({ account: acct, reminderLog, deferredP
 
   const isOnTrack = !isOverdue
   const recentReminderLog = reminderLog.slice(0, 6)
+  const interestRate = acct.interest_rate ?? 0
+  const totalInterestPaid = acct.total_interest_paid ?? 0
 
   return (
     <div className="min-h-screen bg-background">
+      <ConfirmManualPaymentSheet
+        key={acct.pending_manual_payment_at ?? 'no-pending'}
+        open={confirmManualOpen}
+        onOpenChange={setConfirmManualOpen}
+        accountId={acct.id}
+        defaultAmount={pendingManualAmt}
+        defaultPaymentDateYmd={pendingManualYmd}
+        onConfirmed={() => setLedgerReload(k => k + 1)}
+      />
+      <RecordPaymentSheet
+        key={recordSheetKey}
+        open={recordOpen}
+        onOpenChange={setRecordOpen}
+        accountId={acct.id}
+        defaultAmount={acct.monthly_payment}
+        onRecorded={() => setLedgerReload(k => k + 1)}
+      />
+
       {/* Mobile TopBar */}
       <div className="lg:hidden">
         <TopBar
@@ -296,7 +780,6 @@ export default function BhphDetailClient({ account: acct, reminderLog, deferredP
           {/* Header */}
           <div className="px-4 lg:px-6 py-4 lg:py-6 border-b border-border">
             <div className="flex items-start gap-4">
-              {/* Avatar */}
               <div className="w-12 h-12 lg:w-14 lg:h-14 rounded-xl bg-primary flex items-center justify-center flex-shrink-0">
                 <span className="text-primary-foreground font-[family-name:var(--font-display)] font-bold text-lg lg:text-xl">
                   {getInitials(customer?.name ?? '?')}
@@ -311,6 +794,11 @@ export default function BhphDetailClient({ account: acct, reminderLog, deferredP
                   <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400">
                     BHPH
                   </span>
+                  {acct.status === 'paid_off' && (
+                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-500/15 text-green-700 dark:text-green-400">
+                      Paid off
+                    </span>
+                  )}
                   {acct.sms_consent && (
                     <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-500/10 text-green-700 dark:text-green-400">
                       AUTO-PAY ON
@@ -334,10 +822,37 @@ export default function BhphDetailClient({ account: acct, reminderLog, deferredP
             </div>
           </div>
 
+          {pendingManual && canRecordManualPayment && (
+            <div className="px-4 lg:px-6 pt-2">
+              <div className="rounded-[10px] border border-amber-500/40 bg-amber-500/10 px-4 py-3 space-y-2">
+                <p className="text-sm text-amber-950 dark:text-amber-100">
+                  <span className="font-semibold">{customer?.name ?? 'Customer'}</span>
+                  {' '}replied PAID on{' '}
+                  {acct.pending_manual_payment_at
+                    ? formatTimestampShort(acct.pending_manual_payment_at)
+                    : '—'}
+                  . Verify in your bank app, then confirm below.
+                </p>
+                {pendingStale && (
+                  <p className="text-xs font-medium text-amber-900 dark:text-amber-200">
+                    Unconfirmed for 24+ hours — please verify and confirm or contact the customer.
+                  </p>
+                )}
+                <Button
+                  type="button"
+                  size="sm"
+                  className="bg-amber-600 hover:bg-amber-600/90 text-white"
+                  onClick={() => setConfirmManualOpen(true)}
+                >
+                  Confirm Payment
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Loan summary + down payment */}
           <div className="px-4 lg:px-6 py-4 space-y-3">
 
-            {/* Loan summary card */}
             <div className="bg-card border border-border rounded-[10px] p-4">
               <div className="flex items-center justify-between mb-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Loan summary</p>
@@ -349,6 +864,29 @@ export default function BhphDetailClient({ account: acct, reminderLog, deferredP
                   <CheckCircle className="h-3 w-3" />
                   {isOnTrack ? 'On track' : 'Overdue'}
                 </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Interest rate</p>
+                  <p className="text-sm font-semibold text-foreground tabular-nums">
+                    {formatAprRate(interestRate)}
+                  </p>
+                </div>
+                {acct.principal_balance != null && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Current principal balance</p>
+                    <p className="text-sm font-semibold text-foreground tabular-nums">
+                      {fmt(acct.principal_balance)}
+                    </p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Total interest paid</p>
+                  <p className="text-sm font-semibold text-foreground tabular-nums">
+                    {fmt(totalInterestPaid)}
+                  </p>
+                </div>
               </div>
 
               <div className="grid grid-cols-3 gap-3 mb-3">
@@ -372,7 +910,6 @@ export default function BhphDetailClient({ account: acct, reminderLog, deferredP
                 </div>
               </div>
 
-              {/* Progress bar */}
               {acct.loan_amount && (
                 <>
                   <div className="h-1.5 bg-muted rounded-full overflow-hidden mb-1.5">
@@ -391,7 +928,44 @@ export default function BhphDetailClient({ account: acct, reminderLog, deferredP
               )}
             </div>
 
-            {/* Down payment card */}
+            <div className="bg-card border border-border rounded-[10px] p-4 space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Payment method</p>
+              {acct.payment_method_type === 'ach' && acct.bank_verification_status === 'verified' && (
+                <p className="text-sm text-foreground">
+                  Bank{defaultAchMethod?.bank_name ? `: ${defaultAchMethod.bank_name}` : ''}
+                  {defaultAchMethod?.last4 ? ` ···${defaultAchMethod.last4}` : ''}
+                  <span className="text-muted-foreground"> · Automatic</span>
+                </p>
+              )}
+              {acct.payment_method_type === 'ach' && acct.bank_verification_status === 'pending' && (
+                <p className="text-sm text-amber-700 dark:text-amber-400">
+                  Bank setup pending (micro-deposit verification).
+                </p>
+              )}
+              {(acct.payment_method_type == null ||
+                acct.payment_method_type === 'card' ||
+                acct.payment_method_type === 'manual') && (
+                <p className="text-sm text-muted-foreground">Card payments and manual recording.</p>
+              )}
+              {canRecordManualPayment && acct.status === 'active' && acct.sms_consent && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full sm:w-auto"
+                  disabled={achPromptBusy || !customer?.primary_phone || !!customer?.sms_opt_out}
+                  onClick={() => void sendAchSetupPrompt()}
+                >
+                  {achPromptBusy ? 'Sending…' : 'Set up bank payments'}
+                </Button>
+              )}
+              {canRecordManualPayment && acct.status === 'active' && (!customer?.primary_phone || customer?.sms_opt_out) && (
+                <p className="text-xs text-muted-foreground">
+                  Add a mobile number and SMS consent to send an ACH setup link.
+                </p>
+              )}
+            </div>
+
             {acct.down_payment > 0 && (
               <div className="bg-card border border-border rounded-[10px] p-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -432,21 +1006,24 @@ export default function BhphDetailClient({ account: acct, reminderLog, deferredP
             <DeferredPaymentManager contractId={acct.id} rows={deferredPayments} />
           </div>
 
-          {/* Payment schedule */}
           <div className="px-4 lg:px-6">
+            <PaymentHistorySection contractId={acct.id} reloadToken={ledgerReload} />
+          </div>
+
+          {/* Payment schedule */}
+          <div className="px-4 lg:px-6 mt-6">
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-semibold text-[15px] text-foreground">Payment schedule</h2>
               <div className="flex items-center gap-2">
-                <button className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">
+                <button type="button" className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">
                   All payments
                 </button>
-                <button className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">
+                <button type="button" className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">
                   Export CSV
                 </button>
               </div>
             </div>
 
-            {/* Table header — desktop only */}
             <div className="hidden lg:grid grid-cols-[1fr_120px_120px_40px] gap-2 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
               <span>Date</span>
               <span>Amount</span>
@@ -498,7 +1075,7 @@ export default function BhphDetailClient({ account: acct, reminderLog, deferredP
                     )}
                   </div>
 
-                  <button className="p-1 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button type="button" className="p-1 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity">
                     <MoreVertical className="h-4 w-4" />
                   </button>
                 </div>
@@ -514,25 +1091,13 @@ export default function BhphDetailClient({ account: acct, reminderLog, deferredP
         {/* ── Right panel — desktop only ─────────────────────── */}
         <div className="hidden lg:block px-5 py-6 space-y-5 sticky top-0">
 
-          {/* Quick actions */}
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Quick actions</p>
             <div className="space-y-2">
-              {showRecordForm ? (
-                <RecordPaymentForm
-                  accountId={acct.id}
-                  defaultAmount={acct.monthly_payment}
-                  paymentFrequency={(acct.payment_frequency ?? 'monthly') as PaymentFrequency}
-                  paymentDayAnchor={acct.payment_day_anchor}
-                  currentDueDate={acct.next_due_date}
-                  loanAmount={acct.loan_amount}
-                  totalPaid={acct.total_paid ?? 0}
-                  onClose={() => setShowRecordForm(false)}
-                />
-              ) : (
+              {canRecordManualPayment && (
                 <Button
                   className="w-full bg-[var(--brand-orange)] hover:bg-[var(--brand-orange)]/90 text-white font-semibold"
-                  onClick={() => setShowRecordForm(true)}
+                  onClick={openRecordPayment}
                 >
                   <DollarSign className="h-4 w-4 mr-1.5" />
                   Record payment
@@ -559,7 +1124,6 @@ export default function BhphDetailClient({ account: acct, reminderLog, deferredP
             </div>
           </div>
 
-          {/* Overdue alert */}
           {isOverdue && (
             <div className="bg-red-500/10 border border-red-500/30 rounded-[10px] p-4">
               <div className="flex items-center gap-2 mb-2">
@@ -581,7 +1145,6 @@ export default function BhphDetailClient({ account: acct, reminderLog, deferredP
             </div>
           )}
 
-          {/* Next payment */}
           <div className="bg-card border border-border rounded-[10px] p-4">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Next payment</p>
             <p className="font-[family-name:var(--font-display)] text-lg font-bold text-foreground">
@@ -600,7 +1163,6 @@ export default function BhphDetailClient({ account: acct, reminderLog, deferredP
             </div>
           </div>
 
-          {/* Contact */}
           {customer && (
             <div className="bg-card border border-border rounded-[10px] p-4">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Contact</p>
@@ -671,46 +1233,35 @@ export default function BhphDetailClient({ account: acct, reminderLog, deferredP
 
       {/* ── Sticky bottom bar — mobile only ───────────────────── */}
       <div className="lg:hidden fixed bottom-16 inset-x-0 z-30 bg-card border-t border-border px-4 py-3 pb-safe">
-        {showRecordForm ? (
-          <RecordPaymentForm
-            accountId={acct.id}
-            defaultAmount={acct.monthly_payment}
-            paymentFrequency={(acct.payment_frequency ?? 'monthly') as PaymentFrequency}
-            paymentDayAnchor={acct.payment_day_anchor}
-            currentDueDate={acct.next_due_date}
-            loanAmount={acct.loan_amount}
-            totalPaid={acct.total_paid ?? 0}
-            onClose={() => setShowRecordForm(false)}
-          />
-        ) : (
-          <div className="space-y-2">
+        <div className="space-y-2">
+          {canRecordManualPayment && (
             <Button
               className="w-full bg-[var(--brand-orange)] hover:bg-[var(--brand-orange)]/90 text-white font-semibold h-11"
-              onClick={() => setShowRecordForm(true)}
+              onClick={openRecordPayment}
             >
               <DollarSign className="h-4 w-4 mr-1.5" />
               Record payment
             </Button>
-            <div className="flex gap-2">
-              {customer && (
-                <Link href={`/customers/${customer.id}?action=send-pay-link`} className="flex-1">
-                  <Button variant="outline" size="sm" className="w-full">
-                    <Link2 className="h-3.5 w-3.5 mr-1.5" />
-                    Send pay link
-                  </Button>
-                </Link>
-              )}
-              {customer && (
-                <Link href={`/customers/${customer.id}`} className="flex-1">
-                  <Button variant="ghost" size="sm" className="w-full text-muted-foreground">
-                    <History className="h-3.5 w-3.5 mr-1.5" />
-                    History
-                  </Button>
-                </Link>
-              )}
-            </div>
+          )}
+          <div className="flex gap-2">
+            {customer && (
+              <Link href={`/customers/${customer.id}?action=send-pay-link`} className="flex-1">
+                <Button variant="outline" size="sm" className="w-full">
+                  <Link2 className="h-3.5 w-3.5 mr-1.5" />
+                  Send pay link
+                </Button>
+              </Link>
+            )}
+            {customer && (
+              <Link href={`/customers/${customer.id}`} className="flex-1">
+                <Button variant="ghost" size="sm" className="w-full text-muted-foreground">
+                  <History className="h-3.5 w-3.5 mr-1.5" />
+                  History
+                </Button>
+              </Link>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   )

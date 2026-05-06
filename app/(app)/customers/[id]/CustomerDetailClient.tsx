@@ -53,6 +53,10 @@ interface Props {
 
 export default function CustomerDetailClient({ customer, activities: initialActivities, scheduledActivities, isAdmin, currentUserId, tasks: initialTasks, initialVehicle }: Props) {
   const [activities, setActivities] = useState<Activity[]>(initialActivities)
+
+  const nextAppointment = activities
+    .filter(a => a.type === 'appointment' && !a.completed_at && a.due_at && new Date(a.due_at) > new Date())
+    .sort((a, b) => new Date(a.due_at!).getTime() - new Date(b.due_at!).getTime())[0] ?? null
   const [replyContext, setReplyContext] = useState<ReplyContext | null>(null)
   const [taskOpen, setTaskOpen] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
@@ -350,6 +354,17 @@ export default function CustomerDetailClient({ customer, activities: initialActi
       setApptError(data.error ?? 'Failed to save appointment')
       return
     }
+
+    // Advance lead state to appointment_set if not already past that stage
+    const nonApptStates = new Set(['appointment_confirmed', 'showed', 'credit_app', 'sold', 'lost'])
+    if (!nonApptStates.has(customer.thread_state ?? '')) {
+      await fetch(`/api/customers/${customer.id}/state`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state: 'appointment_set', reason: 'Appointment scheduled' }),
+      }).catch(() => {})
+    }
+
     setApptSaving(false)
     setApptOpen(false)
     setApptDate('')
@@ -489,10 +504,13 @@ export default function CustomerDetailClient({ customer, activities: initialActi
 
         {/* Lead state + assignment */}
         <div className="flex items-center gap-2 mt-3 flex-wrap">
-          <LeadStateSelector
-            customerId={customer.id}
-            currentState={customer.thread_state ?? 'new_lead'}
-          />
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] text-muted-foreground font-medium">Stage:</span>
+            <LeadStateSelector
+              customerId={customer.id}
+              currentState={customer.thread_state ?? 'new_lead'}
+            />
+          </div>
           {isAdmin && (
             <AssignDropdown
               customerId={customer.id}
@@ -618,6 +636,19 @@ export default function CustomerDetailClient({ customer, activities: initialActi
           <Trash2 className="h-4 w-4" />
         </Button>
       </div>
+
+      {/* Next appointment banner */}
+      {nextAppointment?.due_at && (
+        <div className="mx-4 my-1 flex items-center gap-2 rounded-lg border border-purple-200/80 bg-purple-50/60 dark:border-purple-900/50 dark:bg-purple-950/20 px-3 py-2 text-xs">
+          <CalendarClock className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 flex-shrink-0" />
+          <span className="font-semibold text-purple-800 dark:text-purple-200">Next appt:</span>
+          <span className="text-purple-700 dark:text-purple-300">
+            {new Date(nextAppointment.due_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+            {' at '}
+            {new Date(nextAppointment.due_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+          </span>
+        </div>
+      )}
 
       {/* Appointment picker */}
       {apptOpen && (

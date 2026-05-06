@@ -1,4 +1,4 @@
-import { createServiceClient } from '@/lib/supabase/service'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 // Monthly render limits per plan
 const QUOTA: Record<string, number> = {
@@ -26,9 +26,7 @@ export interface QuotaResult {
  * Check render quota for an org. Throws QuotaError if over limit.
  * Also resets quota if a new month has started.
  */
-export async function checkRenderQuota(orgId: string): Promise<QuotaResult> {
-  const supabase = createServiceClient()
-
+export async function checkRenderQuota(supabase: SupabaseClient, orgId: string): Promise<QuotaResult> {
   // Get org plan from organizations table
   const { data: org } = await supabase
     .from('organizations')
@@ -81,8 +79,7 @@ export async function checkRenderQuota(orgId: string): Promise<QuotaResult> {
 /**
  * Increment render quota used for an org.
  */
-export async function incrementRenderQuota(orgId: string): Promise<void> {
-  const supabase = createServiceClient()
+export async function incrementRenderQuota(supabase: SupabaseClient, orgId: string): Promise<void> {
   const { data: settings } = await supabase
     .from('org_video_settings')
     .select('render_quota_used')

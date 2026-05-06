@@ -50,6 +50,8 @@ export interface Customer {
   zip_code?: string
   interested_in?: string | null
   assigned_to?: string | null
+  /** Resolved on the server for Leads list (assignee display / filter). Not a DB column. */
+  assignee?: { id: string; display_name: string } | null
   archived?: boolean
   archived_reason?: string | null
   sms_opt_out?: boolean
@@ -122,6 +124,9 @@ export interface Vehicle {
   market_data_json?: Record<string, unknown> | null
   market_checked_at?: string | null
   ai_description?: string | null
+  ai_last_analyzed_at?: string | null
+  /** Plain text for AI only (reanalyze); not shown on public site */
+  overview_enrichment_text?: string | null
   nhtsa_recall_count?: number | null
   reliability_tier?: 'low' | 'moderate' | 'high' | null
   purchase_price?: number | null
@@ -173,8 +178,42 @@ export interface BhphPayment {
   status: 'active' | 'paid_off' | 'defaulted'
   notes?: string | null
   created_at: string
+  /** Annual nominal rate, e.g. 0.24 = 24% */
+  interest_rate?: number
+  principal_balance?: number | null
+  total_interest_paid?: number
+  last_payment_date?: string | null
+  stripe_customer_id?: string | null
+  stripe_payment_method_id?: string | null
+  payment_method_type?: 'card' | 'ach' | 'manual'
+  bank_verification_status?: 'pending' | 'verified' | 'failed' | null
+  bank_verified_at?: string | null
+  ach_setup_sent_at?: string | null
+  /** Customer texted PAID (Zelle/Venmo/Cash App); dealer confirms in app */
+  pending_manual_payment_at?: string | null
+  pending_manual_payment_amount?: number | null
+  manual_payment_confirmed_at?: string | null
+  manual_payment_confirmed_by?: string | null
   vehicle?: Vehicle
   customer?: Customer
+}
+
+export interface BhphPaymentLedgerEntry {
+  id: string
+  user_id: string
+  bhph_contract_id: string
+  customer_id: string
+  payment_date: string
+  amount_paid: number
+  interest_portion: number
+  principal_portion: number
+  principal_balance_after: number
+  days_since_last: number | null
+  payment_type: 'regular' | 'partial' | 'extra' | 'payoff' | 'failed_ach' | 'manual'
+  stripe_payment_intent_id: string | null
+  notes: string | null
+  recorded_by: string | null
+  created_at: string
 }
 
 export interface CustomerVehicle {
@@ -256,6 +295,8 @@ export interface VehicleDocument {
   file_size: number | null
   mime_type: string | null
   ai_summary: string | null
+  /** inventory = dealer private; website = VDP downloads + AI overview context */
+  document_scope?: 'inventory' | 'website'
   created_at: string
   signed_url?: string
 }

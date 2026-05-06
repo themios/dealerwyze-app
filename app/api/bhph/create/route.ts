@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
     sms_consent,
     email_consent,
     notes,
+    annual_interest_rate_percent,
   } = body
 
   if (!vehicle_id || !sold_price) {
@@ -72,6 +73,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Deferred payments must equal the remaining down payment balance' }, { status: 400 })
     }
   }
+
+  let interestRateDecimal = 0
+  if (finance_type === 'bhph') {
+    const rawPct =
+      annual_interest_rate_percent != null && annual_interest_rate_percent !== ''
+        ? parseFloat(String(annual_interest_rate_percent))
+        : 0
+    const pct = Number.isFinite(rawPct) ? rawPct : 0
+    interestRateDecimal = Math.min(100, Math.max(0, pct)) / 100
+  }
+
   const { error: finalizeError } = await supabase.rpc('finalize_bhph_sale_with_deferred', {
     p_org_id: orgId,
     p_vehicle_id: vehicle_id,
@@ -95,9 +107,13 @@ export async function POST(req: NextRequest) {
     p_email_consent_at: finance_type === 'bhph' && email_consent ? new Date().toISOString() : null,
     p_notes: notes || null,
     p_deferred_payments: finance_type === 'bhph' ? deferredRows : [],
+    p_interest_rate: finance_type === 'bhph' ? interestRateDecimal : 0,
   })
 
-  if (finalizeError) return NextResponse.json({ error: finalizeError.message }, { status: 500 })
+  if (finalizeError) {
+    console.error('[bhph/create] finalize_bhph_sale_with_deferred:', finalizeError.message)
+    return NextResponse.json({ error: 'Could not save sale' }, { status: 500 })
+  }
 
   if (customer_id) {
     try {

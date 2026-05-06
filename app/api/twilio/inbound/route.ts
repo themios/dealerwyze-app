@@ -15,6 +15,8 @@ import crypto from 'crypto'
 import { normalizePhone } from '@/lib/utils/phone'
 import { getTwilioWebhookBase, validateTwilioSignature } from '@/lib/twilio/signature'
 import { enqueueConversationRescore } from '@/lib/leads/conversationScore'
+import { writeAuditLog } from '@/lib/audit/log'
+import { emitEvent } from '@/lib/intelligence/emitEvent'
 
 // Twilio sends form-encoded POST to this endpoint when a customer texts your number.
 // Webhook URL to set in Twilio console (no ?secret= needed — we use HMAC-SHA1 now):
@@ -62,6 +64,13 @@ export async function POST(req: NextRequest) {
     crypto.timingSafeEqual(legacyExpected, legacyProvided)
 
   if (!hmacValid && !legacyValid) {
+    void writeAuditLog({
+      orgId:     null,
+      actorId:   null,
+      actorType: 'user',
+      action:    'webhook_auth_failure',
+      metadata:  { path: '/api/twilio/inbound', reason: 'invalid_signature' },
+    })
     return new NextResponse('Forbidden', { status: 403 })
   }
 
@@ -465,6 +474,19 @@ export async function POST(req: NextRequest) {
       external_id: messageSid || null,
       completed_at: new Date().toISOString(),
     })
+
+    emitEvent({
+      orgId:      customer.user_id,
+      eventType:  'message_received',
+      entityType: 'customer',
+      entityId:   customer.id,
+      channel:    'sms',
+      direction:  'inbound',
+      metadata: {
+        hour_of_day: new Date().getUTCHours(),
+        day_of_week: new Date().getUTCDay(),
+      },
+    }).catch(() => {})
 
     // Stop any active autoresponder sequences — customer replied
     await stopSequenceOnReply({

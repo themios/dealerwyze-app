@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { createServiceClient } from '@/lib/supabase/service'
 import { bookingLimiter } from '@/lib/rateLimit/upstash'
-import { BookingSchema, parseBody } from '@/lib/validation/schemas'
+import { BookingSchema } from '@/lib/validation/schemas'
+import { parseBody } from '@/lib/validation/parseRequest'
 
 async function resolveOrgId(supabase: ReturnType<typeof createServiceClient>, slug: string): Promise<string | null> {
   const { data } = await supabase
@@ -72,10 +74,15 @@ export async function POST(
     return NextResponse.json({ error: 'Booking not available' }, { status: 404 })
   }
 
-  const parsedBody = await parseBody(req, BookingSchema)
-  if (parsedBody.errorResponse) return parsedBody.errorResponse
+  let parsedBody: z.infer<typeof BookingSchema>
+  try {
+    parsedBody = await parseBody(req, BookingSchema)
+  } catch (e) {
+    if (e instanceof Response) return e
+    throw e
+  }
 
-  const { name, phone, email, date, time, notes, website } = parsedBody.data
+  const { name, phone, email, date, time, notes, website } = parsedBody
 
   // Honeypot: bots fill hidden fields, real users don't
   if (website) return NextResponse.json({ success: true })
@@ -175,5 +182,5 @@ export async function POST(
     notes:             `Booked online. Phone: ${e164}${cleanEmail ? ` | Email: ${cleanEmail}` : ''}${cleanNotes ? ` | Note: ${cleanNotes}` : ''}`,
   })
 
-  return NextResponse.json({ success: true, dealer_name: dealerName })
+  return NextResponse.json({ success: true, dealer_name: dealerName }, { status: 201 })
 }

@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { requireProfile } from '@/lib/auth/profile'
 import { canManageUsers } from '@/lib/auth/dealerRoles'
 import type { UserRole } from '@/types/index'
-import { createServiceClient } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
 import SettingsPageShell from '@/components/settings/SettingsPageShell'
 import TransferPageClient from './TransferPageClient'
 
@@ -12,7 +12,7 @@ export default async function TransferPage() {
   const profile = await requireProfile()
   if (!canManageUsers(profile.role as UserRole)) redirect('/settings')
 
-  const supabase = createServiceClient()
+  const supabase = await createClient()
   const { data } = await supabase
     .from('business_transfers')
     .select('id, new_owner_email, status, transfer_token, token_expires_at, data_snapshot, notes, created_at')

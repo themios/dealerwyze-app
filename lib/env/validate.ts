@@ -17,10 +17,23 @@ const REQUIRED: string[] = [
   'TWILIO_AUTH_TOKEN',
   'SOCIAL_OAUTH_STATE_SECRET',
   'UNSUBSCRIBE_SECRET',
+  // Remotion Lambda render-complete webhook HMAC — missing = all auto-post webhooks return 401
+  'RENDER_WEBHOOK_SECRET',
+]
+
+const REQUIRED_IN_PROD_ONLY: string[] = [
+  // BHPH ACH: signed customer setup links + Stripe ACH webhook (dealer Connect account)
+  'BHPH_ACH_SECRET',
+  'STRIPE_BHPH_ACH_WEBHOOK_SECRET',
 ]
 
 export function validateEnv(): void {
-  const missing = REQUIRED.filter(k => !process.env[k])
+  const required =
+    process.env.NODE_ENV === 'production'
+      ? [...REQUIRED, ...REQUIRED_IN_PROD_ONLY]
+      : REQUIRED
+
+  const missing = required.filter(k => !process.env[k])
   if (missing.length > 0) {
     throw new Error(
       `[env] Missing required environment variables: ${missing.join(', ')}. ` +

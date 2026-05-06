@@ -3,6 +3,7 @@ import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 import { DEFAULT_ORG_STAGES } from '@/lib/leads/states'
 import { dispatchWebhook } from '@/lib/webhooks/dispatch'
+import { emitEvent, type IntelligenceEventType } from '@/lib/intelligence/emitEvent'
 
 export async function PATCH(
   req: NextRequest,
@@ -83,6 +84,24 @@ export async function PATCH(
     .eq('direction', 'inbound')
     .eq('outcome', 'pending')
     .is('completed_at', null)
+
+  const stateToEvent: Partial<Record<string, IntelligenceEventType>> = {
+    appointment_set:       'appointment_set',
+    appointment_confirmed: 'appointment_set',
+    sold:                  'lead_sold',
+    lost:                  'lead_lost',
+  }
+  const eventType = stateToEvent[state]
+  if (eventType) {
+    emitEvent({
+      orgId:      profile.org_id,
+      eventType,
+      entityType: 'customer',
+      entityId:   customerId,
+      actorId:    profile.id,
+      metadata:   { state, reason: reason ?? null },
+    }).catch(() => {})
+  }
 
   return NextResponse.json({ ok: true })
 }

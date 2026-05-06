@@ -9,6 +9,7 @@ import { createServiceClient } from '@/lib/supabase/service'
  *   'manual'      — return null (owner assigns manually)
  */
 export async function resolveLeadAssignee(orgId: string): Promise<string | null> {
+  // lib function called from cron/webhook — no user session; orgId validated by caller
   const supabase = createServiceClient()
 
   const { data: settings } = await supabase

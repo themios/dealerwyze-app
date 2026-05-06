@@ -18,7 +18,7 @@ const howSteps = [
   {
     num: '03',
     title: 'Close more deals - and prove it',
-    desc: 'Track every deal from first contact to sold. BHPH loans, payments, and collections in the same app. Analytics show what\'s working.',
+    desc: 'Track every deal from first contact to sold. List vehicles on your public dealer website with SEO-friendly pages while BHPH loans, payments, and collections stay in the same app. Analytics show what\'s working.',
   },
 ]
 

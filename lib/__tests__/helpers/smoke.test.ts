@@ -4,7 +4,13 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { makeTestClient, makeTestProfile, TEST_ORG_ID, TEST_ORG_B_ID } from './testClient'
+import {
+  makeTestClient,
+  makeTestProfile,
+  TEST_ORG_ID,
+  TEST_ORG_B_ID,
+  type QueryBuilderStub,
+} from './testClient'
 
 describe('makeTestClient', () => {
   it('creates a scoped client with correct org IDs', () => {
@@ -16,7 +22,7 @@ describe('makeTestClient', () => {
 
   it('from() returns a chainable query builder', () => {
     const { supabase } = makeTestClient()
-    const builder = supabase.from('vehicles')
+    const builder = supabase.from('vehicles') as unknown as QueryBuilderStub
     expect(typeof builder.select).toBe('function')
     expect(typeof builder.eq).toBe('function')
     expect(typeof builder.limit).toBe('function')
@@ -28,16 +34,7 @@ describe('makeTestClient', () => {
     ;(supabase._table('vehicles').single as { mockResolvedValueOnce: (value: unknown) => unknown })
       .mockResolvedValueOnce({ data: fakeVehicle, error: null })
 
-    const vehicleQuery = supabase.from('vehicles') as {
-      select: (columns: string) => {
-        eq: (column: string, value: string) => {
-          single: () => Promise<{
-            data: typeof fakeVehicle | null
-            error: unknown
-          }>
-        }
-      }
-    }
+    const vehicleQuery = supabase.from('vehicles') as unknown as QueryBuilderStub
     const result = await vehicleQuery.select('*').eq('user_id', ORG_ID).single()
     expect(result.data).toEqual(fakeVehicle)
     expect(result.error).toBeNull()

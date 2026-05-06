@@ -5,7 +5,8 @@
  * (SMS, AI, video render, fax). It checks in order:
  *   1. Org is not suspended
  *   2. Org is not canceled (past grace period)
- *   3. Org's plan includes the requested feature
+ *   3. Active trial (trial_ends_at in the future) bypasses plan feature checks
+ *   4. Org's plan includes the requested feature (`public_website` also allows `free` — not a paid-tier-only gate)
  *
  * Throws BillingError on failure so the caller can return a 402 response.
  * Returns void on success.
@@ -39,6 +40,8 @@ export type BillableFeature =
   | 'voice'
   | 'fax'
   | 'sequences'
+  | 'public_website'
+  | 'ai_reanalyze'
 
 const FEATURE_PLANS: Record<BillableFeature, Set<string>> = {
   sms:              new Set(['tier1', 'growth', 'pro', 'starter']),
@@ -51,6 +54,9 @@ const FEATURE_PLANS: Record<BillableFeature, Set<string>> = {
   voice:            new Set(['tier2', 'tier3', 'growth', 'pro']),
   fax:              new Set(['tier1', 'tier2', 'tier3', 'growth', 'pro', 'starter']),
   sequences:        new Set(['tier1', 'tier2', 'tier3', 'growth', 'pro', 'starter']),
+  /** Public inventory site is included for all plans (incl. free), not a paid-tier gate; trial still unlocks full product during demo. */
+  public_website:   new Set(['free', 'starter', 'tier1', 'tier2', 'tier3', 'growth', 'pro']),
+  ai_reanalyze:     new Set(['starter', 'tier1', 'tier2', 'tier3', 'growth', 'pro']),
 }
 
 const FEATURE_LABELS: Record<BillableFeature, string> = {
@@ -64,6 +70,8 @@ const FEATURE_LABELS: Record<BillableFeature, string> = {
   voice:            'Voice AI',
   fax:              'Fax',
   sequences:        'Automated Sequences',
+  public_website:   'Public Website & Inventory',
+  ai_reanalyze:     'AI Vehicle Reanalysis',
 }
 
 /**
@@ -78,7 +86,7 @@ export async function assertCanUseFeature(
 
   const { data: org } = await supabase
     .from('organizations')
-    .select('plan, suspended_at, canceled_at, deletion_scheduled_at')
+    .select('plan, suspended_at, canceled_at, deletion_scheduled_at, trial_ends_at')
     .eq('id', orgId)
     .maybeSingle()
 
@@ -96,6 +104,11 @@ export async function assertCanUseFeature(
     throw new BillingError(
       'Your account has been canceled. Go to Settings → Billing to restore access.',
     )
+  }
+
+  // Active trial bypasses all feature gates — every feature is available until trial_ends_at.
+  if (org.trial_ends_at && new Date(org.trial_ends_at) >= new Date()) {
+    return
   }
 
   const plan = (org.plan ?? 'free').toLowerCase()

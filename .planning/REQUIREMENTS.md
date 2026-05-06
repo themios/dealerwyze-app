@@ -67,11 +67,11 @@
 
 ### Audit Logging (AUDIT)
 
-- [x] **AUDIT-01**: Staff impersonation events (start/end) are written to an `audit_log` table with `org_id`, `staff_id`, `action`, `ip`, `timestamp`
-- [x] **AUDIT-02**: BHPH payment state changes (confirm, void, refund) are written to the audit log
-- [x] **AUDIT-03**: Data export events are written to the audit log
-- [x] **AUDIT-04**: Settings mutations (org_settings, billing, user role changes) are written to the audit log
-- [x] **AUDIT-05**: Webhook auth failures (invalid Twilio sig, bad cron token, failed Gmail OIDC) are written to the audit log
+- [x] **AUDIT-01**: Staff impersonation start/end written to **`audit_log`** via `writeAuditLog` (`impersonation_start` / `impersonation_end`, `actor_type: staff`, `actor_id` = staff user)
+- [x] **AUDIT-02**: BHPH payment confirm (post-RPC success) written to **`audit_log`** (`payment_confirmed`, `entity_type: bhph_token`; public route uses `actor_id` null)
+- [x] **AUDIT-03**: Data export success written to **`audit_log`** (`data_export`)
+- [x] **AUDIT-04**: Org settings PATCH + social-defaults PATCH → `settings_updated` (`changed_keys`); dealer role PATCH → `role_changed` (plus legacy `org_audit_log` where present)
+- [x] **AUDIT-05**: Webhook auth failures → `webhook_auth_failure` (Twilio invalid sig, cron `validateCronAuth` failure, Gmail OIDC failure; `org_id` / `actor_id` null)
 
 ---
 
@@ -137,7 +137,7 @@
 | TEST-06 | Phase 4 | Complete — webhooks.test.ts: Twilio HMAC-SHA1 validation |
 | TEST-07 | Phase 4 | Complete — public-ingestion.test.ts: web lead happy path, honeypot, Zod validation, rate limit |
 | TEST-08 | Phase 5 | Complete — documented in CLAUDE.md release gate policy |
-| OPS-01 | Phase 4 | Complete — orgDataExportLimiter uses Upstash Redis |
+| OPS-01 | Phase 4 | Complete — orgExportLimiter (1/hr/org) uses Upstash Redis |
 | OPS-02 | Phase 4 | Complete — legacy path removed; OIDC-only path live |
 | OPS-03 | Phase 4 | Complete — isomorphic-dompurify with strict allowlist |
 | SCHEMA-01 | Phase 4 | Complete — WebLeadSchema, BookingSchema, PayTokenPostSchema in lib/validation/schemas.ts |
@@ -145,15 +145,15 @@
 | SCHEMA-03 | Phase 4 | Complete — parseBody() returns structured 400 with field-level errors |
 | SCHEMA-04 | Phase 4 | Complete — shared parseBody() helper used by all routes |
 | CI-01 | Phase 5 | Complete — verified passing |
-| CI-02 | Phase 5 | Complete — verified passing (91 tests) |
+| CI-02 | Phase 5 | Complete — `npm test` passing (release blocker) |
 | CI-03 | Phase 5 | Complete — zero warnings |
 | CI-04 | Phase 5 | Complete — .planning/DEPLOY_CHECKLIST.md |
 | CI-05 | Phase 5 | Complete — CLAUDE.md release gate policy added |
-| AUDIT-01 | Phase 5 | Complete — impersonation start/end in org_audit_log |
-| AUDIT-02 | Phase 5 | Complete — bhph_payment_confirmed/idempotent in org_audit_log |
-| AUDIT-03 | Phase 5 | Complete — data_export in org_audit_log |
-| AUDIT-04 | Phase 5 | Complete — org_settings_updated in org_audit_log |
-| AUDIT-05 | Phase 5 | Complete — gmail_webhook_auth_failure in org_audit_log |
+| AUDIT-01 | Phase 5 | Complete — `audit_log` + `writeAuditLog` impersonation_start/end (legacy org_audit_log retained) |
+| AUDIT-02 | Phase 5 | Complete — `payment_confirmed` in `audit_log` (legacy org_audit_log retained) |
+| AUDIT-03 | Phase 5 | Complete — `data_export` in `audit_log` |
+| AUDIT-04 | Phase 5 | Complete — `settings_updated`, `role_changed` in `audit_log` |
+| AUDIT-05 | Phase 5 | Complete — `webhook_auth_failure` Twilio + cron + Gmail OIDC |
 
 **Coverage:**
 - v1 requirements: 38 total

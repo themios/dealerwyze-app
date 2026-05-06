@@ -38,7 +38,7 @@ export async function PATCH(
     .from('ledger_transactions')
     .update(patch)
     .eq('id', id)
-    .eq('user_id', profile.org_id)
+    .eq('org_id', profile.org_id)
     .select(`*, receipt_categories(name), vehicles(stock_no, year, make, model)`)
     .single()
 
@@ -67,7 +67,7 @@ export async function DELETE(
     .from('ledger_transactions')
     .delete()
     .eq('id', id)
-    .eq('user_id', profile.org_id)
+    .eq('org_id', profile.org_id)
 
   if (error) {
     console.error('[receipts/ledger DELETE]', error)

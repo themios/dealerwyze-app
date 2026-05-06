@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { CheckCircle2, XCircle, Clock, ExternalLink } from 'lucide-react'
+import { CheckCircle2, XCircle, Clock, ExternalLink, AlertCircle } from 'lucide-react'
 
 interface SocialPost {
   id: string
@@ -14,6 +14,8 @@ interface SocialPost {
 
 interface SocialPostStatusProps {
   vehicleId: string
+  /** Bump to refetch logs after publishing */
+  revision?: number
 }
 
 const PLATFORM_LABELS: Record<string, string> = {
@@ -30,7 +32,7 @@ const PLATFORM_COLORS: Record<string, string> = {
   youtube:   'text-red-600',
 }
 
-export default function SocialPostStatus({ vehicleId }: SocialPostStatusProps) {
+export default function SocialPostStatus({ vehicleId, revision = 0 }: SocialPostStatusProps) {
   const [posts, setPosts] = useState<SocialPost[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -50,7 +52,7 @@ export default function SocialPostStatus({ vehicleId }: SocialPostStatusProps) {
     }
     load()
     return () => { active = false }
-  }, [vehicleId])
+  }, [vehicleId, revision])
 
   if (loading || posts.length === 0) return null
 
@@ -62,6 +64,7 @@ export default function SocialPostStatus({ vehicleId }: SocialPostStatusProps) {
           <div key={post.id} className="flex items-center justify-between text-sm">
             <div className="flex items-center gap-2">
               {post.status === 'posted'  && <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />}
+              {post.status === 'skipped' && <AlertCircle className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
               {post.status === 'failed'  && <XCircle      className="h-4 w-4 text-red-500   flex-shrink-0" />}
               {(post.status === 'pending' || post.status === 'posting') && (
                 <Clock className="h-4 w-4 text-orange-500 flex-shrink-0" />
@@ -76,6 +79,11 @@ export default function SocialPostStatus({ vehicleId }: SocialPostStatusProps) {
               )}
               {post.status === 'failed' && post.error_message && (
                 <span className="text-xs text-red-500 truncate max-w-[120px]">
+                  {post.error_message}
+                </span>
+              )}
+              {post.status === 'skipped' && post.error_message && (
+                <span className="text-xs text-muted-foreground truncate max-w-[140px]">
                   {post.error_message}
                 </span>
               )}

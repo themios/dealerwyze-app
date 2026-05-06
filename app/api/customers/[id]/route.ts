@@ -36,7 +36,22 @@ export async function PATCH(
   // Only allow safe fields through this route
   const VALID_AUTO_MODES = ['manual', 'semi_auto', 'full_auto']
   const allowed: Record<string, unknown> = {}
-  if ('assigned_to' in body) allowed.assigned_to = body.assigned_to ?? null
+  if ('assigned_to' in body) {
+    const targetId = body.assigned_to ?? null
+    if (targetId !== null) {
+      // Verify the target profile belongs to this org — prevents cross-tenant assignment.
+      const { data: targetProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', targetId)
+        .eq('org_id', profile.org_id)
+        .maybeSingle()
+      if (!targetProfile) {
+        return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      }
+    }
+    allowed.assigned_to = targetId
+  }
   if ('automation_override' in body) {
     const v = body.automation_override
     if (v !== null && !VALID_AUTO_MODES.includes(v as string)) {

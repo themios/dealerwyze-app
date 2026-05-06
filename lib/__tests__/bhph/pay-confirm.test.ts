@@ -9,9 +9,9 @@
  *   - Assert no individual table writes occur in the confirm branch
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest'
 import { NextRequest } from 'next/server'
-import { makeTestClient } from '../helpers/testClient'
+import { makeTestClient, type QueryBuilderStub } from '../helpers/testClient'
 
 // Initialize the mock client before mocks are registered so the factory can close over it
 const { supabase, ORG_ID } = makeTestClient()
@@ -88,7 +88,7 @@ describe('pay/[token] confirm branch — happy path', () => {
     }))
 
     // RPC returns success
-    supabase.rpc.mockResolvedValueOnce({ data: { ok: true }, error: null })
+    ;(supabase.rpc as unknown as Mock).mockResolvedValueOnce({ data: { ok: true }, error: null })
   })
 
   it('returns 200 { ok: true } on successful payment', async () => {
@@ -106,6 +106,8 @@ describe('pay/[token] confirm branch — happy path', () => {
       expect.objectContaining({
         p_token_id:              FAKE_TOKEN_ROW.id,
         p_stripe_payment_intent: 'pi_test_001',
+        p_amount:                FAKE_TOKEN_ROW.amount,
+        p_payment_date:          expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
       })
     )
   })
@@ -118,6 +120,43 @@ describe('pay/[token] confirm branch — happy path', () => {
   it('does NOT call activities.insert directly', async () => {
     await POST(makeConfirmRequest(), routeParams)
     expect(supabase._table('activities').insert).not.toHaveBeenCalled()
+  })
+})
+
+describe('pay/[token] confirm branch — sequential idempotency (HTTP replay)', () => {
+  it('second POST after token is paid with same PI returns 200 and does not call RPC again', async () => {
+    vi.clearAllMocks()
+
+    const bhphTokenQb = supabase._table('bhph_payment_tokens') as QueryBuilderStub
+    ;(bhphTokenQb.maybeSingle as unknown as Mock)
+      .mockResolvedValueOnce({ data: FAKE_TOKEN_ROW, error: null })
+      .mockResolvedValueOnce({
+        data: {
+          ...FAKE_TOKEN_ROW,
+          status:                   'paid',
+          stripe_payment_intent_id: 'pi_test_001',
+        },
+        error: null,
+      })
+
+    ;(supabase._table('org_settings').maybeSingle as MockOnce)
+      .mockResolvedValueOnce({ data: FAKE_ORG, error: null })
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({
+      ok:   true,
+      json: () => Promise.resolve(FAKE_PI),
+    }))
+
+    ;(supabase.rpc as unknown as Mock).mockResolvedValueOnce({ data: { ok: true }, error: null })
+
+    const res1 = await POST(makeConfirmRequest(), routeParams)
+    expect(res1.status).toBe(200)
+    expect(await res1.json()).toEqual({ ok: true })
+
+    const res2 = await POST(makeConfirmRequest(), routeParams)
+    expect(res2.status).toBe(200)
+    expect(await res2.json()).toEqual({ ok: true, already_processed: true })
+    expect(supabase.rpc).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -137,7 +176,7 @@ describe('pay/[token] confirm branch — idempotency (already_processed)', () =>
     }))
 
     // RPC reports token was already processed by the same PI
-    supabase.rpc.mockResolvedValueOnce({ data: { already_processed: true }, error: null })
+    ;(supabase.rpc as unknown as Mock).mockResolvedValueOnce({ data: { already_processed: true }, error: null })
   })
 
   it('returns 200 { ok: true, already_processed: true } without error', async () => {
@@ -164,7 +203,7 @@ describe('pay/[token] confirm branch — RPC failure', () => {
     }))
 
     // RPC returns a DB error
-    supabase.rpc.mockResolvedValueOnce({
+    ;(supabase.rpc as unknown as Mock).mockResolvedValueOnce({
       data:  null,
       error: { message: 'DB error', code: '42P01' },
     })
@@ -194,7 +233,7 @@ describe('pay/[token] confirm branch — conflict (different PI on paid token)',
     }))
 
     // RPC reports a conflict (token paid by a different PI)
-    supabase.rpc.mockResolvedValueOnce({ data: { conflict: true }, error: null })
+    ;(supabase.rpc as unknown as Mock).mockResolvedValueOnce({ data: { conflict: true }, error: null })
   })
 
   it('returns 409 { error: Token already processed }', async () => {
@@ -229,12 +268,19 @@ describe('pay/[token] confirm branch — token guard', () => {
     expect(res.status).toBe(410)
   })
 
-  it('returns 410 when token is already paid', async () => {
+  it('returns 409 when token is already paid with a different PaymentIntent', async () => {
     vi.clearAllMocks()
     ;(supabase._table('bhph_payment_tokens').maybeSingle as MockOnce)
-      .mockResolvedValueOnce({ data: { ...FAKE_TOKEN_ROW, status: 'paid' }, error: null })
-    const res = await POST(makeConfirmRequest(), routeParams)
-    expect(res.status).toBe(410)
+      .mockResolvedValueOnce({
+        data: {
+          ...FAKE_TOKEN_ROW,
+          status:                   'paid',
+          stripe_payment_intent_id: 'pi_other',
+        },
+        error: null,
+      })
+    const res = await POST(makeConfirmRequest('pi_test_001'), routeParams)
+    expect(res.status).toBe(409)
   })
 })
 

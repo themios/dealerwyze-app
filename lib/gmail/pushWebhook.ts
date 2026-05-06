@@ -3,6 +3,7 @@ import { after, NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { processGmailHistory } from '@/lib/gmail/processHistory'
 import { logOrgAudit } from '@/lib/audit/orgAudit'
+import { writeAuditLog } from '@/lib/audit/log'
 
 const googleOidcClient = new OAuth2Client()
 const GOOGLE_PUBSUB_ISSUERS = new Set(['accounts.google.com', 'https://accounts.google.com'])
@@ -91,6 +92,14 @@ export async function handleGmailPushWebhook(
     void logOrgAudit({ org_id: null,
       actor_type: 'webhook', action: 'gmail_webhook_auth_failure', ip,
       details: { audience } }).catch(() => {})
+    void writeAuditLog({
+      orgId:     null,
+      actorId:   null,
+      actorType: 'user',
+      action:    'webhook_auth_failure',
+      metadata:  { path: audiencePath, reason: 'gmail_oidc_invalid' },
+      ipAddress: ip,
+    })
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

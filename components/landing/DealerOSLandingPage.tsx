@@ -171,7 +171,7 @@ function OSNav() {
     <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm shadow-sm">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-16">
-          <Image src="/logo.png" alt="DealerWyze" width={240} height={160} priority style={{ width: '140px', height: 'auto' }} className="object-contain" />
+          <Image src="/logo.png" alt="DealerWyze" width={140} height={47} priority className="object-contain" />
           <div className="flex items-center gap-2">
             <a
               href="mailto:support@dealerwyze.com?subject=15-Minute%20Dealer%20Workflow%20Review"

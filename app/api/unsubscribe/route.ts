@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
-import { z } from 'zod'
 import { createServiceClient } from '@/lib/supabase/service'
 import { buildUnsubscribeToken } from '@/lib/security/unsubscribe'
-
-const UnsubscribeQuerySchema = z.object({
-  token: z.string().min(1).max(128).regex(/^[0-9a-f]+$/, 'Invalid token format'),
-  cid:   z.string().uuid('Invalid customer id'),
-})
+import { UnsubscribeQuerySchema } from '@/lib/validation/schemas'
+import { parseSearchParams } from '@/lib/validation/parseRequest'
 
 function htmlError(msg: string, status: number) {
   return new NextResponse(
@@ -17,17 +13,16 @@ function htmlError(msg: string, status: number) {
 }
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = req.nextUrl
-  const parsed = UnsubscribeQuerySchema.safeParse({
-    token: searchParams.get('token') ?? '',
-    cid:   searchParams.get('cid') ?? '',
-  })
-
-  if (!parsed.success) {
-    return htmlError('This unsubscribe link is not valid. Please contact us directly if you want to opt out.', 400)
+  let token: string
+  let cid: string
+  try {
+    ;({ token, cid } = parseSearchParams(req.nextUrl.searchParams, UnsubscribeQuerySchema))
+  } catch (e) {
+    if (e instanceof Response) {
+      return htmlError('This unsubscribe link is not valid. Please contact us directly if you want to opt out.', 400)
+    }
+    throw e
   }
-
-  const { token, cid } = parsed.data
 
   let expected = ''
   try {
@@ -54,6 +49,20 @@ export async function GET(req: NextRequest) {
   }
 
   const service = createServiceClient()
+
+  const { data: prior } = await service
+    .from('customers')
+    .select('unsubscribe_email')
+    .eq('id', cid)
+    .maybeSingle()
+
+  if (prior?.unsubscribe_email) {
+    return new NextResponse(
+      '<html><body style="font-family:sans-serif;max-width:500px;margin:40px auto;padding:0 16px"><h2>Already unsubscribed</h2><p>This email address is already opted out.</p></body></html>',
+      { headers: { 'Content-Type': 'text/html' }, status: 409 },
+    )
+  }
+
   const now = new Date().toISOString()
 
   await service

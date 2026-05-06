@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
 
     let result: Awaited<ReturnType<typeof ingestLead>>
     try {
-      result = await ingestLead(parsedLead, externalId, orgId)
+      result = await ingestLead(parsedLead, externalId, orgId, { capturedByUserId: profile.id })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Lead ingest failed'
       console.error('[leads/create-from-scan] ingestLead threw:', msg)
@@ -78,7 +78,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: result.error }, { status: 500 })
     }
 
-    const customerId = (result as { customer_id?: string | null }).customer_id ?? null
+    const customerId =
+      (result as { customer_id?: string | null }).customer_id ??
+      null
     if (!customerId) {
       const reason = (result as { reason?: string }).reason ?? 'unknown'
       return NextResponse.json(
@@ -87,70 +89,73 @@ export async function POST(req: NextRequest) {
       )
     }
 
-  // Link vehicle from inventory if dealer selected one on the confirm screen
-  if (customerId && link_vehicle_id) {
-    const supabase = await createClient()
-    const { data: existing } = await supabase
-      .from('customer_vehicles')
-      .select('id')
-      .eq('customer_id', customerId)
-      .eq('vehicle_id', link_vehicle_id)
-      .maybeSingle()
-    if (!existing) {
-      await supabase.from('customer_vehicles').insert({
-        customer_id:    customerId,
-        vehicle_id:     link_vehicle_id,
-        interest_level: 'hot',
-      })
-    }
-  }
+    const ingestStatus =
+      (result as { status?: string }).status === 'duplicate' ? 'duplicate' : 'created'
 
-  // Async: increment quota counter + write scan log (no latency impact)
-  after(async () => {
-    await incrementScanCount(orgId, isPdf, customerId ?? null, scan.overall_confidence)
-  })
-
-  // Optional intro SMS — reuse the same quota / rate limit / opt-out enforcement as normal outbound SMS
-  if (send_intro_sms && customerId) {
-    const supabase = await createClient()
-    const { data: customer } = await supabase
-      .from('customers')
-      .select('primary_phone, name')
-      .eq('id', customerId)
-      .single()
-
-    const phone = customer?.primary_phone
-    if (phone) {
-      const firstName = (merged.first_name.value ?? customer?.name?.split(' ')[0] ?? 'there')
-      const { data: orgSettings } = await supabase
-        .from('org_settings')
-        .select('dealer_name')
-        .eq('org_id', orgId)
+    // Link vehicle from inventory if dealer selected one on the confirm screen
+    if (customerId && link_vehicle_id) {
+      const supabase = await createClient()
+      const { data: existing } = await supabase
+        .from('customer_vehicles')
+        .select('id')
+        .eq('customer_id', customerId)
+        .eq('vehicle_id', link_vehicle_id)
         .maybeSingle()
-
-      const dealerName = orgSettings?.dealer_name ?? 'your dealer'
-      const introBody = `Hi ${firstName}! Thanks for your interest. This is ${dealerName} — we'd love to help you find the right vehicle. Reply STOP to opt out.`
-
-      try {
-        await sendOutboundSms({
-          orgId,
-          to: phone,
-          body: introBody,
-          customerId,
-          senderDisplayName: profile.display_name,
-          markInboundAddressed: false,
+      if (!existing) {
+        await supabase.from('customer_vehicles').insert({
+          customer_id:    customerId,
+          vehicle_id:     link_vehicle_id,
+          interest_level: 'hot',
         })
-      } catch (err) {
-        if (!(err instanceof SmsSendError)) {
-          console.error('[leads/create-from-scan] intro SMS failed:', err)
-        }
-        // Non-fatal — lead already created
       }
     }
-  }
+
+    // Async: increment quota counter + write scan log (no latency impact)
+    after(async () => {
+      await incrementScanCount(orgId, isPdf, customerId ?? null, scan.overall_confidence)
+    })
+
+    // Optional intro SMS — reuse the same quota / rate limit / opt-out enforcement as normal outbound SMS
+    if (send_intro_sms && customerId) {
+      const supabase = await createClient()
+      const { data: customer } = await supabase
+        .from('customers')
+        .select('primary_phone, name')
+        .eq('id', customerId)
+        .single()
+
+      const phone = customer?.primary_phone
+      if (phone) {
+        const firstName = (merged.first_name.value ?? customer?.name?.split(' ')[0] ?? 'there')
+        const { data: orgSettings } = await supabase
+          .from('org_settings')
+          .select('dealer_name')
+          .eq('org_id', orgId)
+          .maybeSingle()
+
+        const dealerName = orgSettings?.dealer_name ?? 'your dealer'
+        const introBody = `Hi ${firstName}! Thanks for your interest. This is ${dealerName} — we'd love to help you find the right vehicle. Reply STOP to opt out.`
+
+        try {
+          await sendOutboundSms({
+            orgId,
+            to: phone,
+            body: introBody,
+            customerId,
+            senderDisplayName: profile.display_name,
+            markInboundAddressed: false,
+          })
+        } catch (err) {
+          if (!(err instanceof SmsSendError)) {
+            console.error('[leads/create-from-scan] intro SMS failed:', err)
+          }
+          // Non-fatal — lead already created
+        }
+      }
+    }
 
     return NextResponse.json({
-      status: (result as { status?: string }).status ?? 'created',
+      status: ingestStatus,
       customer_id: customerId,
     })
   } catch (err) {

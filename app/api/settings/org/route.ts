@@ -3,6 +3,7 @@ import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 import { isDealerAdmin } from '@/lib/auth/dealerRoles'
 import { logOrgAudit } from '@/lib/audit/orgAudit'
+import { writeAuditLog } from '@/lib/audit/log'
 import { sanitizeLeadSourceEmailMatchers } from '@/lib/leads/sourceMatchers'
 
 export async function GET() {
@@ -169,6 +170,23 @@ export async function PATCH(req: NextRequest) {
     .select('id')
     .eq('org_id', profile.org_id)
     .maybeSingle()
+
+  const auditChangedKeys: string[] = []
+  if (body.name !== undefined) auditChangedKeys.push('name')
+  if (hasSettingsUpdate) {
+    for (const key of Object.keys(settingsPayload)) {
+      if (key !== 'org_id' && key !== 'updated_at') auditChangedKeys.push(key)
+    }
+  }
+  if (auditChangedKeys.length > 0) {
+    void writeAuditLog({
+      orgId:     profile.org_id,
+      actorId:   profile.id,
+      actorType: 'user',
+      action:    'settings_updated',
+      metadata:  { changed_keys: auditChangedKeys },
+    })
+  }
 
   void logOrgAudit({
     org_id: profile.org_id, actor_id: profile.id, actor_type: 'user',

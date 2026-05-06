@@ -17,7 +17,10 @@ const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 const runIntegration = Boolean(SUPABASE_URL && SERVICE_ROLE_KEY)
 
-type RpcResult = { ok?: true } | { already_processed?: true } | { conflict?: true }
+type RpcResult =
+  | { ok?: true; already_processed?: false }
+  | { ok?: true; already_processed?: true }
+  | { conflict?: true }
 
 function must<T>(value: T | null | undefined, message: string): T {
   if (value == null) throw new Error(message)
@@ -46,6 +49,7 @@ suite('RPC integration: finalize_bhph_payment', { timeout: 15_000 }, () => {
 
   async function cleanup() {
     // Most-specific → least-specific to satisfy FK constraints.
+    await supabase.from('bhph_payment_ledger').delete().eq('bhph_contract_id', FIX_CONTRACT_ID)
     await supabase.from('activities').delete().eq('customer_id', FIX_CUSTOMER_ID)
     await supabase.from('bhph_payment_tokens').delete().eq('id', FIX_TOKEN_ID)
     await supabase.from('bhph_payments').delete().eq('id', FIX_CONTRACT_ID)
@@ -128,7 +132,7 @@ suite('RPC integration: finalize_bhph_payment', { timeout: 15_000 }, () => {
       p_paid_at: PAID_AT,
     })
     if (error) throw new Error(`rpc error: ${error.message}`)
-    expect(data as RpcResult).toEqual({ ok: true })
+    expect(data).toMatchObject({ ok: true })
 
     const { data: tokenRow, error: tokenReadErr } = await supabase
       .from('bhph_payment_tokens')
@@ -158,9 +162,16 @@ suite('RPC integration: finalize_bhph_payment', { timeout: 15_000 }, () => {
       .maybeSingle()
     if (contractReadErr) throw new Error(`contract read error: ${contractReadErr.message}`)
     expect(contractRow?.total_paid).toBe(150)
-    // payment_frequency !== weekly/biweekly ⇒ +1 month
-    expect(contractRow?.next_due_date).toBe('2026-06-01')
+    // Partial payment ($50 < $250 monthly): next_due_date does not advance (141+).
+    expect(contractRow?.next_due_date).toBe('2026-05-01')
     expect(contractRow?.last_reminder_type).toBeNull()
+
+    const { count: ledgerCount, error: ledgerErr } = await supabase
+      .from('bhph_payment_ledger')
+      .select('*', { count: 'exact', head: true })
+      .eq('bhph_contract_id', FIX_CONTRACT_ID)
+    if (ledgerErr) throw new Error(`ledger count error: ${ledgerErr.message}`)
+    expect(ledgerCount).toBe(1)
   })
 
   it('Idempotency: second call with same PI returns already_processed and does not double-write', async () => {
@@ -170,7 +181,7 @@ suite('RPC integration: finalize_bhph_payment', { timeout: 15_000 }, () => {
       p_paid_at: PAID_AT,
     })
     if (first.error) throw new Error(`rpc error (first): ${first.error.message}`)
-    expect(first.data as RpcResult).toEqual({ ok: true })
+    expect(first.data).toMatchObject({ ok: true })
 
     const { data: contractAfterFirst } = await supabase
       .from('bhph_payments')
@@ -185,7 +196,7 @@ suite('RPC integration: finalize_bhph_payment', { timeout: 15_000 }, () => {
       p_paid_at: PAID_AT,
     })
     if (second.error) throw new Error(`rpc error (second): ${second.error.message}`)
-    expect(second.data as RpcResult).toEqual({ already_processed: true })
+    expect(second.data as RpcResult).toEqual({ ok: true, already_processed: true })
 
     const { data: contractAfterSecond, error: contractSecondErr } = await supabase
       .from('bhph_payments')
@@ -201,6 +212,13 @@ suite('RPC integration: finalize_bhph_payment', { timeout: 15_000 }, () => {
       .eq('customer_id', FIX_CUSTOMER_ID)
     if (actCountErr) throw new Error(`activity count error: ${actCountErr.message}`)
     expect(actCount).toBe(1)
+
+    const { count: ledgerCount, error: ledgerErr } = await supabase
+      .from('bhph_payment_ledger')
+      .select('*', { count: 'exact', head: true })
+      .eq('bhph_contract_id', FIX_CONTRACT_ID)
+    if (ledgerErr) throw new Error(`ledger count error: ${ledgerErr.message}`)
+    expect(ledgerCount).toBe(1)
   })
 
   it('Conflict: already-paid token with different PI returns conflict and does not write', async () => {

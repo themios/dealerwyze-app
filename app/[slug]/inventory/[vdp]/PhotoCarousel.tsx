@@ -57,6 +57,9 @@ export default function PhotoCarousel({ photos, vehicleName }: Props) {
           key={current}
           src={photos[current].url}
           alt={`${vehicleName} - photo ${current + 1}`}
+          loading={current === 0 ? 'eager' : 'lazy'}
+          decoding="async"
+          fetchPriority={current === 0 ? 'high' : 'low'}
           className="w-full h-full object-cover"
         />
       </div>

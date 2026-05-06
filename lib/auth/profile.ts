@@ -16,7 +16,7 @@ export interface Profile {
   pulse_score?: number | null
 }
 
-function normalizeOwnerRole(profile: Profile): Profile {
+export function normalizeOwnerRole(profile: Profile): Profile {
   // Org owner account (id === org_id) must always have full admin capabilities.
   if (profile.id === profile.org_id && profile.role === 'dealer_rep') {
     return { ...profile, role: 'dealer_admin' }

@@ -13,6 +13,8 @@ const MAX_SIZE_BYTES = 5 * 1024 * 1024  // 5MB (client compresses to ~800KB befo
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const MAX_PHOTOS = 20
 
+// Storage: service role required — Supabase Storage ignores session-level RLS
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -40,7 +42,6 @@ export async function POST(
   const { id: vehicleId } = await params
   // Auth client: RLS enforces org isolation for DB operations on vehicle_photos and vehicles.
   const supabase = await createClient()
-  // Service client: Supabase Storage does not respect session-level RLS — service key required for uploads.
   const service = createServiceClient()
 
   // Verify vehicle belongs to this org

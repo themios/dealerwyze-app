@@ -11,7 +11,7 @@ import {
   ShieldCheck, Settings, Printer, Globe,
   LayoutDashboard, Bell, Building2, TrendingDown,
   LineChart, GitBranch, UserCog, TicketCheck, ScrollText,
-  LogOut, Briefcase, Contact, Heart,
+  LogOut, Briefcase, Contact, Heart, Inbox,
 } from 'lucide-react'
 
 interface MeResponse {
@@ -22,6 +22,22 @@ interface MeResponse {
 }
 
 // ── Dealer nav ────────────────────────────────────────────────────────────────
+
+function WebLeadsBadge() {
+  const [count, setCount] = useState(0)
+  useEffect(() => {
+    fetch('/api/leads/web/count')
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { count?: number } | null) => setCount(d?.count ?? 0))
+      .catch(() => {})
+  }, [])
+  if (!count) return null
+  return (
+    <span className="ml-auto min-w-[18px] h-[18px] bg-green-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 leading-none">
+      {count > 99 ? '99+' : count}
+    </span>
+  )
+}
 
 function OpenTicketsBadge() {
   const [count, setCount] = useState(0)
@@ -43,12 +59,14 @@ const BASE_NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/today',     label: 'Today',     icon: Home },
   { href: '/customers', label: 'Leads',     icon: Users },
+  { href: '/leads/web', label: 'Web Leads', icon: Inbox,           badge: 'webleads' as const },
   { href: '/vehicles',  label: 'Inventory', icon: Car },
   { href: '/contacts',  label: 'Contacts',  icon: BookUser },
 ]
 
 const ROLE_NAV = [
   { href: '/bhph',      label: 'BHPH',      icon: CreditCard,     requiresRole: (r: string) => r !== 'dealer_rep' },
+  { href: '/admin/security-audit', label: 'Security Audit', icon: ShieldCheck, requiresRole: (r: string) => ['dealer_admin', 'dealer_manager', 'admin'].includes(r) },
   { href: '/analytics', label: 'Analytics', icon: BarChart2,      requiresRole: (r: string) => ['dealer_admin', 'dealer_manager', 'admin'].includes(r) },
   { href: '/pulse',     label: 'Pulse',     icon: Heart,          requiresRole: (r: string) => ['dealer_admin', 'dealer_manager', 'admin'].includes(r) },
   { href: '/fax',               label: 'Fax',      icon: Printer,        requiresRole: () => true },
@@ -247,11 +265,18 @@ function AdminSidebar({ platformRole, platformPermissions, isSuperAdmin }: {
 
 // ── Dealer sidebar ────────────────────────────────────────────────────────────
 
+interface DealerNavItem {
+  href: string
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  badge?: string
+}
+
 function DealerSidebar({ orgName, role, isPlatformAdmin }: { orgName?: string | null; role: string; isPlatformAdmin: boolean }) {
   const pathname = usePathname()
 
   const visibleRoleNav = ROLE_NAV.filter(item => item.requiresRole(role))
-  const allNav = [
+  const allNav: DealerNavItem[] = [
     ...BASE_NAV,
     ...visibleRoleNav,
     ...(isPlatformAdmin ? [ADMIN_NAV] : []),
@@ -260,6 +285,7 @@ function DealerSidebar({ orgName, role, isPlatformAdmin }: { orgName?: string | 
   function isActive(href: string) {
     if (href === '/dashboard') return pathname === '/dashboard' || pathname === '/'
     if (href === '/today') return pathname === '/today'
+    if (href === '/admin') return pathname === '/admin'
     return pathname.startsWith(href)
   }
 
@@ -275,7 +301,7 @@ function DealerSidebar({ orgName, role, isPlatformAdmin }: { orgName?: string | 
 
       {/* Nav links */}
       <nav className="flex-1 py-3 px-2 space-y-0.5">
-        {allNav.map(({ href, label, icon: Icon }) => {
+        {allNav.map(({ href, label, icon: Icon, badge }) => {
           const active = isActive(href)
           return (
             <Link
@@ -293,6 +319,7 @@ function DealerSidebar({ orgName, role, isPlatformAdmin }: { orgName?: string | 
               )}
               <Icon className="h-4.5 w-4.5 shrink-0" />
               {label}
+              {badge === 'webleads' && <WebLeadsBadge />}
               {href === '/admin' && isPlatformAdmin && <OpenTicketsBadge />}
             </Link>
           )

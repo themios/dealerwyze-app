@@ -8,7 +8,7 @@ const R2_BUCKET      = process.env.R2_BUCKET_VIDEOS ?? 'dealerwyze-videos'
 const R2_PUBLIC_URL  = process.env.R2_VIDEOS_PUBLIC_URL ?? ''
 const TTS_API_KEY    = process.env.GOOGLE_TTS_API_KEY
 
-function buildNarrationScript(props: VehicleVideoProps): string {
+export function buildNarrationScript(props: VehicleVideoProps): string {
   const trimStr = props.trim ? ` ${props.trim}` : ''
 
   // Opener
@@ -175,16 +175,19 @@ export async function generateVehicleNarration(
 
 /**
  * Generate narration with a specific voice name.
+ * If `customScript` is provided it is used verbatim; otherwise the script
+ * is auto-generated from vehicle props via buildNarrationScript().
  */
 export async function generateVehicleNarrationWithVoice(
   orgId: string,
   vehicleId: string,
   props: VehicleVideoProps,
   voiceName: string,
+  customScript?: string,
 ): Promise<string> {
   if (!TTS_API_KEY) return ''
 
-  const script = buildNarrationScript(props)
+  const script = customScript?.trim() || buildNarrationScript(props)
   const ttsUrl = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${TTS_API_KEY}`
 
   const res = await fetch(ttsUrl, {

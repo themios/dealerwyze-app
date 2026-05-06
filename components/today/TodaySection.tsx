@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useId, useState } from 'react'
+import { useCallback, useId, useRef, useSyncExternalStore } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 
@@ -14,6 +14,49 @@ interface Props {
   emptyMessage?: string
 }
 
+function useOpenPersisted(storageKey: string, defaultOpen: boolean): [boolean, (update: React.SetStateAction<boolean>) => void] {
+  const listenersRef = useRef(new Set<() => void>())
+
+  const subscribe = useCallback((onStoreChange: () => void) => {
+    listenersRef.current.add(onStoreChange)
+    return () => {
+      listenersRef.current.delete(onStoreChange)
+    }
+  }, [])
+
+  const read = useCallback((): boolean => {
+    try {
+      const saved = window.localStorage.getItem(storageKey)
+      if (saved === '0') return false
+      if (saved === '1') return true
+    } catch {
+      /* ignore */
+    }
+    return defaultOpen
+  }, [storageKey, defaultOpen])
+
+  const getSnapshot = useCallback(() => read(), [read])
+  const getServerSnapshot = useCallback(() => defaultOpen, [defaultOpen])
+
+  const open = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
+
+  const setOpen = useCallback(
+    (update: React.SetStateAction<boolean>) => {
+      const prev = read()
+      const next = typeof update === 'function' ? (update as (b: boolean) => boolean)(prev) : update
+      try {
+        window.localStorage.setItem(storageKey, next ? '1' : '0')
+      } catch {
+        /* ignore */
+      }
+      listenersRef.current.forEach(l => l())
+    },
+    [read, storageKey],
+  )
+
+  return [open, setOpen]
+}
+
 export default function TodaySection({
   sectionKey,
   title,
@@ -24,18 +67,8 @@ export default function TodaySection({
   emptyMessage = 'Nothing here right now.',
 }: Props) {
   const storageKey = `today-section:${sectionKey}`
-  const [open, setOpen] = useState(defaultOpen)
+  const [open, setOpen] = useOpenPersisted(storageKey, defaultOpen)
   const contentId = useId()
-
-  useEffect(() => {
-    const saved = window.localStorage.getItem(storageKey)
-    if (saved === '0') setOpen(false)
-    if (saved === '1') setOpen(true)
-  }, [storageKey])
-
-  useEffect(() => {
-    window.localStorage.setItem(storageKey, open ? '1' : '0')
-  }, [open, storageKey])
 
   return (
     <section id={`today-section-${sectionKey}`} className="space-y-2">

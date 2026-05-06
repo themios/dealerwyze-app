@@ -8,34 +8,54 @@ interface Props {
   currentMake?: string
   currentMin?: string
   currentMax?: string
+  currentQ?: string
 }
 
-export default function InventoryFilters({ makes, currentMake, currentMin, currentMax }: Props) {
+export default function InventoryFilters({ makes, currentMake, currentMin, currentMax, currentQ }: Props) {
   const router = useRouter()
   const pathname = usePathname()
 
-  const updateFilter = useCallback((key: string, value: string | undefined) => {
+  const buildParams = useCallback((overrides: Record<string, string | undefined>) => {
+    const base: Record<string, string | undefined> = {
+      make: currentMake,
+      min: currentMin,
+      max: currentMax,
+      q: currentQ,
+    }
+    const merged = { ...base, ...overrides }
     const params = new URLSearchParams()
-    if (currentMake) params.set('make', currentMake)
-    if (currentMin) params.set('min', currentMin)
-    if (currentMax) params.set('max', currentMax)
+    for (const [k, v] of Object.entries(merged)) {
+      if (v) params.set(k, v)
+    }
+    return params.toString()
+  }, [currentMake, currentMin, currentMax, currentQ])
 
-    if (value) params.set(key, value)
-    else params.delete(key)
-
-    const qs = params.toString()
+  const push = useCallback((key: string, value: string | undefined) => {
+    const qs = buildParams({ [key]: value })
     router.push(qs ? `${pathname}?${qs}` : pathname)
-  }, [router, pathname, currentMake, currentMin, currentMax])
+  }, [router, pathname, buildParams])
 
-  const hasFilters = currentMake || currentMin || currentMax
+  const hasFilters = currentMake || currentMin || currentMax || currentQ
 
   return (
     <div className="flex flex-wrap gap-3 items-center">
+      {/* Keyword search */}
+      <input
+        type="text"
+        placeholder="Search make or model…"
+        defaultValue={currentQ ?? ''}
+        onBlur={e => push('q', e.target.value || undefined)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') push('q', (e.target as HTMLInputElement).value || undefined)
+        }}
+        className="text-sm w-44 rounded-lg border border-[var(--dp-navy)]/15 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--dp-gold)]"
+      />
+
       {/* Make filter */}
       <select
         value={currentMake ?? ''}
-        onChange={e => updateFilter('make', e.target.value || undefined)}
-        className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        onChange={e => push('make', e.target.value || undefined)}
+        className="text-sm rounded-lg border border-[var(--dp-navy)]/15 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--dp-gold)]"
       >
         <option value="">All Makes</option>
         {makes.map(make => (
@@ -48,24 +68,30 @@ export default function InventoryFilters({ makes, currentMake, currentMin, curre
         <input
           type="number"
           placeholder="Min price"
-          value={currentMin ?? ''}
-          onChange={e => updateFilter('min', e.target.value || undefined)}
-          className="text-sm border border-gray-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          defaultValue={currentMin ?? ''}
+          onBlur={e => push('min', e.target.value || undefined)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') push('min', (e.target as HTMLInputElement).value || undefined)
+          }}
+          className="text-sm w-28 rounded-lg border border-[var(--dp-navy)]/15 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--dp-gold)]"
         />
-        <span className="text-gray-400 text-sm">-</span>
+        <span className="text-sm text-[var(--dp-ink)]/35">–</span>
         <input
           type="number"
           placeholder="Max price"
-          value={currentMax ?? ''}
-          onChange={e => updateFilter('max', e.target.value || undefined)}
-          className="text-sm border border-gray-200 rounded-lg px-3 py-2 w-28 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          defaultValue={currentMax ?? ''}
+          onBlur={e => push('max', e.target.value || undefined)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') push('max', (e.target as HTMLInputElement).value || undefined)
+          }}
+          className="text-sm w-28 rounded-lg border border-[var(--dp-navy)]/15 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--dp-gold)]"
         />
       </div>
 
       {hasFilters && (
         <button
           onClick={() => router.push(pathname)}
-          className="text-sm text-blue-600 hover:underline"
+          className="text-sm font-medium text-[var(--dp-navy)] underline-offset-2 hover:underline"
         >
           Clear filters
         </button>

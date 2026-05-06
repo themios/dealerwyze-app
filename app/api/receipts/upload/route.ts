@@ -8,6 +8,8 @@ import { orgReceiptScanLimiter } from '@/lib/rateLimit/upstash'
 
 export const maxDuration = 60
 
+// Storage: service role required — Supabase Storage ignores session-level RLS
+
 export async function POST(req: NextRequest) {
   try {
   const profile = await requireProfile()

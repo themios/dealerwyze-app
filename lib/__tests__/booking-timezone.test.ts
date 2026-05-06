@@ -88,7 +88,7 @@ describe('booking timezone — UTC storage correctness', () => {
       SLUG_PARAMS,
     )
 
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(201)
 
     const actInsert = supabase._table('activities').insert.mock.calls[0]?.[0] as Record<string, string>
     expect(actInsert.due_at).toBe('2026-06-15T21:00:00.000Z')
@@ -106,7 +106,7 @@ describe('booking timezone — UTC storage correctness', () => {
       SLUG_PARAMS,
     )
 
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(201)
 
     const actInsert = supabase._table('activities').insert.mock.calls[0]?.[0] as Record<string, string>
     expect(actInsert.due_at).toBe('2026-06-15T18:00:00.000Z')

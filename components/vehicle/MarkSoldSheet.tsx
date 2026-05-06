@@ -49,6 +49,7 @@ const INITIAL_FORM = {
   sms_consent: false,
   email_consent: false,
   notes: '',
+  annual_interest_rate_percent: '',
 }
 
 export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }: Props) {
@@ -476,7 +477,7 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label>Loan Amount</Label>
+                  <Label>Loan amount (principal)</Label>
                   <Input type="number" placeholder="10000" value={form.loan_amount}
                     onChange={e => update('loan_amount', e.target.value)} className="h-11" />
                 </div>
@@ -486,6 +487,20 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
                     {remainingDeferred.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
                   </div>
                 </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Annual interest rate (%)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.01"
+                  placeholder="0 for no interest"
+                  value={form.annual_interest_rate_percent}
+                  onChange={e => update('annual_interest_rate_percent', e.target.value)}
+                  className="h-11"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">

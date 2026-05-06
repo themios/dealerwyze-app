@@ -22,7 +22,7 @@ describe('sanitizeEmailSignatureHtml', () => {
     expect(sanitized).toContain('height="40"')
   })
 
-  it('preserves table-based signature markup and inline styles', () => {
+  it('strips table/layout tags; keeps only p, br, strong, em, a, img (strict allowlist)', () => {
     const input = `
       <table cellpadding="0" cellspacing="0" style="font-family: Arial;">
         <tbody>
@@ -31,9 +31,6 @@ describe('sanitizeEmailSignatureHtml', () => {
               <h3 style="margin: 0; color: rgb(0, 0, 0);">Tim Harmantzis</h3>
               <p style="margin: 0;">President</p>
             </td>
-            <td width="15"></td>
-            <td style="border-left: 1px solid rgb(0, 81, 255);"></td>
-            <td width="15"></td>
             <td>
               <a href="https://www.apolloauto.us" style="text-decoration: none;">www.ApolloAuto.US</a>
             </td>
@@ -44,15 +41,12 @@ describe('sanitizeEmailSignatureHtml', () => {
 
     const sanitized = sanitizeEmailSignatureHtml(input)
 
-    expect(sanitized).toContain('<table cellpadding="0" cellspacing="0"')
-    expect(sanitized).toMatch(/style="[^"]*font-family:\s*Arial/i)
-    expect(sanitized).toContain('Tim Harmantzis</h3>')
-    expect(sanitized).toMatch(/style="[^"]*margin:\s*0/i)
-    expect(sanitized).toMatch(/style="[^"]*color:\s*rgb\(0,\s*0,\s*0\)/i)
-    expect(sanitized).toContain('<td width="15"></td>')
-    expect(sanitized).toContain('<a href="https://www.apolloauto.us"')
-    expect(sanitized).toContain('>www.ApolloAuto.US</a>')
-    expect(sanitized).toMatch(/style="[^"]*text-decoration:\s*none/i)
+    expect(sanitized).not.toContain('<table')
+    expect(sanitized).not.toContain('<h3')
+    expect(sanitized).toContain('Tim Harmantzis')
+    expect(sanitized).toContain('<p>President</p>')
+    expect(sanitized).toContain('<a href="https://www.apolloauto.us">')
+    expect(sanitized).toContain('www.ApolloAuto.US')
   })
 
   it('converts sanitized html into readable plain text', () => {

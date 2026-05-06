@@ -16,6 +16,7 @@ import {
   TrendingUp,
   Inbox,
   Heart,
+  Globe,
 } from 'lucide-react'
 import { NAVY, ORANGE, StaggerGrid, cardVariants } from './_shared'
 
@@ -24,6 +25,8 @@ const features: { icon: React.ElementType; title: string; desc: string }[] = [
     desc: 'Prioritized daily action list - overdue tasks, new leads, appointments, and follow-ups ranked by urgency.' },
   { icon: Car,           title: 'Lead Pipeline',
     desc: 'Kanban board from New Lead to Contacted to Appointment to Sold. Drag to advance, filter by rep.' },
+  { icon: Globe,         title: 'Public Dealer Website',
+    desc: 'Publish inventory on a branded, mobile-friendly site with SEO-friendly listings, vehicle detail pages, structured data, and lead forms. Upload your logo and dealer info — included on every plan and in your 30-day trial.' },
   { icon: MessageSquare, title: 'Two-Way SMS & Email',
     desc: 'Text and email from one inbox with a dedicated business number. Replies land in the customer thread automatically.' },
   { icon: Inbox,         title: 'Lead Import',

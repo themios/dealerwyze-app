@@ -7,38 +7,42 @@
  *   supabase.from('vehicles').select.mockResolvedValueOnce({ data: [...], error: null })
  */
 
-import { vi } from 'vitest'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { vi, type Mock } from 'vitest'
 
 export const TEST_ORG_ID   = 'test-org-00000000-0000-0000-0000-000000000001'
 export const TEST_ORG_B_ID = 'test-org-00000000-0000-0000-0000-000000000002'
 export const TEST_USER_ID  = 'test-user-0000-0000-0000-000000000001'
 
-type MockFn = ReturnType<typeof vi.fn>
+/** Chain methods return the stub; `Mock` keeps `.mockResolvedValueOnce` etc. */
+type ChainMock = Mock<(...args: unknown[]) => QueryBuilderStub>
+type RowResult = { data: unknown; error: unknown }
+type TerminalMock = Mock<(...args: unknown[]) => Promise<RowResult>>
 
 export interface QueryBuilderStub {
-  select:      MockFn
-  insert:      MockFn
-  update:      MockFn
-  upsert:      MockFn
-  delete:      MockFn
-  eq:          MockFn
-  neq:         MockFn
-  in:          MockFn
-  is:          MockFn
-  not:         MockFn
-  lt:          MockFn
-  lte:         MockFn
-  gt:          MockFn
-  gte:         MockFn
-  ilike:       MockFn
-  contains:    MockFn
-  or:          MockFn
-  filter:      MockFn
-  range:       MockFn
-  order:       MockFn
-  limit:       MockFn
-  single:      MockFn
-  maybeSingle: MockFn
+  select:      ChainMock
+  insert:      ChainMock
+  update:      ChainMock
+  upsert:      ChainMock
+  delete:      ChainMock
+  eq:          ChainMock
+  neq:         ChainMock
+  in:          ChainMock
+  is:          ChainMock
+  not:         ChainMock
+  lt:          ChainMock
+  lte:         ChainMock
+  gt:          ChainMock
+  gte:         ChainMock
+  ilike:       ChainMock
+  contains:    ChainMock
+  or:          ChainMock
+  filter:      ChainMock
+  range:       ChainMock
+  order:       ChainMock
+  limit:       ChainMock
+  single:      TerminalMock
+  maybeSingle: TerminalMock
   then:        (onFulfilled?: (value: unknown) => unknown, onRejected?: (reason: unknown) => unknown) => Promise<unknown>
   _chain:      () => QueryBuilderStub
 }
@@ -80,8 +84,13 @@ function makeQueryBuilder(defaultResult = { data: [], error: null }): QueryBuild
   return stub
 }
 
+/** Mock client: satisfies `SupabaseClient` at call sites; exposes `_table` for test setup */
+export type TestSupabaseClient = SupabaseClient & {
+  _table: (table: string) => QueryBuilderStub
+}
+
 export interface TestClient {
-  supabase: ReturnType<typeof makeTestClient>['supabase']
+  supabase: TestSupabaseClient
   ORG_ID: string
   ORG_B_ID: string
   USER_ID: string
@@ -119,7 +128,7 @@ export function makeTestClient() {
   }
 
   return {
-    supabase,
+    supabase: supabase as unknown as TestSupabaseClient,
     ORG_ID:   TEST_ORG_ID,
     ORG_B_ID: TEST_ORG_B_ID,
     USER_ID:  TEST_USER_ID,

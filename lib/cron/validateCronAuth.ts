@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { writeAuditLog } from '@/lib/audit/log'
 
 /**
  * Validates cron route authentication using timing-safe comparison.
@@ -41,6 +42,17 @@ export function validateCronAuth(req: NextRequest): NextResponse | null {
   const legacyOk = legacySecret.length > 0 && safeCompare(legacyHeader, legacySecret)
 
   if (!bearerOk && !legacyOk) {
+    const path =
+      'nextUrl' in req && req.nextUrl && typeof req.nextUrl.pathname === 'string'
+        ? req.nextUrl.pathname
+        : '/cron'
+    void writeAuditLog({
+      orgId:     null,
+      actorId:   null,
+      actorType: 'user',
+      action:    'webhook_auth_failure',
+      metadata:  { path, reason: 'invalid_cron_secret' },
+    })
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

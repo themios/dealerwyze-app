@@ -3,6 +3,11 @@ import { stripe, tierFromPriceId, smsTierFromPriceId, storagePackFromPriceId, PL
 import { createServiceClient } from '@/lib/supabase/service'
 import { sendNotificationEmail } from '@/lib/email/notify'
 import { recordCommission } from '@/lib/stripe/commissions'
+import { validationErrorFields } from '@/lib/validation/parseRequest'
+import {
+  StripeCheckoutSessionCompletedObjectSchema,
+  StripePaymentIntentSucceededObjectSchema,
+} from '@/lib/validation/stripeWebhookObjects'
 import Stripe from 'stripe'
 
 export async function POST(req: NextRequest) {
@@ -39,6 +44,13 @@ export async function POST(req: NextRequest) {
 
   switch (event.type) {
     case 'checkout.session.completed': {
+      const sessionChecked = StripeCheckoutSessionCompletedObjectSchema.safeParse(event.data.object)
+      if (!sessionChecked.success) {
+        return NextResponse.json(
+          { error: 'Validation failed', fields: validationErrorFields(sessionChecked.error) },
+          { status: 400 },
+        )
+      }
       const session = event.data.object as Stripe.Checkout.Session
       console.info('[stripe-webhook] checkout.session.completed', {
         sessionId: session.id,
@@ -326,6 +338,17 @@ export async function POST(req: NextRequest) {
 <p style="color:#888;font-size:12px">DealerWyze — Dealer Management Platform</p>`,
           })
         }
+      }
+      break
+    }
+
+    case 'payment_intent.succeeded': {
+      const piChecked = StripePaymentIntentSucceededObjectSchema.safeParse(event.data.object)
+      if (!piChecked.success) {
+        return NextResponse.json(
+          { error: 'Validation failed', fields: validationErrorFields(piChecked.error) },
+          { status: 400 },
+        )
       }
       break
     }

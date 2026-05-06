@@ -1,6 +1,5 @@
 export const dynamic = 'force-dynamic'
 import { createClientForRequest } from '@/lib/supabase/forRequest'
-import { createServiceClient } from '@/lib/supabase/service'
 import { requireProfile } from '@/lib/auth/profile'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -19,7 +18,6 @@ export default async function CustomerDetailPage({ params }: PageProps) {
   const { id } = await params
   const profile = await requireProfile()
   const supabase = await createClientForRequest()
-  const service = createServiceClient()
 
   const [{ data: customer }, { data: sentActivities }, { data: scheduledActivities }, { data: tasks }, { data: cvData }] = await Promise.all([
     supabase.from('customers').select('*').eq('id', id).eq('user_id', profile.org_id).single(),
@@ -44,7 +42,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
       .eq('status', 'open')
       .order('due_at', { ascending: true, nullsFirst: false })
       .limit(20),
-    service.from('customer_vehicles').select('vehicle:vehicles(*)').eq('customer_id', id),
+    supabase.from('customer_vehicles').select('vehicle:vehicles(*)').eq('customer_id', id),
   ])
 
   // Pick the primary vehicle: prefer non-sold/non-removed, fall back to first

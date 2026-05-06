@@ -1,23 +1,35 @@
 'use client'
 
 import { useState } from 'react'
-import { Globe, Copy, Check } from 'lucide-react'
+import Link from 'next/link'
+import { Globe, Copy, Check, AlertTriangle, ExternalLink } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
+import { getPublicAppBaseUrl } from '@/lib/dealer-public/site'
 
 interface Props {
   vehicleId: string
   orgSlug: string
   initialPublished: boolean
   initialSlug: string | null
+  /** When false, published vehicle VDPs return 404 until Settings → Website enables public inventory */
+  dealerWebsiteLive?: boolean
 }
 
-export default function VehiclePublishToggle({ vehicleId, orgSlug, initialPublished, initialSlug }: Props) {
+export default function VehiclePublishToggle({
+  vehicleId,
+  orgSlug,
+  initialPublished,
+  initialSlug,
+  dealerWebsiteLive = true,
+}: Props) {
   const [published, setPublished] = useState(initialPublished)
   const [publicSlug, setPublicSlug] = useState<string | null>(initialSlug)
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
 
   const publicUrl = publicSlug
-    ? `${typeof window !== 'undefined' ? window.location.origin : 'https://dealerwyze.com'}/${orgSlug}/inventory/${publicSlug}`
+    ? `${getPublicAppBaseUrl()}/${orgSlug}/inventory/${publicSlug}`
     : null
 
   const toggle = async () => {
@@ -45,55 +57,81 @@ export default function VehiclePublishToggle({ vehicleId, orgSlug, initialPublis
     setTimeout(() => setCopied(false), 2000)
   }
 
-  return (
-    <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Globe className="h-4 w-4 text-gray-500" />
-          <span className="text-sm font-medium text-gray-700">Show on public website</span>
-        </div>
+  const switchId = `publish-toggle-${vehicleId}`
 
-        {/* Toggle */}
-        <button
-          onClick={toggle}
+  return (
+    <div className="rounded-lg border bg-card p-4 space-y-3">
+      {/* Toggle row */}
+      <div className="flex items-center justify-between gap-4 min-h-[44px]">
+        <div className="flex items-center gap-2.5">
+          <Globe className="h-4 w-4 text-muted-foreground shrink-0" aria-hidden />
+          <div>
+            <Label htmlFor={switchId} className="text-sm font-medium cursor-pointer">
+              Show on public website
+            </Label>
+            {!published && (
+              <p className="text-xs text-muted-foreground">
+                Hidden from shoppers
+              </p>
+            )}
+          </div>
+        </div>
+        <Switch
+          id={switchId}
+          checked={published}
+          onCheckedChange={toggle}
           disabled={loading}
-          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 disabled:opacity-50 ${
-            published ? 'bg-blue-600' : 'bg-gray-300'
-          }`}
-          aria-label={published ? 'Unpublish vehicle' : 'Publish vehicle'}
-        >
-          <span
-            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-              published ? 'translate-x-6' : 'translate-x-1'
-            }`}
-          />
-        </button>
+          aria-label={published ? 'Unpublish vehicle from website' : 'Publish vehicle to website'}
+        />
       </div>
 
-      {published && publicUrl && (
-        <div className="flex items-center gap-2">
-          <a
-            href={publicUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-blue-600 hover:underline truncate flex-1"
-          >
-            {publicUrl}
-          </a>
-          <button
-            onClick={copyUrl}
-            className="shrink-0 text-gray-400 hover:text-gray-600"
-            title="Copy link"
-          >
-            {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
-          </button>
-        </div>
-      )}
-
+      {/* Published state */}
       {published && (
-        <p className="text-xs text-gray-500">
-          Customers can find and contact you about this vehicle online.
-        </p>
+        <div className="space-y-2">
+          {publicUrl && (
+            <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 min-h-[44px]">
+              <a
+                href={publicUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-xs text-primary hover:underline truncate flex-1 min-w-0"
+              >
+                <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
+                <span className="truncate">{publicUrl}</span>
+              </a>
+              <button
+                onClick={copyUrl}
+                className="shrink-0 flex items-center justify-center h-8 w-8 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                title={copied ? 'Copied!' : 'Copy link'}
+                aria-label={copied ? 'Link copied' : 'Copy listing link'}
+              >
+                {copied
+                  ? <Check className="h-4 w-4 text-green-500" />
+                  : <Copy className="h-4 w-4" />}
+              </button>
+            </div>
+          )}
+
+          <p className="text-xs text-muted-foreground">
+            Shoppers can find and contact you about this vehicle online.
+          </p>
+
+          {publicUrl && !dealerWebsiteLive && (
+            <div className="flex gap-2 rounded-md border border-amber-200 dark:border-amber-800 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-100">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" aria-hidden />
+              <p>
+                Your dealer inventory site is off — shoppers see a 404. Turn on{' '}
+                <Link
+                  href="/settings/website"
+                  className="font-semibold underline underline-offset-2"
+                >
+                  public website / inventory
+                </Link>
+                {' '}in settings.
+              </p>
+            </div>
+          )}
+        </div>
       )}
     </div>
   )

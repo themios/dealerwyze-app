@@ -83,8 +83,9 @@ export default function HeroSection() {
             <p className="text-lg sm:text-xl leading-relaxed mb-8 max-w-lg"
               style={{ color: 'rgba(255,255,255,0.75)' }}>
               DealerWyze captures lead emails, tracks every conversation, and shows
-              exactly who needs attention next - so independent dealers close more
-              deals without adding staff.
+              exactly who needs attention next. Publish your inventory on an SEO-ready
+              public dealer site — so buyers find your cars and you close more deals
+              without adding staff.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 mb-6">
               <a href="#how-it-works"
@@ -105,6 +106,8 @@ export default function HeroSection() {
               <span>Gmail + IMAP lead import</span>
               <span>·</span>
               <span>Vehicle-linked CRM</span>
+              <span>·</span>
+              <span>Public inventory website (SEO)</span>
               <span>·</span>
               <span>Free during beta</span>
             </div>

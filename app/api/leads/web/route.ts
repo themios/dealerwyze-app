@@ -4,10 +4,14 @@
  * Inserts into inventory_inquiries + creates an activity for the dealer CRM inbox.
  */
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { createServiceClient } from '@/lib/supabase/service'
 import { notifyDealerNewLead } from '@/lib/vdp/notifyDealer'
 import { webLeadLimiter } from '@/lib/rateLimit/upstash'
-import { WebLeadSchema, parseBody } from '@/lib/validation/schemas'
+import { WebLeadSchema } from '@/lib/validation/schemas'
+import { parseBody } from '@/lib/validation/parseRequest'
+
+const MAX_WEB_LEAD_BODY_BYTES = 32_768
 
 export async function POST(req: NextRequest) {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'unknown'
@@ -16,10 +20,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
   }
 
-  const parsed = await parseBody(req, WebLeadSchema)
-  if (parsed.errorResponse) return parsed.errorResponse
+  const len = req.headers.get('content-length')
+  if (len != null && /^\d+$/.test(len) && parseInt(len, 10) > MAX_WEB_LEAD_BODY_BYTES) {
+    return NextResponse.json(
+      { error: 'Validation failed', fields: { _body: 'Request body too large' } },
+      { status: 400 },
+    )
+  }
 
-  const { slug, vdp, name, email, phone, message, source_url, website } = parsed.data
+  let data: z.infer<typeof WebLeadSchema>
+  try {
+    data = await parseBody(req, WebLeadSchema)
+  } catch (e) {
+    if (e instanceof Response) return e
+    throw e
+  }
+
+  const { slug, vdp, name, email, phone, message, source_url, website } = data
 
   // Honeypot: bots fill hidden fields
   if (website) {
@@ -93,5 +110,5 @@ export async function POST(req: NextRequest) {
   // Notify dealer via SMS (fire and forget)
   notifyDealerNewLead(org.id, name, phone, message, vehicleName).catch(() => {})
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true }, { status: 201 })
 }

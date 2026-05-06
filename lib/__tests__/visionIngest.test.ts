@@ -45,13 +45,13 @@ describe('scanResultToParsedLead', () => {
     expect(parsed.vin).toBe('1HGCM82633A004352')
   })
 
-  it('keeps email-only scanned leads savable', () => {
+  it('keeps email-only scanned leads savable without a fake phone (avoids blank-phone dedupe collisions)', () => {
     const parsed = scanResultToParsedLead(buildScanResult({
       first_name: { value: 'Teamslp', confidence: 'high' },
       email: { value: 'teamslp@example.com', confidence: 'high' },
     }))
 
     expect(parsed.email).toBe('teamslp@example.com')
-    expect(parsed.phone).toBe('Teamslp')
+    expect(parsed.phone).toBe('')
   })
 })

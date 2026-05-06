@@ -5,6 +5,8 @@ import { requireProfile } from '@/lib/auth/profile'
 
 const BUCKET = 'customer-docs'
 
+// Storage: service role required — Supabase Storage ignores session-level RLS
+
 // DELETE /api/customers/[id]/documents/[docId]
 export async function DELETE(
   _req: NextRequest,

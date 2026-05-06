@@ -4,6 +4,7 @@ import { createLeadResponseTask } from '@/lib/tasks/auto'
 import { generateVoiceSummary } from './summarize'
 import { createCalendarEvent } from '@/lib/google/calendar'
 import { normalizePhone } from '@/lib/utils/phone'
+import { emitEvent } from '@/lib/intelligence/emitEvent'
 
 function formatPhone(raw: string): string {
   const ten = normalizePhone(raw)
@@ -266,6 +267,22 @@ export async function processVoiceCall(params: VoiceCallParams): Promise<void> {
   } catch {}
 
   // 7. Push notification
+  if (customerId) {
+    emitEvent({
+      orgId:      org_id,
+      eventType:  'call_completed',
+      entityType: 'customer',
+      entityId:   customerId,
+      channel:    'call',
+      direction:  'inbound',
+      metadata: {
+        duration_seconds: duration,
+        timeline,
+        vehicle: finalVehicle ?? null,
+      },
+    }).catch(() => {})
+  }
+
   const vehicleLabel  = finalVehicle ? ` — ${finalVehicle}` : ''
   const timelineLabel = timeline     ? ` · ${timeline}`      : ''
   sendLeadNotification({

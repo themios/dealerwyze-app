@@ -8,6 +8,7 @@ import { NAVY, ORANGE } from './_shared'
 const freeFeatures = [
   'Up to 200 contacts & leads',
   'Up to 100 vehicles in inventory',
+  'Public dealer website & SEO-ready vehicle pages',
   'Vehicle-linked activity tracking',
   'Lead pipeline (Kanban board)',
   'Gmail + IMAP lead auto-import',
@@ -28,6 +29,7 @@ const freeFeatures = [
 const crmFeatures = [
   'Unlimited contacts & leads',
   'Two-way SMS + dedicated business number',
+  'Public dealer website & SEO-ready vehicle pages',
   'Vehicle-linked activity tracking',
   'Lead pipeline (Kanban board)',
   'Gmail + IMAP lead auto-import',

@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { NextResponse } from 'next/server'
 
 // ── Shared field types ────────────────────────────────────────────────────────
 
@@ -41,32 +40,8 @@ export const PayTokenPostSchema = z.union([
   }),
 ])
 
-// ── Validation helper ─────────────────────────────────────────────────────────
-
-/**
- * Parse and validate request JSON against a Zod schema.
- * Returns { data } on success or { errorResponse } on failure.
- * Never exposes internal details — returns structured 400 with field-level errors.
- */
-export async function parseBody<T>(
-  req: Request,
-  schema: z.ZodSchema<T>,
-): Promise<{ data: T; errorResponse?: never } | { data?: never; errorResponse: Response }> {
-  let raw: unknown
-  try {
-    raw = await req.json()
-  } catch {
-    return { errorResponse: NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
-  }
-
-  const result = schema.safeParse(raw)
-  if (!result.success) {
-    const fields = result.error.issues.map(i => ({
-      field: i.path.join('.'),
-      message: i.message,
-    }))
-    return { errorResponse: NextResponse.json({ error: 'Validation failed', fields }, { status: 400 }) }
-  }
-
-  return { data: result.data }
-}
+/** Public unsubscribe link (GET query params). */
+export const UnsubscribeQuerySchema = z.object({
+  token: z.string().min(1).max(128).regex(/^[0-9a-f]+$/, 'Invalid token format'),
+  cid:   z.string().uuid('Invalid customer id'),
+})

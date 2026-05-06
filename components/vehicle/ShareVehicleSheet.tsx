@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Share2, Search, Send, Check } from 'lucide-react'
+import MessageComposer, { type Token } from '@/components/sms/MessageComposer'
 
 interface Customer {
   id: string
@@ -15,9 +16,29 @@ interface Props {
   vehicleId: string
   vehicleLabel: string
   publicUrl: string
+  /** Raw VIN for insert chips and VinWyze link (optional) */
+  vin?: string | null
+  /** Listing price for optional Price chip (optional) */
+  vehiclePrice?: number | null
+  /** Org slug for VinWyze ref param — pass from server, never parse from URL */
+  dealerSlug?: string | null
 }
 
-export default function ShareVehicleSheet({ vehicleId, vehicleLabel, publicUrl }: Props) {
+function buildVinWyzeUrl(vin: string | null | undefined, dealerSlug: string | null | undefined): string | null {
+  const v = typeof vin === 'string' ? vin.trim() : ''
+  if (!v) return null
+  const base = `https://vinwyze.com?vin=${encodeURIComponent(v)}`
+  return dealerSlug ? `${base}&ref=${encodeURIComponent(dealerSlug)}` : base
+}
+
+export default function ShareVehicleSheet({
+  vehicleId,
+  vehicleLabel,
+  publicUrl,
+  vin,
+  vehiclePrice,
+  dealerSlug,
+}: Props) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -52,6 +73,9 @@ export default function ShareVehicleSheet({ vehicleId, vehicleLabel, publicUrl }
     setSent(false)
     setError(null)
   }
+
+  const vinTrimmed = typeof vin === 'string' ? vin.trim() : ''
+  const vinwyzeUrl = buildVinWyzeUrl(vin, dealerSlug)
 
   const send = async () => {
     if (!selected) return
@@ -144,13 +168,27 @@ export default function ShareVehicleSheet({ vehicleId, vehicleLabel, publicUrl }
               </div>
 
               {/* Message editor */}
-              <div className="flex-1 flex flex-col gap-1.5">
+              <div className="flex-1 flex flex-col gap-1.5 min-h-0">
                 <label className="text-xs text-muted-foreground font-medium">Message</label>
-                <textarea
+                <MessageComposer
+                  className="flex flex-col flex-1 min-h-0"
+                  textareaClassName="flex-1 w-full min-h-[120px] p-3 text-sm border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-ring resize-none"
                   value={message}
-                  onChange={e => setMessage(e.target.value)}
+                  onChange={setMessage}
                   rows={5}
-                  className="flex-1 w-full p-3 text-sm border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+                  disabled={sending}
+                  tokens={
+                    [
+                      selected ? { label: 'Name', value: selected.name ?? '' } : null,
+                      { label: 'Vehicle', value: vehicleLabel },
+                      vehiclePrice != null && vehiclePrice > 0
+                        ? { label: 'Price', value: `$${vehiclePrice.toLocaleString('en-US')}` }
+                        : null,
+                      vinTrimmed ? { label: 'VIN', value: vinTrimmed } : null,
+                      vinwyzeUrl ? { label: 'VinWyze Link', value: vinwyzeUrl } : null,
+                      publicUrl ? { label: 'Listing Link', value: publicUrl } : null,
+                    ].filter(Boolean) as Token[]
+                  }
                 />
               </div>
 

@@ -3,10 +3,9 @@ import { Inter, Barlow_Semi_Condensed, Archivo, Lora, Oswald } from 'next/font/g
 import { ThemeProvider } from 'next-themes'
 import FontSizeProvider from '@/components/providers/FontSizeProvider'
 import AnalyticsProvider from '@/components/providers/AnalyticsProvider'
-import Script from 'next/script'
+import { Toaster } from 'sonner'
+import GoogleAdsGtag from '@/components/analytics/GoogleAdsGtag'
 import './globals.css'
-
-const GTAG_ID = process.env.NEXT_PUBLIC_GOOGLE_ADS_ID ?? ''
 
 const inter = Inter({ subsets: ['latin'] })
 const barlow = Barlow_Semi_Condensed({
@@ -64,28 +63,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="apple-touch-icon" href="/DealerWyseLogoWithName.png" />
-        {/* Google Ads global site tag — loads when NEXT_PUBLIC_GOOGLE_ADS_ID is set */}
-        {GTAG_ID && (
-          <>
-            <Script
-              src={`https://www.googletagmanager.com/gtag/js?id=${GTAG_ID}`}
-              strategy="afterInteractive"
-            />
-            <Script id="gtag-init" strategy="afterInteractive">
-              {`
-                window.dataLayer = window.dataLayer || [];
-                function gtag(){dataLayer.push(arguments);}
-                gtag('js', new Date());
-                gtag('config', '${GTAG_ID}', { send_page_view: true });
-              `}
-            </Script>
-          </>
-        )}
       </head>
       <body className={`${inter.className} ${barlow.variable} ${archivo.variable} ${lora.variable} ${oswald.variable}`} suppressHydrationWarning>
+        <GoogleAdsGtag />
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <AnalyticsProvider />
-          <FontSizeProvider>{children}</FontSizeProvider>
+          <FontSizeProvider>
+            {children}
+            <Toaster richColors closeButton position="top-center" />
+          </FontSizeProvider>
         </ThemeProvider>
       </body>
     </html>

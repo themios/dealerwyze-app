@@ -1,5 +1,5 @@
+import type { ReactNode } from 'react'
 import { createClientForRequest } from '@/lib/supabase/forRequest'
-import { createServiceClient } from '@/lib/supabase/service'
 import { requireProfile } from '@/lib/auth/profile'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -13,15 +13,24 @@ import VehicleDocuments from '@/components/vehicle/VehicleDocuments'
 import VehiclePhotos from '@/components/vehicle/VehiclePhotos'
 import ShareVehicleSheet from '@/components/vehicle/ShareVehicleSheet'
 import MarketIntelligenceCard, { type MarketData } from '@/components/vehicles/MarketIntelligenceCard'
+import VehicleOverviewSection from '@/components/vehicle/VehicleOverviewSection'
+import VehicleVinLine from '@/components/vehicle/VehicleVinLine'
 import ReconSection from '@/components/vehicle/ReconSection'
 import BuySheetCard from '@/components/vehicle/BuySheetCard'
 import MechanicWorksheetCard from '@/components/vehicle/MechanicWorksheetCard'
 import VehicleMarkReadyButton from '@/components/vehicle/VehicleMarkReadyButton'
 import VehicleRestoreButton from '@/components/vehicle/VehicleRestoreButton'
 import { canAccessLedger, isDealerAdmin } from '@/lib/auth/dealerRoles'
-import VehicleVideoSection from '@/components/vehicles/VehicleVideoSection'
+import VehiclePublishToggle from '@/components/vehicle/VehiclePublishToggle'
+import VehicleListingDescriptionCard from '@/components/vehicle/VehicleListingDescriptionCard'
 import InlinePriceEdit from '@/components/vehicle/InlinePriceEdit'
 import { demandSignalShortLabel } from '@/lib/intelligence/demandLabels'
+import VehicleDetailSectionPicker from '@/components/vehicle/VehicleDetailSectionPicker'
+import {
+  VEHICLE_DETAIL_SECTION_IDS,
+  uniqueNavSections,
+  type VehicleDetailNavItem,
+} from '@/lib/vehicles/vehicleDetailSectionIds'
 
 export const dynamic = 'force-dynamic'
 
@@ -67,27 +76,384 @@ function formatVin(value: unknown) {
   return vin || '—'
 }
 
+function SectionHeading({ children }: { children: ReactNode }) {
+  return (
+    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b pb-2 mb-1">
+      {children}
+    </p>
+  )
+}
+
 export default async function VehicleDetailPage({ params }: PageProps) {
   const { id } = await params
   const profile = await requireProfile()
   const supabase = await createClientForRequest()
-  const service = createServiceClient()
 
   const isAdmin = profile.role === 'admin'
   const canEdit = canAccessLedger(profile.role)
   const canDelete = isDealerAdmin(profile.role) || profile.role === 'dealer_manager'
-  const [{ data: vehicle }, { data: activities }, { data: leads }, { data: org }, { data: vehiclePhotos }] = await Promise.all([
+  const [
+    { data: vehicle },
+    { data: activities },
+    { data: leads },
+    { data: org },
+    { data: latestDoc },
+    { data: vehicleRec },
+  ] = await Promise.all([
     supabase.from('vehicles').select('*').eq('id', id).eq('user_id', profile.org_id).single(),
-    supabase.from('activities').select('*, customer:customers(id, name, primary_phone)').eq('vehicle_id', id).order('created_at', { ascending: false }).limit(50),
-    service.from('customer_vehicles').select('*, customer:customers(id, name, primary_phone)').eq('vehicle_id', id).order('created_at', { ascending: false }),
-    supabase.from('organizations').select('slug').eq('id', profile.org_id).single(),
-    service.from('vehicle_photos').select('url').eq('vehicle_id', id).order('position').limit(8),
+    supabase
+      .from('activities')
+      .select('*, customer:customers(id, name, primary_phone)')
+      .eq('vehicle_id', id)
+      .order('created_at', { ascending: false })
+      .limit(50),
+    supabase
+      .from('customer_vehicles')
+      .select('*, customer:customers(id, name, primary_phone)')
+      .eq('vehicle_id', id)
+      .order('created_at', { ascending: false }),
+    supabase.from('organizations').select('slug, public_inventory_enabled').eq('id', profile.org_id).single(),
+    supabase
+      .from('vehicle_documents')
+      .select('created_at')
+      .eq('vehicle_id', id)
+      .eq('user_id', profile.org_id)
+      .eq('document_scope', 'website')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('recommendations')
+      .select('id, title, body, priority')
+      .eq('org_id', profile.org_id)
+      .eq('entity_type', 'vehicle')
+      .eq('entity_id', id)
+      .is('dismissed_at', null)
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle(),
   ])
 
   if (!vehicle) notFound()
 
+  const isStale =
+    latestDoc?.created_at != null &&
+    (vehicle.ai_last_analyzed_at == null ||
+      new Date(latestDoc.created_at) > new Date(vehicle.ai_last_analyzed_at))
+
+  const showLeadIntel =
+    vehicle.status !== 'sold' &&
+    vehicle.status !== 'staging' &&
+    Boolean(vehicle.demand_signal || (vehicle.lead_count_30d ?? 0) > 0)
+
+  const showAcquisition =
+    canEdit &&
+    (vehicle.status === 'staging' || vehicle.status === 'available' || vehicle.status === 'pending')
+
+  const showOperations =
+    vehicle.status === 'staging' || vehicle.status === 'available' || vehicle.status === 'pending'
+
+  const showSaleDetail = vehicle.status === 'sold' && vehicle.sold_price
+  const showWebsiteOverviewPanel = canEdit && vehicle.status !== 'sold'
+
+  const navSections: VehicleDetailNavItem[] = []
+  navSections.push({ id: VEHICLE_DETAIL_SECTION_IDS.listing, label: 'Listing & market' })
+  if (showAcquisition) navSections.push({ id: VEHICLE_DETAIL_SECTION_IDS.acquisition, label: 'Acquisition' })
+  if (showOperations) navSections.push({ id: VEHICLE_DETAIL_SECTION_IDS.operations, label: 'Recon & shop' })
+  if (showSaleDetail) navSections.push({ id: VEHICLE_DETAIL_SECTION_IDS.sale, label: 'Sale' })
+  if (leads && leads.length > 0) {
+    navSections.push({ id: VEHICLE_DETAIL_SECTION_IDS.customers, label: 'Customers' })
+  }
+  navSections.push({ id: VEHICLE_DETAIL_SECTION_IDS.media, label: 'Social Media' })
+  navSections.push({ id: VEHICLE_DETAIL_SECTION_IDS.inventory, label: 'Inventory' })
+  if (showWebsiteOverviewPanel) {
+    navSections.push({ id: VEHICLE_DETAIL_SECTION_IDS.website, label: 'Website' })
+  }
+  if (activities && activities.length > 0) {
+    navSections.push({ id: VEHICLE_DETAIL_SECTION_IDS.activity, label: 'Activity' })
+  }
+
+  const details = [formatMileage(vehicle.mileage), vehicle.color || null, vehicle.trim || null]
+    .filter(Boolean)
+    .join(' · ')
+  const isSlug = vehicle.stock_no && /^web-\d{4}-/.test(vehicle.stock_no)
+  const stockNo = !isSlug ? vehicle.stock_no : null
+  const vin = formatVin(vehicle.vin)
+
+  const uniqSections = uniqueNavSections(navSections)
+
+  const panels: Partial<Record<string, ReactNode>> = {
+    [VEHICLE_DETAIL_SECTION_IDS.listing]: (
+      <div className="space-y-4">
+        <SectionHeading>Listing & market</SectionHeading>
+
+        <div className="space-y-0.5">
+          {details ? <p className="text-xs text-muted-foreground">{details}</p> : null}
+          <VehicleVinLine display={vin} />
+          {stockNo ? <p className="text-xs text-muted-foreground truncate">Stock: {stockNo}</p> : null}
+        </div>
+
+        {vehicleRec ? (
+          <div className="rounded-lg border border-amber-200/70 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/25 px-3 py-2 text-sm">
+            <p className="font-medium text-amber-800 dark:text-amber-200">{vehicleRec.title}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{vehicleRec.body}</p>
+          </div>
+        ) : null}
+
+        {showLeadIntel ? (
+          <div className="rounded-lg border border-amber-200/70 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/25 px-3 py-2 text-sm">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
+              Lead intelligence
+            </p>
+            <p className="text-foreground">
+              {vehicle.demand_signal ? (
+                <span className="font-medium text-amber-900 dark:text-amber-100">
+                  {demandSignalShortLabel(vehicle.demand_signal)}
+                </span>
+              ) : (
+                <span className="text-muted-foreground">Demand rollup</span>
+              )}
+              {(vehicle.lead_count_30d ?? 0) > 0 ? (
+                <span className="text-muted-foreground"> · {vehicle.lead_count_30d} leads (30d)</span>
+              ) : null}
+              {vehicle.avg_intent_score != null ? (
+                <span className="text-muted-foreground">
+                  {' '}
+                  · Avg intent {vehicle.avg_intent_score.toFixed(0)}
+                </span>
+              ) : null}
+            </p>
+            {vehicle.demand_updated_at ? (
+              <p className="text-[10px] text-muted-foreground mt-1" suppressHydrationWarning>
+                Updated {formatDate(vehicle.demand_updated_at)}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="flex items-center justify-between gap-4">
+          {canEdit && vehicle.status !== 'sold' ? (
+            <InlinePriceEdit vehicleId={id} initialPrice={vehicle.price ?? null} />
+          ) : vehicle.price ? (
+            <p className="text-3xl font-bold tabular-nums">{formatCurrency(vehicle.price)}</p>
+          ) : (
+            <p className="text-muted-foreground">No price set</p>
+          )}
+          <span
+            className={`shrink-0 text-sm font-medium px-3 py-1 rounded-full capitalize ${statusColors[vehicle.status]}`}
+          >
+            {vehicle.status}
+          </span>
+        </div>
+
+        <MarketIntelligenceCard
+          vehicleId={id}
+          vehicleStatus={vehicle.status}
+          initialData={(vehicle.market_data_json as MarketData | null) ?? null}
+          initialRecallCount={vehicle.nhtsa_recall_count ?? null}
+          initialReliabilityTier={vehicle.reliability_tier ?? null}
+          showDescriptionSection={false}
+        />
+
+        {vehicle.notes ? (
+          <div className="rounded-lg border bg-card p-3">
+            <p className="text-xs text-muted-foreground mb-1">Dealer notes</p>
+            <p className="text-sm leading-relaxed">{vehicle.notes}</p>
+          </div>
+        ) : null}
+
+        {!showWebsiteOverviewPanel ? (
+          <div className="space-y-2 pt-2">
+            <SectionHeading>Shopper documents</SectionHeading>
+            <VehicleDocuments vehicleId={id} vehicleStatus={vehicle.status} documentScope="website" />
+          </div>
+        ) : null}
+      </div>
+    ),
+
+    [VEHICLE_DETAIL_SECTION_IDS.media]: (
+      <div className="space-y-4">
+        <SectionHeading>Social Media</SectionHeading>
+        {vehicle.status === 'sold' ? (
+          <p className="text-xs text-muted-foreground">
+            Video creation is unavailable for sold vehicles — you can still view existing listing photos below.
+          </p>
+        ) : null}
+        <VehiclePhotos
+          vehicleId={id}
+          vehicleLabel={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
+          showVideoSection={vehicle.status !== 'sold'}
+        />
+      </div>
+    ),
+
+    [VEHICLE_DETAIL_SECTION_IDS.inventory]: (
+      <div className="space-y-3">
+        <SectionHeading>Inventory</SectionHeading>
+        <VehicleDocuments vehicleId={id} vehicleStatus={vehicle.status} documentScope="inventory" />
+      </div>
+    ),
+  }
+
+  if (showAcquisition) {
+    panels[VEHICLE_DETAIL_SECTION_IDS.acquisition] = (
+      <div className="space-y-3">
+        <SectionHeading>Acquisition</SectionHeading>
+        <BuySheetCard
+          vehicleId={id}
+          initial={{
+            purchase_price: vehicle.purchase_price ?? null,
+            purchased_at: vehicle.purchased_at ?? null,
+            purchased_from: vehicle.purchased_from ?? null,
+            acquisition_source:
+              (vehicle as Record<string, unknown>).acquisition_source as string | null ?? null,
+            auction_name: (vehicle as Record<string, unknown>).auction_name as string | null ?? null,
+            auction_lot: (vehicle as Record<string, unknown>).auction_lot as string | null ?? null,
+            floor_plan_amount: (vehicle as Record<string, unknown>).floor_plan_amount as number | null ?? null,
+            acquisition_notes: (vehicle as Record<string, unknown>).acquisition_notes as string | null ?? null,
+          }}
+        />
+      </div>
+    )
+  }
+
+  if (showOperations) {
+    panels[VEHICLE_DETAIL_SECTION_IDS.operations] = (
+      <div className="space-y-4">
+        <SectionHeading>Recon & shop</SectionHeading>
+        <div className="rounded-xl border overflow-hidden">
+          <ReconSection
+            vehicleId={id}
+            canEdit={canEdit}
+            canDelete={canDelete}
+            canManageTemplate={isDealerAdmin(profile.role)}
+          />
+        </div>
+        <MechanicWorksheetCard vehicleId={id} canEdit={canEdit} />
+      </div>
+    )
+  }
+
+  if (showSaleDetail) {
+    panels[VEHICLE_DETAIL_SECTION_IDS.sale] = (
+      <div className="space-y-3">
+        <SectionHeading>Sale</SectionHeading>
+        <div className="border rounded-lg p-3 space-y-2 bg-card">
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div>
+              <p className="text-xs text-muted-foreground">Sale price</p>
+              <p className="font-semibold tabular-nums">{formatCurrency(vehicle.sold_price)}</p>
+            </div>
+            {vehicle.finance_type ? (
+              <div>
+                <p className="text-xs text-muted-foreground">Finance type</p>
+                <p className="font-semibold capitalize">
+                  {vehicle.finance_type === 'bhph' ? 'BHPH' : vehicle.finance_type}
+                </p>
+              </div>
+            ) : null}
+            {vehicle.finance_company ? (
+              <div className="col-span-2">
+                <p className="text-xs text-muted-foreground">Finance company</p>
+                <p className="font-semibold">{vehicle.finance_company}</p>
+              </div>
+            ) : null}
+            {vehicle.sold_at ? (
+              <div>
+                <p className="text-xs text-muted-foreground">Sold date</p>
+                <p className="font-semibold">{formatDate(vehicle.sold_at)}</p>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (leads && leads.length > 0) {
+    panels[VEHICLE_DETAIL_SECTION_IDS.customers] = (
+      <div className="space-y-3">
+        <SectionHeading>Customers · {leads.length} linked</SectionHeading>
+        <div className="space-y-2">
+          {(leads as VehicleLead[]).map(lead => (
+            <Link key={lead.id} href={lead.customer?.id ? `/customers/${lead.customer.id}` : '#'}>
+              <div className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+                <div>
+                  <p className="font-medium text-sm">{lead.customer?.name ?? 'Unknown customer'}</p>
+                  <p className="text-xs text-muted-foreground">{lead.customer?.primary_phone ?? 'No phone'}</p>
+                </div>
+                <span
+                  className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${
+                    lead.interest_level === 'hot'
+                      ? 'bg-red-500/10 text-red-600'
+                      : lead.interest_level === 'warm'
+                        ? 'bg-yellow-500/10 text-yellow-600'
+                        : 'bg-blue-500/10 text-blue-600'
+                  }`}
+                >
+                  {lead.interest_level}
+                </span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (showWebsiteOverviewPanel) {
+    panels[VEHICLE_DETAIL_SECTION_IDS.website] = (
+      <div className="space-y-8">
+        {org ? (
+          <div className="space-y-3">
+            <SectionHeading>Visibility</SectionHeading>
+            <VehiclePublishToggle
+              vehicleId={id}
+              orgSlug={org.slug}
+              initialPublished={vehicle.published ?? false}
+              initialSlug={vehicle.public_slug ?? null}
+              dealerWebsiteLive={org.public_inventory_enabled ?? false}
+            />
+          </div>
+        ) : null}
+        <div className="space-y-3">
+          <SectionHeading>Website listing</SectionHeading>
+          <VehicleOverviewSection
+            vehicleId={id}
+            isStale={isStale}
+            initialDescription={vehicle.ai_description ?? null}
+            initialEnrichment={vehicle.overview_enrichment_text ?? null}
+            initialAnalyzedAt={vehicle.ai_last_analyzed_at ?? null}
+          />
+        </div>
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <hr className="flex-1 border-border" />
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground whitespace-nowrap">
+              External platforms
+            </span>
+            <hr className="flex-1 border-border" />
+          </div>
+          <VehicleListingDescriptionCard vehicleId={id} />
+        </div>
+        <div className="space-y-3">
+          <SectionHeading>Shopper documents</SectionHeading>
+          <VehicleDocuments vehicleId={id} vehicleStatus={vehicle.status} documentScope="website" />
+        </div>
+      </div>
+    )
+  }
+
+  if (activities && activities.length > 0) {
+    panels[VEHICLE_DETAIL_SECTION_IDS.activity] = (
+      <div className="space-y-3">
+        <SectionHeading>Activity</SectionHeading>
+        <ActivityTimeline activities={activities} />
+      </div>
+    )
+  }
+
   return (
-    <div>
+    <div className="min-h-screen bg-background">
       <TopBar
         title={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
         right={
@@ -115,215 +481,30 @@ export default async function VehicleDetailPage({ params }: PageProps) {
                 vehicleId={id}
                 vehicleLabel={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
                 publicUrl={`https://dealerwyze.com/${org.slug}/inventory/${vehicle.public_slug}`}
+                vin={typeof vehicle.vin === 'string' ? vehicle.vin : null}
+                vehiclePrice={vehicle.price ?? null}
+                dealerSlug={org.slug}
               />
             )}
             <Link href={`/vehicles/${id}/edit`} title="Edit vehicle">
-              <Button variant="ghost" size="sm"><Pencil className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="sm">
+                <Pencil className="h-4 w-4" />
+              </Button>
             </Link>
             <Link href="/vehicles" title="Back to inventory">
-              <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="sm">
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
             </Link>
           </div>
         }
       />
 
-      <div className="px-4 py-4 space-y-4">
-        {/* Compact details + price */}
-        {(() => {
-          const details = [
-            formatMileage(vehicle.mileage),
-            vehicle.color || null,
-            vehicle.trim || null,
-          ].filter(Boolean).join(' · ')
-          // Stock numbers that look like URL slugs (web-year-make-model) are not real stock numbers
-          const isSlug = vehicle.stock_no && /^web-\d{4}-/.test(vehicle.stock_no)
-          const stockNo = !isSlug ? vehicle.stock_no : null
-          const vin = formatVin(vehicle.vin)
-          // Always render the details block (VIN always shown)
-          return (
-            <div className="space-y-0.5">
-              {details && <p className="text-xs text-muted-foreground">{details}</p>}
-              <p className="text-xs text-muted-foreground font-mono" suppressHydrationWarning>VIN: {vin}</p>
-              {stockNo && <p className="text-xs text-muted-foreground truncate">Stock: {stockNo}</p>}
-            </div>
-          )
-        })()}
-
-        {vehicle.status !== 'sold' &&
-          vehicle.status !== 'staging' &&
-          (vehicle.demand_signal || (vehicle.lead_count_30d ?? 0) > 0) && (
-          <div className="rounded-lg border border-amber-200/70 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/25 px-3 py-2 text-sm">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Lead intelligence</p>
-            <p className="text-foreground">
-              {vehicle.demand_signal ? (
-                <span className="font-medium text-amber-900 dark:text-amber-100">
-                  {demandSignalShortLabel(vehicle.demand_signal)}
-                </span>
-              ) : (
-                <span className="text-muted-foreground">Demand rollup</span>
-              )}
-              {(vehicle.lead_count_30d ?? 0) > 0 && (
-                <span className="text-muted-foreground"> · {vehicle.lead_count_30d} leads (30d)</span>
-              )}
-              {vehicle.avg_intent_score != null && (
-                <span className="text-muted-foreground">
-                  {' '}
-                  · Avg intent {vehicle.avg_intent_score.toFixed(0)}
-                </span>
-              )}
-            </p>
-            {vehicle.demand_updated_at && (
-              <p className="text-[10px] text-muted-foreground mt-1" suppressHydrationWarning>
-                Updated {formatDate(vehicle.demand_updated_at)}
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Price + Status + Market Intelligence */}
-        <div className="flex items-center justify-between">
-          {canEdit && vehicle.status !== 'sold' ? (
-            <InlinePriceEdit vehicleId={id} initialPrice={vehicle.price ?? null} />
-          ) : vehicle.price ? (
-            <p className="text-3xl font-bold">{formatCurrency(vehicle.price)}</p>
-          ) : (
-            <p className="text-muted-foreground">No price set</p>
-          )}
-          <span className={`text-sm font-medium px-3 py-1 rounded-full capitalize ${statusColors[vehicle.status]}`}>
-            {vehicle.status}
-          </span>
-        </div>
-
-        <MarketIntelligenceCard
-          vehicleId={id}
-          vehicleStatus={vehicle.status}
-          initialData={(vehicle.market_data_json as MarketData | null) ?? null}
-          initialRecallCount={vehicle.nhtsa_recall_count ?? null}
-          initialReliabilityTier={vehicle.reliability_tier ?? null}
-        />
-
-        {vehicle.notes && (
-          <div className="border rounded-lg p-3">
-            <p className="text-xs text-muted-foreground mb-1">Notes</p>
-            <p className="text-sm">{vehicle.notes}</p>
-          </div>
-        )}
-
-        {/* Buy Sheet (acquisition details) */}
-        {canEdit && (vehicle.status === 'staging' || vehicle.status === 'available' || vehicle.status === 'pending') && (
-          <BuySheetCard
-            vehicleId={id}
-            initial={{
-              purchase_price:    vehicle.purchase_price    ?? null,
-              purchased_at:      vehicle.purchased_at      ?? null,
-              purchased_from:    vehicle.purchased_from    ?? null,
-              acquisition_source: (vehicle as Record<string, unknown>).acquisition_source as string | null ?? null,
-              auction_name:      (vehicle as Record<string, unknown>).auction_name as string | null ?? null,
-              auction_lot:       (vehicle as Record<string, unknown>).auction_lot  as string | null ?? null,
-              floor_plan_amount: (vehicle as Record<string, unknown>).floor_plan_amount as number | null ?? null,
-              acquisition_notes: (vehicle as Record<string, unknown>).acquisition_notes as string | null ?? null,
-            }}
-          />
-        )}
-
-        {/* Recon Checklist (staging, available, pending) */}
-        {(vehicle.status === 'staging' || vehicle.status === 'available' || vehicle.status === 'pending') && (
-          <>
-            <div className="border rounded-xl overflow-hidden">
-              <ReconSection
-                vehicleId={id}
-                canEdit={canEdit}
-                canDelete={canDelete}
-                canManageTemplate={isDealerAdmin(profile.role)}
-              />
-            </div>
-            <MechanicWorksheetCard vehicleId={id} canEdit={canEdit} />
-          </>
-        )}
-
-        {/* Sale details (sold vehicles) */}
-        {vehicle.status === 'sold' && vehicle.sold_price && (
-          <div className="border rounded-lg p-3 space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Sale Details</p>
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div>
-                <p className="text-xs text-muted-foreground">Sale Price</p>
-                <p className="font-semibold">{formatCurrency(vehicle.sold_price)}</p>
-              </div>
-              {vehicle.finance_type && (
-                <div>
-                  <p className="text-xs text-muted-foreground">Finance Type</p>
-                  <p className="font-semibold capitalize">{vehicle.finance_type === 'bhph' ? 'BHPH' : vehicle.finance_type}</p>
-                </div>
-              )}
-              {vehicle.finance_company && (
-                <div className="col-span-2">
-                  <p className="text-xs text-muted-foreground">Finance Company</p>
-                  <p className="font-semibold">{vehicle.finance_company}</p>
-                </div>
-              )}
-              {vehicle.sold_at && (
-                <div>
-                  <p className="text-xs text-muted-foreground">Sold Date</p>
-                  <p className="font-semibold">{formatDate(vehicle.sold_at)}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Active Leads */}
-        {leads && leads.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Active Leads ({leads.length})</p>
-            <div className="space-y-2">
-              {(leads as VehicleLead[]).map(lead => (
-                <Link key={lead.id} href={lead.customer?.id ? `/customers/${lead.customer.id}` : '#'}>
-                  <div className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-colors">
-                    <div>
-                      <p className="font-medium text-sm">{lead.customer?.name ?? 'Unknown customer'}</p>
-                      <p className="text-xs text-muted-foreground">{lead.customer?.primary_phone ?? 'No phone'}</p>
-                    </div>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${
-                      lead.interest_level === 'hot' ? 'bg-red-500/10 text-red-600' :
-                      lead.interest_level === 'warm' ? 'bg-yellow-500/10 text-yellow-600' :
-                      'bg-blue-500/10 text-blue-600'
-                    }`}>
-                      {lead.interest_level}
-                    </span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Photos */}
-        <VehiclePhotos vehicleId={id} />
-
-        {/* Video & Social */}
-        {vehicle.status !== 'sold' && (
-          <VehicleVideoSection
-            vehicleId={id}
-            vehicleLabel={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
-            photos={
-              vehiclePhotos?.map((p: Record<string, string>) => p.url).filter(Boolean) ??
-              (vehicle.photo_url ? [vehicle.photo_url] : [])
-            }
-          />
-        )}
-
-        {/* Documents */}
-        <VehicleDocuments vehicleId={id} vehicleStatus={vehicle.status} />
-
-        {/* Activity timeline */}
-        {activities && activities.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Activity</p>
-            <ActivityTimeline activities={activities || []} />
-          </div>
-        )}
-      </div>
+      <VehicleDetailSectionPicker
+        sections={uniqSections}
+        defaultSectionId={VEHICLE_DETAIL_SECTION_IDS.listing}
+        panels={panels}
+      />
     </div>
   )
 }

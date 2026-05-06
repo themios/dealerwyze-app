@@ -6,15 +6,16 @@
  *   - activities.csv
  *   - templates.csv
  *
- * Rate-limited to once per 24 hours per org.
+ * Rate-limited to once per hour per org (Upstash Redis).
  * Scoped to the authenticated user's org only.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { canManageUsers } from '@/lib/auth/dealerRoles'
-import { orgDataExportLimiter } from '@/lib/rateLimit/upstash'
+import { orgExportLimiter } from '@/lib/rateLimit/upstash'
 import { logOrgAudit } from '@/lib/audit/orgAudit'
+import { writeAuditLog } from '@/lib/audit/log'
 import { createServiceClient } from '@/lib/supabase/service'
 import JSZip from 'jszip'
 
@@ -37,19 +38,19 @@ export async function GET(req: NextRequest) {
   }
   const orgId   = profile.org_id
 
-  const exportLimit = await orgDataExportLimiter(orgId)
+  const exportLimit = await orgExportLimiter(orgId)
   if (!exportLimit.allowed) {
     const waitMins = Math.max(1, Math.ceil(exportLimit.retryAfterSeconds / 60))
     return NextResponse.json(
-      { error: `You can export your data once per day. Please wait ${waitMins} more minute${waitMins !== 1 ? 's' : ''}.` },
+      { error: `You can export your data once per hour. Please wait ${waitMins} more minute${waitMins !== 1 ? 's' : ''}.` },
       { status: 429 }
     )
   }
 
   const supabase = createServiceClient()
 
-  // ✓ Verified 2026-04-29: all exported tables are org-scoped via user_id (customers, activities, templates) or org_id (vehicles)
-  // Service client is acceptable here because queries are explicitly filtered by org before returning data.
+  // All queries below are scoped to profile.org_id — verified 2026-05-05
+  // (customers: user_id eq org or profile.id; vehicles: org_id; activities/templates: user_id)
 
   // Customers — use user_id for org scoping (no org_id column)
   const { data: customers } = await supabase
@@ -96,6 +97,15 @@ export async function GET(req: NextRequest) {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null
   void logOrgAudit({ org_id: orgId, actor_id: profile.id, actor_type: 'user', action: 'data_export',
     ip, details: { tables: ['customers', 'vehicles', 'activities', 'templates'] } })
+
+  void writeAuditLog({
+    orgId:     orgId,
+    actorId:   profile.id,
+    actorType: 'user',
+    action:    'data_export',
+    metadata:  { tables: ['customers', 'vehicles', 'activities', 'templates'] },
+    ipAddress: ip,
+  })
 
   return new NextResponse(ab as ArrayBuffer, {
     status: 200,

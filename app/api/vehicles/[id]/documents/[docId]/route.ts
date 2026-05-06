@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { requireProfile } from '@/lib/auth/profile'
+import { recomputeVehicleVoiceSummary } from '@/lib/vehicles/recomputeVoiceSummary'
 
 const BUCKET = 'vehicle-docs'
 
@@ -62,6 +63,8 @@ export async function DELETE(
     if (storageErr) {
       console.error('[vehicle documents DELETE] storage remove failed (orphan):', storageErr.message, 'key:', doc.file_key)
     }
+
+    await recomputeVehicleVoiceSummary(supabase, vehicleId, profile.org_id)
 
     return NextResponse.json({ success: true })
   } catch (err) {

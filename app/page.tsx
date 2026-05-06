@@ -6,7 +6,7 @@ import type { Metadata } from 'next'
 export const metadata: Metadata = {
   title: 'DealerWyze - CRM for Independent & Used Car Dealers | Starting $150/mo',
   description:
-    'DealerWyze is an all-in-one CRM built for independent and used car dealers. Text, email, and call leads from one inbox. Manage inventory, BHPH payments, and receipts. Starting at $150/mo - half the cost of VinSolutions or AutoRaptor.',
+    'DealerWyze is an all-in-one CRM built for independent and used car dealers. Text, email, and call leads from one inbox. Manage inventory, BHPH payments, and receipts — plus a public SEO-ready dealer website for your inventory. Starting at $150/mo - half the cost of VinSolutions or AutoRaptor.',
   keywords: [
     'used car dealer CRM',
     'independent dealer CRM',
@@ -20,11 +20,14 @@ export const metadata: Metadata = {
     'auto dealer texting software',
     'dealership inventory management',
     'used car dealer software',
+    'dealer inventory website',
+    'car dealer SEO inventory',
+    'used car dealer public website',
   ],
   openGraph: {
     title: 'DealerWyze - CRM for Independent & Used Car Dealers',
     description:
-      'All-in-one CRM for used car dealers. Lead inbox, texting, inventory, BHPH, and receipts - starting at $150/mo.',
+      'All-in-one CRM for used car dealers. Lead inbox, texting, inventory, public SEO website, BHPH, and receipts - starting at $150/mo.',
     url: 'https://dealerwyze.com',
     siteName: 'DealerWyze',
     type: 'website',
@@ -34,7 +37,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'DealerWyze - CRM for Independent & Used Car Dealers',
     description:
-      'All-in-one CRM for used car dealers. Lead inbox, texting, inventory, BHPH, and receipts - starting at $150/mo.',
+      'All-in-one CRM for used car dealers. Lead inbox, texting, inventory, public SEO website, BHPH, and receipts - starting at $150/mo.',
     images: ['https://dealerwyze.com/og.png'],
   },
   alternates: {
@@ -66,7 +69,7 @@ const jsonLd = {
       operatingSystem: 'Web, iOS, Android',
       url: 'https://dealerwyze.com',
       description:
-        'DealerWyze is a CRM platform built for independent and used car dealerships. Features include a unified lead inbox, two-way texting and email, inventory management, BHPH payment tracking, receipt scanning, and AI-powered Dealer Brief.',
+        'DealerWyze is a CRM platform built for independent and used car dealerships. Features include a unified lead inbox, two-way texting and email, inventory management, a public SEO-ready dealer website with vehicle detail pages, BHPH payment tracking, receipt scanning, and AI-powered Dealer Brief.',
       offers: [
         {
           '@type': 'Offer',
@@ -143,6 +146,14 @@ const jsonLd = {
           acceptedAnswer: {
             '@type': 'Answer',
             text: 'Yes. DealerWyze includes two-way texting (SMS and MMS), email, and AI-powered voice leads that answer inbound calls, qualify callers, and create follow-up tasks automatically.',
+          },
+        },
+        {
+          '@type': 'Question',
+          name: 'Does DealerWyze include a public website for inventory?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: 'Yes. Every plan includes a branded public inventory website on a DealerWyze URL with SEO-friendly vehicle listings, detail pages, structured data, and contact forms. Upload your logo and dealer info in Settings. It is part of the 30-day trial and remains available on the free plan.',
           },
         },
       ],

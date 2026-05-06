@@ -33,6 +33,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const pathname = (await headers()).get('x-pathname') ?? ''
 
+  // platform check — lib/auth/platform.ts
   // Platform staff and superadmins bypass all gates
   const isSuperAdmin = await isPlatformSuperAdmin(user.id)
   const isPlatformUser = profile.platform_role === 'platform_staff' || isSuperAdmin

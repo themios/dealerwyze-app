@@ -1,6 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { refreshVehicleSignalsForOrg } from '@/lib/intelligence/vehicleSignals'
 import { buildCommandCenterPayload } from '@/lib/intelligence/commandCenter'
+import { generateRecommendationsForOrg } from '@/lib/intelligence/recommendations'
 import { batchRescoreStaleForOrg } from '@/lib/leads/conversationScore'
 import { recomputeOrgLeadIntentWeights } from '@/lib/leads/dealLearning'
 import { computePayload } from '@/lib/intelligence/metrics'
@@ -13,9 +14,10 @@ import { fetchMarketSignals } from '@/lib/intelligence/rss'
  */
 export async function runDailyIntelligenceJob(options: {
   generateBriefings?: boolean
-} = {}): Promise<{ orgs: number; errors: string[] }> {
+} = {}): Promise<{ orgs: number; errors: string[]; recommendations_written?: number }> {
   const supabase = createServiceClient()
   const errors: string[] = []
+  let recsWritten = 0
   const { generateBriefings = false } = options
 
   // Limit guards against unbounded read; paginate before reaching 200 orgs.
@@ -29,7 +31,7 @@ export async function runDailyIntelligenceJob(options: {
 
   if (orgErr) {
     errors.push(orgErr.message)
-    return { orgs: 0, errors }
+    return { orgs: 0, errors, recommendations_written: 0 }
   }
 
   const isMondayUtc = new Date().getUTCDay() === 1
@@ -58,6 +60,13 @@ export async function runDailyIntelligenceJob(options: {
         .eq('org_id', orgId)
     } catch (e) {
       errors.push(`commandCenter ${orgId}: ${e}`)
+    }
+
+    try {
+      const result = await generateRecommendationsForOrg(orgId)
+      recsWritten += result.written
+    } catch (e) {
+      errors.push(`recommendations ${orgId}: ${e}`)
     }
 
     if (isMondayUtc) {
@@ -94,5 +103,5 @@ export async function runDailyIntelligenceJob(options: {
     }
   }
 
-  return { orgs: orgs?.length ?? 0, errors }
+  return { orgs: orgs?.length ?? 0, errors, recommendations_written: recsWritten }
 }

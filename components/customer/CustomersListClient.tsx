@@ -5,24 +5,44 @@ import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Customer } from '@/types'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { Phone, CheckSquare, Square, X, UserCheck, Archive, ArrowUp, ArrowDown, Paperclip, ChevronRight, Flame } from 'lucide-react'
+import { Phone, CheckSquare, Square, X, UserCheck, Archive, ArchiveRestore, ArrowUp, ArrowDown, Paperclip, ChevronRight, Flame } from 'lucide-react'
 import { formatPhone, leadAgeBadge, lastContactBadge } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { LEAD_STATE_CONFIG, LEAD_STATES, type LeadState } from '@/lib/leads/states'
 import { LEAD_INTENT_TIER_LABELS, LEAD_INTENT_TIER_STYLES, type LeadIntentFlag, type LeadIntentTier } from '@/lib/leads/intent'
 import CustomerQuickUploadSheet from './CustomerQuickUploadSheet'
+import { AssigneeBadge } from '@/components/leads/AssigneeBadge'
 
-/** Returns Tailwind bg class based on hours since last activity */
-function activityUrgencyBg(lastActivityAt: string | null | undefined): string {
-  if (!lastActivityAt) return 'bg-gray-300'
+/** Left-edge strip: how recently this lead had any logged activity (call, SMS, email, etc.). */
+function getActivityUrgency(lastActivityAt: string | null | undefined): {
+  stripClass: string
+  stripTitle: string
+} {
+  if (!lastActivityAt) {
+    return {
+      stripClass: 'bg-gray-300',
+      stripTitle: 'No logged activity yet — follow up to turn the strip green.',
+    }
+  }
   const hours = (Date.now() - new Date(lastActivityAt).getTime()) / 3600000
-  if (hours < 24) return 'bg-green-400'
-  if (hours < 72) return 'bg-yellow-400'
-  return 'bg-red-400'
+  if (hours < 24) {
+    return {
+      stripClass: 'bg-green-400',
+      stripTitle: 'Active: last touch within 24 hours.',
+    }
+  }
+  if (hours < 72) {
+    return {
+      stripClass: 'bg-yellow-400',
+      stripTitle: 'Warm: last touch 1–3 days ago.',
+    }
+  }
+  return {
+    stripClass: 'bg-red-400',
+    stripTitle: 'Quiet: no touch in over 3 days.',
+  }
 }
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -74,7 +94,12 @@ interface Agent {
 interface Props {
   customers: Customer[]
   isAdmin: boolean
+  /** Sales reps: list is server-scoped to assigned leads; hide org-wide rep filter */
+  isRep?: boolean
   agents: Agent[]
+  /** Active org members (server-fetched); used for assignee picker + rep filter */
+  members: { id: string; display_name: string }[]
+  canReassignLeads: boolean
   lastActivityMap?: Record<string, string>
   lastCallMap?: Record<string, string>
   lastSmsMap?: Record<string, string>
@@ -223,7 +248,10 @@ const INTENT_FILTER_LABELS: Record<IntentFilter, string> = {
 export default function CustomersListClient({
   customers: initial,
   isAdmin,
+  isRep = false,
   agents,
+  members,
+  canReassignLeads,
   lastActivityMap = {},
   lastCallMap = {},
   lastSmsMap = {},
@@ -251,6 +279,7 @@ export default function CustomersListClient({
   const [sortDirection, setSortDirection] = useState<SortDirection>(initialSortState.direction)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [intentFilter, setIntentFilter] = useState<IntentFilter>('all')
+  const [filterRep, setFilterRep] = useState<string | 'all'>('all')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [selectMode, setSelectMode] = useState(false)
   const [assignTo, setAssignTo] = useState('')
@@ -294,12 +323,35 @@ export default function CustomersListClient({
     }
   }, [sort, sortDirection])
 
-  const agentMap = useMemo(
-    () => Object.fromEntries(agents.map(a => [a.id, a.display_name])),
-    [agents]
+  const afterRepFilter = useMemo(
+    () =>
+      filterRep === 'all'
+        ? customers
+        : customers.filter(c => c.assignee?.id === filterRep),
+    [customers, filterRep],
   )
 
-  const filteredCustomers = customers.filter(c => {
+  function handleAssigneeReassigned(
+    customerId: string,
+    newAssigneeId: string | null,
+    displayName: string | null,
+  ) {
+    setCustomers(prev =>
+      prev.map(c => {
+        if (c.id !== customerId) return c
+        return {
+          ...c,
+          assigned_to: newAssigneeId,
+          assignee:
+            newAssigneeId && displayName
+              ? { id: newAssigneeId, display_name: displayName }
+              : null,
+        }
+      }),
+    )
+  }
+
+  const filteredCustomers = afterRepFilter.filter(c => {
     const statusMatch = statusFilter === 'all' || (c.thread_state ?? 'new_lead') === statusFilter
     if (!statusMatch) return false
 
@@ -329,6 +381,8 @@ export default function CustomersListClient({
     sortDirection,
     { lastActivityMap, lastCallMap, lastSmsMap, lastEmailMap },
   )
+
+  const displayed = sorted
 
   const sortableColumnMap: Partial<Record<'name' | 'last_active' | 'response_time', SortOption>> = {
     name: 'name',
@@ -382,29 +436,26 @@ export default function CustomersListClient({
     router.refresh()
   }
 
+  async function handleUnarchive(id: string) {
+    const supabase = createClient()
+    const { error } = await supabase
+      .from('customers')
+      .update({ archived: false, archived_reason: null })
+      .eq('id', id)
+    if (error) return
+    setCustomers(prev => prev.filter(c => c.id !== id))
+    router.refresh()
+  }
+
   return (
     <div className="page-enter">
-      {/* Archive toggle link */}
-      <div className="px-4 pt-2 pb-0 flex justify-end">
-        {showArchived ? (
-          <Link href="/customers" className="text-xs text-primary flex items-center gap-1">
-            ← Active Customers
-          </Link>
-        ) : (
-          <Link href="/customers?archived=1" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
-            <Archive className="h-3 w-3" />
-            Show Archived
-          </Link>
-        )}
-      </div>
-
       {/* Status filter — hidden in archived view */}
       {!showArchived && (
         <div className="px-4 pt-2 pb-1 flex items-center gap-2 overflow-x-auto">
           {(Object.keys(STATUS_LABELS) as StatusFilter[]).map(opt => {
             const count = opt === 'all'
-              ? customers.length
-              : customers.filter(c => (c.thread_state ?? 'new_lead') === opt).length
+              ? afterRepFilter.length
+              : afterRepFilter.filter(c => (c.thread_state ?? 'new_lead') === opt).length
             return (
               <button
                 key={opt}
@@ -429,7 +480,7 @@ export default function CustomersListClient({
       {!showArchived && (
         <div className="px-4 pt-0 pb-1 flex items-center gap-2 overflow-x-auto">
           {(['all', 'hot', 'warm', 'active', 'manual', 'callback', 'appointment', 'reengaged'] as IntentFilter[]).map(opt => {
-            const count = customers.filter(c => {
+            const count = afterRepFilter.filter(c => {
               switch (opt) {
                 case 'all':
                   return true
@@ -469,121 +520,197 @@ export default function CustomersListClient({
         </div>
       )}
 
-      {/* Sort bar — hidden in archived view */}
+      {/* Sort → Associate → Reassign (one row; TopBar search → /search) */}
       {!showArchived && (
-        <div className="px-4 pt-0 pb-1 flex items-center gap-2">
-          <span className="text-xs text-muted-foreground flex-shrink-0">Sort:</span>
-          <select
-            value={sort}
-            onChange={e => setSort(e.target.value as SortOption)}
-            className="h-8 rounded-md border bg-background px-2 text-xs"
-            aria-label="Sort leads"
-          >
-            {SORT_OPTIONS.map(opt => (
-              <option key={opt} value={opt}>
-                {SORT_LABELS[opt]}
-              </option>
-            ))}
-          </select>
-          <div className="flex items-center rounded-md border overflow-hidden">
-            <button
-              onClick={() => setSortDirection('asc')}
-              className={`h-8 w-8 grid place-items-center transition-colors ${
-                sortDirection === 'asc' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:text-foreground'
-              }`}
-              title="Ascending"
-              aria-label="Sort ascending"
+        <div className="px-4 pt-2 pb-1 flex flex-nowrap items-center gap-2 overflow-x-auto">
+          <div className="flex h-9 shrink-0 items-stretch overflow-hidden rounded-md border border-border bg-background">
+            <select
+              value={sort}
+              onChange={e => setSort(e.target.value as SortOption)}
+              className="h-9 min-w-0 max-w-[8.5rem] border-0 bg-transparent px-2 text-xs shadow-none focus:outline-none focus:ring-0 sm:max-w-[11rem]"
+              aria-label="Sort leads"
             >
-              <ArrowUp className="h-3.5 w-3.5" />
-            </button>
-            <button
-              onClick={() => setSortDirection('desc')}
-              className={`h-8 w-8 grid place-items-center transition-colors border-l ${
-                sortDirection === 'desc' ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-muted-foreground hover:text-foreground'
-              }`}
-              title="Descending"
-              aria-label="Sort descending"
+              {SORT_OPTIONS.map(opt => (
+                <option key={opt} value={opt}>
+                  {SORT_LABELS[opt]}
+                </option>
+              ))}
+            </select>
+            <div className="flex shrink-0 border-l border-border">
+              <button
+                type="button"
+                onClick={() => setSortDirection('asc')}
+                className={`h-9 w-9 flex items-center justify-center transition-colors ${
+                  sortDirection === 'asc' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:text-foreground'
+                }`}
+                title="Ascending"
+                aria-label="Sort ascending"
+              >
+                <ArrowUp className="h-3 w-3" strokeWidth={2.25} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setSortDirection('desc')}
+                className={`h-9 w-9 flex items-center justify-center border-l border-border transition-colors ${
+                  sortDirection === 'desc' ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-muted-foreground hover:text-foreground'
+                }`}
+                title="Descending"
+                aria-label="Sort descending"
+              >
+                <ArrowDown className="h-3 w-3" strokeWidth={2.25} />
+              </button>
+            </div>
+          </div>
+
+          {!isRep && members.length > 0 && (
+            <select
+              value={filterRep}
+              onChange={e => setFilterRep(e.target.value as string | 'all')}
+              className="h-9 shrink-0 rounded-md border border-border bg-background px-2 text-xs min-w-0 max-w-[6.5rem] sm:max-w-[10rem]"
+              aria-label="Filter by assigned associate"
             >
-              <ArrowDown className="h-3.5 w-3.5" />
-            </button>
+              <option value="all">All Associates</option>
+              {members.map(m => (
+                <option key={m.id} value={m.id}>
+                  {m.display_name}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {isAdmin && customers.length > 0 && (
+            <div className="flex shrink-0 items-center gap-2">
+              {selectMode ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={exitSelect}
+                    className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                  >
+                    <X className="h-3 w-3" /> Cancel
+                  </button>
+                  {selected.size > 0 && (
+                    <span className="text-xs text-muted-foreground tabular-nums">{selected.size} selected</span>
+                  )}
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setSelectMode(true)}
+                  className="flex flex-col items-center justify-center rounded-md border border-primary/50 bg-primary/5 px-2 py-0.5 text-[10px] font-semibold leading-tight text-primary hover:bg-primary/10"
+                  aria-label="Reassign lead"
+                >
+                  <span>Reassign</span>
+                  <span>Lead</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Assign / Unassign — directly under Cancel row (no fixed bottom bar) */}
+      {selectMode && selected.size > 0 && !showArchived && (
+        <div className="px-4 pb-2">
+          <div className="bg-card border rounded-lg p-2 flex flex-wrap items-center gap-2 shadow-sm">
+            <UserCheck className="h-4 w-4 text-muted-foreground flex-shrink-0 hidden sm:block" />
+            <select
+              className="flex-1 min-w-[8rem] text-sm bg-background border rounded-md px-2 py-1.5 outline-none"
+              value={assignTo}
+              onChange={e => setAssignTo(e.target.value)}
+              aria-label="Assign to team member"
+            >
+              <option value="">Unassign</option>
+              {agents.map(a => (
+                <option key={a.id} value={a.id}>{a.display_name}</option>
+              ))}
+            </select>
+            <Button size="sm" className="flex-shrink-0" onClick={handleAssign} disabled={isPending}>
+              {isPending ? 'Saving…' : `Assign ${selected.size}`}
+            </Button>
           </div>
         </div>
       )}
 
-      {isAdmin && customers.length > 0 && !showArchived && (
-        <div className="px-4 pb-1 flex items-center justify-between">
-          {selectMode ? (
-            <button onClick={exitSelect} className="text-xs text-muted-foreground flex items-center gap-1">
-              <X className="h-3 w-3" /> Cancel
-            </button>
-          ) : (
-            <button onClick={() => setSelectMode(true)} className="text-xs text-primary">
-              Select to reassign
-            </button>
-          )}
-          {selectMode && selected.size > 0 && (
-            <span className="text-xs text-muted-foreground">{selected.size} selected</span>
-          )}
+      {/* Left-edge activity strip — one compact key (mobile cards + desktop share meaning) */}
+      {!showArchived && (
+        <div
+          className="px-4 py-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 border-b border-border/40 bg-muted/25 text-[10px] text-muted-foreground leading-tight"
+          title="Colored bar at the left edge of each lead card = time since last logged touch (call, text, or email)."
+        >
+          <span className="font-semibold text-foreground/75 shrink-0">Touch</span>
+          <span className="inline-flex items-center gap-1 shrink-0" title="Last touch within 24 hours">
+            <span className="inline-block w-1.5 h-3 rounded-sm bg-green-400" aria-hidden />
+            <span className="text-foreground/80">&lt;24h</span>
+          </span>
+          <span className="inline-flex items-center gap-1 shrink-0" title="Last touch 1–3 days ago">
+            <span className="inline-block w-1.5 h-3 rounded-sm bg-yellow-400" aria-hidden />
+            <span className="text-foreground/80">1–3d</span>
+          </span>
+          <span className="inline-flex items-center gap-1 shrink-0" title="No touch in over 3 days">
+            <span className="inline-block w-1.5 h-3 rounded-sm bg-red-400" aria-hidden />
+            <span className="text-foreground/80">3d+</span>
+          </span>
+          <span className="inline-flex items-center gap-1 shrink-0" title="No logged activity on this lead yet">
+            <span className="inline-block w-1.5 h-3 rounded-sm bg-gray-300" aria-hidden />
+            <span className="text-foreground/80">none</span>
+          </span>
         </div>
       )}
 
       {/* Empty states */}
-      {sorted.length === 0 && !showArchived && (
+      {displayed.length === 0 && !showArchived && (
         <div className="text-center py-12 text-muted-foreground px-4">
           <p className="text-3xl mb-2">👤</p>
           <p className="text-sm font-medium">
-            No {statusFilter !== 'all' ? STATUS_LABELS[statusFilter].toLowerCase() + ' ' : ''}customers
+            {`No ${statusFilter !== 'all' ? STATUS_LABELS[statusFilter].toLowerCase() + ' ' : ''}customers`}
           </p>
         </div>
       )}
 
-      {sorted.length === 0 && showArchived && (
+      {displayed.length === 0 && showArchived && (
         <div className="text-center py-12 text-muted-foreground px-4">
           <p className="text-3xl mb-2">🗄️</p>
           <p className="text-sm">No archived customers</p>
         </div>
       )}
 
-      {sorted.length > 0 && (
+      {displayed.length > 0 && (
         <>
           {/* ── Mobile card view ─────────────────────────────────────── */}
           <motion.div
-            className={`lg:hidden ${selectMode ? 'px-4 py-2 space-y-2' : 'divide-y divide-border bg-card border rounded-xl mx-3 my-2 overflow-hidden'}`}
+            className={`lg:hidden ${selectMode ? 'px-4 py-1 space-y-1' : 'divide-y divide-border bg-card border rounded-xl mx-3 my-2 overflow-hidden'}`}
             initial="hidden"
             animate="visible"
             variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.04 } } }}
           >
-            {sorted.map(customer => {
+            {displayed.map(customer => {
               const initials = customer.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
 
               if (selectMode) {
                 const isChecked = selected.has(customer.id)
                 return (
-                  <motion.div key={customer.id} onClick={() => toggle(customer.id)}
-                    variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.16, 1, 0.3, 1] } } }}
+                  <motion.div
+                    key={customer.id}
+                    onClick={() => toggle(customer.id)}
+                    variants={{ hidden: { opacity: 0, y: 4 }, visible: { opacity: 1, y: 0, transition: { duration: 0.2, ease: [0.16, 1, 0.3, 1] } } }}
                   >
-                    <Card className={`transition-colors cursor-pointer ${isChecked ? 'border-primary bg-primary/5' : ''}`}>
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex-shrink-0">
-                            {isChecked
-                              ? <CheckSquare className="h-5 w-5 text-primary" />
-                              : <Square className="h-5 w-5 text-muted-foreground" />
-                            }
-                          </div>
-                          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm flex-shrink-0">
-                            {initials}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{customer.name}</p>
-                            <p className="text-sm text-muted-foreground">{formatPhone(customer.primary_phone)}</p>
-                          </div>
-                          {customer.tags && customer.tags.length > 0 && (
-                            <Badge variant="secondary" className="text-xs flex-shrink-0">{customer.tags[0]}</Badge>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
+                    <div
+                      className={`flex items-center gap-2 rounded-md border px-2 py-1.5 cursor-pointer transition-colors ${
+                        isChecked ? 'border-primary bg-primary/5' : 'border-border bg-muted/30 hover:bg-muted/50'
+                      }`}
+                    >
+                      <div className="flex-shrink-0">
+                        {isChecked
+                          ? <CheckSquare className="h-4 w-4 text-primary" aria-hidden />
+                          : <Square className="h-4 w-4 text-muted-foreground" aria-hidden />
+                        }
+                      </div>
+                      <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-[10px] flex-shrink-0">
+                        {initials}
+                      </div>
+                      <p className="flex-1 min-w-0 text-sm font-medium truncate">{customer.name}</p>
+                    </div>
                   </motion.div>
                 )
               }
@@ -591,7 +718,7 @@ export default function CustomersListClient({
               const ageBadge = leadAgeBadge(customer.created_at)
               const contactBadge = lastContactBadge(lastActivityMap[customer.id] ?? null)
 
-              const urgencyBg = activityUrgencyBg(lastActivityMap[customer.id])
+              const urgency = getActivityUrgency(lastActivityMap[customer.id])
               const intentTier = getLeadIntentTier(customer)
               const intentStyle = LEAD_INTENT_TIER_STYLES[intentTier]
               const intentSummary = customer.lead_intent_summary
@@ -610,8 +737,11 @@ export default function CustomersListClient({
                   onPointerLeave={cancelLongPress}
                   onPointerCancel={cancelLongPress}
                 >
-                  {/* Activity urgency strip */}
-                  <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${urgencyBg}`} />
+                  {/* Activity urgency strip (see legend above list) */}
+                  <div
+                    className={`absolute left-0 top-0 bottom-0 w-1.5 ${urgency.stripClass}`}
+                    title={urgency.stripTitle}
+                  />
                   <Link href={`/customers/${customer.id}`} className="flex items-center gap-3 pl-5 pr-2 py-2.5 flex-1 min-w-0">
                     <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs flex-shrink-0">
                       {initials}
@@ -651,6 +781,18 @@ export default function CustomersListClient({
                       <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${contactBadge.cls}`}>{contactBadge.label}</span>
                     </div>
                   </Link>
+                  <div
+                    className="pr-1 flex-shrink-0"
+                    onPointerDown={e => { e.stopPropagation(); cancelLongPress() }}
+                  >
+                    <AssigneeBadge
+                      assignee={customer.assignee ?? null}
+                      members={members}
+                      customerId={customer.id}
+                      canReassign={canReassignLeads}
+                      onReassigned={(newId, name) => handleAssigneeReassigned(customer.id, newId, name)}
+                    />
+                  </div>
                   <button
                     onPointerDown={e => { e.stopPropagation(); cancelLongPress() }}
                     onClick={e => { e.stopPropagation(); setUploadCustomerId(customer.id) }}
@@ -659,7 +801,18 @@ export default function CustomersListClient({
                   >
                     <Paperclip className="h-3.5 w-3.5" />
                   </button>
-                  {!showArchived && (
+                  {showArchived ? (
+                    <button
+                      type="button"
+                      onPointerDown={e => { e.stopPropagation(); cancelLongPress() }}
+                      onClick={e => { e.stopPropagation(); void handleUnarchive(customer.id) }}
+                      className="text-muted-foreground hover:text-green-600 dark:hover:text-green-400 p-2 pr-3 flex-shrink-0"
+                      title="Restore to active leads"
+                      aria-label={`Restore ${customer.name} to active leads`}
+                    >
+                      <ArchiveRestore className="h-3.5 w-3.5" aria-hidden />
+                    </button>
+                  ) : (
                     archiveConfirm === customer.id ? (
                       <div className="flex items-center gap-1 pr-2 flex-shrink-0">
                         <input
@@ -772,11 +925,15 @@ export default function CustomersListClient({
                     </button>
                   </th>
                   <th className="w-8 py-2" />
-                  {!showArchived && <th className="w-8 py-2" />}
+                  {showArchived ? (
+                    <th className="py-2 text-right text-xs font-medium">Restore</th>
+                  ) : (
+                    <th className="w-8 py-2" />
+                  )}
                 </tr>
               </thead>
               <tbody>
-                {sorted.map(customer => {
+                {displayed.map(customer => {
                   const initials = customer.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
                   const state = customer.thread_state ?? 'new_lead'
                   const stateConfig = LEAD_STATE_CONFIG[state as keyof typeof LEAD_STATE_CONFIG]
@@ -829,8 +986,14 @@ export default function CustomersListClient({
                           {stateConfig?.label ?? state}
                         </span>
                       </td>
-                      <td className="py-2.5 pr-4 text-muted-foreground truncate max-w-[120px]">
-                        {customer.assigned_to ? (agentMap[customer.assigned_to] ?? '—') : '—'}
+                      <td className="py-2.5 pr-4" onClick={e => e.stopPropagation()}>
+                        <AssigneeBadge
+                          assignee={customer.assignee ?? null}
+                          members={members}
+                          customerId={customer.id}
+                          canReassign={canReassignLeads}
+                          onReassigned={(newId, name) => handleAssigneeReassigned(customer.id, newId, name)}
+                        />
                       </td>
                       <td className="py-2.5 pr-4 text-muted-foreground tabular-nums" suppressHydrationWarning>
                         {timeAgo(lastActivityMap[customer.id])}
@@ -845,7 +1008,19 @@ export default function CustomersListClient({
                           <Paperclip className="h-3.5 w-3.5" />
                         </button>
                       </td>
-                      {!showArchived && (
+                      {showArchived ? (
+                        <td className="py-2.5 text-right" onClick={e => e.stopPropagation()}>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs"
+                            onClick={() => void handleUnarchive(customer.id)}
+                          >
+                            Restore
+                          </Button>
+                        </td>
+                      ) : (
                         <td className="py-2.5" onClick={e => e.stopPropagation()}>
                           {archiveConfirm === customer.id ? (
                             <div className="flex items-center gap-1">
@@ -877,27 +1052,6 @@ export default function CustomersListClient({
         </>
       )}
 
-      {/* Floating assignment bar */}
-      {selectMode && selected.size > 0 && (
-        <div className="fixed bottom-20 lg:bottom-4 left-0 right-0 px-4 lg:px-6 z-50">
-          <div className="bg-card border rounded-xl shadow-lg p-3 flex items-center gap-2">
-            <UserCheck className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-            <select
-              className="flex-1 text-sm bg-transparent outline-none"
-              value={assignTo}
-              onChange={e => setAssignTo(e.target.value)}
-            >
-              <option value="">Unassign</option>
-              {agents.map(a => (
-                <option key={a.id} value={a.id}>{a.display_name}</option>
-              ))}
-            </select>
-            <Button size="sm" onClick={handleAssign} disabled={isPending}>
-              {isPending ? 'Saving…' : `Assign ${selected.size}`}
-            </Button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

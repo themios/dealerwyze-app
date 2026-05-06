@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { Sparkles } from 'lucide-react'
+import { Sparkles, X } from 'lucide-react'
 
 import { Activity, VoiceCall, type Customer } from '@/types'
 import type { SequenceStatus } from '@/components/leads/NewLeadCard'
@@ -34,6 +34,7 @@ import TodaySection from '@/components/today/TodaySection'
 import TodayBulkBar from '@/components/today/TodayBulkBar'
 import FocusSession from '@/components/today/FocusSession'
 import type { TakeoverSignal } from '@/lib/today/takeoverDetector'
+import { IntelligenceAlerts } from '@/components/intelligence/IntelligenceAlerts'
 
 const MOTIVATIONAL_MESSAGES = [
   'Every call could be your next deal.',
@@ -274,6 +275,7 @@ export default function TodayContent({
   const [apptRequests, setApptRequests] = useState<Activity[]>(initialApptRequests)
   const [voiceLeads, setVoiceLeads] = useState<VoiceCall[]>(initialVoiceLeads)
   const [vehicleMatches, setVehicleMatches] = useState<Activity[]>(initialVehicleMatches)
+  const [atRisk, setAtRisk] = useState<AtRiskLeadItem[]>(atRiskItems)
   const [responded, setResponded] = useState<string[]>(respondedCustomerIds)
   const [sequenceState, setSequenceState] = useState<Record<string, SequenceStatus>>(initialSequenceStatusMap)
   const [takeoverSignals, setTakeoverSignals] = useState<Record<string, TakeoverSignal | null>>(initialTakeoverSignals)
@@ -284,6 +286,7 @@ export default function TodayContent({
   const [dateLabel, setDateLabel] = useState('')
   const [motivationalMsg, setMotivationalMsg] = useState('')
   const dismissedIds = useRef<Set<string>>(new Set())
+  const dismissedAtRiskIds = useRef<Set<string>>(new Set())
   const { pendingCall, modalOpen, dismissModal } = usePendingCall()
   const supabase = createClient()
   const router = useRouter()
@@ -456,6 +459,16 @@ export default function TodayContent({
         .in('status', ['active', 'paused']),
     ])
 
+    // Re-fetch at-risk items in the background
+    fetch('/api/today/at-risk')
+      .then(r => r.ok ? r.json() as Promise<AtRiskLeadItem[]> : Promise.resolve(null))
+      .then(items => {
+        if (!items) return
+        const dismissed = dismissedAtRiskIds.current
+        setAtRisk(items.filter(i => !dismissed.has(i.activity_id)))
+      })
+      .catch(() => {})
+
     const dismissed = dismissedIds.current
     const todayRef = new Date()
     const waitingTouchCounts = new Map<string, number>()
@@ -477,13 +490,16 @@ export default function TodayContent({
       }]
     })
 
-    const safeLeads = (leads || []).filter(
-      activity =>
-        !dismissed.has(activity.id) &&
-        activity.customer != null &&
-        !(activity.customer as { archived?: boolean | null }).archived &&
-        shouldShowAddressedActivity(activity, todayRef),
-    )
+    const seenLeadCustomers = new Set<string>()
+    const safeLeads = (leads || []).filter(activity => {
+      if (dismissed.has(activity.id)) return false
+      if (activity.customer == null || (activity.customer as { archived?: boolean | null }).archived) return false
+      if (!shouldShowAddressedActivity(activity, todayRef)) return false
+      // Deduplicate: one card per customer — keep the most recent (query is DESC)
+      if (activity.customer_id && seenLeadCustomers.has(activity.customer_id)) return false
+      if (activity.customer_id) seenLeadCustomers.add(activity.customer_id)
+      return true
+    })
 
     const tasksFiltered = (taskRows || []).filter(activity => {
       if (dismissed.has(activity.id)) return false
@@ -868,6 +884,14 @@ export default function TodayContent({
     restoreSnapshot,
   ])
 
+  const dismissAtRisk = useCallback(async (activityId: string, customerId: string) => {
+    dismissedAtRiskIds.current.add(activityId)
+    setAtRisk(current => current.filter(i => i.activity_id !== activityId))
+    // Remove from main queue too if it appears there
+    dismissedIds.current.add(activityId)
+    setNewLeads(current => current.filter(a => a.customer_id !== customerId))
+  }, [])
+
   const jumpToSection = useCallback((section: TodaySectionKey) => {
     document.getElementById(`today-section-${section}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [])
@@ -1047,22 +1071,38 @@ export default function TodayContent({
       </div>
 
       <div className="space-y-6 px-4 py-2">
+        <IntelligenceAlerts />
         <UpcomingAppointmentsList
           title="Today & Tomorrow Appointments"
           appointments={upcomingAppointments}
         />
 
-        {atRiskItems.length > 0 && (
+        {atRisk.length > 0 && (
           <section className="space-y-2 rounded-xl border border-amber-200/80 bg-amber-50/40 p-3 dark:border-amber-900/50 dark:bg-amber-950/20">
-            <p className="text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200">At risk — stale leads</p>
-            <p className="text-xs text-muted-foreground">Pending inbound email with no dealer response in 48+ hours.</p>
-            <ul className="space-y-1.5">
-              {atRiskItems.map(item => (
-                <li key={item.activity_id}>
-                  <Link href={`/customers/${item.customer_id}?activity=${item.activity_id}`} className="text-sm font-medium text-foreground hover:underline">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200">At risk — stale leads</p>
+              <span className="text-[11px] text-amber-700/70 dark:text-amber-300/60">{atRisk.length} lead{atRisk.length === 1 ? '' : 's'}</span>
+            </div>
+            <p className="text-xs text-muted-foreground">No dealer response in 48+ hours. Respond now to save the lead.</p>
+            <ul className="space-y-1">
+              {atRisk.map(item => (
+                <li key={item.activity_id} className="flex items-center gap-2 rounded-md px-1 py-0.5 hover:bg-amber-100/60 dark:hover:bg-amber-900/30 group">
+                  <Link
+                    href={`/customers/${item.customer_id}?activity=${item.activity_id}`}
+                    className="flex-1 text-sm font-medium text-foreground hover:underline truncate"
+                  >
                     {item.customer_name}
                   </Link>
-                  <span className="ml-2 text-xs text-muted-foreground">{item.reason}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">{item.reason}</span>
+                  <button
+                    type="button"
+                    onClick={() => void dismissAtRisk(item.activity_id, item.customer_id)}
+                    aria-label={`Dismiss ${item.customer_name} from at-risk list`}
+                    title="Dismiss"
+                    className="shrink-0 opacity-0 group-hover:opacity-100 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-amber-200/60 dark:hover:bg-amber-800/40 transition-opacity"
+                  >
+                    <X className="h-3.5 w-3.5" aria-hidden />
+                  </button>
                 </li>
               ))}
             </ul>

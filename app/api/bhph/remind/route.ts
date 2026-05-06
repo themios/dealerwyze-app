@@ -10,12 +10,132 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
-import { sendBhphReminder } from '@/lib/bhph/send'
+import { sendBhphReminder, type BhphReminderTwoTier } from '@/lib/bhph/send'
 import { todayInTimezone, daysBetween } from '@/lib/bhph/schedule'
 import type { ReminderType } from '@/lib/bhph/messages'
+import { getOrCreatePaymentToken, buildPayUrl } from '@/lib/bhph/paymentToken'
+import { generateAchSetupToken } from '@/lib/bhph/achSetupToken'
+import {
+  createStripeAchPaymentIntent,
+  finalizeBhphPaymentRpc,
+  getOrCreateAchPullToken,
+  recordAchFailureLedger,
+} from '@/lib/bhph/achPull'
+import { sendTwilioSms, toE164Us } from '@/lib/bhph/twilioOutbound'
 
 export const runtime = 'nodejs'
 export const maxDuration = 55
+
+type OrgBhphRow = {
+  business_name: string | null
+  timezone: string
+  bhph_zelle_handle: string | null
+  bhph_venmo_handle: string | null
+  bhph_cashapp_handle: string | null
+  bhph_manual_instructions_enabled: boolean
+  bhph_ach_prompts_enabled: boolean
+}
+
+async function loadOrgBhph(
+  service: ReturnType<typeof createServiceClient>,
+  cache: Map<string, OrgBhphRow>,
+  orgId: string,
+): Promise<OrgBhphRow> {
+  const hit = cache.get(orgId)
+  if (hit) return hit
+  const { data } = await service
+    .from('org_settings')
+    .select(`
+      business_name, timezone,
+      bhph_zelle_handle, bhph_venmo_handle, bhph_cashapp_handle,
+      bhph_manual_instructions_enabled, bhph_ach_prompts_enabled
+    `)
+    .eq('org_id', orgId)
+    .maybeSingle()
+  const row: OrgBhphRow = {
+    business_name: (data?.business_name as string | null) ?? null,
+    timezone: (data?.timezone as string) ?? 'America/Los_Angeles',
+    bhph_zelle_handle: (data?.bhph_zelle_handle as string | null) ?? null,
+    bhph_venmo_handle: (data?.bhph_venmo_handle as string | null) ?? null,
+    bhph_cashapp_handle: (data?.bhph_cashapp_handle as string | null) ?? null,
+    bhph_manual_instructions_enabled: !!(data?.bhph_manual_instructions_enabled),
+    bhph_ach_prompts_enabled: data?.bhph_ach_prompts_enabled !== false,
+  }
+  cache.set(orgId, row)
+  return row
+}
+
+async function buildReminderPayPayload(
+  service: ReturnType<typeof createServiceClient>,
+  contract: {
+    id: string
+    user_id: string
+    customer_id: string
+    monthly_payment: number
+    payment_method_type?: string | null
+    bank_verification_status?: string | null
+  },
+  org: OrgBhphRow,
+  tokenAmount: number,
+): Promise<{
+  paymentUrl: string | null
+  paymentTokenId: string | null
+  twoTier: BhphReminderTwoTier
+}> {
+  const achVerified =
+    contract.payment_method_type === 'ach' &&
+    contract.bank_verification_status === 'verified'
+
+  let paymentUrl: string | null = null
+  let paymentTokenId: string | null = null
+
+  if (!achVerified && tokenAmount > 0) {
+    const t = await getOrCreatePaymentToken({
+      orgId: contract.user_id,
+      customerId: contract.customer_id,
+      bhphContractId: contract.id,
+      amount: tokenAmount,
+    }).catch(() => null)
+    if (t) {
+      paymentTokenId = t.id
+      paymentUrl = buildPayUrl(t.token)
+    }
+  }
+
+  let achSetupUrl: string | null = null
+  const achPrompts = org.bhph_ach_prompts_enabled !== false
+  const needAchLink =
+    !achVerified &&
+    contract.payment_method_type !== 'ach' &&
+    contract.bank_verification_status !== 'verified'
+
+  if (needAchLink && achPrompts) {
+    try {
+      const secret = process.env.BHPH_ACH_SECRET
+      if (secret && secret.length >= 16) {
+        const tok = generateAchSetupToken(contract.id)
+        const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://dealerwyze.com'
+        achSetupUrl = `${base}/pay/ach/${encodeURIComponent(tok)}`
+      }
+    } catch (e) {
+      console.error('[bhph/remind] ach setup token', e)
+    }
+  }
+
+  return {
+    paymentUrl,
+    paymentTokenId,
+    twoTier: {
+      achVerified,
+      achSetupUrl,
+      achPromptsEnabled: achPrompts,
+      manualInstructionsEnabled: org.bhph_manual_instructions_enabled,
+      zelle: org.bhph_zelle_handle,
+      venmo: org.bhph_venmo_handle,
+      cashapp: org.bhph_cashapp_handle,
+    },
+  }
+}
 
 export async function GET(req: NextRequest) {
   const auth = req.headers.get('authorization')
@@ -26,6 +146,8 @@ export async function GET(req: NextRequest) {
   const service = createServiceClient()
 
   // Load all active BHPH contracts with customer + vehicle (no profiles join — user_id FKs to auth.users)
+  const orgBhphCache = new Map<string, OrgBhphRow>()
+
   const { data: contracts, error } = await service
     .from('bhph_payments')
     .select(`
@@ -33,6 +155,7 @@ export async function GET(req: NextRequest) {
       monthly_payment, next_due_date, payment_frequency,
       last_reminder_type, reminder_sequence_status,
       sms_consent, email_consent, customer_email,
+      payment_method_type, bank_verification_status,
       customer:customers(id, name, primary_phone, sms_opt_out),
       vehicle:vehicles(year, make, model)
     `)
@@ -57,13 +180,9 @@ export async function GET(req: NextRequest) {
 
     if (!customer || !vehicle) continue
 
-    const { data: orgSettings } = await service
-      .from('org_settings')
-      .select('business_name, timezone')
-      .eq('org_id', contract.user_id)
-      .maybeSingle()
-    const tz: string = orgSettings?.timezone ?? 'America/Los_Angeles'
-    const dealerName = orgSettings?.business_name ?? 'the dealership'
+    const orgRow = await loadOrgBhph(service, orgBhphCache, contract.user_id as string)
+    const tz: string = orgRow.timezone
+    const dealerName = orgRow.business_name ?? 'the dealership'
 
     const today = todayInTimezone(tz)
     const daysUntilDue = daysBetween(today, contract.next_due_date)
@@ -86,6 +205,20 @@ export async function GET(req: NextRequest) {
 
     if (!contract.sms_consent && !contract.email_consent) continue
 
+    const payPayload = await buildReminderPayPayload(
+      service,
+      {
+        id: contract.id as string,
+        user_id: contract.user_id as string,
+        customer_id: contract.customer_id as string,
+        monthly_payment: Number(contract.monthly_payment),
+        payment_method_type: contract.payment_method_type as string | null | undefined,
+        bank_verification_status: contract.bank_verification_status as string | null | undefined,
+      },
+      orgRow,
+      Number(contract.monthly_payment),
+    )
+
     const sendResult = await sendBhphReminder({
       bhphId: contract.id,
       userId: contract.user_id,
@@ -99,6 +232,9 @@ export async function GET(req: NextRequest) {
       dealerTimezone: tz,
       dealerPhone,
       amount: contract.monthly_payment,
+      paymentUrl: payPayload.paymentUrl,
+      paymentTokenId: payPayload.paymentTokenId,
+      twoTier: payPayload.twoTier,
       messageVars: {
         customerName: customer.name,
         amount: contract.monthly_payment,
@@ -157,13 +293,31 @@ export async function GET(req: NextRequest) {
 
     if (!contract?.sms_consent && !contract?.email_consent) continue
 
-    const { data: orgSettings } = await service
-      .from('org_settings')
-      .select('business_name, timezone')
-      .eq('org_id', installment.user_id)
+    const orgRow = await loadOrgBhph(service, orgBhphCache, installment.user_id as string)
+    const tz: string = orgRow.timezone
+    const dealerName = orgRow.business_name ?? 'the dealership'
+
+    const { data: bhphParent } = await service
+      .from('bhph_payments')
+      .select('payment_method_type, bank_verification_status')
+      .eq('id', installment.bhph_id)
+      .eq('user_id', installment.user_id)
       .maybeSingle()
-    const tz: string = orgSettings?.timezone ?? 'America/Los_Angeles'
-    const dealerName = orgSettings?.business_name ?? 'the dealership'
+
+    const instAmount = Number(installment.amount)
+    const payPayload = await buildReminderPayPayload(
+      service,
+      {
+        id: installment.bhph_id as string,
+        user_id: installment.user_id as string,
+        customer_id: installment.customer_id as string,
+        monthly_payment: instAmount,
+        payment_method_type: bhphParent?.payment_method_type as string | null | undefined,
+        bank_verification_status: bhphParent?.bank_verification_status as string | null | undefined,
+      },
+      orgRow,
+      instAmount,
+    )
 
     const today = todayInTimezone(tz)
     const daysUntilDue = daysBetween(today, installment.due_date)
@@ -194,7 +348,10 @@ export async function GET(req: NextRequest) {
       reminderType,
       dealerTimezone: tz,
       dealerPhone,
-      amount: undefined,
+      amount: installment.amount,
+      paymentUrl: payPayload.paymentUrl,
+      paymentTokenId: payPayload.paymentTokenId,
+      twoTier: payPayload.twoTier,
       messageVars: {
         customerName: customer.name,
         amount: installment.amount,
@@ -219,9 +376,122 @@ export async function GET(req: NextRequest) {
     results.push({ deferredPaymentId: installment.id, customer: customer.name, reminderType, ...sendResult })
   }
 
+  const achResults: Record<string, unknown>[] = []
+  const { data: achList, error: achErr } = await service
+    .from('bhph_payments')
+    .select(
+      'id, user_id, customer_id, monthly_payment, next_due_date, stripe_customer_id, stripe_payment_method_id, payment_method_type, bank_verification_status, status',
+    )
+    .eq('status', 'active')
+    .eq('payment_method_type', 'ach')
+    .eq('bank_verification_status', 'verified')
+
+  if (!achErr && achList?.length) {
+    for (const c of achList) {
+      const orgId = c.user_id as string
+      const { data: orgSettings } = await service
+        .from('org_settings')
+        .select('timezone, stripe_dealer_secret_key, dealer_cell_number')
+        .eq('org_id', orgId)
+        .maybeSingle()
+
+      const tz: string = orgSettings?.timezone ?? 'America/Los_Angeles'
+      const today = todayInTimezone(tz)
+      const due = (c.next_due_date as string).slice(0, 10)
+      if (due !== today) continue
+
+      const secret = orgSettings?.stripe_dealer_secret_key as string | null
+      const custId = c.stripe_customer_id as string | null
+      const pmId = c.stripe_payment_method_id as string | null
+      if (!secret?.trim() || !custId || !pmId) {
+        achResults.push({ contractId: c.id, ach: 'skipped_missing_stripe' })
+        continue
+      }
+
+      const monthly = Number(c.monthly_payment)
+      const tokenRow = await getOrCreateAchPullToken(service, {
+        orgId,
+        customerId: c.customer_id as string,
+        bhphContractId: c.id as string,
+        amount: monthly,
+      })
+      if (!tokenRow) {
+        achResults.push({ contractId: c.id, ach: 'token_failed' })
+        continue
+      }
+
+      const cents = Math.round(monthly * 100)
+      const pi = await createStripeAchPaymentIntent({
+        secretKey: secret,
+        customerId: custId,
+        paymentMethodId: pmId,
+        amountCents: cents,
+        tokenRowId: tokenRow.id,
+        bhphContractId: c.id as string,
+        orgId,
+        paymentDateYmd: today,
+      })
+
+      if (!pi) {
+        await recordAchFailureLedger({
+          supabase: service,
+          contractId: c.id as string,
+          paymentDateYmd: today,
+          attemptedAmount: monthly,
+          stripePaymentIntentId: null,
+          notes: 'ACH auto-pull: PaymentIntent creation failed',
+        })
+        const raw = orgSettings?.dealer_cell_number as string | null
+        const to = raw ? toE164Us(raw) : null
+        if (to) {
+          void sendTwilioSms(
+            to,
+            'DealerWyze: ACH auto-payment could not be started for a due contract. Check Stripe and the BHPH account.',
+          )
+        }
+        achResults.push({ contractId: c.id, ach: 'pi_create_failed' })
+        continue
+      }
+
+      if (pi.status === 'succeeded') {
+        const paidAt = new Date().toISOString()
+        const fin = await finalizeBhphPaymentRpc({
+          supabase: service,
+          tokenId: tokenRow.id,
+          paymentIntentId: pi.id,
+          paidAtIso: paidAt,
+          amount: monthly,
+          paymentDateYmd: today,
+        })
+        achResults.push({ contractId: c.id, ach: 'finalized', ...fin })
+      } else if (pi.status === 'processing' || pi.status === 'requires_action') {
+        achResults.push({ contractId: c.id, ach: 'pending_webhook', paymentIntent: pi.id, status: pi.status })
+      } else {
+        await recordAchFailureLedger({
+          supabase: service,
+          contractId: c.id as string,
+          paymentDateYmd: today,
+          attemptedAmount: monthly,
+          stripePaymentIntentId: pi.id,
+          notes: `ACH auto-pull declined: status=${pi.status}`,
+        })
+        const raw = orgSettings?.dealer_cell_number as string | null
+        const to = raw ? toE164Us(raw) : null
+        if (to) {
+          void sendTwilioSms(
+            to,
+            'DealerWyze: ACH payment was not successful for a due BHPH contract. Follow up with the customer.',
+          )
+        }
+        achResults.push({ contractId: c.id, ach: 'failed', paymentIntent: pi.id, status: pi.status })
+      }
+    }
+  }
+
   return NextResponse.json({
     processed: results.length,
     results,
+    ach_pulls: achResults,
     ran_at: new Date().toISOString(),
   })
 }

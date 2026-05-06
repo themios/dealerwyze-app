@@ -7,6 +7,8 @@ import GoogleBusinessProfileSection from './sections/GoogleBusinessProfileSectio
 import GoogleCalendarSection       from './sections/GoogleCalendarSection'
 import LocationsSection            from './sections/LocationsSection'
 import EmailFromDomainSection      from './sections/EmailFromDomainSection'
+import SocialPostingSection        from './sections/SocialPostingSection'
+import BhphPaymentMethodsSection   from './sections/BhphPaymentMethodsSection'
 import DangerZoneSection           from './sections/DangerZoneSection'
 
 export default function OrganizationSettingsPage() {
@@ -19,12 +21,14 @@ export default function OrganizationSettingsPage() {
       <div className="space-y-4">
         <BasicInfoSection />
         <PhoneSection />
+        <BhphPaymentMethodsSection />
         <EmailLeadSyncSection />
         <VoiceAgentSection />
         <GoogleBusinessProfileSection />
         <GoogleCalendarSection />
         <LocationsSection />
         <EmailFromDomainSection />
+        <SocialPostingSection />
         <DangerZoneSection />
       </div>
     </SettingsPageShell>

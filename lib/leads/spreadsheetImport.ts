@@ -106,9 +106,8 @@ export function rowToLead(row: string[], columnMap: Record<number, Field>, rowIn
   if (!phoneRaw && !email) return null
 
   const phone = phoneRaw ? normalizePhone(phoneRaw) : ''
-  const phoneDisplay = phone.length === 10 ? phone : phoneRaw || ''
-  // DB requires primary_phone; when only email provided use name as placeholder so ingest can create
-  const phoneForDb = phoneDisplay || (email ? name : '')
+  // Only 10-digit US numbers for ingest dedupe; never use name as phone (matches blank DB phones).
+  const phoneForDb = phone.length === 10 ? phone : ''
 
   return {
     name,

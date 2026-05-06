@@ -13,6 +13,10 @@ const faqs = [
     a: 'Yes. Lead notification emails from AutoTrader, CarGurus, and most major listing sites are automatically parsed and matched to the right vehicle and customer.',
   },
   {
+    q: 'Is there a public website for my inventory?',
+    a: 'Yes. DealerWyze includes a branded public inventory site on your DealerWyze URL with SEO-friendly listings, vehicle detail pages, structured data for search engines, and contact forms. Upload your logo and dealer contact info in Settings. It is included in the 30-day trial and stays available on every plan — including free — without a separate website add-on.',
+  },
+  {
     q: 'Can I use DealerWyze by myself without a team?',
     a: 'Absolutely. The Today list and single-screen workflow are built for one-person and small-team lots. No admin overhead, no complex setup, and no minimum seat count.',
   },
@@ -34,7 +38,7 @@ const faqs = [
   },
   {
     q: 'What\'s included in Complete CRM?',
-    a: 'Complete CRM ($150/mo) is all-inclusive: unlimited contacts and leads, two-way SMS with a dedicated business number, fax, Gmail sync, AI Lead Scanner, AI Dealer Brief, AI Receipt OCR, BHPH loan tracking, bookkeeping, analytics, and team management. No add-ons or hidden fees.',
+    a: 'Complete CRM ($150/mo) is all-inclusive: unlimited contacts and leads, two-way SMS with a dedicated business number, fax, Gmail sync, a public SEO-ready dealer inventory website, AI Lead Scanner, AI Dealer Brief, AI Receipt OCR, BHPH loan tracking, bookkeeping, analytics, and team management. No add-ons or hidden fees.',
   },
   {
     q: 'What does the Voice AI add-on do?',

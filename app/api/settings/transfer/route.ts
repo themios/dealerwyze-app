@@ -20,9 +20,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Valid email required' }, { status: 400 })
   }
 
-  // Service client is required for business_transfers writes: the table has no RLS and requires elevated access.
-  // All data snapshot count queries below use the auth client (await createClient()) for org scoping.
-  // This split is intentional: business_transfers is a platform-managed table, not user-owned.
+  // Service role required: transfer record must write even if RLS would block the transferring org
+  // Snapshot counts use createClient() below — auth-scoped reads for org isolation.
   const supabase = createServiceClient()
   const orgId = profile.org_id
 
@@ -113,6 +112,7 @@ export async function DELETE() {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  // Service role required: transfer record must write even if RLS would block the transferring org
   const supabase = createServiceClient()
 
   const { error } = await supabase
@@ -135,6 +135,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  // Service role: business_transfers (elevated access; rows filtered by profile.org_id below)
   const supabase = createServiceClient()
 
   const { data } = await supabase

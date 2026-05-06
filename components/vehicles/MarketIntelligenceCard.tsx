@@ -32,6 +32,8 @@ interface Props {
   initialData: MarketData | null
   initialRecallCount: number | null
   initialReliabilityTier: string | null
+  /** When false, the AI Listing Description subsection is hidden (moved to Website panel). Default true. */
+  showDescriptionSection?: boolean
 }
 
 const CONFIDENCE_LABEL: Record<string, string> = {
@@ -66,6 +68,7 @@ export default function MarketIntelligenceCard({
   initialData,
   initialRecallCount,
   initialReliabilityTier,
+  showDescriptionSection = true,
 }: Props) {
   const [data, setData] = useState<MarketData | null>(initialData)
   const [recallCount, setRecallCount] = useState<number | null>(initialRecallCount)
@@ -202,9 +205,9 @@ export default function MarketIntelligenceCard({
             {/* Market context */}
             {(data.avgDom || data.totalActive) && (
               <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                {data.totalActive && <span>{data.totalActive.toLocaleString()} national listings</span>}
+                {data.totalActive && <span>{data.totalActive.toLocaleString('en-US')} national listings</span>}
                 {data.avgDom && <span>Avg {data.avgDom}d on market</span>}
-                {data.medianMiles && <span>Median {data.medianMiles.toLocaleString()}mi</span>}
+                {data.medianMiles && <span>Median {data.medianMiles.toLocaleString('en-US')}mi</span>}
               </div>
             )}
 
@@ -270,8 +273,8 @@ export default function MarketIntelligenceCard({
           </>
         )}
 
-        {/* AI Description section */}
-        {!isSold && (
+        {/* AI Description section — only shown when not relocated to the Website panel */}
+        {!isSold && showDescriptionSection && (
           <div className="pt-2 border-t space-y-2">
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">AI Listing Description</p>

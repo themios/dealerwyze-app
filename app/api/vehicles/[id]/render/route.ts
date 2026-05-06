@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClientForRequest } from '@/lib/supabase/forRequest'
-import { createServiceClient } from '@/lib/supabase/service'
 import { renderVehicleVideo } from '@/lib/remotion/renderVehicleVideo'
 import { QuotaError } from '@/lib/remotion/quotaCheck'
 
-export const maxDuration = 60 // seconds — allow time for narration + Lambda trigger
+export const maxDuration = 120 // seconds — narration + Lambda trigger (Vercel ceiling)
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -36,6 +35,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     voice?: string
     autoPost?: boolean
     platforms?: string[]
+    script?: string
   } = {}
   try {
     body = await req.json()
@@ -43,8 +43,16 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     // No body is fine
   }
 
+  // Validate custom script length if provided
+  if (body.script !== undefined) {
+    const trimmed = typeof body.script === 'string' ? body.script.trim() : ''
+    if (trimmed.length > 1500) {
+      return NextResponse.json({ error: 'Script must be 1,500 characters or fewer' }, { status: 422 })
+    }
+  }
+
   try {
-    const result = await renderVehicleVideo({
+    const result = await renderVehicleVideo(supabase, {
       orgId:          profile.org_id,
       vehicleId,
       triggeredByUser: profile.id,
@@ -53,6 +61,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       voice:          body.voice,
       autoPost:       body.autoPost,
       platforms:      body.platforms,
+      customScript:   body.script?.trim() || undefined,
     })
     return NextResponse.json(result)
   } catch (err) {
@@ -89,11 +98,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
   }
 
-  // Service client: video_renders does not have RLS configured; explicit .eq('org_id') enforces isolation.
-  const svcClient = createServiceClient()
-
+  // RLS on video_renders (migration 138) scopes by org via get_org_id()
   // Only allow cancelling queued/rendering renders belonging to this org
-  const { data: render } = await svcClient
+  const { data: render } = await supabase
     .from('video_renders')
     .select('id, status')
     .eq('id', body.renderId)
@@ -105,7 +112,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'Render not found or already completed' }, { status: 404 })
   }
 
-  await svcClient
+  await supabase
     .from('video_renders')
     .update({ status: 'cancelled', completed_at: new Date().toISOString() })
     .eq('id', render.id)
@@ -132,9 +139,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  // Service client: video_renders does not have RLS configured; explicit .eq('org_id') enforces isolation.
-  const svcClient = createServiceClient()
-  const { data: render } = await svcClient
+  const { data: render } = await supabase
     .from('video_renders')
     .select('id, status, output_url, narration_url, error_message, created_at, completed_at, template_id, aspect_ratio')
     .eq('vehicle_id', vehicleId)

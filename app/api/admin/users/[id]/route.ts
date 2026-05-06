@@ -4,6 +4,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { canManageUsers } from '@/lib/auth/dealerRoles'
 import type { UserRole } from '@/types/index'
 import { logOrgAudit } from '@/lib/audit/orgAudit'
+import { writeAuditLog } from '@/lib/audit/log'
 
 const ALLOWED_DEALER_ROLES: UserRole[] = [
   'dealer_admin',
@@ -44,10 +45,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const service = createServiceClient()
 
   // Verify target is in same org
-  const { data: target } = await service.from('profiles').select('org_id').eq('id', targetId).single()
-  if (target?.org_id !== callerProfile.org_id) {
+  const { data: target } = await service.from('profiles').select('org_id, role').eq('id', targetId).single()
+  if (!target || target.org_id !== callerProfile.org_id) {
     return NextResponse.json({ error: 'Not in your org' }, { status: 403 })
   }
+
+  const fromRole = target.role as string
 
   const { error } = await service
     .from('profiles')
@@ -55,6 +58,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     .eq('id', targetId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  void writeAuditLog({
+    orgId:      callerProfile.org_id,
+    actorId:    user.id,
+    actorType:  'user',
+    action:     'role_changed',
+    entityType: 'profile',
+    entityId:   targetId,
+    metadata:   { from_role: fromRole, to_role: newRole },
+  })
 
   void logOrgAudit({ org_id: callerProfile.org_id, actor_id: user.id, actor_type: 'user',
     action: 'user_role_changed', details: { target_user_id: targetId, new_role: newRole } })

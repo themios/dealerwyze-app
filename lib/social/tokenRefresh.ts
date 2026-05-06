@@ -86,11 +86,22 @@ export async function refreshAllExpiringTokens(): Promise<void> {
 
 async function updateTokenInDB(
   accountId: string,
+  expectedOrgId: string,
   accessToken: string,
   refreshToken: string | null,
   expiresAt: Date | null,
 ): Promise<void> {
   const supabase = createServiceClient()
+  const { data: row } = await supabase
+    .from('social_accounts')
+    .select('org_id')
+    .eq('id', accountId)
+    .maybeSingle()
+  if (!row?.org_id || row.org_id !== expectedOrgId) {
+    throw new Error(
+      `[tokenRefresh] org ownership mismatch for account ${accountId} (expected ${expectedOrgId}, got ${row?.org_id ?? 'none'})`,
+    )
+  }
   await supabase.from('social_accounts').update({
     access_token:     accessToken,
     refresh_token:    refreshToken,
@@ -110,7 +121,7 @@ async function refreshMetaToken(account: SocialAccount): Promise<void> {
   const expiresAt = data.expires_in
     ? new Date(Date.now() + data.expires_in * 1000)
     : new Date(Date.now() + 60 * 24 * 60 * 60 * 1000) // default 60 days
-  await updateTokenInDB(account.id, data.access_token, null, expiresAt)
+  await updateTokenInDB(account.id, account.org_id, data.access_token, null, expiresAt)
 }
 
 async function refreshTikTokToken(account: SocialAccount): Promise<void> {
@@ -128,7 +139,7 @@ async function refreshTikTokToken(account: SocialAccount): Promise<void> {
   if (!res.ok) throw new Error(`TikTok token refresh failed: ${res.status}`)
   const data = await res.json() as { access_token: string; refresh_token: string; expires_in: number }
   const expiresAt = new Date(Date.now() + data.expires_in * 1000)
-  await updateTokenInDB(account.id, data.access_token, data.refresh_token, expiresAt)
+  await updateTokenInDB(account.id, account.org_id, data.access_token, data.refresh_token, expiresAt)
 }
 
 async function refreshYouTubeToken(account: SocialAccount): Promise<void> {
@@ -146,5 +157,5 @@ async function refreshYouTubeToken(account: SocialAccount): Promise<void> {
   if (!res.ok) throw new Error(`YouTube token refresh failed: ${res.status}`)
   const data = await res.json() as { access_token: string; expires_in: number }
   const expiresAt = new Date(Date.now() + data.expires_in * 1000)
-  await updateTokenInDB(account.id, data.access_token, account.refresh_token, expiresAt)
+  await updateTokenInDB(account.id, account.org_id, data.access_token, account.refresh_token, expiresAt)
 }

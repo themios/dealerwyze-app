@@ -6,10 +6,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { createServiceClient } from '@/lib/supabase/service'
 import { paymentLimiter } from '@/lib/rateLimit/upstash'
-import { PayTokenPostSchema, parseBody } from '@/lib/validation/schemas'
+import { PayTokenPostSchema } from '@/lib/validation/schemas'
+import { parseBody } from '@/lib/validation/parseRequest'
 import { logOrgAudit } from '@/lib/audit/orgAudit'
+import { writeAuditLog } from '@/lib/audit/log'
 
 interface StripePaymentIntentResponse {
   id: string
@@ -143,10 +146,15 @@ export async function POST(
   const { token } = await params
   const supabase  = createServiceClient()
 
-  const parsed = await parseBody(req, PayTokenPostSchema)
-  if (parsed.errorResponse) return parsed.errorResponse
-  const { action } = parsed.data
-  const payment_intent_id = 'payment_intent_id' in parsed.data ? parsed.data.payment_intent_id : undefined
+  let parsed: z.infer<typeof PayTokenPostSchema>
+  try {
+    parsed = await parseBody(req, PayTokenPostSchema)
+  } catch (e) {
+    if (e instanceof Response) return e
+    throw e
+  }
+  const { action } = parsed
+  const payment_intent_id = 'payment_intent_id' in parsed ? parsed.payment_intent_id : undefined
 
   // ── Create PaymentIntent ──────────────────────────────────────────────────
   if (action === 'intent' || !action) {
@@ -201,11 +209,29 @@ export async function POST(
 
     const { data: pt } = await supabase
       .from('bhph_payment_tokens')
-      .select('id, amount, status, org_id, customer_id, bhph_contract_id')
+      .select('id, amount, status, org_id, customer_id, bhph_contract_id, stripe_payment_intent_id')
       .eq('token', token)
       .maybeSingle()
 
-    if (!pt || pt.status !== 'pending') {
+    if (!pt) {
+      return NextResponse.json({ error: 'Token invalid' }, { status: 410 })
+    }
+
+    const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null
+
+    // Paid token + same PaymentIntent: safe idempotent replay (no second Stripe round-trip).
+    if (pt.status === 'paid') {
+      if (pt.stripe_payment_intent_id === payment_intent_id) {
+        const paidAt = new Date().toISOString()
+        await markReminderTokenPaid(supabase, pt.id, paidAt)
+        void logOrgAudit({ org_id: pt.org_id, actor_type: 'system', action: 'bhph_payment_idempotent',
+          ip: clientIp, details: { token_id: pt.id, payment_intent_id } })
+        return NextResponse.json({ ok: true, already_processed: true })
+      }
+      return NextResponse.json({ error: 'Token already processed' }, { status: 409 })
+    }
+
+    if (pt.status !== 'pending') {
       return NextResponse.json({ error: 'Token invalid' }, { status: 410 })
     }
 
@@ -248,10 +274,14 @@ export async function POST(
 
     const paidAt = new Date().toISOString()
 
+    const paymentDateYmd = paidAt.slice(0, 10)
+
     const { data: rpcResult, error: rpcError } = await supabase.rpc('finalize_bhph_payment', {
-      p_token_id:              pt.id,
-      p_stripe_payment_intent: payment_intent_id,
-      p_paid_at:               paidAt,
+      p_token_id:               pt.id,
+      p_stripe_payment_intent:  payment_intent_id,
+      p_paid_at:                paidAt,
+      p_amount:                 pt.amount,
+      p_payment_date:           paymentDateYmd,
     })
 
     if (rpcError) {
@@ -265,19 +295,38 @@ export async function POST(
       return NextResponse.json({ error: 'Token already processed' }, { status: 409 })
     }
 
-    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null
-
     if (result?.already_processed) {
       await markReminderTokenPaid(supabase, pt.id, paidAt)
       void logOrgAudit({ org_id: pt.org_id, actor_type: 'system', action: 'bhph_payment_idempotent',
-        ip, details: { token_id: pt.id, payment_intent_id } })
+        ip: clientIp, details: { token_id: pt.id, payment_intent_id } })
+      void writeAuditLog({
+        orgId:     pt.org_id,
+        actorId:   null,
+        actorType: 'user',
+        action:    'payment_confirmed',
+        entityType: 'bhph_token',
+        entityId:  pt.id,
+        metadata:  { amount: pt.amount, stripe_payment_intent_id: payment_intent_id },
+        ipAddress: clientIp,
+      })
       return NextResponse.json({ ok: true, already_processed: true })
     }
 
     await markReminderTokenPaid(supabase, pt.id, paidAt)
 
     void logOrgAudit({ org_id: pt.org_id, actor_type: 'system', action: 'bhph_payment_confirmed',
-      ip, details: { token_id: pt.id, payment_intent_id, amount: pt.amount } })
+      ip: clientIp, details: { token_id: pt.id, payment_intent_id, amount: pt.amount } })
+
+    void writeAuditLog({
+      orgId:      pt.org_id,
+      actorId:    null,
+      actorType:  'user',
+      action:     'payment_confirmed',
+      entityType: 'bhph_token',
+      entityId:   pt.id,
+      metadata:   { amount: pt.amount, stripe_payment_intent_id: payment_intent_id },
+      ipAddress:  clientIp,
+    })
 
     return NextResponse.json({ ok: true })
   }

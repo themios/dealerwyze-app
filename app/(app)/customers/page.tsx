@@ -1,7 +1,6 @@
 export const dynamic = 'force-dynamic'
 
 import { createClientForRequest } from '@/lib/supabase/forRequest'
-import { createServiceClient } from '@/lib/supabase/service'
 import { requireProfile } from '@/lib/auth/profile'
 import Link from 'next/link'
 import TopBar from '@/components/layout/TopBar'
@@ -14,7 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Plus, List, GitBranch, UserX, Archive, Layers } from 'lucide-react'
 import EmptyState from '@/components/ui/EmptyState'
 import { isDealerAdmin } from '@/types/index'
-import { isRepRestricted, canManageUsers } from '@/lib/auth/dealerRoles'
+import { isRepRestricted, canManageUsers, canAssignLeads } from '@/lib/auth/dealerRoles'
 import { DEFAULT_ORG_STAGES, OrgStage } from '@/lib/leads/states'
 
 export default async function CustomersPage({
@@ -53,6 +52,20 @@ export default async function CustomersPage({
 
   const { data: customers } = await query.order('created_at', { ascending: false })
 
+  const { data: membersData } = await supabase
+    .from('profiles')
+    .select('id, display_name')
+    .eq('org_id', profile.org_id)
+    .is('deactivated_at', null)
+    .order('display_name', { ascending: true })
+
+  const members = membersData ?? []
+  const memberMap = new Map(members.map(m => [m.id, m]))
+  const leadsWithAssignee = (customers ?? []).map(c => ({
+    ...c,
+    assignee: c.assigned_to ? (memberMap.get(c.assigned_to) ?? null) : null,
+  }))
+
   // Batch-fetch most recent activity per customer and by channel/type.
   const customerIds = (customers ?? []).map(c => c.id)
   const lastActivityMap: Record<string, string> = {}
@@ -90,8 +103,7 @@ export default async function CustomersPage({
   // Fetch agents list for admin/manager bulk-assign dropdown
   let agents: { id: string; display_name: string; role: string }[] = []
   if (canManageUsers(profile.role)) {
-    const service = createServiceClient()
-    const { data } = await service
+    const { data } = await supabase
       .from('profiles')
       .select('id, display_name, role')
       .eq('org_id', profile.org_id)
@@ -100,16 +112,14 @@ export default async function CustomersPage({
     agents = data ?? []
   }
 
-  // Fetch org pipeline stages for pipeline board
-  const serviceForStages = createServiceClient()
-  const { data: orgStagesData } = await serviceForStages
+  const { data: orgStagesData } = await supabase
     .from('org_pipeline_stages')
     .select('stage_key, label, color, position, is_hot, is_active')
     .eq('org_id', profile.org_id)
     .order('position', { ascending: true })
   const orgStages: OrgStage[] = orgStagesData?.length ? orgStagesData : DEFAULT_ORG_STAGES
 
-  const title = showArchived ? 'Archived Leads' : `Leads (${customers?.length ?? 0})`
+  const title = showArchived ? 'Archived Leads' : `Leads (${leadsWithAssignee.length})`
 
   return (
     <div>
@@ -133,11 +143,6 @@ export default async function CustomersPage({
               <ScanLeadButton />
               <PasteLeadDialog />
               <ImportLeadsDialog />
-              <Link href="/customers?archived=1" title="View archived leads">
-                <Button size="sm" variant="ghost" className="text-white/70 hover:text-white">
-                  <Archive className="h-5 w-5" />
-                </Button>
-              </Link>
             </div>
           )
         }
@@ -168,13 +173,21 @@ export default async function CustomersPage({
               <Layers className="h-3.5 w-3.5" />
               <span>Segments</span>
             </Link>
+            <Link
+              href="/customers?archived=1"
+              title="View archived leads"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-l border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              <Archive className="h-3.5 w-3.5" />
+              <span>Archived</span>
+            </Link>
           </div>
         </div>
       )}
 
       {showPipeline ? (
-        <PipelineBoard customers={customers ?? []} lastActivityMap={lastActivityMap} orgStages={orgStages} />
-      ) : !customers || customers.length === 0 ? (
+        <PipelineBoard customers={leadsWithAssignee} lastActivityMap={lastActivityMap} orgStages={orgStages} />
+      ) : !leadsWithAssignee || leadsWithAssignee.length === 0 ? (
         showArchived ? (
           <EmptyState
             icon={Archive}
@@ -191,9 +204,12 @@ export default async function CustomersPage({
         )
       ) : (
         <CustomersListClient
-          customers={customers}
+          customers={leadsWithAssignee}
           isAdmin={isAdmin}
+          isRep={isRep}
           agents={agents}
+          members={members}
+          canReassignLeads={canAssignLeads(profile.role)}
           lastActivityMap={lastActivityMap}
           lastCallMap={lastCallMap}
           lastSmsMap={lastSmsMap}

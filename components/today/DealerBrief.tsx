@@ -329,7 +329,7 @@ export default function DealerBrief() {
           {/* Footer */}
           <div className="px-4 py-2.5 flex items-center justify-between bg-muted/20">
             <p className="text-xs text-muted-foreground">
-              {data!.cached ? 'Cached' : 'Generated'} · {data!.tokens_used?.toLocaleString()} tokens
+              {data!.cached ? 'Cached' : 'Generated'} · {data!.tokens_used?.toLocaleString('en-US')} tokens
             </p>
             <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={regenerate} disabled={regenerating}>
               <RefreshCw className={`h-3 w-3 ${regenerating ? 'animate-spin' : ''}`} />

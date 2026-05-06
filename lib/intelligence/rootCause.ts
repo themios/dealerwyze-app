@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createServiceClient } from '@/lib/supabase/service'
 
-const GROQ_MODEL = 'llama-3.1-70b-versatile'
+const GROQ_MODEL = 'llama-3.3-70b-versatile'
 const MAX_PER_ORG_PER_WEEK = 50
 const MAX_ACTIVITIES = 20
 

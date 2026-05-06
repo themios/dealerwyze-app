@@ -25,7 +25,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
 
     const { data: vehicle } = await supabase
       .from('vehicles')
-      .select('id, year, make, model, trim, color, mileage, price, notes, status, market_data_json')
+      .select('id, year, make, model, trim, color, mileage, price, notes, status, market_data_json, voice_summary')
       .eq('id', id)
       .eq('user_id', profile.org_id)
       .single()
@@ -43,40 +43,58 @@ export async function POST(_req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'AI not configured' }, { status: 503 })
     }
 
+    // If no pre-computed voice_summary, fetch individual website-scoped document summaries
+    let docSummaryText = (vehicle.voice_summary as string | null)?.trim() || ''
+    if (!docSummaryText) {
+      const { data: docs } = await supabase
+        .from('vehicle_documents')
+        .select('label, ai_summary')
+        .eq('vehicle_id', id)
+        .eq('user_id', profile.org_id)
+        .eq('document_scope', 'website')
+        .not('ai_summary', 'is', null)
+      if (docs && docs.length > 0) {
+        docSummaryText = docs
+          .map(d => `[${d.label}]\n${d.ai_summary}`)
+          .join('\n\n')
+      }
+    }
+
+    const docContext = docSummaryText
+      ? `\n\nUploaded document summaries (Carfax, service records, inspection — use only facts that are explicitly stated):\n${docSummaryText.slice(0, 2000)}`
+      : ''
+
     const mi = (vehicle.market_data_json ?? {}) as MarketInsight
 
     const vehicleLabel = [vehicle.year, vehicle.make, vehicle.model, vehicle.trim].filter(Boolean).join(' ')
     const pricingContext = mi.fairMarketPrice
-      ? `This vehicle is priced competitively — fair market value for this make/model/mileage is around $${mi.fairMarketPrice.toLocaleString()}.`
+      ? `\nFair market value for this make/model/mileage is approximately $${mi.fairMarketPrice.toLocaleString()}.`
       : ''
     const problemsContext = mi.topProblems?.length
-      ? `Known considerations for this vehicle: ${mi.topProblems.slice(0, 2).join('; ')}.`
+      ? `\nKnown considerations: ${mi.topProblems.slice(0, 2).join('; ')}.`
       : ''
 
-    const prompt = `Write a professional, engaging vehicle listing description for a ${vehicleLabel}.
+    const prompt = `Write 6–8 bullet points for a ${vehicleLabel} listing on Facebook Marketplace or Craigslist.
 
 Vehicle details:
-- Mileage: ${vehicle.mileage ? vehicle.mileage.toLocaleString() + ' miles' : 'mileage not listed'}
+- Mileage: ${vehicle.mileage ? vehicle.mileage.toLocaleString() + ' miles' : 'not listed'}
 - Color: ${vehicle.color ?? 'not specified'}
 - Price: ${vehicle.price ? '$' + vehicle.price.toLocaleString() : 'call for price'}
-- Notes from dealer: ${vehicle.notes ?? 'none'}
-${pricingContext}
-${problemsContext}
+- Dealer notes: ${vehicle.notes ?? 'none'}
+${pricingContext}${problemsContext}${docContext}
 
-Requirements:
-- 120-160 words
-- Enthusiastic but honest tone — no hyperbole
-- Lead with the vehicle's strongest appeal (reliability, value, features)
-- Include one specific call to action at the end
-- No em dashes, no bullet points, no markdown, no headers — flowing prose only
-- Do not start with the vehicle name as a title
-- Do not mention KBB or book value
-- Write as if for a real dealer listing on CarGurus or Cars.com`
+RULES:
+- Output ONLY bullet lines. Start every line with "• " (bullet + space).
+- Each bullet: one short phrase or fact, under 12 words. No full paragraphs.
+- Cover in order: year/make/model/mileage, price, color if notable, then the most buyer-relevant history facts from documents (owners ≤3, no accidents, clean title, regular maintenance, timing belt/chain, transmission service, brake service — only include facts explicitly found in the documents), last bullet = short call to action.
+- If documents are provided, prioritize and surface their key facts — these are the strongest selling points.
+- Honest tone. Do not invent service history not stated in the notes or documents.
+- No headers, no markdown, no numbered lines, no blank lines between bullets.`
 
     const client = new Anthropic({ apiKey })
     const response = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 400,
+      max_tokens: 500,
       messages: [{ role: 'user', content: prompt }],
     })
 

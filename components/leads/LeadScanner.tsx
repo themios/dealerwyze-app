@@ -2,6 +2,7 @@
 
 import React, { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { Camera, FileText, Image as ImageIcon, ChevronRight, AlertTriangle, CheckCircle, XCircle, Car } from 'lucide-react'
 import type { LeadScanResult, Confidence, ScanField } from '@/lib/leads/visionIngestTypes'
 import VehiclePickerSheet from '@/components/customer/VehiclePickerSheet'
@@ -180,7 +181,12 @@ export default function LeadScanner({ onClose }: { onClose?: () => void }) {
         return
       }
 
-      const data = await res.json()
+      const data = await res.json() as { customer_id?: string; status?: string }
+      if (data.status === 'duplicate') {
+        toast.info('Existing lead updated')
+      } else {
+        toast.success('New lead created')
+      }
       router.push(`/customers/${data.customer_id}`)
       onClose?.()
     } catch {

@@ -2,7 +2,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { VehicleVideoProps } from '@/lib/remotion/types'
 import { buildCaption } from './captionBuilder'
 import { refreshSocialToken } from './tokenRefresh'
-import { postVideoToFacebook, buildFacebookPostUrl } from './facebook'
+import { postReelToFacebook, buildFacebookPostUrl } from './facebook'
 import { postVideoToInstagram, buildInstagramPostUrl } from './instagram'
 import { postVideoToTikTok, buildTikTokPostUrl } from './tiktok'
 import { uploadVideoToYouTube, buildYouTubePostUrl } from './youtube'
@@ -110,6 +110,10 @@ export async function autoPostVideo(
 
   // Post to each platform concurrently
   await Promise.all(accounts.map(async (account: SocialAccount) => {
+    if (account.org_id !== orgId) {
+      console.error(`[autoPost] org mismatch for account ${account.id}: expected ${orgId}, got ${account.org_id}`)
+      return
+    }
     // Create social_posts row as pending
     const { data: postRow } = await supabase
       .from('social_posts')
@@ -152,7 +156,7 @@ export async function autoPostVideo(
       switch (account.platform) {
         case 'facebook': {
           const pageId = account.page_id ?? account.platform_account_id
-          platformPostId  = await postVideoToFacebook(videoUrl, caption, pageId, account.access_token)
+          platformPostId  = await postReelToFacebook(videoUrl, caption, pageId, account.access_token)
           platformPostUrl = buildFacebookPostUrl(pageId, platformPostId)
           break
         }

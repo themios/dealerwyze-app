@@ -70,10 +70,10 @@ beforeEach(() => {
 // ── Booking tests ─────────────────────────────────────────────────────────────
 
 describe('POST /api/book/[slug] — booking route', () => {
-  it('returns 200 on valid booking', async () => {
+  it('returns 201 on valid booking', async () => {
     const { POST } = await import('@/app/api/book/[slug]/route')
     const res = await POST(makeBookingReq(VALID_BOOKING), { params: Promise.resolve({ slug: SLUG }) })
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(201)
   })
 
   it('returns 400 when name is missing', async () => {

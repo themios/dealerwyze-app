@@ -3,6 +3,7 @@ import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 import { createCalendarEvent } from '@/lib/google/calendar'
 import { dispatchWebhook } from '@/lib/webhooks/dispatch'
+import { emitEvent } from '@/lib/intelligence/emitEvent'
 
 const ALLOWED_TYPES = [
   'appointment', 'note', 'call', 'sms', 'email', 'task',
@@ -148,6 +149,31 @@ export async function POST(req: NextRequest) {
       due_at: activity.due_at ?? null,
       body: activity.body ?? null,
       source: 'manual',
+    }).catch(() => {})
+  }
+
+  const direction2 = typeof body.direction === 'string' ? body.direction : null
+  const customerId2 = typeof body.customer_id === 'string' ? body.customer_id : null
+  const MESSAGING_TYPES = new Set(['sms', 'sms_followup', 'email', 'email_followup', 'call'])
+  if (MESSAGING_TYPES.has(type) && customerId2) {
+    const channelMap: Record<string, 'sms' | 'email' | 'call'> = {
+      sms: 'sms', sms_followup: 'sms',
+      email: 'email', email_followup: 'email',
+      call: 'call',
+    }
+    emitEvent({
+      orgId:      profile.org_id,
+      eventType:  direction2 === 'inbound' ? 'message_received' : 'message_sent',
+      entityType: 'activity',
+      entityId:   activity.id,
+      actorId:    profile.id,
+      channel:    channelMap[type] ?? null,
+      direction:  (direction2 === 'inbound' || direction2 === 'outbound') ? direction2 : null,
+      metadata: {
+        customer_id: customerId2,
+        hour_of_day: new Date().getUTCHours(),
+        day_of_week: new Date().getUTCDay(),
+      },
     }).catch(() => {})
   }
 
