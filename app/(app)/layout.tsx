@@ -1,21 +1,25 @@
-export const dynamic = 'force-dynamic'
-
-import React from 'react'
+import React, { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { headers, cookies } from 'next/headers'
 import BottomNav from '@/components/layout/BottomNav'
 import DesktopSidebar from '@/components/layout/DesktopSidebar'
+import SettingsDesktopSidebar from '@/components/settings/SettingsDesktopSidebar'
 import PushPermission from '@/components/push/PushPermission'
 import PastDueBanner from '@/components/layout/PastDueBanner'
 import ImpersonationBanner from '@/components/admin/ImpersonationBanner'
 import SupportSessionBanner from '@/components/layout/SupportSessionBanner'
 import FeedbackButton from '@/components/layout/FeedbackButton'
+import OrgIdentifier from '@/components/analytics/OrgIdentifier'
+import PostHogPageView from '@/components/analytics/PostHogPageView'
 import { isDealerAdmin } from '@/types/index'
 import { getStaffSessionInfo } from '@/lib/auth/staffSession'
 import { getOrgTheme, buildThemeStyleTag } from '@/lib/theme/getOrgTheme'
 import { isPlatformSuperAdmin } from '@/lib/auth/platform'
+import { setSentryUserContext } from '@/lib/sentry/setUserContext'
+
+export const dynamic = 'force-dynamic'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -31,7 +35,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   if (!profile) redirect('/login')
 
+  if (profile.org_id) {
+    setSentryUserContext(profile.org_id, profile.role ?? 'unknown')
+  }
+
   const pathname = (await headers()).get('x-pathname') ?? ''
+  const isSettings = pathname.startsWith('/settings')
 
   // platform check — lib/auth/platform.ts
   // Platform staff and superadmins bypass all gates
@@ -135,8 +144,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <style dangerouslySetInnerHTML={{ __html: themeStyle }} />
       )}
     <div className={`flex h-dvh w-full lg:max-w-none max-w-md mx-auto relative font-style-${orgTheme.fontStyle}`}>
-      {/* Desktop sidebar — hidden on mobile */}
-      <DesktopSidebar orgName={orgName} />
+      {/* Desktop sidebar — swaps to settings sidebar when inside /settings */}
+      {isSettings ? <SettingsDesktopSidebar /> : <DesktopSidebar orgName={orgName} />}
 
       {/* Main content column */}
       <div className="flex flex-col flex-1 min-w-0 relative">
@@ -147,11 +156,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <PushPermission />
         {/* pb-20 on mobile for BottomNav; no padding needed on desktop */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden pb-20 lg:pb-0" suppressHydrationWarning>
+          {profile.org_id && (
+            <OrgIdentifier orgId={profile.org_id} role={profile.role ?? 'unknown'} />
+          )}
+          <Suspense fallback={null}>
+            <PostHogPageView />
+          </Suspense>
           <PastDueBanner />
           {children}
         </main>
-        {/* BottomNav — hidden on desktop */}
-        <BottomNav />
+        {/* BottomNav — hidden on desktop; settings-aware on mobile */}
+        <BottomNav isSettings={isSettings} />
         <FeedbackButton />
       </div>
     </div>

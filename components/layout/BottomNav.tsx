@@ -5,7 +5,9 @@ import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import {
   LayoutDashboard, Home, Users, Car, CalendarDays,
-  Building2, Bell, TicketCheck, ShieldCheck,
+  ShieldCheck,
+  Activity, BarChart3, ArchiveRestore,
+  ArrowLeft, Settings, Search,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -64,16 +66,46 @@ const DEALER_NAV_ITEMS = [
 
 const ADMIN_BOTTOM_NAV = [
   { href: '/admin',         label: 'Dashboard', icon: LayoutDashboard, badge: null },
-  { href: '/admin/orgs',    label: 'Dealers',   icon: Building2,       badge: null },
-  { href: '/admin/alerts',  label: 'Alerts',    icon: Bell,            badge: 'alerts' as const },
-  { href: '/admin/tickets', label: 'Tickets',   icon: TicketCheck,     badge: 'tickets' as const },
+  { href: '/admin/platform-health', label: 'Health',   icon: Activity,    badge: null },
+  { href: '/admin/feature-adoption', label: 'Adoption', icon: BarChart3,   badge: null },
+  { href: '/admin/data-recovery',   label: 'Recovery', icon: ArchiveRestore, badge: null },
   { href: '/today',         label: 'Exit',      icon: ShieldCheck,     badge: null },
 ]
 
-export default function BottomNav() {
+export default function BottomNav({ isSettings }: { isSettings?: boolean } = {}) {
   const pathname = usePathname()
   const isAdminArea = pathname.startsWith('/admin')
   const urgentCount = useUrgentCount()
+
+  if (isSettings) {
+    return (
+      <nav className="lg:hidden fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md border-t border-white/8 bg-[#0D1F33]">
+        <div className="flex items-center h-16">
+          <Link
+            href="/today"
+            className="flex flex-col items-center gap-0.5 flex-1 py-2 text-[10px] font-medium text-white/50 hover:text-white/80 transition-colors"
+          >
+            <ArrowLeft className="h-5 w-5" />
+            Exit
+          </Link>
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('settings:open-nav'))}
+            className="flex flex-col items-center gap-0.5 flex-1 py-2 text-[10px] font-medium text-[#F07018]"
+          >
+            <Settings className="h-5 w-5" />
+            Navigate
+          </button>
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('settings:open-search'))}
+            className="flex flex-col items-center gap-0.5 flex-1 py-2 text-[10px] font-medium text-white/50 hover:text-white/80 transition-colors"
+          >
+            <Search className="h-5 w-5" />
+            Search
+          </button>
+        </div>
+      </nav>
+    )
+  }
 
   if (isAdminArea) {
     return (
