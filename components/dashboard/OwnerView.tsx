@@ -107,7 +107,7 @@ export default function OwnerView({ stats }: Props) {
       <div className="grid grid-cols-4 gap-4">
 
         {/* ── Card 1: Dealer Health ──────────────────────────────── */}
-        <div className="col-span-1 rounded-xl border border-border bg-card p-5 flex flex-col items-center justify-center gap-3">
+        <Link href="/analytics" className="col-span-1 rounded-xl border border-border bg-card p-5 flex flex-col items-center justify-center gap-3 hover:bg-accent transition-colors block">
           <HealthRing score={healthScore} />
           <div className="text-center">
             <p className="text-sm font-semibold" style={{ color: healthColor }}>{healthLabel}</p>
@@ -120,7 +120,7 @@ export default function OwnerView({ stats }: Props) {
               </p>
             </div>
           )}
-        </div>
+        </Link>
 
         {/* ── Card 2: Leads & Response ───────────────────────────── */}
         <Link href="/customers" className="col-span-1 rounded-xl border border-border bg-card p-5 hover:bg-accent transition-colors block">
@@ -209,25 +209,25 @@ export default function OwnerView({ stats }: Props) {
       {(gamification.wins_this_week > 0 || today.tasks_overdue > 0) && (
         <div className="mt-4 flex gap-3">
           {gamification.wins_this_week > 0 && (
-            <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-green-500/10 border border-green-500/20">
+            <Link href="/reports" className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-green-500/10 border border-green-500/20 hover:bg-green-500/15 transition-colors">
               <TrendingUp className="h-4 w-4 text-green-500 flex-shrink-0" />
               <span className="text-sm font-semibold text-foreground">{gamification.wins_this_week} deal{gamification.wins_this_week !== 1 ? 's' : ''} this week</span>
               {gamification.revenue_this_week > 0 && (
                 <span className="text-xs text-muted-foreground">· {formatMoney(gamification.revenue_this_week)}</span>
               )}
-            </div>
+            </Link>
           )}
           {today.tasks_overdue > 0 && (
-            <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20">
+            <Link href="/today" className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 hover:bg-red-500/15 transition-colors">
               <TrendingDown className="h-4 w-4 text-red-400 flex-shrink-0" />
               <span className="text-sm font-semibold text-red-400">{today.tasks_overdue} overdue task{today.tasks_overdue !== 1 ? 's' : ''}</span>
-            </div>
+            </Link>
           )}
           {today.tasks_overdue === 0 && gamification.wins_this_week > 0 && (
-            <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-green-500/10 border border-green-500/20">
+            <Link href="/today" className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-green-500/10 border border-green-500/20 hover:bg-green-500/15 transition-colors">
               <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
               <span className="text-sm text-green-500">No overdue tasks</span>
-            </div>
+            </Link>
           )}
         </div>
       )}
