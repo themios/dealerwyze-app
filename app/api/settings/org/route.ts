@@ -150,11 +150,12 @@ export async function PATCH(req: NextRequest) {
 
   const hasSettingsUpdate = Object.keys(settingsPayload).length > 2 // more than just org_id + updated_at
   if (hasSettingsUpdate) {
-    // Must use .update() — never .upsert() on org_settings. RLS blocks INSERT, causing silent failure.
+    // Upsert is safe here because we use createServiceClient() which bypasses RLS entirely.
+    // Previously this was .update()-only because the authenticated client's RLS blocked INSERT.
+    // With service client + explicit org_id filter, upsert correctly handles both new and existing rows.
     const { error: settingsErr } = await supabase
       .from('org_settings')
-      .update(settingsPayload)
-      .eq('org_id', profile.org_id)
+      .upsert(settingsPayload, { onConflict: 'org_id' })
 
     if (settingsErr) {
       return NextResponse.json({ error: 'Settings could not be saved' }, { status: 500 })
