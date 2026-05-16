@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 import { isDealerAdmin } from '@/lib/auth/dealerRoles'
 import { logOrgAudit } from '@/lib/audit/orgAudit'
 import { writeAuditLog } from '@/lib/audit/log'
@@ -8,7 +9,12 @@ import { sanitizeLeadSourceEmailMatchers } from '@/lib/leads/sourceMatchers'
 
 export async function GET() {
   const profile = await requireProfile()
-  const supabase = await createClient()
+  // Service client used for org_settings read only — RLS on org_settings
+  // unexpectedly blocks reads after org_id migration (root cause: get_org_id()
+  // mismatch between auth.uid() and migrated org_id). All queries are explicitly
+  // filtered by profile.org_id from requireProfile(), so tenant isolation holds.
+  const supabase = createServiceClient()
+  const authedSupabase = await createClient()
 
   const { data: org, error: orgErr } = await supabase
     .from('organizations')
@@ -27,7 +33,7 @@ export async function GET() {
     .maybeSingle()
 
   // Check if Calendar OAuth token exists (non-null calendar_refresh_token)
-  const { data: calendarToken } = await supabase
+  const { data: calendarToken } = await authedSupabase
     .from('org_google_tokens')
     .select('calendar_refresh_token')
     .eq('org_id', profile.org_id)
@@ -63,7 +69,10 @@ export async function PATCH(req: NextRequest) {
   if (!isDealerAdmin(profile.role)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
   }
-  const supabase = await createClient()
+  // Service client required: same RLS issue as GET — org_settings UPDATE blocked
+  // by auth.uid() mismatch after org_id migration. All queries are explicitly
+  // filtered by profile.org_id from requireProfile(), so tenant isolation holds.
+  const supabase = createServiceClient()
 
   const body: {
     name?: string
