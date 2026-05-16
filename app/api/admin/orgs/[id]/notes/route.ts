@@ -25,7 +25,7 @@ export async function GET(
 
   const { data, error } = await service
     .from('admin_audit_log')
-    .select('id, admin_user_id, created_at, details, profiles(display_name)')
+    .select('id, admin_user_id, created_at, details')
     .eq('target_org_id', orgId)
     .eq('action', 'retention_note')
     .order('created_at', { ascending: false })
@@ -33,16 +33,24 @@ export async function GET(
 
   if (error) return NextResponse.json({ error: 'Failed to load notes' }, { status: 500 })
 
-  const notes = (data ?? []).map(row => {
-    const profileData = row.profiles as { display_name?: string } | null
-    return {
-      id:             row.id,
-      admin_name:     profileData?.display_name ?? 'Unknown',
-      created_at:     row.created_at,
-      note:           (row.details as { note?: string })?.note ?? '',
-      contact_method: (row.details as { contact_method?: string })?.contact_method ?? null,
-    }
-  })
+  // Fetch display names for all distinct admins in a single query
+  const adminIds = [...new Set((data ?? []).map(r => r.admin_user_id))]
+  const nameMap: Record<string, string> = {}
+  if (adminIds.length > 0) {
+    const { data: profileRows } = await service
+      .from('profiles')
+      .select('id, display_name')
+      .in('id', adminIds)
+    for (const p of profileRows ?? []) nameMap[p.id] = p.display_name ?? 'Unknown'
+  }
+
+  const notes = (data ?? []).map(row => ({
+    id:             row.id,
+    admin_name:     nameMap[row.admin_user_id] ?? 'Unknown',
+    created_at:     row.created_at,
+    note:           (row.details as { note?: string })?.note ?? '',
+    contact_method: (row.details as { contact_method?: string })?.contact_method ?? null,
+  }))
 
   return NextResponse.json(notes)
 }

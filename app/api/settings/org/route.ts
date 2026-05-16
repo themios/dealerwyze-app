@@ -26,7 +26,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
   }
 
-  const { data: settings } = await supabase
+  const { data: settings, error: settingsReadErr } = await supabase
     .from('org_settings')
     .select('business_name, business_phone, business_address, zip_code, timezone, dealer_cell_number, voice_business_hours_start, voice_business_hours_end, twilio_phone_number, retell_agent_id, gbp_location_id, locations, resend_from_domain, dealer_website_url, dealer_website_inventory_path, lead_assignment_mode, lead_source_email_matchers')
     .eq('org_id', profile.org_id)
@@ -38,6 +38,11 @@ export async function GET() {
     .select('calendar_refresh_token')
     .eq('org_id', profile.org_id)
     .maybeSingle()
+
+  if (settingsReadErr) {
+    console.error('[settings/org GET] query error:', settingsReadErr.message, 'org_id:', profile.org_id)
+    return NextResponse.json({ error: 'Failed to load org settings' }, { status: 500 })
+  }
 
   return NextResponse.json({
     name: org.name,
@@ -101,8 +106,8 @@ export async function PATCH(req: NextRequest) {
     lead_source_email_matchers?: unknown[]
   } = await req.json()
 
-  // Update organizations.name if provided
-  if (body.name !== undefined) {
+  // Update organizations.name if provided and non-empty (empty string means the form field was blank, not an intentional clear)
+  if (body.name !== undefined && body.name.trim() !== '') {
     const { error: orgErr } = await supabase
       .from('organizations')
       .update({ name: body.name, updated_at: new Date().toISOString() })
@@ -113,11 +118,12 @@ export async function PATCH(req: NextRequest) {
     }
   }
 
-  // Upsert org_settings with any provided fields
+  // Update org_settings with any provided fields
   const settingsPayload: Record<string, string> = {
-    org_id: profile.org_id,
     updated_at: new Date().toISOString(),
   }
+  // Keep business_name in sync with organizations.name so all app surfaces show the same value
+  if (body.name !== undefined && body.name.trim() !== '') settingsPayload.business_name = body.name.trim()
   if (body.business_name !== undefined) settingsPayload.business_name = body.business_name
   if (body.business_phone !== undefined) settingsPayload.business_phone = body.business_phone
   if (body.business_address !== undefined) settingsPayload.business_address = body.business_address
@@ -148,16 +154,17 @@ export async function PATCH(req: NextRequest) {
     ;(settingsPayload as Record<string, unknown>).lead_source_email_matchers = sanitizeLeadSourceEmailMatchers(body.lead_source_email_matchers)
   }
 
-  const hasSettingsUpdate = Object.keys(settingsPayload).length > 2 // more than just org_id + updated_at
+  const hasSettingsUpdate = Object.keys(settingsPayload).length > 1 // more than just updated_at
   if (hasSettingsUpdate) {
-    // Upsert is safe here because we use createServiceClient() which bypasses RLS entirely.
-    // Previously this was .update()-only because the authenticated client's RLS blocked INSERT.
-    // With service client + explicit org_id filter, upsert correctly handles both new and existing rows.
+    // Upsert: INSERT the row if missing (backfill trigger didn't run), UPDATE if present.
+    // org_id is PRIMARY KEY so onConflict is valid. Service client bypasses RLS.
+    const upsertData = { org_id: profile.org_id, ...settingsPayload }
     const { error: settingsErr } = await supabase
       .from('org_settings')
-      .upsert(settingsPayload, { onConflict: 'org_id' })
+      .upsert(upsertData, { onConflict: 'org_id' })
 
     if (settingsErr) {
+      console.error('[settings/org PATCH] upsert error:', settingsErr.message, 'org_id:', profile.org_id)
       return NextResponse.json({ error: 'Settings could not be saved' }, { status: 500 })
     }
   }
