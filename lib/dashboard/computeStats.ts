@@ -21,12 +21,22 @@ export interface DashboardStats {
     underpriced: number
     unchecked: number
     avg_days: number | null
+    // aging bands for owner view
+    days_0_30: number
+    days_31_60: number
+    days_61_90: number
+    days_90_plus: number
   }
   bhph: {
     active_loans: number
     overdue: number
     due_this_week: number
     overdue_amount: number
+    // delinquency bands for owner view
+    current: number
+    late_30: number
+    late_60: number
+    late_90_plus: number
   }
   gamification: {
     dealer_score: number
@@ -134,10 +144,15 @@ export async function computeDashboardStats(
   const available = availableVehicles ?? []
   const availableCount = available.length
   let overpriced = 0, atMarket = 0, underpriced = 0, unchecked = 0, totalDays = 0
+  let days0_30 = 0, days31_60 = 0, days61_90 = 0, days90plus = 0
 
   for (const v of available) {
     const days = Math.floor((now.getTime() - new Date(v.created_at).getTime()) / 86400000)
     totalDays += days
+    if (days <= 30) days0_30++
+    else if (days <= 60) days31_60++
+    else if (days <= 90) days61_90++
+    else days90plus++
     const fmv  = (v.market_data_json as { fairMarketPrice?: number } | null)?.fairMarketPrice
     const list = v.price ? Number(v.price) : null
     if (!fmv || !list || fmv <= 0) { unchecked++; continue }
@@ -158,6 +173,16 @@ export async function computeDashboardStats(
     return d >= todayStart && d <= next7d
   })
   const overdueAmount = Math.round(bhphOverdue.reduce((s, b) => s + (Number(b.monthly_payment) || 0), 0))
+
+  // Delinquency bands: how many days past due
+  let bhphCurrent = 0, bhphLate30 = 0, bhphLate60 = 0, bhphLate90plus = 0
+  for (const b of bhphActive) {
+    if (!b.next_due_date || new Date(b.next_due_date) >= todayStart) { bhphCurrent++; continue }
+    const daysLate = Math.floor((now.getTime() - new Date(b.next_due_date).getTime()) / 86400000)
+    if (daysLate <= 30) bhphLate30++
+    else if (daysLate <= 60) bhphLate60++
+    else bhphLate90plus++
+  }
 
   // ── Avg response time ─────────────────────────────────────────────────────────
   const rtimes = (responseTimeData ?? []).map(c => Number(c.response_time_seconds)).filter(n => n > 0)
@@ -260,12 +285,20 @@ export async function computeDashboardStats(
       underpriced,
       unchecked,
       avg_days:        avgDays,
+      days_0_30:       days0_30,
+      days_31_60:      days31_60,
+      days_61_90:      days61_90,
+      days_90_plus:    days90plus,
     },
     bhph: {
       active_loans:  bhphActive.length,
       overdue:       bhphOverdue.length,
       due_this_week: bhphDue7d.length,
       overdue_amount: overdueAmount,
+      current:       bhphCurrent,
+      late_30:       bhphLate30,
+      late_60:       bhphLate60,
+      late_90_plus:  bhphLate90plus,
     },
     gamification: {
       dealer_score:          dealerScore,

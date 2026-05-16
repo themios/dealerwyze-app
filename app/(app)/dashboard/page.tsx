@@ -31,6 +31,7 @@ export default async function DashboardPage() {
   const stats = await computeDashboardStats(supabase, profile.org_id, org?.name ?? '')
 
   const webCount = webInquiries7d ?? 0
+  const isOwner = profile.role === 'dealer_admin' || profile.role === 'admin'
 
   return (
     <div className="min-h-dvh page-enter">
@@ -62,7 +63,7 @@ export default async function DashboardPage() {
           </>
         }
       />
-      <DashboardClient stats={stats} />
+      <DashboardClient stats={stats} isOwner={isOwner} />
     </div>
   )
 }

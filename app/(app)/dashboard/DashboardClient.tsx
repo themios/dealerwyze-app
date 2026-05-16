@@ -8,6 +8,7 @@ import { Sparkles, Flame, Trophy, ChevronRight } from 'lucide-react'
 import DealerScoreTile from '@/components/dashboard/DealerScoreTile'
 import StatTile from '@/components/dashboard/StatTile'
 import QuickActionGrid from '@/components/dashboard/QuickActionGrid'
+import OwnerView from '@/components/dashboard/OwnerView'
 import type { DashboardStats } from '@/lib/dashboard/computeStats'
 import UpcomingAppointmentsList from '@/components/appointments/UpcomingAppointmentsList'
 
@@ -15,6 +16,7 @@ const DealerBriefClient = dynamic(() => import('@/components/today/DealerBriefCl
 
 interface Props {
   stats: DashboardStats
+  isOwner?: boolean
 }
 
 function formatResponseTime(seconds: number | null): string {
@@ -47,7 +49,7 @@ function formatRevenue(n: number): string {
   return `$${n.toLocaleString()}`
 }
 
-export default function DashboardClient({ stats }: Props) {
+export default function DashboardClient({ stats, isOwner }: Props) {
   const [briefOpen, setBriefOpen] = useState(false)
   const { today, leads, inventory, bhph, gamification, org_name, upcoming_appointments } = stats
   const totalUrgent = today.urgent_leads + today.appt_requests
@@ -59,6 +61,9 @@ export default function DashboardClient({ stats }: Props) {
         <p suppressHydrationWarning className="text-base font-semibold text-foreground">{greeting(org_name)}</p>
         <p suppressHydrationWarning className="text-xs text-muted-foreground mt-0.5">{todayDate()}</p>
       </div>
+
+      {/* ── Owner view — desktop only, admin/dealer_admin roles ─── */}
+      {isOwner && <OwnerView stats={stats} />}
 
       {/* ── LAYER 1: Reptilian — Score + Urgency ─────────────────── */}
       <DealerScoreTile
