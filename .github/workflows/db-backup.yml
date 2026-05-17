@@ -58,20 +58,22 @@ jobs:
 
       - name: Upload daily backup to R2
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: auto
         run: |
+          ls -lh /tmp/dealerwyze_${{ steps.ts.outputs.DATETIME }}.sql.gz.enc
           aws s3 cp \
             /tmp/dealerwyze_${{ steps.ts.outputs.DATETIME }}.sql.gz.enc \
             s3://${{ secrets.R2_BUCKET_NAME }}/daily/${{ steps.ts.outputs.DATE }}/dealerwyze_${{ steps.ts.outputs.DATETIME }}.sql.gz.enc \
-            --endpoint-url https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+            --endpoint-url https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com \
+            --debug 2>&1 | tail -20
 
       - name: Upload weekly backup (Sundays only)
         if: steps.ts.outputs.DOW == '7'
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: auto
         run: |
           aws s3 cp \
@@ -82,8 +84,8 @@ jobs:
       - name: Upload monthly backup (1st of month only)
         if: steps.ts.outputs.DOM == '1'
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: auto
         run: |
           aws s3 cp \
@@ -93,8 +95,8 @@ jobs:
 
       - name: Prune old daily backups (keep 7 days)
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: auto
         run: |
           CUTOFF=$(date -u -d '7 days ago' +%Y-%m-%d)
@@ -115,8 +117,8 @@ jobs:
 
       - name: Prune old weekly backups (keep 4 weeks)
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: auto
         run: |
           CUTOFF_WEEK=$(date -u -d '28 days ago' +%Y-W%V)
@@ -137,8 +139,8 @@ jobs:
 
       - name: Write backup status file
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: auto
         run: |
           FILE_SIZE=$(stat -c%s /tmp/dealerwyze_${{ steps.ts.outputs.DATETIME }}.sql.gz.enc)
