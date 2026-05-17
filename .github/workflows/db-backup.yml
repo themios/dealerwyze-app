@@ -62,12 +62,10 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: auto
         run: |
-          ls -lh /tmp/dealerwyze_${{ steps.ts.outputs.DATETIME }}.sql.gz.enc
           aws s3 cp \
             /tmp/dealerwyze_${{ steps.ts.outputs.DATETIME }}.sql.gz.enc \
             s3://${{ secrets.R2_BUCKET_NAME }}/daily/${{ steps.ts.outputs.DATE }}/dealerwyze_${{ steps.ts.outputs.DATETIME }}.sql.gz.enc \
-            --endpoint-url https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com \
-            --debug 2>&1 | tail -20
+            --endpoint-url https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
 
       - name: Upload weekly backup (Sundays only)
         if: steps.ts.outputs.DOW == '7'
