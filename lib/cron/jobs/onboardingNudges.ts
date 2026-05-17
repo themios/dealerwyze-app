@@ -113,9 +113,11 @@ export async function runOnboardingNudges(
     }
 
     void sendNotificationEmail({
-      to:      email,
-      subject: `Action needed: ${incomplete.length} thing${incomplete.length !== 1 ? 's' : ''} left to finish your DealerWyze setup`,
-      html:    buildNudgeEmailHtml(adminProfile.display_name, appUrl, incomplete),
+      to:         email,
+      subject:    `Action needed: ${incomplete.length} thing${incomplete.length !== 1 ? 's' : ''} left to finish your DealerWyze setup`,
+      html:       buildNudgeEmailHtml(adminProfile.display_name, appUrl, incomplete),
+      org_id:     orgId,
+      email_type: 'onboarding_nudge',
     })
 
     await supabase.from('admin_alerts').insert({

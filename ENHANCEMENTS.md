@@ -4,6 +4,189 @@ Shipped product changes with migration pointers and rationale. See also `docs/en
 
 ---
 
+## 2026-05-17 — Multi-location post-audit hardening (Codex audit follow-up)
+
+- **Category:** Quality / Multi-location
+- **Migration:** none
+- **Why:** Codex re-audit found four functional gaps and two test/doc gaps versus the multi-location PRD. All addressed.
+- **What was fixed:**
+  - **HIGH** `app/api/customer-sequences/route.ts` — `POST` now enforces the unresolved-lead 422 gate (matching bulk-enroll). Multi-location orgs with no `location_id` on the customer are blocked from sequence enrollment.
+  - **MEDIUM** `lib/voice/ingest.ts` — Voice confirmation SMS now resolves outbound identity via `resolveLeadOutboundIdentity` (location name/phone when available, org fallback when not). Previously used `org_settings` directly.
+  - **MEDIUM** `components/customer/LeadLocationBlockingModal.tsx` — Converted from `fixed inset-0` full-screen overlay to an inline amber banner. Notes, activity history, and parsed lead content are now readable beneath it per PRD Phase 6 "must allow" requirement. PRD-exact copy restored: heading `"Assign a location to continue"`, body `"This lead must be linked to a store…"`.
+  - **LOW** `app/api/settings/locations/[id]/staff/route.ts` — Response now returns `{ location: { id, name, address, phone, is_active }, staff: [...] }` per PRD Phase 8 contract.
+  - **LOW** `lib/__tests__/multi-location-routes-tenancy.test.ts` — Tests strengthened: enrollment gate tests now verify 201 + `ok: true` through a full mock chain (not just `not 422`); web lead test now asserts both `applyLeadLocationDetection` and `applyAutoLeadAssignment` invoked. Suite: 2 files, 18 tests.
+  - **DOC** `docs/multi-location-project-plan.md` — Phase 5/6/8/10 checklists updated with post-audit fix notes; Phase 10 `console.log` checkmark corrected to unchecked with a note that `lib/voice/ingest.ts` and `lib/social/autoPost.ts` still have operational logs to review.
+
+---
+
+## 2026-05-17 — Platform email log
+
+- **Category:** Platform admin
+- **Migration:** `supabase/migrations/164_platform_email_log.sql`
+- **Why:** Admin panel needs a full comms history of system-to-dealer emails (follow-ups, onboarding nudges, etc.).
+- **What was built:**
+  - `platform_email_log` table — `id`, `org_id`, `to_email`, `subject`, `email_type`, `sent_at`; indexed on `(org_id, sent_at DESC)`.
+  - Backfill from `admin_alerts` dedup markers for the four existing email types (`dealer_followup_d1/d3/d7`, `onboarding_nudge`).
+
+---
+
+## 2026-05-16 — Multi-location Phase 10: cleanup, audit logs, and tests
+
+- **Category:** Quality / Multi-location
+- **Migration:** none
+- **Why:** Harden multi-location rollout with audit trails, tenancy checks, and automated coverage per project plan.
+- **What was built:**
+  - `lib/locations/logLocationAudit.ts` — audit_log + org_audit_log for location/staff/lead mutations.
+  - Audit hooks on settings locations POST/PATCH/DELETE, staff PATCH, customer location PATCH, team user location PATCH.
+  - `lib/locations/uiRules.ts` — shared multi-location UI visibility helpers.
+  - `lib/__tests__/multi-location.test.ts`, `lib/__tests__/multi-location-routes-tenancy.test.ts` — plan-listed scenarios + API tenancy.
+
+---
+
+## 2026-05-16 — Multi-location Phase 9: team settings location assignment
+
+- **Category:** UX / Multi-location
+- **Migration:** none
+- **Why:** Admins need to see and change which store each team member belongs to without altering role management.
+- **What was built:**
+  - `app/api/admin/users/route.ts` — returns `location_name` per user and `active_locations` list.
+  - `app/api/admin/users/[id]/location/route.ts` — PATCH `profiles.location_id` (null = none).
+  - `app/(app)/settings/users/page.tsx` — location label per row; admin/owner shows "All locations"; change-location picker (active locations + None).
+
+---
+
+## 2026-05-16 — Multi-location Phase 8: settings location manager
+
+- **Category:** UX / Multi-location
+- **Migration:** none
+- **Why:** Replace JSONB location editor with `dealer_locations` table CRUD and per-location staff assignment; stop writing to `org_settings.locations`.
+- **What was built:**
+  - `app/api/settings/locations/route.ts`, `[id]/route.ts`, `[id]/staff/route.ts` — GET/POST/PATCH/DELETE (soft) + staff assign/remove on `profiles.location_id`.
+  - `lib/settings/locationsAdmin.ts`, `lib/settings/locationsTypes.ts` — admin auth + shared types.
+  - `components/settings/LocationsManager.tsx`, `app/(app)/settings/locations/page.tsx` — location cards, add form, staff picker.
+  - `lib/settings/config.ts` — Settings → Locations nav item.
+  - Removed `LocationsSection.tsx` from Organization settings; `app/api/settings/org/route.ts` no longer PATCHes JSONB `locations`.
+
+---
+
+## 2026-05-16 — Multi-location Phase 7: customer list location filter
+
+- **Category:** UX / Multi-location
+- **Migration:** none
+- **Why:** Multi-location orgs need to filter the leads list by store; single-location orgs must not see location UI.
+- **What was built:**
+  - `app/api/customers/route.ts` — GET accepts optional `location_id` (UUID or `unassigned`).
+  - `lib/customers/listQuery.ts` — shared location filter + org location validation.
+  - `app/(app)/customers/page.tsx` — server list filtered via `?location_id=`; fetches active locations for chips.
+  - `components/customer/CustomersListClient.tsx` — pill filter: All locations, each store, Unassigned (multi-location only).
+
+---
+
+## 2026-05-16 — Multi-location Phase 6: lead detail location badge and picker
+
+- **Category:** UX / Multi-location
+- **Migration:** none
+- **Why:** Multi-location orgs must assign a store on lead detail before assignment and outreach; single-location orgs see no location UI.
+- **What was built:**
+  - `app/api/customers/[id]/location/route.ts` — PATCH sets `location_id` + `location_source = 'manual'`.
+  - `components/customer/LeadLocationBadge.tsx`, `components/customer/LeadLocationBlockingModal.tsx` — badge, edit picker, blocking modal with spec copy.
+  - `app/(app)/customers/[id]/page.tsx`, `CustomerDetailClient.tsx` — `isMultiLocation` from active locations count; blocks assign/SMS/email/sequences until location set.
+  - `components/customer/AssignDropdown.tsx`, `components/sms/TemplatePicker.tsx`, `components/customer/EmailButton.tsx`, `components/sequences/AutoresponderCard.tsx` — `locationBlocked` prop.
+
+---
+
+## 2026-05-16 — Multi-location Phase 5: outbound identity in templates and messages
+
+- **Category:** Integrations / Multi-location
+- **Migration:** none
+- **Why:** SMS, email, sequences, and compose UIs should use location name/phone/address/inventory URL when `customers.location_id` is set, with org-level fallback.
+- **What was built:**
+  - `lib/locations/templateVars.ts`, `lib/locations/getLeadTemplateVars.ts` — `resolveLeadOutboundIdentity` wired into template var maps (spec + legacy placeholder names).
+  - `app/api/customers/[id]/outbound-vars/route.ts`, `hooks/useLeadTemplateVars.ts` — location-aware vars for client compose.
+  - `lib/email/sendSequenceEmail.ts`, `app/api/cron/send-sequences/route.ts`, `lib/sequences/sendAutoResponseStep1.ts`, `lib/sms/sendConsent.ts` — server-side substitution.
+  - `lib/calendar/confirmAppointment.ts`, `lib/cron/jobs/appointmentRemindersV2.ts`, `app/api/customers/review-request/route.ts`, `lib/cron/jobs/reviewRequests.ts`, `app/api/leads/create-from-scan/route.ts` — customer-facing dealer name from identity.
+  - `components/sms/TemplatePicker.tsx`, `components/customer/EmailButton.tsx` — manual SMS/email compose uses per-lead outbound vars.
+
+---
+
+## 2026-05-16 — Multi-location Phase 4: location-aware lead assignment
+
+- **Category:** Leads / Multi-location
+- **Migration:** `supabase/migrations/160_location_rr_index.sql`
+- **Why:** Round-robin and manual pickers must respect store location; unresolved multi-location leads stay unassigned until a human sets location.
+- **What was built:**
+  - `supabase/migrations/160_location_rr_index.sql` — `dealer_locations.round_robin_index` for per-location rotation.
+  - `lib/leads/assignLead.ts` — multi-location round-robin uses location staff pool + `round_robin_index`; unresolved skips assignment; single-location unchanged (`org_settings.lead_assignment_rep_index`).
+  - `lib/leads/filterAssignableMembers.ts` — filters manual assignee pickers by lead `location_id`.
+  - `lib/leads/ingest.ts` — location detection before `applyAutoLeadAssignment`.
+  - `components/leads/AssigneeBadge.tsx`, `components/customer/AssignDropdown.tsx`, customers list/detail pages — location-scoped picker when multi-location.
+
+---
+
+## 2026-05-16 — Multi-location Phase 3: lead ingest auto-detection
+
+- **Category:** Integrations / Leads
+- **Migration:** none (uses `157_dealer_locations.sql`, `158_location_id_columns.sql` from Phase 1)
+- **Why:** Automatically assign `location_id` on new leads when the channel provides enough signal; send a one-time generic SMS for unresolved multi-location leads without blocking ingest.
+- **What was built:**
+  - `lib/leads/detectLeadLocation.ts` — detection order (`inbound_sms` → `email_parsed` → `auto_single`), customer update, one-time fallback SMS via org `twilio_phone_number`.
+  - `lib/leads/ingest.ts` — calls `applyLeadLocationDetection` after customer row exists; optional `location` context on `IngestLeadOptions`.
+  - `lib/leads/poll.ts`, `lib/leads/pollImap.ts`, `lib/gmail/processHistory.ts` — pass email subject/body into ingest; direct Gmail customer insert wired.
+  - `app/api/leads/paste/route.ts`, `app/api/twilio/inbound/route.ts` — location detection on paste and Twilio inbound paths.
+
+---
+
+## 2026-05-15 — Dealer communication system: onboarding sequence, owner notifications, weekly AI digest
+
+- **Category:** Growth / Retention / Operator Tooling
+- **Migration:** none (uses existing `admin_alerts` table for dedup)
+- **Why:** New dealers were receiving no emails after signup due to an unverified Resend domain. Rebuilt the full dealer communication layer and added platform owner visibility into signups, stale accounts, and at-risk orgs.
+- **What was built:**
+  - `lib/email/onboarding.ts` — refactored all dealer email templates with shared `sig()`, `footer()`, and `helpCta()` helpers. Consistent Tim Harmantzis signature with phone and dealerwyze.com link on every email. No em dashes. Plain conversational English aligned with Million Dollar Message tone guidelines.
+  - `buildDayThreeFollowUpHtml`, `buildDaySevenFollowUpHtml` — new D+3 check-in and D+7 re-engage templates added to onboarding.ts.
+  - `lib/cron/jobs/dealerFollowUps.ts` — D+1 day-one tips, D+3 check-in (if onboarding incomplete), D+7 re-engage (if onboarding incomplete). Deduplicated via `admin_alerts`. Fires one step per org per cron run.
+  - `lib/cron/jobs/platformOwnerDigest.ts` — daily digest to `PLATFORM_OWNER_EMAIL`: new signups (48h), stale dealers (onboarded but 5+ days inactive), at-risk/critical orgs by attrition score. Skips if nothing to report. Deduplicated once per calendar day.
+  - `lib/cron/jobs/weeklyOwnerSummary.ts` — Monday 9am PT AI-generated SaaS health briefing. Collects 7-day metrics (signups, active orgs, subscription breakdown, onboarding completion, attrition), calls Claude Haiku for a plain-English narrative, sends structured email with at-a-glance stats.
+  - `app/api/cron/weekly-summary/route.ts` + `vercel.json` cron `0 17 * * 1` — dedicated Monday cron route.
+  - `app/api/auth/register/route.ts` — enriched platform owner signup notification with dealer email (mailto link), phone (sms link), and "Email now / Text now / Admin panel" action buttons.
+  - Both new cron jobs wired into `app/api/cron/check-tasks/route.ts`.
+- **Env vars required:**
+  - `PLATFORM_OWNER_EMAIL=support@dealerwyze.com`
+  - `RESEND_FROM_DOMAIN=dealerwyze.com`
+- **Infrastructure fixed:** `dealerwyze.com` verified in Resend. Cloudflare Email Routing configured for `support@`, `tim@`, `reviewer@`, `info@`, `noreply@` — all forwarding to `dealerwyze@gmail.com`.
+
+---
+
+## 2026-05-08 — Admin observability: platform health, feature adoption, backup download, deleted-customer search
+
+- **Category:** Observability / Admin / Reliability
+- **Migration:** `supabase/migrations/150_data_recovery_archive.sql`, `supabase/migrations/151_recovery_log.sql`
+- **Why:** Ship the monitoring + admin observability + backup workflow per the hardening standard (no PII in analytics/logs) and add admin tooling for recovery + backups.
+- **What was built:**
+  - `app/api/admin/platform-health/route.ts`, `app/(app)/admin/platform-health/page.tsx` — platform health API + UI (Sentry issues/volume + internal counts).
+  - `app/api/admin/feature-adoption/route.ts`, `app/(app)/admin/feature-adoption/page.tsx` — PostHog query API aggregation + adoption UI.
+  - `app/api/admin/orgs/[id]/health/route.ts` — per-org system health API (last active, recovery pending, Sentry issues).
+  - `app/api/admin/data-recovery/search/route.ts`, `app/(app)/admin/data-recovery/page.tsx` — “Find Deleted Customer” search across all orgs and restore action.
+  - `app/api/admin/backup-download/route.ts`, `app/(app)/admin/backup-status/page.tsx` — signed R2 download URLs + download buttons.
+  - `.github/workflows/db-backup.yml`, `lib/backup/r2Client.ts`, `docs/BACKUP_RESTORE.md` — nightly encrypted backups + R2 client + restore docs.
+  - `app/api/health/route.ts`, `app/layout.tsx` — uptime endpoint and Vercel Speed Insights/Analytics.
+
+## 2026-05-06 — Leads list: faster filter/sort (memo + transitions)
+
+- **Category:** Performance / UX
+- **Migration:** none
+- **Why:** DevTools reported long `change` handlers (700ms+) when changing Stage/Intent/sort on large lead lists; work was repeated every render and blocked the main thread.
+- **What was built:**
+  - `components/customer/CustomersListClient.tsx` — memoized filtered/sorted lists and option counts (single pass over `afterRepFilter`); `startListTransition` for Stage, Intent, sort, direction, and associate `<select>` so updates don’t block the native control’s `change` event.
+
+## 2026-05-06 — Leads list: Stage + Intent as dropdowns (one row)
+
+- **Category:** UX
+- **Migration:** none
+- **Why:** Reduce clutter at the top of the Leads (`/customers`) screen by collapsing pipeline and intent filters from two scrolling chip rows into side-by-side selects that still show counts inside each option.
+- **What was built:**
+  - `components/customer/CustomersListClient.tsx` — Stage + Intent labeled selects; `customerMatchesIntentFilter` helper; “Any intent” label for the all-intent option.
+
 ## 2026-05-06 — Intelligence: richer inventory recommendations (market comps + target price)
 
 - **Category:** Intelligence / UX

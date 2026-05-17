@@ -201,15 +201,35 @@ export async function POST(req: NextRequest) {
       to: email,
       subject: "You're in. Let's get your dealership ready today.",
       html: buildWelcomeEmailHtml(display_name, appUrl),
+      org_id: orgId,
+      email_type: 'welcome',
     })
 
     // Platform owner notifications
     const ownerEmail = process.env.PLATFORM_OWNER_EMAIL
     if (ownerEmail) {
+      const flags = [
+        churnRiskFlagged ? '<span style="color:#DC2626;font-weight:700">⚠ Churn risk flagged</span>' : '',
+        disposableDomain ? '<span style="color:#DC2626;font-weight:700">⚠ Disposable email</span>' : '',
+      ].filter(Boolean).join(' &nbsp;')
       void sendNotificationEmail({
         to: ownerEmail,
         subject: `New signup: ${display_name}`,
-        html: `<p><strong>${display_name}</strong> just signed up${email ? ` (${email})` : ''}${phoneNorm ? `, ${phoneNorm}` : ''}.</p><p><a href="${appUrl}/admin/orgs">View in admin panel</a></p>`,
+        html: `
+<div style="font-family:sans-serif;max-width:520px;padding:24px">
+  <h2 style="margin:0 0 12px;color:#0D2B55">New dealer signed up</h2>
+  <table cellpadding="0" cellspacing="0" style="font-size:14px;color:#374151;line-height:1.8">
+    <tr><td style="padding-right:16px;color:#64748B">Name</td><td><strong>${display_name}</strong></td></tr>
+    ${email    ? `<tr><td style="padding-right:16px;color:#64748B">Email</td><td><a href="mailto:${email}" style="color:#F07018">${email}</a></td></tr>` : ''}
+    ${phoneNorm ? `<tr><td style="padding-right:16px;color:#64748B">Phone</td><td><a href="sms:${phoneNorm}" style="color:#F07018">${phoneNorm}</a></td></tr>` : ''}
+  </table>
+  ${flags ? `<p style="margin:16px 0 0;font-size:13px">${flags}</p>` : ''}
+  <div style="margin-top:20px;display:flex;gap:12px">
+    ${email     ? `<a href="mailto:${email}" style="display:inline-block;background:#F07018;color:#fff;font-weight:700;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:13px">Email now</a>` : ''}
+    ${phoneNorm ? `<a href="sms:${phoneNorm}" style="display:inline-block;background:#0D2B55;color:#fff;font-weight:700;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:13px">Text now</a>` : ''}
+    <a href="${appUrl}/admin/orgs" style="display:inline-block;background:#E2E8F0;color:#374151;font-weight:700;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:13px">Admin panel</a>
+  </div>
+</div>`,
       })
     }
     void sendTelegramMessage(
