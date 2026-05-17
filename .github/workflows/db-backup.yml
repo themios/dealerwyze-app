@@ -33,7 +33,7 @@ jobs:
 
       - name: Run pg_dump
         run: |
-          pg_dump \
+          /usr/lib/postgresql/17/bin/pg_dump \
             --dbname="${{ secrets.SUPABASE_DB_URL }}" \
             --format=plain \
             --inserts \
