@@ -2,10 +2,12 @@ import React, { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
-import { headers, cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import BottomNav from '@/components/layout/BottomNav'
 import DesktopSidebar from '@/components/layout/DesktopSidebar'
 import SettingsDesktopSidebar from '@/components/settings/SettingsDesktopSidebar'
+import SettingsMobileNav from '@/components/settings/SettingsMobileNav'
+import SidebarSwitch from '@/components/layout/SidebarSwitch'
 import PushPermission from '@/components/push/PushPermission'
 import PastDueBanner from '@/components/layout/PastDueBanner'
 import ImpersonationBanner from '@/components/admin/ImpersonationBanner'
@@ -22,6 +24,8 @@ import { setSentryUserContext } from '@/lib/sentry/setUserContext'
 export const dynamic = 'force-dynamic'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  const pathname = (await headers()).get('x-pathname') ?? '/'
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -38,9 +42,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (profile.org_id) {
     setSentryUserContext(profile.org_id, profile.role ?? 'unknown')
   }
-
-  const pathname = (await headers()).get('x-pathname') ?? ''
-  const isSettings = pathname.startsWith('/settings')
 
   // platform check — lib/auth/platform.ts
   // Platform staff and superadmins bypass all gates
@@ -145,7 +146,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       )}
     <div className={`flex h-dvh w-full lg:max-w-none max-w-md mx-auto relative font-style-${orgTheme.fontStyle}`}>
       {/* Desktop sidebar — swaps to settings sidebar when inside /settings */}
-      {isSettings ? <SettingsDesktopSidebar /> : <DesktopSidebar orgName={orgName} />}
+      <SidebarSwitch
+        appSidebar={<DesktopSidebar orgName={orgName} />}
+        settingsSidebar={<SettingsDesktopSidebar />}
+      />
 
       {/* Main content column */}
       <div className="flex flex-col flex-1 min-w-0 relative">
@@ -166,7 +170,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {children}
         </main>
         {/* BottomNav — hidden on desktop; settings-aware on mobile */}
-        <BottomNav isSettings={isSettings} />
+        <BottomNav />
+        <SettingsMobileNav
+          role={(profile.role ?? 'dealer_rep') as import('@/types/index').UserRole}
+          canManageReconTemplate={profile.role === 'dealer_admin' || profile.role === 'admin'}
+        />
         <FeedbackButton />
       </div>
     </div>
