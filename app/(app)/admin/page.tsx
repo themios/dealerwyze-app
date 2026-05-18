@@ -10,7 +10,7 @@ import { computeAttritionScore } from '@/lib/admin/attrition'
 import {
   TicketCheck, TrendingDown, DollarSign, Users,
   AlertTriangle, CheckCircle2, Clock, Building2,
-  ArrowRight,
+  ArrowRight, Activity, BarChart3, ArchiveRestore, DatabaseBackup,
 } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -314,7 +314,7 @@ export default async function AdminPage() {
         </div>
 
         {/* Metric cards — replaces dead button links */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
 
           {/* Retention card */}
           <Link href="/admin/retention"
@@ -467,6 +467,67 @@ export default async function AdminPage() {
             </div>
           </Link>
 
+          {/* Platform Health card */}
+          <Link href="/admin/platform-health"
+            className="rounded-xl border bg-card p-4 hover:bg-accent/50 transition-colors group">
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-red-100 flex items-center justify-center">
+                  <Activity className="h-4 w-4 text-red-600" />
+                </div>
+                <span className="text-sm font-semibold">Platform Health</span>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Sentry + alerts overview
+            </div>
+          </Link>
+
+          {/* Feature Adoption card */}
+          <Link href="/admin/feature-adoption"
+            className="rounded-xl border bg-card p-4 hover:bg-accent/50 transition-colors group">
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-violet-100 flex items-center justify-center">
+                  <BarChart3 className="h-4 w-4 text-violet-600" />
+                </div>
+                <span className="text-sm font-semibold">Feature Adoption</span>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+            </div>
+            <div className="text-xs text-muted-foreground">
+              PostHog usage · 30d
+            </div>
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+          <Link href="/admin/data-recovery" className="rounded-xl border bg-card p-4 hover:bg-accent/50 transition-colors group">
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                  <ArchiveRestore className="h-4 w-4 text-amber-700" />
+                </div>
+                <span className="text-sm font-semibold">Data Recovery</span>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+            </div>
+            <p className="text-xs text-muted-foreground">Restore deleted records within 7 days</p>
+          </Link>
+
+          <Link href="/admin/backup-status" className="rounded-xl border bg-card p-4 hover:bg-accent/50 transition-colors group">
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-sky-100 flex items-center justify-center">
+                  <DatabaseBackup className="h-4 w-4 text-sky-700" />
+                </div>
+                <span className="text-sm font-semibold">Backup Status</span>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+            </div>
+            <p className="text-xs text-muted-foreground">Latest encrypted R2 backups</p>
+          </Link>
         </div>
 
         {/* Growth charts */}

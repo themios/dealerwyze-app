@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { UserCheck } from 'lucide-react'
+import { filterAssignableMembersForLead } from '@/lib/leads/filterAssignableMembers'
 
 const ROLE_LABELS: Record<string, string> = {
   dealer_admin: 'Admin',
@@ -23,6 +24,7 @@ interface Agent {
   id: string
   display_name: string
   role: string
+  location_id?: string | null
   deactivated_at?: string | null
 }
 
@@ -34,9 +36,25 @@ interface Props {
   onAssigned?: () => void
   /** Render inline without border/padding wrapper */
   compact?: boolean
+  /** Org owner's display name — shown instead of "Unassigned" when no one is explicitly assigned */
+  orgOwnerName?: string | null
+  leadLocationId?: string | null
+  isMultiLocation?: boolean
+  /** Multi-location lead without location — block reassignment */
+  locationBlocked?: boolean
 }
 
-export default function AssignDropdown({ customerId, assignedTo, canReassign = true, onAssigned, compact }: Props) {
+export default function AssignDropdown({
+  customerId,
+  assignedTo,
+  canReassign = true,
+  onAssigned,
+  compact,
+  orgOwnerName = null,
+  leadLocationId = null,
+  isMultiLocation = false,
+  locationBlocked = false,
+}: Props) {
   const [agents, setAgents] = useState<Agent[]>([])
   const [saving, setSaving] = useState(false)
 
@@ -51,6 +69,11 @@ export default function AssignDropdown({ customerId, assignedTo, canReassign = t
       .catch(() => {})
   }, [])
 
+  const pickerAgents = useMemo(
+    () => filterAssignableMembersForLead(agents, leadLocationId, isMultiLocation),
+    [agents, leadLocationId, isMultiLocation],
+  )
+
   async function handleChange(value: string) {
     if (!canReassign) return
     setSaving(true)
@@ -64,7 +87,7 @@ export default function AssignDropdown({ customerId, assignedTo, canReassign = t
     onAssigned?.()
   }
 
-  if (agents.length === 0) return null
+  if (pickerAgents.length === 0 && !orgOwnerName) return null
 
   if (compact) {
     return (
@@ -73,14 +96,16 @@ export default function AssignDropdown({ customerId, assignedTo, canReassign = t
         <Select
           defaultValue={assignedTo ?? 'unassigned'}
           onValueChange={handleChange}
-          disabled={saving || !canReassign}
+          disabled={saving || !canReassign || locationBlocked}
         >
           <SelectTrigger className="h-7 text-xs border-0 bg-muted px-2 gap-1 w-auto">
-            <SelectValue placeholder="Unassigned" />
+            <SelectValue placeholder={orgOwnerName ? `${orgOwnerName.split(' ')[0]} (owner)` : 'Unassigned'} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="unassigned">Unassigned</SelectItem>
-            {agents.map(a => (
+            <SelectItem value="unassigned">
+              {orgOwnerName ? `${orgOwnerName.split(' ')[0]} (owner)` : 'Unassigned'}
+            </SelectItem>
+            {pickerAgents.map(a => (
               <SelectItem key={a.id} value={a.id}>
                 {a.display_name}
                 {ROLE_LABELS[a.role] ? ` (${ROLE_LABELS[a.role]})` : ''}
@@ -100,14 +125,16 @@ export default function AssignDropdown({ customerId, assignedTo, canReassign = t
         <Select
           defaultValue={assignedTo ?? 'unassigned'}
           onValueChange={handleChange}
-          disabled={saving || !canReassign}
+          disabled={saving || !canReassign || locationBlocked}
         >
           <SelectTrigger className="h-9 text-sm">
-            <SelectValue placeholder="Unassigned" />
+            <SelectValue placeholder={orgOwnerName ? `${orgOwnerName.split(' ')[0]} (owner)` : 'Unassigned'} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="unassigned">Unassigned</SelectItem>
-            {agents.map(a => (
+            <SelectItem value="unassigned">
+              {orgOwnerName ? `${orgOwnerName.split(' ')[0]} (owner)` : 'Unassigned'}
+            </SelectItem>
+            {pickerAgents.map(a => (
               <SelectItem key={a.id} value={a.id}>
                 {a.display_name}
                 {ROLE_LABELS[a.role] ? ` (${ROLE_LABELS[a.role]})` : ''}

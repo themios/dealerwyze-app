@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Customer, Vehicle, Template } from '@/types'
 import { fillTemplate } from '@/lib/utils'
-import { useOrgSettings } from '@/hooks/useOrgSettings'
+import { useLeadTemplateVars } from '@/hooks/useLeadTemplateVars'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -27,6 +27,8 @@ interface EmailButtonProps {
   onReplyComplete?: () => void
   buttonClassName?: string
   labelClassName?: string
+  /** Multi-location lead without location — block email */
+  locationBlocked?: boolean
 }
 
 export default function EmailButton({
@@ -37,6 +39,7 @@ export default function EmailButton({
   onReplyComplete,
   buttonClassName,
   labelClassName,
+  locationBlocked = false,
 }: EmailButtonProps) {
   const [open, setOpen] = useState(false)
   const [templates, setTemplates] = useState<Template[]>([])
@@ -51,7 +54,7 @@ export default function EmailButton({
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const supabase    = createClient()
-  const orgSettings = useOrgSettings()
+  const templateVars = useLeadTemplateVars(customer, vehicle)
 
   function primeTemplateLoad() {
     setLoadingTemplates(true)
@@ -59,7 +62,7 @@ export default function EmailButton({
 
   // Auto-open in reply mode when replyContext is set by parent
   useEffect(() => {
-    if (!replyContext) return
+    if (!replyContext || locationBlocked) return
     const timer = window.setTimeout(() => {
       const reSubject = replyContext.subject.startsWith('Re:')
         ? replyContext.subject
@@ -76,7 +79,7 @@ export default function EmailButton({
       setOpen(true)
     }, 0)
     return () => window.clearTimeout(timer)
-  }, [replyContext])
+  }, [replyContext, locationBlocked])
 
   useEffect(() => {
     if (!open) return
@@ -97,33 +100,8 @@ export default function EmailButton({
     return () => { cancelled = true }
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function getVars(): Record<string, string> {
-    const firstName = customer.name.split(' ')[0]
-    const baseUrl = (orgSettings.dealerWebsiteUrl ?? '').replace(/\/$/, '')
-    const inventoryPath = orgSettings.dealerWebsiteInventoryPath ?? '/cars-for-sale'
-    let link = ''
-    if (vehicle?.listing_url) {
-      link = vehicle.listing_url.startsWith('http')
-        ? vehicle.listing_url
-        : baseUrl
-          ? `${baseUrl}${vehicle.listing_url.startsWith('/') ? '' : '/'}${vehicle.listing_url}`
-          : vehicle.listing_url
-    }
-    if (!link && baseUrl) link = `${baseUrl}${inventoryPath.startsWith('/') ? '' : '/'}${inventoryPath}`
-    if (!link) link = 'https://www.apolloauto-em.com/cars-for-sale'
-    return {
-      firstName,
-      vehicle:     vehicle ? `${vehicle.year} ${vehicle.make} ${vehicle.model}` : '{vehicle}',
-      price:       vehicle?.price ? `$${vehicle.price.toLocaleString()}` : '{price}',
-      link,
-      date: '{date}', time: '{time}',
-      dealerName:  orgSettings.dealerName,
-      dealerPhone: orgSettings.dealerPhone,
-    }
-  }
-
   function selectTemplate(t: Template) {
-    const vars = getVars()
+    const vars = templateVars
     setSelected(t)
     setIsBlank(false)
     setSubject(fillTemplate(t.subject ?? '', vars))
@@ -144,23 +122,30 @@ export default function EmailButton({
     }
     setSending(true)
     setSendError(null)
-    const res = await fetch('/api/email/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        customer_id: customer.id,
-        subject,
-        emailBody: body,
-        vehicle_id: vehicle?.id ?? null,
-        attachments: attachments.length > 0 ? attachments : undefined,
-        reply_thread_id: activeReplyCtx?.threadId ?? null,
-        in_reply_to_id:  activeReplyCtx?.messageId ?? null,
-      }),
-    })
+    let res: Response
+    try {
+      res = await fetch('/api/email/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_id: customer.id,
+          subject,
+          emailBody: body,
+          vehicle_id: vehicle?.id ?? null,
+          attachments: attachments.length > 0 ? attachments : undefined,
+          reply_thread_id: activeReplyCtx?.threadId ?? null,
+          in_reply_to_id:  activeReplyCtx?.messageId ?? null,
+        }),
+      })
+    } catch {
+      setSending(false)
+      setSendError('Network error — check your connection and try again.')
+      return
+    }
     setSending(false)
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      setSendError(data.error ?? 'Something went wrong. Please try again.')
+      setSendError(data.error ?? `Something went wrong (${res.status}). Please try again.`)
       return
     }
     setOpen(false)
@@ -187,8 +172,11 @@ export default function EmailButton({
       <Button
         variant="outline"
         size="lg"
-        className={`border-[#0D2B55] text-[#0D2B55] hover:bg-[#0D2B55]/10 ${buttonClassName ?? ''}`.trim()}
+        disabled={locationBlocked}
+        className={`border-[#0D2B55] text-[#0D2B55] hover:bg-[#0D2B55]/10 ${buttonClassName ?? ''} ${locationBlocked ? 'opacity-60 cursor-not-allowed' : ''}`.trim()}
+        title={locationBlocked ? 'Assign a location before sending email' : undefined}
         onClick={() => {
+          if (locationBlocked) return
           primeTemplateLoad()
           setOpen(true)
         }}

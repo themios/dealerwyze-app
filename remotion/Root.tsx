@@ -9,6 +9,8 @@ import { VehiclePhotoSlideshow, TEMPLATE_DURATION as SLIDESHOW_DURATION } from '
 import { VehicleBrightShowcase, TEMPLATE_DURATION as BRIGHT_DURATION } from './VehicleBrightShowcase';
 import { VehicleSplitGallery, TEMPLATE_DURATION as SPLIT_DURATION } from './VehicleSplitGallery';
 import { VehicleReelsFast, TEMPLATE_DURATION as REELS_FAST_DURATION } from './VehicleReelsFast';
+import { ContentReel, getContentReelDuration } from './ContentReel';
+import { DEFAULT_CONTENT_PROPS } from './ContentReel/types';
 import { DEFAULT_PROPS } from './types';
 
 const defaultVehicleProps: VehicleListingProps = {
@@ -104,6 +106,22 @@ export const RemotionRoot: React.FC = () => {
         width={1080}
         height={1920}
         defaultProps={DEFAULT_PROPS}
+      />
+      <Composition
+        id="ContentReel"
+        component={ContentReel as React.ComponentType<Record<string, unknown>>}
+        fps={30}
+        width={1080}
+        height={1920}
+        defaultProps={DEFAULT_CONTENT_PROPS}
+        calculateMetadata={({ props }) => {
+          const p = props as unknown as typeof DEFAULT_CONTENT_PROPS
+          const slideBased = getContentReelDuration(p.slides?.length ?? 5)
+          const durationInFrames = p.totalDurationFrames
+            ? Math.max(slideBased, p.totalDurationFrames)
+            : slideBased
+          return { durationInFrames }
+        }}
       />
     </>
   );

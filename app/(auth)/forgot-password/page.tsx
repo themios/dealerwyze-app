@@ -39,7 +39,7 @@ export default function ForgotPasswordPage() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-2">
-            <Image src="/logo.png" alt="DealerWyze" width={240} height={160} loading="eager" style={{ width: '180px', height: 'auto' }} className="object-contain" />
+            <Image src="/logo.png" alt="DealerWyze" width={180} height={120} priority style={{ height: 'auto' }} className="object-contain" />
           </div>
           <CardTitle className="text-2xl">Reset Password</CardTitle>
           <CardDescription>

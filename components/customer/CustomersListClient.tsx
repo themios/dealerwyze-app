@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition, useMemo, useEffect, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -14,6 +15,7 @@ import { LEAD_STATE_CONFIG, LEAD_STATES, type LeadState } from '@/lib/leads/stat
 import { LEAD_INTENT_TIER_LABELS, LEAD_INTENT_TIER_STYLES, type LeadIntentFlag, type LeadIntentTier } from '@/lib/leads/intent'
 import CustomerQuickUploadSheet from './CustomerQuickUploadSheet'
 import { AssigneeBadge } from '@/components/leads/AssigneeBadge'
+import { isMultiLocationFromCount } from '@/lib/locations/uiRules'
 
 /** Left-edge strip: how recently this lead had any logged activity (call, SMS, email, etc.). */
 function getActivityUrgency(lastActivityAt: string | null | undefined): {
@@ -91,6 +93,8 @@ interface Agent {
   role: string
 }
 
+export type DealerLocationListOption = { id: string; name: string }
+
 interface Props {
   customers: Customer[]
   isAdmin: boolean
@@ -98,13 +102,18 @@ interface Props {
   isRep?: boolean
   agents: Agent[]
   /** Active org members (server-fetched); used for assignee picker + rep filter */
-  members: { id: string; display_name: string }[]
+  members: { id: string; display_name: string; location_id?: string | null }[]
+  isMultiLocation?: boolean
+  /** Active locations for multi-location filter chips */
+  locations?: DealerLocationListOption[]
   canReassignLeads: boolean
   lastActivityMap?: Record<string, string>
   lastCallMap?: Record<string, string>
   lastSmsMap?: Record<string, string>
   lastEmailMap?: Record<string, string>
   showArchived?: boolean
+  /** Org owner — shown as implicit assignee when a lead has no explicit assignment */
+  orgOwner?: { id: string; display_name: string } | null
 }
 
 type DisplayCustomer = Customer & {
@@ -235,7 +244,7 @@ function sortCustomers(
 }
 
 const INTENT_FILTER_LABELS: Record<IntentFilter, string> = {
-  all: 'All Intent',
+  all: 'Any intent',
   hot: 'Hot',
   warm: 'Warm',
   active: 'Active',
@@ -245,19 +254,69 @@ const INTENT_FILTER_LABELS: Record<IntentFilter, string> = {
   reengaged: 'Re-engaged',
 }
 
+const STATUS_OPTIONS = Object.keys(STATUS_LABELS) as StatusFilter[]
+const INTENT_OPTIONS: IntentFilter[] = [
+  'all', 'hot', 'warm', 'active', 'manual', 'callback', 'appointment', 'reengaged',
+]
+
+function customerMatchesIntentFilter(c: Customer, opt: IntentFilter): boolean {
+  switch (opt) {
+    case 'all':
+      return true
+    case 'hot':
+    case 'warm':
+    case 'active':
+      return getLeadIntentTier(c) === opt
+    case 'manual':
+      return hasLeadIntentFlag(c, 'manual_priority')
+    case 'callback':
+      return hasLeadIntentFlag(c, 'callback_requested')
+    case 'appointment':
+      return hasLeadIntentFlag(c, 'appointment')
+    case 'reengaged':
+      return hasLeadIntentFlag(c, 'reengaged')
+    default:
+      return true
+  }
+}
+
 export default function CustomersListClient({
   customers: initial,
   isAdmin,
   isRep = false,
   agents,
   members,
+  isMultiLocation = false,
+  locations = [],
   canReassignLeads,
   lastActivityMap = {},
   lastCallMap = {},
   lastSmsMap = {},
   lastEmailMap = {},
   showArchived = false,
+  orgOwner = null,
 }: Props) {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const activeLocationFilter = searchParams.get('location_id')
+
+  function setLocationFilter(locationId: string | null) {
+    const params = new URLSearchParams(searchParams.toString())
+    if (locationId) params.set('location_id', locationId)
+    else params.delete('location_id')
+    const qs = params.toString()
+    router.push(qs ? `/customers?${qs}` : '/customers')
+  }
+
+  const initialStatus = (() => {
+    const s = searchParams.get('status')
+    const valid: StatusFilter[] = [
+      'all', 'new_lead', 'contacted', 'engaged',
+      'appointment_set', 'appointment_confirmed',
+      'showed', 'sold', 'lost', 'dormant',
+    ]
+    return valid.includes(s as StatusFilter) ? (s as StatusFilter) : 'all'
+  })()
   const initialSortState = (() => {
     if (typeof window === 'undefined') {
       return { sort: 'created_at' as SortOption, direction: 'desc' as SortDirection }
@@ -277,20 +336,21 @@ export default function CustomersListClient({
   const [customers, setCustomers] = useState<DisplayCustomer[]>(initial)
   const [sort, setSort] = useState<SortOption>(initialSortState.sort)
   const [sortDirection, setSortDirection] = useState<SortDirection>(initialSortState.direction)
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(initialStatus)
   const [intentFilter, setIntentFilter] = useState<IntentFilter>('all')
   const [filterRep, setFilterRep] = useState<string | 'all'>('all')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [selectMode, setSelectMode] = useState(false)
   const [assignTo, setAssignTo] = useState('')
   const [isPending, startTransition] = useTransition()
+  /** Deprioritize heavy list re-renders so <select> change handlers stay under Chrome's long-task threshold */
+  const [, startListTransition] = useTransition()
   const [archiveConfirm, setArchiveConfirm] = useState<string | null>(null)
   const [archiveReason, setArchiveReason] = useState('')
   const [uploadCustomerId, setUploadCustomerId] = useState<string | null>(null)
   const [stagePickerCustomer, setStagePickerCustomer] = useState<string | null>(null)
   const [savingStage, setSavingStage] = useState(false)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const router = useRouter()
 
   function startLongPress(customerId: string) {
     longPressTimer.current = setTimeout(() => setStagePickerCustomer(customerId), 600)
@@ -313,6 +373,10 @@ export default function CustomersListClient({
   }
 
   useEffect(() => {
+    setCustomers(initial)
+  }, [initial])
+
+  useEffect(() => {
     try {
       window.sessionStorage.setItem(
         SORT_STORAGE_KEY,
@@ -330,6 +394,28 @@ export default function CustomersListClient({
         : customers.filter(c => c.assignee?.id === filterRep),
     [customers, filterRep],
   )
+
+  const { stageOptionCounts, intentOptionCounts } = useMemo(() => {
+    const stageOptionCounts = {} as Record<StatusFilter, number>
+    for (const opt of STATUS_OPTIONS) {
+      stageOptionCounts[opt] = opt === 'all' ? afterRepFilter.length : 0
+    }
+    const intentOptionCounts = {} as Record<IntentFilter, number>
+    for (const opt of INTENT_OPTIONS) {
+      intentOptionCounts[opt] = opt === 'all' ? afterRepFilter.length : 0
+    }
+    for (const c of afterRepFilter) {
+      const st = (c.thread_state ?? 'new_lead') as StatusFilter
+      if (st !== 'all' && STATUS_OPTIONS.includes(st)) {
+        stageOptionCounts[st]++
+      }
+      for (const opt of INTENT_OPTIONS) {
+        if (opt === 'all') continue
+        if (customerMatchesIntentFilter(c, opt)) intentOptionCounts[opt]++
+      }
+    }
+    return { stageOptionCounts, intentOptionCounts }
+  }, [afterRepFilter])
 
   function handleAssigneeReassigned(
     customerId: string,
@@ -351,38 +437,26 @@ export default function CustomersListClient({
     )
   }
 
-  const filteredCustomers = afterRepFilter.filter(c => {
-    const statusMatch = statusFilter === 'all' || (c.thread_state ?? 'new_lead') === statusFilter
-    if (!statusMatch) return false
-
-    switch (intentFilter) {
-      case 'all':
-        return true
-      case 'hot':
-      case 'warm':
-      case 'active':
-        return getLeadIntentTier(c) === intentFilter
-      case 'manual':
-        return hasLeadIntentFlag(c, 'manual_priority')
-      case 'callback':
-        return hasLeadIntentFlag(c, 'callback_requested')
-      case 'appointment':
-        return hasLeadIntentFlag(c, 'appointment')
-      case 'reengaged':
-        return hasLeadIntentFlag(c, 'reengaged')
-      default:
-        return true
-    }
-  })
-
-  const sorted = sortCustomers(
-    filteredCustomers,
-    sort,
-    sortDirection,
-    { lastActivityMap, lastCallMap, lastSmsMap, lastEmailMap },
+  const filteredCustomers = useMemo(
+    () =>
+      afterRepFilter.filter(c => {
+        const statusMatch = statusFilter === 'all' || (c.thread_state ?? 'new_lead') === statusFilter
+        if (!statusMatch) return false
+        return customerMatchesIntentFilter(c, intentFilter)
+      }),
+    [afterRepFilter, statusFilter, intentFilter],
   )
 
-  const displayed = sorted
+  const displayed = useMemo(
+    () =>
+      sortCustomers(filteredCustomers, sort, sortDirection, {
+        lastActivityMap,
+        lastCallMap,
+        lastSmsMap,
+        lastEmailMap,
+      }),
+    [filteredCustomers, sort, sortDirection, lastActivityMap, lastCallMap, lastSmsMap, lastEmailMap],
+  )
 
   const sortableColumnMap: Partial<Record<'name' | 'last_active' | 'response_time', SortOption>> = {
     name: 'name',
@@ -449,74 +523,90 @@ export default function CustomersListClient({
 
   return (
     <div className="page-enter">
-      {/* Status filter — hidden in archived view */}
-      {!showArchived && (
-        <div className="px-4 pt-2 pb-1 flex items-center gap-2 overflow-x-auto">
-          {(Object.keys(STATUS_LABELS) as StatusFilter[]).map(opt => {
-            const count = opt === 'all'
-              ? afterRepFilter.length
-              : afterRepFilter.filter(c => (c.thread_state ?? 'new_lead') === opt).length
-            return (
-              <button
-                key={opt}
-                onClick={() => setStatusFilter(opt)}
-                aria-pressed={statusFilter === opt}
-                className={`text-xs px-2.5 py-1 rounded-full flex-shrink-0 transition-colors flex items-center gap-1 ${
-                  statusFilter === opt
-                    ? 'bg-primary text-primary-foreground font-medium'
-                    : 'bg-muted text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {STATUS_LABELS[opt]}
-                <span className={`text-[10px] ${statusFilter === opt ? 'opacity-80' : 'opacity-60'}`}>
-                  {count}
-                </span>
-              </button>
-            )
-          })}
+      {isMultiLocation && isMultiLocationFromCount(locations.length) && !showArchived && (
+        <div className="px-4 pt-2 pb-1 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setLocationFilter(null)}
+            className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+              !activeLocationFilter
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted'
+            }`}
+          >
+            All locations
+          </button>
+          {locations.map(loc => (
+            <button
+              key={loc.id}
+              type="button"
+              onClick={() => setLocationFilter(loc.id)}
+              className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+                activeLocationFilter === loc.id
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted'
+              }`}
+            >
+              {loc.name}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setLocationFilter('unassigned')}
+            className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+              activeLocationFilter === 'unassigned'
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted'
+            }`}
+          >
+            Unassigned
+          </button>
         </div>
       )}
 
+      {/* Stage + intent filters (single row) — hidden in archived view */}
       {!showArchived && (
-        <div className="px-4 pt-0 pb-1 flex items-center gap-2 overflow-x-auto">
-          {(['all', 'hot', 'warm', 'active', 'manual', 'callback', 'appointment', 'reengaged'] as IntentFilter[]).map(opt => {
-            const count = afterRepFilter.filter(c => {
-              switch (opt) {
-                case 'all':
-                  return true
-                case 'hot':
-                case 'warm':
-                case 'active':
-                  return getLeadIntentTier(c) === opt
-                case 'manual':
-                  return hasLeadIntentFlag(c, 'manual_priority')
-                case 'callback':
-                  return hasLeadIntentFlag(c, 'callback_requested')
-                case 'appointment':
-                  return hasLeadIntentFlag(c, 'appointment')
-                case 'reengaged':
-                  return hasLeadIntentFlag(c, 'reengaged')
-              }
-            }).length
-
-            return (
-              <button
-                key={opt}
-                onClick={() => setIntentFilter(opt)}
-                aria-pressed={intentFilter === opt}
-                className={`text-xs px-2.5 py-1 rounded-full flex-shrink-0 transition-colors flex items-center gap-1 ${
-                  intentFilter === opt
-                    ? 'bg-orange-500 text-white font-medium'
-                    : 'bg-muted text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {INTENT_FILTER_LABELS[opt]}
-                <span className={`text-[10px] ${intentFilter === opt ? 'opacity-80' : 'opacity-60'}`}>
-                  {count}
-                </span>
-              </button>
-            )
-          })}
+        <div className="px-4 pt-2 pb-1 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-initial sm:max-w-[min(100%,14rem)]">
+            <label htmlFor="leads-stage-filter" className="shrink-0 text-xs font-medium text-muted-foreground">
+              Stage
+            </label>
+            <select
+              id="leads-stage-filter"
+              value={statusFilter}
+              onChange={e => {
+                const v = e.target.value as StatusFilter
+                startListTransition(() => setStatusFilter(v))
+              }}
+              className="h-9 min-w-0 flex-1 rounded-md border border-border bg-background px-2 text-xs shadow-none focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background sm:flex-initial sm:min-w-[10.5rem]"
+            >
+              {STATUS_OPTIONS.map(opt => (
+                <option key={opt} value={opt}>
+                  {STATUS_LABELS[opt]} ({stageOptionCounts[opt]})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-initial sm:max-w-[min(100%,14rem)]">
+            <label htmlFor="leads-intent-filter" className="shrink-0 text-xs font-medium text-muted-foreground">
+              Intent
+            </label>
+            <select
+              id="leads-intent-filter"
+              value={intentFilter}
+              onChange={e => {
+                const v = e.target.value as IntentFilter
+                startListTransition(() => setIntentFilter(v))
+              }}
+              className="h-9 min-w-0 flex-1 rounded-md border border-border bg-background px-2 text-xs shadow-none focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background sm:flex-initial sm:min-w-[10.5rem]"
+            >
+              {INTENT_OPTIONS.map(opt => (
+                <option key={opt} value={opt}>
+                  {INTENT_FILTER_LABELS[opt]} ({intentOptionCounts[opt]})
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       )}
 
@@ -526,7 +616,10 @@ export default function CustomersListClient({
           <div className="flex h-9 shrink-0 items-stretch overflow-hidden rounded-md border border-border bg-background">
             <select
               value={sort}
-              onChange={e => setSort(e.target.value as SortOption)}
+              onChange={e => {
+                const v = e.target.value as SortOption
+                startListTransition(() => setSort(v))
+              }}
               className="h-9 min-w-0 max-w-[8.5rem] border-0 bg-transparent px-2 text-xs shadow-none focus:outline-none focus:ring-0 sm:max-w-[11rem]"
               aria-label="Sort leads"
             >
@@ -539,7 +632,7 @@ export default function CustomersListClient({
             <div className="flex shrink-0 border-l border-border">
               <button
                 type="button"
-                onClick={() => setSortDirection('asc')}
+                onClick={() => startListTransition(() => setSortDirection('asc'))}
                 className={`h-9 w-9 flex items-center justify-center transition-colors ${
                   sortDirection === 'asc' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:text-foreground'
                 }`}
@@ -550,7 +643,7 @@ export default function CustomersListClient({
               </button>
               <button
                 type="button"
-                onClick={() => setSortDirection('desc')}
+                onClick={() => startListTransition(() => setSortDirection('desc'))}
                 className={`h-9 w-9 flex items-center justify-center border-l border-border transition-colors ${
                   sortDirection === 'desc' ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-muted-foreground hover:text-foreground'
                 }`}
@@ -565,7 +658,10 @@ export default function CustomersListClient({
           {!isRep && members.length > 0 && (
             <select
               value={filterRep}
-              onChange={e => setFilterRep(e.target.value as string | 'all')}
+              onChange={e => {
+                const v = e.target.value as string | 'all'
+                startListTransition(() => setFilterRep(v))
+              }}
               className="h-9 shrink-0 rounded-md border border-border bg-background px-2 text-xs min-w-0 max-w-[6.5rem] sm:max-w-[10rem]"
               aria-label="Filter by assigned associate"
             >
@@ -791,6 +887,9 @@ export default function CustomersListClient({
                       customerId={customer.id}
                       canReassign={canReassignLeads}
                       onReassigned={(newId, name) => handleAssigneeReassigned(customer.id, newId, name)}
+                      orgOwner={orgOwner}
+                      leadLocationId={customer.location_id}
+                      isMultiLocation={isMultiLocation}
                     />
                   </div>
                   <button
@@ -993,6 +1092,9 @@ export default function CustomersListClient({
                           customerId={customer.id}
                           canReassign={canReassignLeads}
                           onReassigned={(newId, name) => handleAssigneeReassigned(customer.id, newId, name)}
+                          orgOwner={orgOwner}
+                          leadLocationId={customer.location_id}
+                          isMultiLocation={isMultiLocation}
                         />
                       </td>
                       <td className="py-2.5 pr-4 text-muted-foreground tabular-nums" suppressHydrationWarning>

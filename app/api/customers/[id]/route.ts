@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 import { canAssignLeads } from '@/lib/auth/dealerRoles'
+import { isMultiLocationOrg } from '@/lib/locations/resolve'
+import { createServiceClient } from '@/lib/supabase/service'
 
 export async function PATCH(
   req: NextRequest,
@@ -23,15 +25,30 @@ export async function PATCH(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  // Verify customer belongs to this org
+  // Verify customer belongs to this org and fetch location_id for blocking check
   const { data: existing } = await supabase
     .from('customers')
-    .select('id')
+    .select('id, location_id')
     .eq('id', customerId)
     .eq('user_id', profile.org_id)
     .maybeSingle()
 
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Server-side location gate: block assignment and automation changes for unresolved
+  // multi-location leads. Matches the UI block in LeadLocationBlockingModal.
+  const isLocationSensitive = 'assigned_to' in body || 'automation_override' in body
+  if (isLocationSensitive && !existing.location_id) {
+    // Service client used here to query org metadata without a second authenticated call.
+    const svc = createServiceClient()
+    const multi = await isMultiLocationOrg(profile.org_id, svc)
+    if (multi) {
+      return NextResponse.json(
+        { error: 'Assign a location to this lead before making assignment or automation changes.' },
+        { status: 422 },
+      )
+    }
+  }
 
   // Only allow safe fields through this route
   const VALID_AUTO_MODES = ['manual', 'semi_auto', 'full_auto']
@@ -75,6 +92,9 @@ export async function PATCH(
     allowed.archived_reason = typeof reason === 'string' && reason.trim() ? reason.trim() : null
   }
 
+  // Auto-complete open tasks when archiving so they don't linger on the Today page
+  const isArchiving = allowed.archived === true
+
   if (Object.keys(allowed).length === 0) {
     return NextResponse.json({ error: 'No updatable fields' }, { status: 400 })
   }
@@ -85,6 +105,15 @@ export async function PATCH(
     .eq('id', customerId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  if (isArchiving) {
+    await supabase
+      .from('tasks')
+      .update({ status: 'done', completed_at: new Date().toISOString() })
+      .eq('linked_customer_id', customerId)
+      .eq('user_id', profile.org_id)
+      .eq('status', 'open')
+  }
 
   return NextResponse.json({ ok: true })
 }

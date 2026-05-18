@@ -50,6 +50,8 @@ export interface Customer {
   zip_code?: string
   interested_in?: string | null
   assigned_to?: string | null
+  location_id?: string | null
+  location_source?: string | null
   /** Resolved on the server for Leads list (assignee display / filter). Not a DB column. */
   assignee?: { id: string; display_name: string } | null
   archived?: boolean

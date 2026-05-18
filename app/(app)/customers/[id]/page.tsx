@@ -9,6 +9,7 @@ import { ArrowLeft, Pencil, Flame } from 'lucide-react'
 import { isDealerAdmin, type LeadIntentTier } from '@/types/index'
 import CustomerDetailClient from './CustomerDetailClient'
 import { LEAD_INTENT_TIER_LABELS, LEAD_INTENT_TIER_STYLES } from '@/lib/leads/intent'
+import { isMultiLocationFromCount } from '@/lib/locations/uiRules'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -19,7 +20,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
   const profile = await requireProfile()
   const supabase = await createClientForRequest()
 
-  const [{ data: customer }, { data: sentActivities }, { data: scheduledActivities }, { data: tasks }, { data: cvData }] = await Promise.all([
+  const [{ data: customer }, { data: sentActivities }, { data: scheduledActivities }, { data: tasks }, { data: cvData }, { data: activeLocations }] = await Promise.all([
     supabase.from('customers').select('*').eq('id', id).eq('user_id', profile.org_id).single(),
     // Actual sent/received communication — excludes pending sequence steps
     supabase.from('activities')
@@ -43,7 +44,19 @@ export default async function CustomerDetailPage({ params }: PageProps) {
       .order('due_at', { ascending: true, nullsFirst: false })
       .limit(20),
     supabase.from('customer_vehicles').select('vehicle:vehicles(*)').eq('customer_id', id),
+    supabase
+      .from('dealer_locations')
+      .select('id, name')
+      .eq('org_id', profile.org_id)
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true }),
   ])
+  const locations = activeLocations ?? []
+  const isMultiLocation = isMultiLocationFromCount(locations.length)
+
+  // Org owner's display name: available directly when the viewer IS the owner.
+  // For team-admin views (id !== org_id) we skip it — dropdown still works, just shows 'Unassigned'.
+  const orgOwnerName = profile.id === profile.org_id ? (profile.display_name ?? null) : null
 
   // Pick the primary vehicle: prefer non-sold/non-removed, fall back to first
   const primaryVehicle = (() => {
@@ -85,7 +98,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
           </div>
         }
       />
-      <CustomerDetailClient customer={customer} activities={sentActivities || []} scheduledActivities={scheduledActivities || []} isAdmin={isDealerAdmin(profile.role)} currentUserId={profile.id} tasks={tasks || []} initialVehicle={primaryVehicle} />
+      <CustomerDetailClient customer={customer} activities={sentActivities || []} scheduledActivities={scheduledActivities || []} isAdmin={isDealerAdmin(profile.role)} currentUserId={profile.id} tasks={tasks || []} initialVehicle={primaryVehicle} orgOwnerName={orgOwnerName} isMultiLocation={isMultiLocation} locations={isMultiLocation ? locations : []} />
     </div>
   )
 }

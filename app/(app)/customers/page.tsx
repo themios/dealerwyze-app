@@ -5,6 +5,7 @@ import { requireProfile } from '@/lib/auth/profile'
 import Link from 'next/link'
 import TopBar from '@/components/layout/TopBar'
 import CustomersListClient from '@/components/customer/CustomersListClient'
+import { Suspense } from 'react'
 import PasteLeadDialog from '@/components/customer/PasteLeadDialog'
 import ImportLeadsDialog from '@/components/leads/ImportLeadsDialog'
 import ScanLeadButton from '@/components/leads/ScanLeadButton'
@@ -15,11 +16,13 @@ import EmptyState from '@/components/ui/EmptyState'
 import { isDealerAdmin } from '@/types/index'
 import { isRepRestricted, canManageUsers, canAssignLeads } from '@/lib/auth/dealerRoles'
 import { DEFAULT_ORG_STAGES, OrgStage } from '@/lib/leads/states'
+import { applyCustomerLocationFilter, isValidOrgLocationId } from '@/lib/customers/listQuery'
+import { isMultiLocationFromCount } from '@/lib/locations/uiRules'
 
 export default async function CustomersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ archived?: string; view?: string }>
+  searchParams: Promise<{ archived?: string; view?: string; location_id?: string }>
 }) {
   const profile = await requireProfile()
   const supabase = await createClientForRequest()
@@ -27,9 +30,17 @@ export default async function CustomersPage({
   const isOrgOwner = profile.id === profile.org_id
   const isRep = isRepRestricted(profile.role) && !isOrgOwner
 
-  const { archived: showArchivedParam, view } = await searchParams
+  const { archived: showArchivedParam, view, location_id: locationIdParam } = await searchParams
   const showArchived = showArchivedParam === '1'
   const showPipeline = view === 'pipeline'
+
+  let locationFilter: string | null = null
+  if (locationIdParam === 'unassigned') {
+    locationFilter = 'unassigned'
+  } else if (locationIdParam?.trim()) {
+    const valid = await isValidOrgLocationId(supabase, profile.org_id, locationIdParam.trim())
+    if (valid) locationFilter = locationIdParam.trim()
+  }
 
   let query = supabase
     .from('customers')
@@ -50,17 +61,32 @@ export default async function CustomersPage({
     query = query.or('archived.is.null,archived.eq.false')
   }
 
+  if (locationFilter && !showArchived) {
+    query = applyCustomerLocationFilter(query, locationFilter)
+  }
+
   const { data: customers } = await query.order('created_at', { ascending: false })
 
-  const { data: membersData } = await supabase
-    .from('profiles')
-    .select('id, display_name')
-    .eq('org_id', profile.org_id)
-    .is('deactivated_at', null)
-    .order('display_name', { ascending: true })
+  const [{ data: membersData }, { data: activeLocations }] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('id, display_name, location_id')
+      .eq('org_id', profile.org_id)
+      .is('deactivated_at', null)
+      .order('display_name', { ascending: true }),
+    supabase
+      .from('dealer_locations')
+      .select('id, name')
+      .eq('org_id', profile.org_id)
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true }),
+  ])
+  const locations = activeLocations ?? []
+  const isMultiLocation = isMultiLocationFromCount(locations.length)
 
   const members = membersData ?? []
   const memberMap = new Map(members.map(m => [m.id, m]))
+  const orgOwner = members.find(m => m.id === profile.org_id) ?? null
   const leadsWithAssignee = (customers ?? []).map(c => ({
     ...c,
     assignee: c.assigned_to ? (memberMap.get(c.assigned_to) ?? null) : null,
@@ -105,7 +131,7 @@ export default async function CustomersPage({
   if (canManageUsers(profile.role)) {
     const { data } = await supabase
       .from('profiles')
-      .select('id, display_name, role')
+      .select('id, display_name, role, location_id')
       .eq('org_id', profile.org_id)
       .is('deactivated_at', null)
       .order('created_at', { ascending: true })
@@ -203,19 +229,24 @@ export default async function CustomersPage({
           />
         )
       ) : (
-        <CustomersListClient
-          customers={leadsWithAssignee}
-          isAdmin={isAdmin}
-          isRep={isRep}
-          agents={agents}
-          members={members}
-          canReassignLeads={canAssignLeads(profile.role)}
-          lastActivityMap={lastActivityMap}
-          lastCallMap={lastCallMap}
-          lastSmsMap={lastSmsMap}
-          lastEmailMap={lastEmailMap}
-          showArchived={showArchived}
-        />
+        <Suspense>
+          <CustomersListClient
+            customers={leadsWithAssignee}
+            isAdmin={isAdmin}
+            isRep={isRep}
+            agents={agents}
+            members={members}
+            isMultiLocation={isMultiLocation}
+            locations={isMultiLocation ? locations : []}
+            canReassignLeads={canAssignLeads(profile.role)}
+            lastActivityMap={lastActivityMap}
+            lastCallMap={lastCallMap}
+            lastSmsMap={lastSmsMap}
+            lastEmailMap={lastEmailMap}
+            showArchived={showArchived}
+            orgOwner={orgOwner}
+          />
+        </Suspense>
       )}
     </div>
   )

@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge'
 import { Phone, Mail, MapPin, Car, ChevronDown, Zap, CalendarPlus, Check, Pencil, MessageSquare } from 'lucide-react'
 import { useOpenCustomer } from '@/components/today/useOpenCustomer'
 import UnsubscribeBadge from '@/components/sequences/UnsubscribeBadge'
+import DateTimePicker15 from '@/components/ui/DateTimePicker15'
+import { useAnalytics } from '@/hooks/useAnalytics'
 
 const SOURCE_LABELS: Record<string, string> = {
   cargurus: 'CarGurus',
@@ -106,11 +108,11 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
   const [snoozeExpanded, setSnoozeExpanded] = useState(false)
   const [followupCalendar, setFollowupCalendar] = useState(false)
   const [apptOpen, setApptOpen] = useState(false)
-  const [apptDate, setApptDate] = useState('')
-  const [apptTime, setApptTime] = useState('10:00')
+  const [apptDatetime, setApptDatetime] = useState('')
   const [apptSaved, setApptSaved] = useState(false)
   const [apptError, setApptError] = useState<string | null>(null)
   const openCustomer = useOpenCustomer()
+  const { track } = useAnalytics()
 
   const customer = activity.customer
   const stale = leadIsStale(activity.created_at)
@@ -185,10 +187,10 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
   }
 
   async function handleSaveAppt() {
-    if (!apptDate) return
+    if (!apptDatetime) return
     setLoading('appt')
     setApptError(null)
-    const dueAt = new Date(`${apptDate}T${apptTime}:00`).toISOString()
+    const dueAt = new Date(apptDatetime).toISOString()
     const res = await fetch('/api/activities', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -212,6 +214,7 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
     setApptOpen(false)
     setApptSaved(true)
     setApptError(null)
+    track({ event: 'appointment_scheduled', props: { from_screen: 'lead_card' } })
     onUpdate()
   }
 
@@ -398,28 +401,14 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
         {apptOpen && (
           <div className="flex flex-col gap-2 p-2 rounded-lg bg-muted/50 border" onClick={e => e.stopPropagation()}>
             <p className="text-xs font-medium text-muted-foreground">Schedule appointment</p>
-            <div className="flex gap-2">
-              <input
-                type="date"
-                value={apptDate}
-                onChange={e => setApptDate(e.target.value)}
-                min={new Date().toISOString().slice(0, 10)}
-                className="flex-1 text-xs rounded border border-border bg-background px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-              <input
-                type="time"
-                value={apptTime}
-                onChange={e => setApptTime(e.target.value)}
-                className="w-24 text-xs rounded border border-border bg-background px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-            </div>
+            <DateTimePicker15 value={apptDatetime} onChange={setApptDatetime} />
             {apptError && (
               <p className="text-xs text-destructive">{apptError}</p>
             )}
             <div className="flex gap-2">
               <button
                 onClick={handleSaveAppt}
-                disabled={!apptDate || loading !== null}
+                disabled={!apptDatetime || loading !== null}
                 className="flex-1 text-xs font-medium py-1.5 rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
               >
                 {loading === 'appt' ? 'Saving…' : 'Confirm'}

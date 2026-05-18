@@ -3,14 +3,37 @@ import * as Sentry from '@sentry/nextjs'
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
 
-  // Capture 10% of sessions as replays (free tier friendly)
-  replaysSessionSampleRate: 0.1,
-  // Always capture replays for sessions with an error
+  environment: process.env.NODE_ENV === 'production' ? 'production' : 'development',
+
+  tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+
+  replaysSessionSampleRate: 0.05,
   replaysOnErrorSampleRate: 1.0,
 
-  // Capture 10% of performance traces
-  tracesSampleRate: 0.1,
+  integrations: [
+    Sentry.replayIntegration({
+      maskAllInputs: true,
+      maskAllText: false,
+      blockAllMedia: false,
+      networkDetailAllowUrls: [],
+    }),
+    Sentry.browserTracingIntegration(),
+  ],
 
-  // Attach user context from Supabase auth if available
+  beforeSend(event) {
+    if (event.user?.email) delete event.user.email
+    if (event.user?.username) delete event.user.username
+
+    if (event.request?.cookies) event.request.cookies = {}
+    if (event.request?.headers) {
+      const safe = ['content-type', 'x-forwarded-for', 'user-agent']
+      const h = event.request.headers as Record<string, string>
+      event.request.headers = Object.fromEntries(
+        Object.entries(h).filter(([k]) => safe.includes(k.toLowerCase())),
+      )
+    }
+    return event
+  },
+
   debug: false,
 })

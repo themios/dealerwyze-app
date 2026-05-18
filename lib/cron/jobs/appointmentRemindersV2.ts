@@ -8,6 +8,7 @@
  */
 
 import { sendAppointmentNotification } from '@/lib/calendar/sendAppointmentNotification'
+import { getLeadOutboundIdentity } from '@/lib/locations/getLeadTemplateVars'
 import type { createServiceClient } from '@/lib/supabase/service'
 
 export async function runAppointmentRemindersV2(
@@ -35,11 +36,7 @@ export async function runAppointmentRemindersV2(
     const cust = (Array.isArray(appt.customer) ? appt.customer[0] : appt.customer) as CustRow | null
     if (!cust) continue
 
-    const { data: orgSettingsRow } = await supabase
-      .from('org_settings')
-      .select('business_name')
-      .eq('org_id', appt.user_id)
-      .maybeSingle()
+    const identity = await getLeadOutboundIdentity(appt.user_id, appt.customer_id, supabase)
 
     await sendAppointmentNotification({
       orgId:          appt.user_id,
@@ -48,7 +45,7 @@ export async function runAppointmentRemindersV2(
       customerPhone:  cust.primary_phone ?? '',
       customerEmail:  cust.email ?? '',
       appointmentIso: appt.due_at,
-      dealerName:     orgSettingsRow?.business_name ?? 'the dealership',
+      dealerName:     identity.name?.trim() || 'the dealership',
       calendarUrl:    null,
       type:           'reminder',
     }).catch(err => console.error('[cron/reminders] notification failed:', err))

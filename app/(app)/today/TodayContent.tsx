@@ -288,7 +288,8 @@ export default function TodayContent({
   const dismissedIds = useRef<Set<string>>(new Set())
   const dismissedAtRiskIds = useRef<Set<string>>(new Set())
   const { pendingCall, modalOpen, dismissModal } = usePendingCall()
-  const supabase = createClient()
+  const supabaseRef = useRef(createClient())
+  const supabase = supabaseRef.current
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()

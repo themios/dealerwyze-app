@@ -25,7 +25,7 @@ export interface Task {
   assigned_to_name: string | null
   vehicles: { stock_no: string; year: number; make: string; model: string } | null
   receipts: { vendor_norm: string | null; vendor_raw: string | null; total: number | null } | null
-  customers: { name: string; primary_phone: string | null } | null
+  customers: { name: string; primary_phone: string | null; archived: boolean | null } | null
 }
 
 interface Props {
@@ -94,11 +94,13 @@ interface DetailSheetProps {
   onSnooze: () => void
   onUpdate: (patch: Partial<Task>) => void
   onDelete: () => void
+  onRemove: () => void
 }
 
-function DetailSheet({ task, onClose, onComplete, onSnooze, onUpdate, onDelete }: DetailSheetProps) {
+function DetailSheet({ task, onClose, onComplete, onSnooze, onUpdate, onDelete, onRemove }: DetailSheetProps) {
   const router = useRouter()
   const [notes, setNotes] = useState(task.notes ?? '')
+  const [customerArchived, setCustomerArchived] = useState(task.customers?.archived ?? false)
   const [dueAt, setDueAt] = useState(
     task.due_at ? new Date(task.due_at).toISOString().slice(0, 16) : ''
   )
@@ -172,44 +174,92 @@ function DetailSheet({ task, onClose, onComplete, onSnooze, onUpdate, onDelete }
 
   if (task.customers && task.linked_customer_id) {
     const phone = task.customers.primary_phone
+
+    async function handleUnarchive() {
+      await fetch(`/api/customers/${task.linked_customer_id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ archived: false }),
+      })
+      setCustomerArchived(false)
+      onUpdate({ customers: { ...task.customers!, archived: false } })
+    }
+
     entityCards.push(
-      <div key="customer" className="rounded-lg border bg-muted/40 px-3 py-2 text-sm">
+      <div
+        key="customer"
+        className={`rounded-lg border px-3 py-2 text-sm ${customerArchived ? 'bg-muted/20 border-dashed opacity-70' : 'bg-muted/40'}`}
+      >
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className="text-xs text-muted-foreground mb-0.5">Customer</div>
-            <div className="font-medium truncate">{task.customers.name}</div>
-            {phone && <div className="text-xs text-muted-foreground">{phone}</div>}
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <span className="text-xs text-muted-foreground">Customer</span>
+              {customerArchived && (
+                <span className="text-[10px] font-semibold uppercase tracking-wide bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
+                  Archived
+                </span>
+              )}
+            </div>
+            <div className={`font-medium truncate ${customerArchived ? 'line-through text-muted-foreground' : ''}`}>
+              {task.customers.name}
+            </div>
+            {phone && !customerArchived && <div className="text-xs text-muted-foreground">{phone}</div>}
           </div>
           <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
-            {phone && (
+            {customerArchived ? (
               <>
-                <a
-                  href={`tel:${phone.replace(/\D/g, '')}`}
-                  className="flex items-center gap-1 text-xs text-green-600 font-medium hover:underline"
-                  onClick={e => e.stopPropagation()}
+                <button
+                  onClick={handleUnarchive}
+                  className="flex items-center gap-1 text-xs text-amber-600 font-medium hover:underline"
                 >
-                  <Phone className="h-3.5 w-3.5" />
-                  Call
-                </a>
-                <a
-                  href={`sms:${phone.replace(/\D/g, '')}`}
-                  className="flex items-center gap-1 text-xs text-blue-500 font-medium hover:underline"
-                  onClick={e => e.stopPropagation()}
+                  Unarchive
+                </button>
+                <button
+                  onClick={() => { onClose(); router.push(`/customers/${task.linked_customer_id}`) }}
+                  className="flex items-center gap-1 text-xs text-muted-foreground font-medium hover:underline"
                 >
-                  <MessageSquare className="h-3.5 w-3.5" />
-                  Text
-                </a>
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  View
+                </button>
+              </>
+            ) : (
+              <>
+                {phone && (
+                  <>
+                    <a
+                      href={`tel:${phone.replace(/\D/g, '')}`}
+                      className="flex items-center gap-1 text-xs text-green-600 font-medium hover:underline"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <Phone className="h-3.5 w-3.5" />
+                      Call
+                    </a>
+                    <a
+                      href={`sms:${phone.replace(/\D/g, '')}`}
+                      className="flex items-center gap-1 text-xs text-blue-500 font-medium hover:underline"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <MessageSquare className="h-3.5 w-3.5" />
+                      Text
+                    </a>
+                  </>
+                )}
+                <button
+                  onClick={() => { onClose(); router.push(`/customers/${task.linked_customer_id}`) }}
+                  className="flex items-center gap-1 text-xs text-primary font-medium hover:underline"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Open
+                </button>
               </>
             )}
-            <button
-              onClick={() => { onClose(); router.push(`/customers/${task.linked_customer_id}`) }}
-              className="flex items-center gap-1 text-xs text-primary font-medium hover:underline"
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-              Open
-            </button>
           </div>
         </div>
+        {customerArchived && (
+          <p className="text-xs text-muted-foreground mt-1.5">
+            This task will be removed from your list on next refresh.
+          </p>
+        )}
       </div>
     )
   }
@@ -361,25 +411,42 @@ function DetailSheet({ task, onClose, onComplete, onSnooze, onUpdate, onDelete }
         </div>
 
         {/* Actions */}
-        <div className="flex gap-2">
-          <button
-            onClick={onComplete}
-            className="flex-1 rounded-md bg-green-600 hover:bg-green-700 text-white py-2 text-sm font-medium transition-colors"
-          >
-            Mark Done
-          </button>
-          <button
-            onClick={onSnooze}
-            className="flex-1 rounded-md bg-blue-600 hover:bg-blue-700 text-white py-2 text-sm font-medium transition-colors"
-          >
-            Snooze 2h
-          </button>
-          <button
-            onClick={handleDelete}
-            className="rounded-md border border-destructive text-destructive hover:bg-destructive/10 px-3 py-2 text-sm font-medium transition-colors"
-          >
-            Delete
-          </button>
+        <div className="flex flex-col gap-2">
+          {task.linked_customer_id && !customerArchived && (
+            <button
+              onClick={async () => {
+                await fetch(`/api/customers/${task.linked_customer_id}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ archived: true }),
+                })
+                onRemove()
+              }}
+              className="w-full rounded-md border border-muted-foreground/30 text-muted-foreground hover:bg-muted/50 py-2 text-sm font-medium transition-colors"
+            >
+              Archive Customer &amp; Dismiss
+            </button>
+          )}
+          <div className="flex gap-2">
+            <button
+              onClick={onComplete}
+              className="flex-1 rounded-md bg-green-600 hover:bg-green-700 text-white py-2 text-sm font-medium transition-colors"
+            >
+              Mark Done
+            </button>
+            <button
+              onClick={onSnooze}
+              className="flex-1 rounded-md bg-blue-600 hover:bg-blue-700 text-white py-2 text-sm font-medium transition-colors"
+            >
+              Snooze 2h
+            </button>
+            <button
+              onClick={handleDelete}
+              className="rounded-md border border-destructive text-destructive hover:bg-destructive/10 px-3 py-2 text-sm font-medium transition-colors"
+            >
+              Delete
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -540,8 +607,8 @@ export default function TodoItem({ task, onComplete, onSnooze, onUpdate }: Props
 
           {/* Content */}
           <div className="flex-1 min-w-0">
-            {/* Line 1: customer name, or fallback to task title */}
-            <div className="text-xs font-medium truncate leading-tight">
+            {/* Line 1: customer name (struck through if archived), or fallback to task title */}
+            <div className={`text-xs font-medium truncate leading-tight ${task.customers?.archived ? 'line-through text-muted-foreground' : ''}`}>
               {task.customers?.name ?? (
                 task.vehicles
                   ? `${task.vehicles.year} ${task.vehicles.make} ${task.vehicles.model}`
@@ -584,6 +651,7 @@ export default function TodoItem({ task, onComplete, onSnooze, onUpdate }: Props
           onSnooze={handleSnooze}
           onUpdate={patch => onUpdate(task.id, patch)}
           onDelete={handleDelete}
+          onRemove={() => { setShowDetail(false); setDeleted(true) }}
         />
       )}
     </>

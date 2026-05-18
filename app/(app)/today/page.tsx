@@ -9,6 +9,7 @@ import TopBar from '@/components/layout/TopBar'
 import TodayContent from './TodayContent'
 import SyncGmailButton from '@/components/leads/SyncGmailButton'
 import TodoSection from '@/components/today/TodoSection'
+import TodayKpiStrip from '@/components/today/TodayKpiStrip'
 import DealerBriefClient from '@/components/today/DealerBriefClient'
 import OnboardingChecklist from '@/components/today/OnboardingChecklist'
 import ReviewsSection from '@/components/today/ReviewsSection'
@@ -288,7 +289,7 @@ export default async function TodayPage({
       lead_intent_manual_tier, lead_intent_manual_expires_at, lead_intent_score_error,
       lead_intent_next_action, repeat_lead, avg_reply_speed_minutes, inbound_message_count, prior_purchase_count,
       last_inbound_at, last_outbound_at, last_ditch_sent_at
-    ), vehicle:vehicles(id, year, make, model, demand_signal, lead_count_30d)`)
+    ), vehicle:vehicles(id, year, make, model, status, demand_signal, lead_count_30d)`)
     .eq('user_id', orgId)
     .eq('type', 'vehicle_match')
     .eq('direction', 'inbound')
@@ -298,7 +299,10 @@ export default async function TodayPage({
     .or(`snoozed_until.is.null,snoozed_until.lt.${now}`)
     .order('created_at', { ascending: false })
   const vehicleMatches = (vehicleMatchesRaw || []).filter(
-    a => a.customer != null && !(a.customer as { archived?: boolean | null }).archived && shouldShowAddressedActivity(a, todayRef)
+    a => a.customer != null &&
+         !(a.customer as { archived?: boolean | null }).archived &&
+         (a.vehicle as { status?: string } | null)?.status !== 'sold' &&
+         shouldShowAddressedActivity(a, todayRef)
   )
 
   // Appointment requests: inbound appointment activities not yet confirmed (direction=inbound)
@@ -375,21 +379,13 @@ export default async function TodayPage({
         }
       />
 
-      {/* Desktop KPI strip — hidden on mobile */}
-      <div className="hidden lg:grid lg:grid-cols-5 gap-3 px-6 py-4 border-b border-border bg-card/50">
-        {[
-          { label: 'New Leads',       value: newLeadCount,  color: newLeadCount > 0  ? 'text-blue-500'   : 'text-muted-foreground' },
-          { label: 'Appt Requests',   value: apptCount,     color: apptCount > 0     ? 'text-orange-500' : 'text-muted-foreground' },
-          { label: 'Voice Leads',     value: voiceCount,    color: voiceCount > 0    ? 'text-purple-500' : 'text-muted-foreground' },
-          { label: 'Waiting',         value: waitingCount,  color: waitingCount > 0  ? 'text-yellow-500' : 'text-muted-foreground' },
-          { label: 'Overdue',         value: overdueCount,  color: overdueCount > 0  ? 'text-red-500'    : 'text-muted-foreground' },
-        ].map(({ label, value, color }) => (
-          <div key={label} className="flex flex-col items-center py-2">
-            <span className={`text-3xl font-bold tabular-nums ${color}`}>{value}</span>
-            <span className="text-xs text-muted-foreground mt-0.5">{label}</span>
-          </div>
-        ))}
-      </div>
+      <TodayKpiStrip
+        newLeadCount={newLeadCount}
+        apptCount={apptCount}
+        voiceCount={voiceCount}
+        waitingCount={waitingCount}
+        overdueCount={overdueCount}
+      />
 
       {/* Desktop 3-column grid — mobile: single column (stacked, unchanged) */}
       <div className="lg:grid lg:grid-cols-3 lg:gap-0 lg:items-start lg:h-[calc(100dvh-7rem)]">
@@ -414,7 +410,7 @@ export default async function TodayPage({
         </div>
 
         {/* Center column: Lead activity feed */}
-        <div className="lg:border-r lg:border-border lg:overflow-y-auto lg:h-full">
+        <div id="today-center-col" className="lg:border-r lg:border-border lg:overflow-y-auto lg:h-full">
           <div className="px-4 pt-3">
             <PulseScoreWidget pulseScore={profile.pulse_score ?? null} />
           </div>
@@ -437,8 +433,10 @@ export default async function TodayPage({
         </div>
 
         {/* Right column: Tasks & To-Dos */}
-        <div className="lg:overflow-y-auto lg:h-full">
-          <TodoSection initialTasks={todos ?? []} />
+        <div id="today-right-col" className="lg:overflow-y-auto lg:h-full">
+          <div id="today-tasks-col">
+            <TodoSection initialTasks={todos ?? []} />
+          </div>
         </div>
 
       </div>

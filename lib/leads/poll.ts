@@ -97,7 +97,9 @@ async function pollWithClient(
           if (dryRun) {
             results.push({ external_id: extId, status: 'dry-run', name: digestLeads[i].name, email: digestLeads[i].email, source: 'cargurus_digest' })
           } else {
-            const data = await ingestLead(digestLeads[i], extId, orgId)
+            const data = await ingestLead(digestLeads[i], extId, orgId, {
+              location: { emailSubject: subject, emailBody: text },
+            })
             results.push({ external_id: extId, status: 'error' in data ? 'error' : data.status, name: digestLeads[i].name, email: digestLeads[i].email, source: 'cargurus_digest', ...('error' in data ? { from: data.error } : {}) })
           }
         }
@@ -118,7 +120,9 @@ async function pollWithClient(
       if (dryRun) {
         results.push({ external_id: messageId, status: 'dry-run', name: lead.name, email: lead.email, source: lead.source })
       } else {
-        const data = await ingestLead(lead, messageId, orgId)
+        const data = await ingestLead(lead, messageId, orgId, {
+          location: { emailSubject: subject, emailBody: text },
+        })
         results.push({ external_id: messageId, status: 'error' in data ? 'error' : data.status, name: lead.name, email: lead.email, source: lead.source, ...('error' in data ? { from: data.error } : {}) })
         await markRead()
       }

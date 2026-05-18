@@ -72,8 +72,9 @@ const ADMIN_BOTTOM_NAV = [
   { href: '/today',         label: 'Exit',      icon: ShieldCheck,     badge: null },
 ]
 
-export default function BottomNav({ isSettings }: { isSettings?: boolean } = {}) {
+export default function BottomNav() {
   const pathname = usePathname()
+  const isSettings = pathname.startsWith('/settings')
   const isAdminArea = pathname.startsWith('/admin')
   const urgentCount = useUrgentCount()
 

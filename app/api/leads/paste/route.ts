@@ -9,6 +9,7 @@ import { parseCarGurusDigest } from '@/lib/leads/parser'
 import { scanLeadText, scanResultToParsedLead } from '@/lib/leads/visionIngest'
 import { normalizePhone } from '@/lib/utils/phone'
 import { deriveLeadIntentFromLead, mergeLeadIntent } from '@/lib/leads/intent'
+import { applyLeadLocationDetection } from '@/lib/leads/detectLeadLocation'
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>
 
@@ -211,6 +212,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         if (mergedIntent.tier === 'hot') intentPatch.lead_rating = 'hot'
         await supabase.from('customers').update(intentPatch).eq('id', customerId)
       }
+
+      void applyLeadLocationDetection({
+        customerId,
+        orgId: profile.org_id,
+        context: {
+          emailBody: [text, lead.comments, notes].filter(Boolean).join('\n'),
+        },
+        customerPhone: phoneDisplay || lead.phone,
+        supabase: service,
+      })
 
       // Auto-link vehicle from inventory (VIN first, then year/make/model)
       let vehicleId: string | null = null
@@ -441,6 +452,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     customerId = newCust.id
     isNew = true
   }
+
+  void applyLeadLocationDetection({
+    customerId,
+    orgId: profile.org_id,
+    context: { emailBody: text },
+    customerPhone: phoneDisplay || parsed.phone,
+    supabase: service,
+  })
 
   // Auto-link vehicle from inventory (VIN first, then year/make/model)
   let vehicleId: string | null = null

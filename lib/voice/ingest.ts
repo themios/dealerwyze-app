@@ -5,6 +5,9 @@ import { generateVoiceSummary } from './summarize'
 import { createCalendarEvent } from '@/lib/google/calendar'
 import { normalizePhone } from '@/lib/utils/phone'
 import { emitEvent } from '@/lib/intelligence/emitEvent'
+import { applyLeadLocationDetection } from '@/lib/leads/detectLeadLocation'
+import { applyAutoLeadAssignment } from '@/lib/leads/assignLead'
+import { getOrgActiveLocations, resolveLeadOutboundIdentity } from '@/lib/locations/resolve'
 
 function formatPhone(raw: string): string {
   const ten = normalizePhone(raw)
@@ -81,6 +84,11 @@ export async function processVoiceCall(params: VoiceCallParams): Promise<void> {
     console.error('[voice/ingest] Could not upsert customer for call_sid', call_sid)
     return
   }
+
+  // Location detection + assignment (fire-and-forget, same pattern as main ingest)
+  void applyLeadLocationDetection({ customerId, orgId: org_id, supabase })
+    .then(() => applyAutoLeadAssignment({ customerId, orgId: org_id, supabase }))
+    .catch(() => {})
 
   // 2. Create inbound call activity
   const displayPhone = callbackPhone.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3')
@@ -310,12 +318,32 @@ export async function processVoiceCall(params: VoiceCallParams): Promise<void> {
   const accountSid = process.env.TWILIO_ACCOUNT_SID
   const authToken  = process.env.TWILIO_AUTH_TOKEN
 
-  // Use org's provisioned number; fall back to platform env var
-  const { data: orgSettings } = await supabase
-    .from('org_settings')
-    .select('twilio_phone_number, business_name, owner_name, dealer_cell_number')
-    .eq('org_id', org_id)
-    .maybeSingle()
+  // Use org settings + location identity (when a location is already resolved on the customer)
+  const [{ data: orgSettings }, { data: customerLocation }] = await Promise.all([
+    supabase
+      .from('org_settings')
+      .select('twilio_phone_number, business_name, owner_name, dealer_cell_number, business_phone, business_address, dealer_website_url')
+      .eq('org_id', org_id)
+      .maybeSingle(),
+    supabase
+      .from('customers')
+      .select('location_id')
+      .eq('id', customerId)
+      .maybeSingle(),
+  ])
+
+  const locations  = await getOrgActiveLocations(org_id, supabase)
+  const identity   = resolveLeadOutboundIdentity({
+    customer:    { location_id: customerLocation?.location_id ?? null },
+    locations,
+    orgSettings: {
+      business_name:    orgSettings?.business_name    ?? null,
+      business_phone:   orgSettings?.business_phone   ?? orgSettings?.dealer_cell_number ?? null,
+      business_address: orgSettings?.business_address ?? null,
+      dealer_website_url: orgSettings?.dealer_website_url ?? null,
+    },
+  })
+
   const fromNumber =
     orgSettings?.twilio_phone_number ??
     process.env.TWILIO_FROM_NUMBER   ??
@@ -326,8 +354,8 @@ export async function processVoiceCall(params: VoiceCallParams): Promise<void> {
       const vehicleMsg = finalVehicle ? ` about the ${finalVehicle}` : ''
       const greeting   = finalName && !finalName.startsWith('Caller') ? `Hi ${finalName.split(' ')[0]}! ` : ''
       const ownerName  = orgSettings?.owner_name ?? 'our team'
-      const bizName    = orgSettings?.business_name ?? 'the dealership'
-      const bizPhone   = orgSettings?.dealer_cell_number ?? fromNumber ?? ''
+      const bizName    = identity.name || 'the dealership'
+      const bizPhone   = identity.phone ?? fromNumber ?? ''
       const msgBody    = `${greeting}${ownerName} from ${bizName} will call you back shortly${vehicleMsg}.${bizPhone ? ` - ${bizName} ${bizPhone}` : ''}`
 
       await fetch(

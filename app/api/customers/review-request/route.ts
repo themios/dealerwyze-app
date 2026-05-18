@@ -16,6 +16,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
+import { getLeadOutboundIdentity } from '@/lib/locations/getLeadTemplateVars'
 
 export async function POST(req: NextRequest) {
   const profile = await requireProfile()
@@ -89,8 +91,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ scheduled: true, send_at: dueAt })
   }
 
-  // --- Immediate send ---
-  const dealerName = settings.business_name || 'us'
+  const svc = createServiceClient()
+  const identity = await getLeadOutboundIdentity(profile.org_id, customerId, svc)
+  const dealerName = identity.name?.trim() || settings.business_name || 'us'
   const reviewUrl  = settings.google_review_url
   const firstName  = customer.name?.split(' ')[0] || 'there'
   const appUrl     = process.env.NEXT_PUBLIC_APP_URL ?? ''

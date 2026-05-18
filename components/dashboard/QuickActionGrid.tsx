@@ -15,7 +15,6 @@ const LINKS = [
   { href: '/analytics', label: 'Analytics', icon: BarChart2,      color: 'text-yellow-400' },
   { href: '/contacts',  label: 'Contacts',  icon: BookUser,       color: 'text-pink-400'   },
   { href: '/support',   label: 'Support',   icon: HeadphonesIcon, color: 'text-indigo-400' },
-  { href: '/settings',  label: 'Settings',  icon: Settings,       color: 'text-white/50'   },
 ]
 
 const tileCls = 'flex flex-col items-center gap-1.5 p-3 rounded-xl border border-border bg-card hover:bg-accent active:bg-accent/80 transition-colors'
@@ -45,6 +44,21 @@ export default function QuickActionGrid() {
           </div>
         </Link>
       ))}
+
+      {/* Settings — opens the settings sheet on mobile, links to /settings on desktop */}
+      <button
+        className={`${tileCls} lg:hidden`}
+        onClick={() => window.dispatchEvent(new CustomEvent('settings:open-nav'))}
+      >
+        <Settings className="h-5 w-5 text-white/50" />
+        <span className={labelCls}>Settings</span>
+      </button>
+      <Link href="/settings" className="hidden lg:block">
+        <div className={tileCls}>
+          <Settings className="h-5 w-5 text-white/50" />
+          <span className={labelCls}>Settings</span>
+        </div>
+      </Link>
     </div>
   )
 }

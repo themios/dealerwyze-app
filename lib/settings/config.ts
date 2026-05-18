@@ -1,5 +1,5 @@
 import {
-  Building2, Users, GitBranch, Globe, Zap, ListOrdered, Webhook, Target,
+  Building2, Users, GitBranch, Globe, MapPin, Zap, ListOrdered, Webhook, Target,
   ClipboardList, Video, Share2, DollarSign, Heart, CreditCard, BookOpen,
   Shield, ArrowRightLeft, Palette, MessageSquare,
 } from 'lucide-react'
@@ -45,6 +45,7 @@ export const GROUPS: SettingsGroupConfig[] = [
 
 export const SETTINGS_ITEMS: SettingsItemConfig[] = [
   { id: 'organization',    group: 'business',                href: '/settings/organization',    title: 'Organization',            description: 'Business profile, intake channels, integrations, and administrative controls.', keywords: ['dealer', 'business', 'profile', 'calendar', 'gmail', 'phone'],         audience: 'dealer_admin', accessBadge: describeSettingsAudience('dealer_admin'), icon: Building2 },
+  { id: 'locations',       group: 'business',                href: '/settings/locations',       title: 'Locations',               description: 'Store locations, staff assignments, and per-location phone and inventory URLs.', keywords: ['location', 'store', 'lot', 'multi-location', 'branch'],              audience: 'dealer_admin', accessBadge: describeSettingsAudience('dealer_admin'), icon: MapPin },
   { id: 'users',           group: 'business',                href: '/settings/users',           title: 'Users',                   description: 'Invite staff, assign roles, and manage lead routing.',                          keywords: ['team', 'staff', 'roles', 'invite', 'permissions'],                      audience: 'dealer_admin', accessBadge: describeSettingsAudience('dealer_admin'), icon: Users },
   { id: 'pipeline',        group: 'business',                href: '/settings/pipeline',        title: 'Pipeline',                description: 'Rename, reorder, and tune pipeline stages to match your sales process.',        keywords: ['stages', 'board', 'lead status'],                                        audience: 'dealer_admin', accessBadge: describeSettingsAudience('dealer_admin'), icon: GitBranch },
   { id: 'website',         group: 'business',                href: '/settings/website',         title: 'Website',                 description: 'Public inventory page, custom domain details, and customer-facing website settings.', keywords: ['public site', 'inventory site', 'domain', 'website'],                  audience: 'dealer_admin', accessBadge: describeSettingsAudience('dealer_admin'), icon: Globe },

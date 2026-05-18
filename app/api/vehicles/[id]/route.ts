@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { canAccessLedger } from '@/lib/auth/dealerRoles'
 import type { UserRole } from '@/types/index'
 import { emitEvent } from '@/lib/intelligence/emitEvent'
+import { logger } from '@/lib/logger'
 
 const EDITABLE_FIELDS = [
   'stock_no', 'year', 'make', 'model', 'trim', 'color',
@@ -76,6 +77,7 @@ export async function PATCH(
     .single()
 
   if (error || !vehicle) {
+    if (error) logger.error('vehicles', error, { op: 'patch', id }, profile.org_id)
     return NextResponse.json({ error: 'Update failed' }, { status: 400 })
   }
 

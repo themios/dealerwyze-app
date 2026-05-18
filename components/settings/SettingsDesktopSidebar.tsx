@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { ArrowLeft, Settings } from 'lucide-react'
 import { requireProfile } from '@/lib/auth/profile'
 import SettingsDesktopNav from './SettingsDesktopNav'
+import SignOutButton from './SignOutButton'
 
 export default async function SettingsDesktopSidebar() {
   const profile = await requireProfile()
@@ -33,6 +34,11 @@ export default async function SettingsDesktopSidebar() {
         role={profile.role as Parameters<typeof SettingsDesktopNav>[0]['role']}
         canManageReconTemplate={canManageReconTemplate}
       />
+
+      {/* Sign out — pinned to bottom of sidebar */}
+      <div className="px-3 pb-4 pt-2 border-t border-white/8">
+        <SignOutButton variant="dark" />
+      </div>
     </aside>
   )
 }

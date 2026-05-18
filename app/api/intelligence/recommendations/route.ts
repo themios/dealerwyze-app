@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClientForRequest } from '@/lib/supabase/forRequest'
+import { logger } from '@/lib/logger'
 
 const PRIORITY_WEIGHT: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 }
 
@@ -18,7 +19,7 @@ export async function GET() {
     .limit(20)
 
   if (error) {
-    console.error('[recommendations] GET failed:', error.message)
+    logger.error('intelligence/recommendations', error, { op: 'get' }, profile.org_id)
     return NextResponse.json({ error: 'Failed to load recommendations' }, { status: 500 })
   }
 

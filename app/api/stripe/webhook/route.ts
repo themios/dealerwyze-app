@@ -9,8 +9,12 @@ import {
   StripePaymentIntentSucceededObjectSchema,
 } from '@/lib/validation/stripeWebhookObjects'
 import Stripe from 'stripe'
+import * as Sentry from '@sentry/nextjs'
 
 export async function POST(req: NextRequest) {
+  return Sentry.startSpan(
+    { name: 'stripe.webhook', op: 'http.server' },
+    async () => {
   const body = await req.text()
   const sig = req.headers.get('stripe-signature')!
 
@@ -148,6 +152,7 @@ export async function POST(req: NextRequest) {
               commissionPct:      aff.commission_first_pct,
             })
           }
+
         }
       }
 
@@ -355,4 +360,6 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ received: true })
+    },
+  )
 }

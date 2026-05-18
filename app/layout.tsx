@@ -3,8 +3,11 @@ import { Inter, Barlow_Semi_Condensed, Archivo, Lora, Oswald } from 'next/font/g
 import { ThemeProvider } from 'next-themes'
 import FontSizeProvider from '@/components/providers/FontSizeProvider'
 import AnalyticsProvider from '@/components/providers/AnalyticsProvider'
+import { PostHogProvider } from '@/lib/posthog/provider'
 import { Toaster } from 'sonner'
 import GoogleAdsGtag from '@/components/analytics/GoogleAdsGtag'
+import { Analytics } from '@vercel/analytics/react'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -67,12 +70,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${inter.className} ${barlow.variable} ${archivo.variable} ${lora.variable} ${oswald.variable}`} suppressHydrationWarning>
         <GoogleAdsGtag />
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <AnalyticsProvider />
-          <FontSizeProvider>
-            {children}
-            <Toaster richColors closeButton position="top-center" />
-          </FontSizeProvider>
+          <PostHogProvider>
+            <AnalyticsProvider />
+            <FontSizeProvider>
+              {children}
+              <Toaster richColors closeButton position="top-center" />
+            </FontSizeProvider>
+          </PostHogProvider>
         </ThemeProvider>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   )

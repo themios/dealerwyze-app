@@ -22,6 +22,7 @@ import { sendSequenceEmail } from '@/lib/email/sendSequenceEmail'
 import { checkQuota, incrementUsage } from '@/lib/sms/quota'
 import { startCronRun, finishCronRun } from '@/lib/cron/runLogger'
 import { stopSequenceOnReply } from '@/lib/sequences/stopSequenceOnReply'
+import { getLeadOutboundTemplateVars } from '@/lib/locations/getLeadTemplateVars'
 
 export const runtime     = 'nodejs'
 export const maxDuration = 55
@@ -91,7 +92,7 @@ async function sendSequenceSms(opts: {
   // Fetch org's Twilio number
   const { data: orgSettings } = await supabase
     .from('org_settings')
-    .select('twilio_phone_number, business_name, dealer_cell_number')
+    .select('twilio_phone_number')
     .eq('org_id', orgId)
     .maybeSingle()
 
@@ -107,11 +108,12 @@ async function sendSequenceSms(opts: {
     return { ok: false, error: 'no_from_number' }
   }
 
-  // Variable substitution
-  const firstName   = (customer?.name ?? '').split(' ')[0] || ''
-  const dealerName  = orgSettings?.business_name ?? ''
-  const dealerPhone = orgSettings?.dealer_cell_number ?? ''
-  const vars: Record<string, string> = { firstName, dealerName, dealerPhone, vehicle: '' }
+  const firstName = (customer?.name ?? '').split(' ')[0] || ''
+  const vars = await getLeadOutboundTemplateVars(orgId, customerId, supabase, {
+    firstName,
+    first_name: firstName,
+    vehicle: '',
+  })
   const resolvedBody = substituteVars(body, vars)
 
   // Format destination number to E.164

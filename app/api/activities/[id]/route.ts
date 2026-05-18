@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 import { isDealerAdmin } from '@/types/index'
+import { logger } from '@/lib/logger'
 
 export async function PATCH(
   req: NextRequest,
@@ -17,6 +18,7 @@ export async function PATCH(
     body?: string
     snoozed_until?: string
     addressed_at?: string
+    due_at?: string
   }
 
   const updates: Record<string, unknown> = {}
@@ -24,6 +26,7 @@ export async function PATCH(
   if (body.outcome !== undefined) updates.outcome = body.outcome
   if (body.snoozed_until !== undefined) updates.snoozed_until = body.snoozed_until
   if (body.addressed_at !== undefined) updates.addressed_at = body.addressed_at
+  if (body.due_at !== undefined) updates.due_at = body.due_at
 
   if (body.body !== undefined) {
     const { data: activity } = await supabase
@@ -62,7 +65,43 @@ export async function PATCH(
     ) {
       return NextResponse.json({ ok: true, warning: 'addressed_at column missing' })
     }
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    logger.error('activities', error, { op: 'patch', id }, profile.org_id)
+    return NextResponse.json({ error: 'Update failed' }, { status: 500 })
+  }
+  return NextResponse.json({ ok: true })
+}
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const profile = await requireProfile()
+  const supabase = await createClient()
+
+  // Only allow deleting appointment activities (not SMS/call records)
+  const { data: activity } = await supabase
+    .from('activities')
+    .select('type, user_id')
+    .eq('id', id)
+    .single()
+
+  if (!activity || activity.user_id !== profile.org_id) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+  if (activity.type !== 'appointment') {
+    return NextResponse.json({ error: 'Only appointments can be deleted' }, { status: 400 })
+  }
+
+  const { error } = await supabase
+    .from('activities')
+    .delete()
+    .eq('id', id)
+    .eq('user_id', profile.org_id)
+
+  if (error) {
+    logger.error('activities', error, { op: 'delete', id }, profile.org_id)
+    return NextResponse.json({ error: 'Delete failed' }, { status: 500 })
   }
   return NextResponse.json({ ok: true })
 }

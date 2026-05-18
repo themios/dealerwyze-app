@@ -10,6 +10,8 @@ import { notifyDealerNewLead } from '@/lib/vdp/notifyDealer'
 import { webLeadLimiter } from '@/lib/rateLimit/upstash'
 import { WebLeadSchema } from '@/lib/validation/schemas'
 import { parseBody } from '@/lib/validation/parseRequest'
+import { applyLeadLocationDetection } from '@/lib/leads/detectLeadLocation'
+import { applyAutoLeadAssignment } from '@/lib/leads/assignLead'
 
 const MAX_WEB_LEAD_BODY_BYTES = 32_768
 
@@ -106,6 +108,52 @@ export async function POST(req: NextRequest) {
     completed_at: new Date().toISOString(),
     ...(vehicleId ? { vehicle_id: vehicleId } : {}),
   })
+
+  // Upsert customer so location detection has a customer_id to work with.
+  // Match on phone first, then email; create if neither matches.
+  let customerId: string | null = null
+  if (phone || email) {
+    const { data: allCustomers } = await supabase
+      .from('customers')
+      .select('id, primary_phone, email')
+      .eq('user_id', org.id)
+      .is('merged_at', null)
+
+    const normalPhone = phone?.replace(/\D/g, '') ?? ''
+    const existing = allCustomers?.find(c => {
+      if (normalPhone && c.primary_phone) {
+        if (c.primary_phone.replace(/\D/g, '') === normalPhone) return true
+      }
+      if (email && c.email) {
+        if (c.email.toLowerCase() === email.toLowerCase()) return true
+      }
+      return false
+    })
+
+    if (existing) {
+      customerId = existing.id
+    } else {
+      const { data: created } = await supabase
+        .from('customers')
+        .insert({
+          user_id: org.id,
+          name,
+          email: email ?? null,
+          primary_phone: phone ?? null,
+          lead_source: 'web',
+        })
+        .select('id')
+        .single()
+      if (created) customerId = created.id
+    }
+  }
+
+  // Location detection + round-robin assignment (fire-and-forget)
+  if (customerId) {
+    void applyLeadLocationDetection({ customerId, orgId: org.id, supabase })
+      .then(() => applyAutoLeadAssignment({ customerId, orgId: org.id, supabase }))
+      .catch(() => {})
+  }
 
   // Notify dealer via SMS (fire and forget)
   notifyDealerNewLead(org.id, name, phone, message, vehicleName).catch(() => {})

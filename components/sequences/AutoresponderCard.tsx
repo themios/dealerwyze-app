@@ -30,9 +30,11 @@ interface Props {
   autoOverride?:  string | null
   savingAuto?:    boolean
   onSetAutoOverride?: (value: string | null) => void
+  /** Multi-location lead without location — block sequence enrollment */
+  locationBlocked?: boolean
 }
 
-export default function AutoresponderCard({ customerId, customerName, unsubEmail = false, unsubSms = false, savingUnsub = false, onToggleUnsub, autoOverride, savingAuto = false, onSetAutoOverride }: Props) {
+export default function AutoresponderCard({ customerId, customerName, unsubEmail = false, unsubSms = false, savingUnsub = false, onToggleUnsub, autoOverride, savingAuto = false, onSetAutoOverride, locationBlocked = false }: Props) {
   const [status, setStatus]     = useState<ChannelStatus | null>(null)
   const [loading, setLoading]   = useState(true)
   const [acting, setActing]     = useState<string | null>(null)
@@ -74,7 +76,7 @@ export default function AutoresponderCard({ customerId, customerName, unsubEmail
     const isActive = entry?.status === 'active'
     const isPaused = entry?.status === 'paused'
     const replied  = isPaused && entry?.stop_reason === 'replied'
-    const canStart = !unsub && !isActive && !isPaused
+    const canStart = !unsub && !isActive && !isPaused && !locationBlocked
     const unsubField = channel === 'email' ? 'unsubscribe_email' as const : 'unsubscribe_sms' as const
     const Icon   = channel === 'email' ? Mail : MessageSquare
     const label  = channel === 'email' ? 'Email' : 'SMS'
@@ -213,7 +215,7 @@ export default function AutoresponderCard({ customerId, customerName, unsubEmail
               {([null, 'manual', 'semi_auto', 'full_auto'] as const).map(mode => (
                 <button
                   key={String(mode)}
-                  disabled={savingAuto}
+                  disabled={savingAuto || locationBlocked}
                   onClick={() => onSetAutoOverride(mode)}
                   className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
                     autoOverride === mode

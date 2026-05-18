@@ -84,6 +84,8 @@ export default function TodoSection({ initialTasks }: Props) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks)
   const [fabOpen, setFabOpen] = useState(false)
   const [inputValue, setInputValue] = useState('')
+  const [notesValue, setNotesValue] = useState('')
+  const [isMust, setIsMust] = useState(false)
   const [adding, setAdding] = useState(false)
   const [listening, setListening] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -149,12 +151,16 @@ export default function TodoSection({ initialTasks }: Props) {
   function openFab() {
     setFabOpen(true)
     setInputValue('')
+    setNotesValue('')
+    setIsMust(false)
     // autoFocus handles focus
   }
 
   function closeFab() {
     setFabOpen(false)
     setInputValue('')
+    setNotesValue('')
+    setIsMust(false)
   }
 
   async function submitTask() {
@@ -165,7 +171,12 @@ export default function TodoSection({ initialTasks }: Props) {
       const res = await fetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, task_type: 'manual', priority: 'should' }),
+        body: JSON.stringify({
+          title,
+          task_type: 'manual',
+          priority: isMust ? 'must' : 'should',
+          notes: notesValue.trim() || null,
+        }),
       })
       if (res.ok) {
         const json = await res.json() as { task: Task }
@@ -256,7 +267,7 @@ export default function TodoSection({ initialTasks }: Props) {
       {fabOpen && (
         <>
           <div className="fixed inset-0 z-30" onClick={closeFab} aria-hidden="true" />
-          <div className="fixed bottom-[68px] left-4 right-4 z-40 bg-card rounded-xl border shadow-xl p-3">
+          <div className="fixed bottom-[68px] left-4 right-4 z-40 bg-card rounded-xl border shadow-xl p-3 flex flex-col gap-2">
             <div className="flex gap-2 items-center">
               <input
                 ref={inputRef}
@@ -265,10 +276,10 @@ export default function TodoSection({ initialTasks }: Props) {
                 value={inputValue}
                 onChange={e => setInputValue(e.target.value)}
                 onKeyDown={e => {
-                  if (e.key === 'Enter') void submitTask()
+                  if (e.key === 'Enter' && !e.shiftKey) void submitTask()
                   if (e.key === 'Escape') closeFab()
                 }}
-                placeholder={listening ? 'Listening…' : 'Add a task…'}
+                placeholder={listening ? 'Listening…' : 'Task title…'}
                 disabled={adding}
                 className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#F07018] disabled:opacity-60"
               />
@@ -280,15 +291,32 @@ export default function TodoSection({ initialTasks }: Props) {
               >
                 {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
               </button>
+              <button onClick={closeFab} className="p-1.5 text-muted-foreground hover:text-foreground" aria-label="Cancel">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <textarea
+              value={notesValue}
+              onChange={e => setNotesValue(e.target.value)}
+              placeholder="Notes / details (why does this matter?)…"
+              disabled={adding}
+              rows={2}
+              className="w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#F07018] disabled:opacity-60 resize-none"
+            />
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => setIsMust(m => !m)}
+                className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${isMust ? 'bg-destructive text-white border-destructive' : 'text-muted-foreground border-border hover:border-destructive hover:text-destructive'}`}
+              >
+                {isMust ? 'Must Do' : 'Set as Must Do'}
+              </button>
               <button
                 onClick={() => void submitTask()}
                 disabled={adding || !inputValue.trim()}
                 className="rounded-lg bg-[#F07018] hover:bg-[#d95e10] text-white px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {adding ? '…' : 'Add'}
-              </button>
-              <button onClick={closeFab} className="p-1.5 text-muted-foreground hover:text-foreground" aria-label="Cancel">
-                <X className="h-4 w-4" />
               </button>
             </div>
           </div>

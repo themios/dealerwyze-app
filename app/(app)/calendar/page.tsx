@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import AddAppointmentSheet from '@/components/calendar/AddAppointmentSheet'
 import { useOrgSettings } from '@/hooks/useOrgSettings'
+import { useAnalytics } from '@/hooks/useAnalytics'
 
 type ViewMode = 'month' | 'week' | 'day'
 
@@ -26,7 +27,11 @@ const TYPE_COLOR: Record<string, string> = {
 }
 
 function isoDate(d: Date) {
-  return d.toISOString().slice(0, 10)
+  // Use local date parts — toISOString() is UTC and shifts late-evening events to the next day
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
 function startOfWeek(d: Date) {
@@ -66,6 +71,7 @@ export default function CalendarPage() {
   const [addDefaultDate, setAddDefaultDate] = useState<Date | undefined>()
   const supabase = createClient()
   const orgSettings = useOrgSettings()
+  const { track } = useAnalytics()
 
   const loadEvents = useCallback(async () => {
     let start: Date, end: Date
@@ -194,7 +200,10 @@ export default function CalendarPage() {
               variant={view === v ? 'default' : 'ghost'}
               size="sm"
               className="text-xs h-7 px-2 capitalize"
-              onClick={() => setView(v)}
+              onClick={() => {
+                setView(v)
+                track({ event: 'calendar_viewed', props: { view: v } })
+              }}
             >
               {v}
             </Button>

@@ -163,6 +163,7 @@ function parseProviderError(err: unknown): { summary: string; detail: string; st
 }
 
 export async function POST(req: Request) {
+  try {
   const profile = await requireProfile()
   const supabase = await createClient()
   /** Service role required for `auth.admin.getUserById` only. */
@@ -427,4 +428,9 @@ export async function POST(req: Request) {
   })
 
   return NextResponse.json({ ok: true })
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[email/send] unhandled error:', msg)
+    return NextResponse.json({ error: 'Internal server error sending email.' }, { status: 500 })
+  }
 }

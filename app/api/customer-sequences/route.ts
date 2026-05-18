@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
+import { isMultiLocationOrg } from '@/lib/locations/resolve'
 
 // ── GET /api/customer-sequences?customer_id=... ───────────────────────────────
 // Returns per-channel enrollment status: { email: EnrollmentEntry | null, sms: EnrollmentEntry | null }
@@ -87,12 +88,21 @@ export async function POST(req: NextRequest) {
   // Verify customer belongs to org
   const { data: customer } = await service
     .from('customers')
-    .select('id, name, email, primary_phone, unsubscribe_email, unsubscribe_sms')
+    .select('id, name, email, primary_phone, unsubscribe_email, unsubscribe_sms, location_id')
     .eq('id', customer_id)
     .or(`user_id.eq.${profile.org_id},user_id.eq.${profile.id}`)
     .maybeSingle()
 
   if (!customer) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Block enrollment for unresolved multi-location leads — matches bulk-enroll and PRD Phase 6
+  const multi = await isMultiLocationOrg(profile.org_id, service)
+  if (multi && !customer.location_id) {
+    return NextResponse.json(
+      { error: 'This lead must be assigned to a location before starting a sequence.' },
+      { status: 422 },
+    )
+  }
   const custData = customer  // narrow to non-null for use inside closures
 
   // Verify sequence belongs to org

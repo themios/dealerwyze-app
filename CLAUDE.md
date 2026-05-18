@@ -4,7 +4,7 @@
 - Multi-tenant SaaS CRM for used-car dealerships.
 - Brand: DealerWyze.
 - Apollo Auto is Tim's tenant for testing, not the product.
-- Stack: Next.js App Router, TypeScript, Tailwind, Supabase, Twilio, Stripe, Retell, Anthropic, Groq, Upstash Redis (rate limits), Vercel (hosting / `vercel.json` crons). Email: **Resend** HTTP API for coaching digest when `RESEND_API_KEY` is set (`lib/intelligence/coachingDigest.ts`); other paths may use SMTP/nodemailer.
+- Stack: Next.js App Router, TypeScript, Tailwind, Supabase, Twilio, Stripe, Retell, Anthropic, Groq, Upstash Redis (rate limits), Vercel (hosting / `vercel.json` crons). Email: **Resend** HTTP API via `lib/email/notify.ts` (`sendNotificationEmail`). Domain `dealerwyze.com` verified in Resend; `RESEND_FROM_DOMAIN=dealerwyze.com` required.
 
 ## Non-Negotiables
 - Treat every change as multi-tenant and security-sensitive.
@@ -59,6 +59,23 @@ See `.planning/service-role-triage.md` for the current service-role classificati
 - Use plain English.
 - Say what happened, what the impact is, and what the dealer should do next.
 - Avoid internal jargon in dealer-facing copy.
+- No em dashes in any dealer-facing copy (email, UI, notifications).
+- Tone is direct and human — write like Tim talking to a dealer, not like a SaaS product.
+- All dealer emails use the shared `sig()`, `footer()`, and `helpCta()` helpers from `lib/email/onboarding.ts`. Do not inline custom signatures — update the helpers.
+
+## Dealer Communication Flows
+- **Welcome email:** fires immediately at signup via `app/api/auth/register/route.ts`.
+- **Onboarding nudge:** one-time email 4+ hours after signup if setup incomplete — `lib/cron/jobs/onboardingNudges.ts`.
+- **Follow-up sequence:** D+1 tips, D+3 check-in, D+7 re-engage — `lib/cron/jobs/dealerFollowUps.ts`. Deduplicated via `admin_alerts`.
+- **Platform owner signup alert:** rich email + Telegram to `PLATFORM_OWNER_EMAIL` on every new signup.
+- **Daily platform digest:** new signups, stale dealers, at-risk orgs — `lib/cron/jobs/platformOwnerDigest.ts`. Fires with `check-tasks` (4pm UTC daily).
+- **Monday AI briefing:** weekly SaaS health summary with Claude Haiku narrative — `lib/cron/jobs/weeklyOwnerSummary.ts`. Fires `0 17 * * 1`.
+- All emails sent via `sendNotificationEmail` (`lib/email/notify.ts`) using Resend. Silent no-op if `RESEND_API_KEY` not set.
+
+## Required Env Vars (email)
+- `RESEND_API_KEY` — Resend send-only key
+- `RESEND_FROM_DOMAIN=dealerwyze.com` — verified Resend domain
+- `PLATFORM_OWNER_EMAIL=support@dealerwyze.com` — destination for all owner alerts and digests
 
 ## Project-Specific Gotchas
 - `customers` has no `org_id`; org scoping often uses the authenticated profile and `user_id`.

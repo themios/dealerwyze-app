@@ -78,16 +78,20 @@ export default function SettingsMobileNav({ role, canManageReconTemplate }: Prop
     ? visibleItems.filter(item => matchesSearch(item, query))
     : visibleItems.filter(item => item.group === activeGroup)
 
+  const onSettingsRoute = pathname.startsWith('/settings')
+
   return (
     <>
-      {/* Floating trigger pill */}
-      <button
-        onClick={() => { setOpen(true); setActiveGroup(currentGroup ?? 'business') }}
-        className="lg:hidden fixed bottom-[4.5rem] right-4 z-30 flex items-center gap-2 px-3 py-2 rounded-full bg-[#0D1F33] border border-white/15 shadow-lg text-white/80 hover:text-white hover:border-[#F07018]/40 transition-colors"
-      >
-        <Settings className="h-3.5 w-3.5 text-[#F07018]" />
-        <span className="text-xs font-medium">{currentGroupLabel}</span>
-      </button>
+      {/* Floating trigger pill — only visible on settings routes */}
+      {onSettingsRoute && (
+        <button
+          onClick={() => { setOpen(true); setActiveGroup(currentGroup ?? 'business') }}
+          className="lg:hidden fixed bottom-[4.5rem] right-4 z-30 flex items-center gap-2 px-3 py-2 rounded-full bg-[#0D1F33] border border-white/15 shadow-lg text-white/80 hover:text-white hover:border-[#F07018]/40 transition-colors"
+        >
+          <Settings className="h-3.5 w-3.5 text-[#F07018]" />
+          <span className="text-xs font-medium">{currentGroupLabel}</span>
+        </button>
+      )}
 
       {/* Backdrop */}
       <div

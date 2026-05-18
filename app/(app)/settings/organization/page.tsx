@@ -5,7 +5,6 @@ import EmailLeadSyncSection        from './sections/EmailLeadSyncSection'
 import VoiceAgentSection           from './sections/VoiceAgentSection'
 import GoogleBusinessProfileSection from './sections/GoogleBusinessProfileSection'
 import GoogleCalendarSection       from './sections/GoogleCalendarSection'
-import LocationsSection            from './sections/LocationsSection'
 import EmailFromDomainSection      from './sections/EmailFromDomainSection'
 import SocialPostingSection        from './sections/SocialPostingSection'
 import BhphPaymentMethodsSection   from './sections/BhphPaymentMethodsSection'
@@ -26,7 +25,6 @@ export default function OrganizationSettingsPage() {
         <VoiceAgentSection />
         <GoogleBusinessProfileSection />
         <GoogleCalendarSection />
-        <LocationsSection />
         <EmailFromDomainSection />
         <SocialPostingSection />
         <DangerZoneSection />

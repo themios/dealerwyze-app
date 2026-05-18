@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { CONSENT_DISCLOSURE } from '@/lib/bhph/schedule'
-import { FileText, ExternalLink, Trash2, X, ArrowRight, CheckCircle, MinusCircle, Star, Heart } from 'lucide-react'
+import { FileText, ExternalLink, Trash2, X, ArrowRight, CheckCircle, MinusCircle, Star, Heart, Archive } from 'lucide-react'
 
 interface Props {
   vehicleId: string
@@ -30,6 +30,7 @@ interface DocEntry {
 interface CustomerResult { id: string; name: string; primary_phone: string; email?: string }
 interface InterestedCustomer { customer_id: string; name: string; primary_phone: string | null; email: string | null; is_buyer?: boolean }
 type NotifyStatus = 'idle' | 'sending' | 'sent' | 'skipped'
+type ArchiveStatus = 'idle' | 'archiving' | 'archived'
 interface DeferredPaymentDraft { due_date: string; amount: string; notes: string }
 
 const INITIAL_FORM = {
@@ -65,6 +66,9 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
   const [interestedCustomers, setInterestedCustomers] = useState<InterestedCustomer[]>([])
   const [notifyMessages, setNotifyMessages] = useState<Record<string, string>>({})
   const [notifyStatus, setNotifyStatus] = useState<Record<string, NotifyStatus>>({})
+  const [archiveStatus, setArchiveStatus] = useState<Record<string, ArchiveStatus>>({})
+  const [emailSubjects, setEmailSubjects] = useState<Record<string, string>>({})
+  const [showEmailOptions, setShowEmailOptions] = useState<Record<string, boolean>>({})
 
   // Post-sale outreach step
   const [postsaleChecks, setPostsaleChecks] = useState({ review: true, pulse: true })
@@ -89,16 +93,32 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
           body: JSON.stringify({ to: c.primary_phone, body: msg, customer_id: c.customer_id }),
         })
       } else {
+        const subject = emailSubjects[c.customer_id] ?? `About the ${vehicleLabel}`
         res = await fetch('/api/email/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ customer_id: c.customer_id, subject: `About the ${vehicleLabel}`, emailBody: msg }),
+          body: JSON.stringify({ customer_id: c.customer_id, subject, emailBody: msg }),
         })
       }
       if (!res.ok) throw new Error('Send failed')
       setNotifyStatus(p => ({ ...p, [c.customer_id]: 'sent' }))
     } catch {
       setNotifyStatus(p => ({ ...p, [c.customer_id]: 'idle' }))
+    }
+  }
+
+  async function archiveCustomer(customerId: string) {
+    setArchiveStatus(p => ({ ...p, [customerId]: 'archiving' }))
+    try {
+      const res = await fetch(`/api/customers/${customerId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ archived: true }),
+      })
+      if (!res.ok) throw new Error()
+      setArchiveStatus(p => ({ ...p, [customerId]: 'archived' }))
+    } catch {
+      setArchiveStatus(p => ({ ...p, [customerId]: 'idle' }))
     }
   }
 
@@ -109,6 +129,9 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
       setInterestedCustomers([])
       setNotifyMessages({})
       setNotifyStatus({})
+      setArchiveStatus({})
+      setEmailSubjects({})
+      setShowEmailOptions({})
       setPostsaleChecks({ review: true, pulse: true })
       setPostsaleSending(false)
       setForm({ ...INITIAL_FORM })
@@ -249,12 +272,16 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
     const interested: InterestedCustomer[] = data.interestedCustomers ?? []
     if (interested.length > 0) {
       const initialMessages: Record<string, string> = {}
+      const initialSubjects: Record<string, string> = {}
       for (const c of interested) {
         initialMessages[c.customer_id] = defaultNotifyMessage(c.name, c.is_buyer)
+        initialSubjects[c.customer_id] = `About the ${vehicleLabel}`
       }
       setInterestedCustomers(interested)
       setNotifyMessages(initialMessages)
+      setEmailSubjects(initialSubjects)
       setNotifyStatus({})
+      setArchiveStatus({})
     }
     setStep('postsale')
   }
@@ -753,7 +780,22 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
             <div className="space-y-4">
               {interestedCustomers.map(c => {
                 const status = notifyStatus[c.customer_id] ?? 'idle'
+                const archived = archiveStatus[c.customer_id] ?? 'idle'
                 const msg = notifyMessages[c.customer_id] ?? defaultNotifyMessage(c.name, c.is_buyer)
+                const emailSubject = emailSubjects[c.customer_id] ?? `About the ${vehicleLabel}`
+                const emailExpanded = showEmailOptions[c.customer_id] ?? false
+
+                if (archived === 'archived') {
+                  return (
+                    <div key={c.customer_id} className="rounded-lg border bg-muted/20 border-dashed p-3 flex items-center gap-2 opacity-60">
+                      <Archive className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium line-through text-muted-foreground">{c.name}</p>
+                        <p className="text-xs text-muted-foreground">Archived — removed from active leads</p>
+                      </div>
+                    </div>
+                  )
+                }
 
                 if (status === 'sent') {
                   return (
@@ -769,22 +811,39 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
 
                 if (status === 'skipped') {
                   return (
-                    <div key={c.customer_id} className="rounded-lg border bg-muted/30 p-3 flex items-center gap-2">
-                      <MinusCircle className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">{c.name}</p>
-                        <p className="text-xs text-muted-foreground">Skipped</p>
+                    <div key={c.customer_id} className="rounded-lg border bg-muted/30 p-3 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <MinusCircle className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <div>
+                          <p className="text-sm font-medium text-muted-foreground">{c.name}</p>
+                          <p className="text-xs text-muted-foreground">Skipped</p>
+                        </div>
                       </div>
+                      <Button
+                        size="sm" variant="ghost"
+                        className="text-destructive hover:text-destructive shrink-0 text-xs h-7 px-2"
+                        disabled={archived === 'archiving'}
+                        onClick={() => archiveCustomer(c.customer_id)}
+                      >
+                        {archived === 'archiving' ? '…' : 'Archive'}
+                      </Button>
                     </div>
                   )
                 }
 
                 return (
                   <div key={c.customer_id} className={`rounded-lg border p-3 space-y-2 ${c.is_buyer ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20' : ''}`}>
-                    <div>
-                      <p className="text-sm font-medium">{c.name}{c.is_buyer && <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-green-600 bg-green-100 dark:bg-green-900/40 rounded px-1.5 py-0.5">Buyer</span>}</p>
-                      <p className="text-xs text-muted-foreground">{c.primary_phone ?? c.email ?? 'No contact info'}</p>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium">
+                          {c.name}
+                          {c.is_buyer && <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-green-600 bg-green-100 dark:bg-green-900/40 rounded px-1.5 py-0.5">Buyer</span>}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{c.primary_phone ?? c.email ?? 'No contact info'}</p>
+                      </div>
                     </div>
+
+                    {/* Message body — always editable */}
                     <Textarea
                       value={msg}
                       onChange={e => setNotifyMessages(p => ({ ...p, [c.customer_id]: e.target.value }))}
@@ -792,22 +851,59 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
                       className="resize-none text-sm"
                       disabled={status === 'sending'}
                     />
-                    <div className="flex gap-2">
+
+                    {/* Email options — subject line, expandable */}
+                    {c.email && (
+                      <div className="space-y-1.5">
+                        <button
+                          type="button"
+                          className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+                          onClick={() => setShowEmailOptions(p => ({ ...p, [c.customer_id]: !emailExpanded }))}
+                        >
+                          {emailExpanded ? 'Hide email options ▲' : 'Email options ▼'}
+                        </button>
+                        {emailExpanded && (
+                          <div className="space-y-1.5 rounded-lg border bg-muted/30 p-2">
+                            <Label className="text-xs">Subject</Label>
+                            <Input
+                              value={emailSubject}
+                              onChange={e => setEmailSubjects(p => ({ ...p, [c.customer_id]: e.target.value }))}
+                              className="h-8 text-sm"
+                              disabled={status === 'sending'}
+                              placeholder="Email subject…"
+                            />
+                            <p className="text-[10px] text-muted-foreground">
+                              Tip: mention a similar vehicle in the message body to offer an alternative.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex gap-2 flex-wrap">
                       {c.primary_phone && (
                         <Button size="sm" className="flex-1" disabled={status === 'sending'}
                           onClick={() => sendNotification(c, 'sms')}>
-                          {status === 'sending' ? 'Sending…' : 'Send Text'}
+                          {status === 'sending' ? 'Sending…' : 'Text'}
                         </Button>
                       )}
                       {c.email && (
                         <Button size="sm" variant="outline" className="flex-1" disabled={status === 'sending'}
                           onClick={() => sendNotification(c, 'email')}>
-                          {status === 'sending' ? 'Sending…' : 'Send Email'}
+                          {status === 'sending' ? 'Sending…' : 'Email'}
                         </Button>
                       )}
                       <Button size="sm" variant="ghost"
                         onClick={() => setNotifyStatus(p => ({ ...p, [c.customer_id]: 'skipped' }))}>
                         Skip
+                      </Button>
+                      <Button
+                        size="sm" variant="ghost"
+                        className="text-destructive hover:text-destructive"
+                        disabled={archived === 'archiving'}
+                        onClick={() => archiveCustomer(c.customer_id)}
+                      >
+                        {archived === 'archiving' ? '…' : <><Archive className="h-3.5 w-3.5 mr-1" />Archive</>}
                       </Button>
                     </div>
                   </div>

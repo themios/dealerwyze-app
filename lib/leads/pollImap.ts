@@ -65,7 +65,9 @@ export async function pollImapAccount(
         if (digestLeads.length > 0) {
           for (let i = 0; i < digestLeads.length; i++) {
             const extId = `${messageId}-digest-${i}`
-            const data  = await ingestLead(digestLeads[i], extId, account.org_id)
+            const data  = await ingestLead(digestLeads[i], extId, account.org_id, {
+              location: { emailSubject: subject, emailBody: text },
+            })
             results.push({
               external_id: extId,
               status:      'error' in data ? 'error' : data.status,
@@ -79,7 +81,9 @@ export async function pollImapAccount(
 
         const lead = parseAnyLead(subject, text, fromAddr)
         if (lead) {
-          const data = await ingestLead(lead, messageId, account.org_id)
+          const data = await ingestLead(lead, messageId, account.org_id, {
+            location: { emailSubject: subject, emailBody: text },
+          })
           results.push({
             external_id: messageId,
             status:      'error' in data ? 'error' : data.status,

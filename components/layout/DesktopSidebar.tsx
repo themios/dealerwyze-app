@@ -12,6 +12,8 @@ import {
   LayoutDashboard, Bell, Building2, TrendingDown,
   LineChart, GitBranch, UserCog, TicketCheck, ScrollText,
   LogOut, Briefcase, Contact, Heart, Inbox,
+  Activity, BarChart3, DatabaseBackup, ArchiveRestore,
+  Clapperboard,
 } from 'lucide-react'
 
 interface MeResponse {
@@ -121,9 +123,14 @@ const ADMIN_NAV_GROUPS: { section: string; items: AdminNavItem[] }[] = [
   {
     section: 'PLATFORM',
     items: [
+      { href: '/admin/platform-health',  label: 'Platform Health',  icon: Activity,       area: 'alerts' },
+      { href: '/admin/feature-adoption', label: 'Feature Adoption', icon: BarChart3,      area: 'analytics' },
+      { href: '/admin/data-recovery',    label: 'Data Recovery',    icon: ArchiveRestore, area: 'dealers' },
+      { href: '/admin/backup-status',    label: 'Backup Status',    icon: DatabaseBackup, area: 'staff' },
       { href: '/admin/staff',      label: 'Platform Team', icon: UserCog,     area: 'staff' },
       { href: '/admin/tickets',    label: 'Tickets',       icon: TicketCheck, badge: 'tickets', area: 'tickets' },
       { href: '/admin/audit-log',  label: 'Audit Log',     icon: ScrollText },
+      { href: '/marketing/content', label: 'Content',      icon: Clapperboard },
     ],
   },
 ]
@@ -210,7 +217,7 @@ function AdminSidebar({ platformRole, platformPermissions, isSuperAdmin }: {
     <aside className="hidden lg:flex flex-col w-60 shrink-0 h-dvh bg-[#0D2B55] border-r border-[#1B4A8A] overflow-y-auto">
       {/* Logo */}
       <div className="px-4 py-4 border-b border-[#1B4A8A]">
-        <Image src="/logo.png" alt="DealerWyze" width={240} height={160} loading="eager" style={{ width: '160px', height: 'auto' }} className="object-contain rounded-sm" />
+        <Image src="/logo.png" alt="DealerWyze" width={160} height={107} priority style={{ height: 'auto' }} className="object-contain rounded-sm" />
         <p className="text-white/40 text-[10px] mt-1.5 font-semibold uppercase tracking-widest">{roleLabel}</p>
       </div>
 
@@ -298,7 +305,7 @@ function DealerSidebar({ orgName, role, isPlatformAdmin }: { orgName?: string | 
     <aside className="hidden lg:flex flex-col w-60 shrink-0 h-dvh bg-[#0D2B55] border-r border-[#1B4A8A] overflow-y-auto">
       {/* Logo / org name */}
       <div className="px-4 py-4 border-b border-[#1B4A8A]">
-        <Image src="/logo.png" alt="DealerWyze" width={240} height={160} loading="eager" style={{ width: '160px', height: 'auto' }} className="object-contain rounded-sm" />
+        <Image src="/logo.png" alt="DealerWyze" width={160} height={107} priority style={{ height: 'auto' }} className="object-contain rounded-sm" />
         {orgName && (
           <p className="text-white/50 text-xs mt-2 truncate">{orgName}</p>
         )}

@@ -5,6 +5,7 @@ import { cookies } from 'next/headers'
 import type { UserRole } from '@/types/index'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getStaffSessionInfo } from '@/lib/auth/staffSession'
+import * as Sentry from '@sentry/nextjs'
 
 export interface Profile {
   id: string
@@ -45,7 +46,14 @@ export async function getProfile(): Promise<Profile | null> {
 export async function requireProfile(): Promise<Profile> {
   const supabase = await createClient()
   const profile = await getProfile()
-  if (!profile) redirect('/login')
+  if (!profile) {
+    Sentry.addBreadcrumb({
+      category: 'auth',
+      message: 'requireProfile: no session',
+      level: 'warning',
+    })
+    redirect('/login')
+  }
   // Guard: null org_id means incomplete provisioning
   if (!profile.org_id) redirect('/login?reason=no_org')
   // Guard: deactivated users — sign them out as a safety net

@@ -49,8 +49,11 @@ function extractComments(text: string): string {
 /** CarGurus phone lead — "Phone Lead from CarGurus" (caller info only) */
 export function parseCarGurusPhoneLead(subject: string, textBody: string): ParsedLead | null {
   if (!subject.includes('Phone Lead from CarGurus') && !textBody.includes('Phone Lead from CarGurus')) return null
+  // "Caller Id" is the caller's name; "Phone" is the number.
+  // Use 'Phone:' (with colon) so the regex doesn't false-match "Phone Lead from CarGurus"
+  // which appears earlier in the email body without a colon.
   const callerId = field(textBody, 'Caller Id')
-  const phone = field(textBody, 'Phone')
+  const phone = field(textBody, 'Phone:')
   const zip = field(textBody, 'Zip')
   const state = field(textBody, 'State')
   const vehicle = field(textBody, 'Vehicle')

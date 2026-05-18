@@ -25,6 +25,11 @@ const REQUIRED_IN_PROD_ONLY: string[] = [
   // BHPH ACH: signed customer setup links + Stripe ACH webhook (dealer Connect account)
   'BHPH_ACH_SECRET',
   'STRIPE_BHPH_ACH_WEBHOOK_SECRET',
+  // R2 backup bucket — required in prod so the backup status page and signed-URL download work
+  'R2_BUCKET_NAME',
+  'R2_BACKUP_ACCESS_KEY_ID',
+  'R2_BACKUP_SECRET_ACCESS_KEY',
+  'R2_ACCOUNT_ID',
 ]
 
 export function validateEnv(): void {

@@ -1,7 +1,6 @@
 'use client'
 
 import React from 'react'
-import Script from 'next/script'
 import Nav                   from './sections/Nav'
 import HeroSection           from './sections/HeroSection'
 import ElevatorPitchSection  from './sections/ElevatorPitchSection'
@@ -22,29 +21,8 @@ import FinalCTASection       from './sections/FinalCTASection'
 import Footer                from './sections/Footer'
 
 export default function LandingPage() {
-  const intervoWidgetId =
-    process.env.NEXT_PUBLIC_INTERVO_WIDGET_ID ?? '1708eacc-5d8e-4d85-95ea-9ba6f309989a'
-
   return (
     <>
-      {/* Intervo.ai website widget (temporary test) */}
-      <Script
-        src="https://widget.intervo.ai"
-        id="intervoLoader"
-        data-widget-id={intervoWidgetId}
-        strategy="afterInteractive"
-      />
-      {/* Right-side float override (best-effort; targets Intervo iframe by src). */}
-      <style jsx global>{`
-        iframe[src*="intervo"] {
-          position: fixed !important;
-          right: 16px !important;
-          top: 50% !important;
-          transform: translateY(-50%) !important;
-          z-index: 2147483647 !important;
-        }
-      `}</style>
-
       <Nav />
       <main className="landing">
         <HeroSection />

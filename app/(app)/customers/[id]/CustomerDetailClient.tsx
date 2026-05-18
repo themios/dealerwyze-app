@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { Customer, Activity, Vehicle } from '@/types'
 import { createClient } from '@/lib/supabase/client'
 import CallButton from '@/components/call/CallButton'
@@ -15,6 +16,9 @@ import LinkVehicleSheet from '@/components/customer/LinkVehicleSheet'
 import LinkedVehicles from '@/components/customer/LinkedVehicles'
 import VoiceRecorder from '@/components/call/VoiceRecorder'
 import AssignDropdown from '@/components/customer/AssignDropdown'
+import LeadLocationBadge, { type DealerLocationOption } from '@/components/customer/LeadLocationBadge'
+import LeadLocationBlockingModal from '@/components/customer/LeadLocationBlockingModal'
+import { needsLeadLocationBlock } from '@/lib/locations/uiRules'
 import DocumentsSection from '@/components/customer/DocumentsSection'
 import WantListSheet from '@/components/customer/WantListSheet'
 import AutoresponderCard from '@/components/sequences/AutoresponderCard'
@@ -23,13 +27,15 @@ import MergeCustomerSheet from '@/components/customers/MergeCustomerSheet'
 import DealChecklistSheet from '@/components/customers/DealChecklistSheet'
 import { usePendingCall } from '@/components/call/usePendingCall'
 import { useOrgSettings } from '@/hooks/useOrgSettings'
+import { useAnalytics } from '@/hooks/useAnalytics'
 import { formatPhone } from '@/lib/utils'
 import LeadStateSelector from '@/components/customer/LeadStateSelector'
+import DateTimePicker15 from '@/components/ui/DateTimePicker15'
 import { LEAD_INTENT_TIER_LABELS, LEAD_INTENT_TIER_STYLES, buildManualLeadIntent, normalizeLeadIntentFlags, type LeadIntentFlag, type LeadIntentTier } from '@/lib/leads/intent'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Mail, Phone, Plus, FileText, Archive, X, MessageSquareOff, Trophy, Trash2, GitMerge, Clock, Pencil, ClipboardList, Flame, PhoneCall, CalendarClock, RotateCcw } from 'lucide-react'
+import { Mail, Phone, Plus, FileText, Archive, X, MessageSquareOff, Trophy, Trash2, GitMerge, Clock, Pencil, ClipboardList, Flame, PhoneCall, CalendarClock, RotateCcw, Loader2 } from 'lucide-react'
 
 interface TaskItem {
   id: string
@@ -49,20 +55,36 @@ interface Props {
   currentUserId?: string
   tasks: TaskItem[]
   initialVehicle?: Record<string, unknown> | null
+  orgOwnerName?: string | null
+  isMultiLocation?: boolean
+  locations?: DealerLocationOption[]
 }
 
-export default function CustomerDetailClient({ customer, activities: initialActivities, scheduledActivities, isAdmin, currentUserId, tasks: initialTasks, initialVehicle }: Props) {
+export default function CustomerDetailClient({ customer, activities: initialActivities, scheduledActivities, isAdmin, currentUserId, tasks: initialTasks, initialVehicle, orgOwnerName = null, isMultiLocation = false, locations = [] }: Props) {
+  const initialLocationId = customer.location_id ?? null
+  const [leadLocationId, setLeadLocationId] = useState<string | null>(initialLocationId)
+  const [leadLocationName, setLeadLocationName] = useState<string | null>(() => {
+    if (!initialLocationId) return null
+    return locations.find(l => l.id === initialLocationId)?.name ?? null
+  })
+  const needsLocationBlock = needsLeadLocationBlock(isMultiLocation, leadLocationId)
+
+  function handleLocationSet(locationId: string, locationName: string) {
+    setLeadLocationId(locationId)
+    setLeadLocationName(locationName)
+  }
   const [activities, setActivities] = useState<Activity[]>(initialActivities)
 
-  const nextAppointment = activities
+  const upcomingAppointments = activities
     .filter(a => a.type === 'appointment' && !a.completed_at && a.due_at && new Date(a.due_at) > new Date())
-    .sort((a, b) => new Date(a.due_at!).getTime() - new Date(b.due_at!).getTime())[0] ?? null
+    .sort((a, b) => new Date(a.due_at!).getTime() - new Date(b.due_at!).getTime())
   const [replyContext, setReplyContext] = useState<ReplyContext | null>(null)
   const [taskOpen, setTaskOpen] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
   const [apptOpen, setApptOpen] = useState(false)
-  const [apptDate, setApptDate] = useState('')
-  const [apptTime, setApptTime] = useState('10:00')
+  const [apptDatetime, setApptDatetime] = useState('')
+  const [editingApptId, setEditingApptId] = useState<string | null>(null)
+  const [deletingApptId, setDeletingApptId] = useState<string | null>(null)
   const [apptSaving, setApptSaving] = useState(false)
   const [apptError, setApptError] = useState<string | null>(null)
   const [vehicleRefreshKey, setVehicleRefreshKey] = useState(0)
@@ -124,8 +146,13 @@ export default function CustomerDetailClient({ customer, activities: initialActi
   }))
   const { pendingCall, modalOpen, dismissModal } = usePendingCall()
   const orgSettings = useOrgSettings()
+  const { track } = useAnalytics()
   const supabase = createClient()
   const router = useRouter()
+
+  useEffect(() => {
+    track({ event: 'customer_viewed', props: {} })
+  }, [track])
 
   useEffect(() => {
     supabase
@@ -331,45 +358,73 @@ export default function CustomerDetailClient({ customer, activities: initialActi
   }
 
   async function handleSaveAppt() {
-    if (!apptDate) return
+    if (!apptDatetime) return
     setApptSaving(true)
     setApptError(null)
-    const dueAt = new Date(`${apptDate}T${apptTime}:00`).toISOString()
-    const res = await fetch('/api/activities', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'appointment',
-        customer_id: customer.id,
-        due_at: dueAt,
-        direction: null,
-        outcome: 'pending',
-        priority: 'high',
-        body: `Appointment${primaryVehicle ? ` re: ${primaryVehicle.year} ${primaryVehicle.make} ${primaryVehicle.model}` : ''}`,
-      }),
-    })
+    const dueAt = new Date(apptDatetime).toISOString()
+
+    let res: Response
+    if (editingApptId) {
+      res = await fetch(`/api/activities/${editingApptId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ due_at: dueAt }),
+      })
+    } else {
+      res = await fetch('/api/activities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'appointment',
+          customer_id: customer.id,
+          due_at: dueAt,
+          direction: null,
+          outcome: 'pending',
+          priority: 'high',
+          body: `Appointment${primaryVehicle ? ` re: ${primaryVehicle.year} ${primaryVehicle.make} ${primaryVehicle.model}` : ''}`,
+        }),
+      })
+    }
+
+    const data = await res.json().catch(() => ({})) as { error?: string; activity?: Activity }
     if (!res.ok) {
-      const data = await res.json().catch(() => ({})) as { error?: string }
       setApptSaving(false)
       setApptError(data.error ?? 'Failed to save appointment')
       return
     }
 
-    // Advance lead state to appointment_set if not already past that stage
-    const nonApptStates = new Set(['appointment_confirmed', 'showed', 'credit_app', 'sold', 'lost'])
-    if (!nonApptStates.has(customer.thread_state ?? '')) {
-      await fetch(`/api/customers/${customer.id}/state`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state: 'appointment_set', reason: 'Appointment scheduled' }),
-      }).catch(() => {})
+    // Update local state immediately so the UI reflects the change without waiting for router.refresh()
+    if (editingApptId) {
+      setActivities(prev => prev.map(a => a.id === editingApptId ? { ...a, due_at: dueAt } : a))
+    } else if (data.activity) {
+      setActivities(prev => [...prev, data.activity!])
+    }
+
+    // Advance lead state to appointment_set if not already past that stage (new appt only)
+    if (!editingApptId) {
+      const nonApptStates = new Set(['appointment_confirmed', 'showed', 'credit_app', 'sold', 'lost'])
+      if (!nonApptStates.has(customer.thread_state ?? '')) {
+        await fetch(`/api/customers/${customer.id}/state`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ state: 'appointment_set', reason: 'Appointment scheduled' }),
+        }).catch(() => {})
+      }
     }
 
     setApptSaving(false)
     setApptOpen(false)
-    setApptDate('')
+    setApptDatetime('')
+    setEditingApptId(null)
     setApptError(null)
-    router.refresh()
+  }
+
+  async function handleDeleteAppt(id: string) {
+    setDeletingApptId(id)
+    // Optimistically remove so UI updates immediately
+    setActivities(prev => prev.filter(a => a.id !== id))
+    await fetch(`/api/activities/${id}`, { method: 'DELETE' })
+    setDeletingApptId(null)
   }
 
   async function handleDelete() {
@@ -386,6 +441,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
       return
     }
 
+    toast.success('Deleted. You can recover this within 7 days from your account admin or by contacting support.')
     router.push('/customers')
   }
 
@@ -415,7 +471,15 @@ export default function CustomerDetailClient({ customer, activities: initialActi
   const intentStyle = LEAD_INTENT_TIER_STYLES[intentSnapshot.tier]
 
   return (
-    <div className="pb-36 lg:pb-6">
+    <div className="relative pb-36 lg:pb-6">
+      {isMultiLocation && (
+        <LeadLocationBlockingModal
+          open={needsLocationBlock}
+          customerId={customer.id}
+          locations={locations}
+          onLocationSet={handleLocationSet}
+        />
+      )}
       {/* Contact info header card */}
       <div className="bg-card border-b border-border px-4 py-4">
         {/* Phone — tappable */}
@@ -511,10 +575,23 @@ export default function CustomerDetailClient({ customer, activities: initialActi
               currentState={customer.thread_state ?? 'new_lead'}
             />
           </div>
+          {isMultiLocation && (
+            <LeadLocationBadge
+              customerId={customer.id}
+              locationId={leadLocationId}
+              locationName={leadLocationName}
+              locations={locations}
+              onLocationSet={handleLocationSet}
+            />
+          )}
           {isAdmin && (
             <AssignDropdown
               customerId={customer.id}
               assignedTo={customer.assigned_to}
+              orgOwnerName={orgOwnerName}
+              leadLocationId={leadLocationId}
+              isMultiLocation={isMultiLocation}
+              locationBlocked={needsLocationBlock}
               compact
             />
           )}
@@ -544,15 +621,19 @@ export default function CustomerDetailClient({ customer, activities: initialActi
 
       <div className="hidden lg:flex px-4 py-3 gap-2 border-b bg-card">
         <CallButton customerId={customer.id} customerName={customer.name} phone={customer.primary_phone} className="flex-1" />
-        <TemplatePicker customer={customer} vehicle={primaryVehicle} buttonClassName="flex-1" labelClassName="" />
+        <TemplatePicker customer={customer} vehicle={primaryVehicle} buttonClassName="flex-1" labelClassName="" locationBlocked={needsLocationBlock} />
         <EmailButton
           customer={customer}
           vehicle={primaryVehicle}
-          onSent={refreshActivities}
+          onSent={() => {
+            refreshActivities()
+            track({ event: 'email_sent', props: { template_used: false } })
+          }}
           replyContext={replyContext}
           onReplyComplete={() => setReplyContext(null)}
           buttonClassName="flex-1"
           labelClassName=""
+          locationBlocked={needsLocationBlock}
         />
       </div>
 
@@ -637,48 +718,74 @@ export default function CustomerDetailClient({ customer, activities: initialActi
         </Button>
       </div>
 
-      {/* Next appointment banner */}
-      {nextAppointment?.due_at && (
-        <div className="mx-4 my-1 flex items-center gap-2 rounded-lg border border-purple-200/80 bg-purple-50/60 dark:border-purple-900/50 dark:bg-purple-950/20 px-3 py-2 text-xs">
-          <CalendarClock className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 flex-shrink-0" />
-          <span className="font-semibold text-purple-800 dark:text-purple-200">Next appt:</span>
-          <span className="text-purple-700 dark:text-purple-300">
-            {new Date(nextAppointment.due_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-            {' at '}
-            {new Date(nextAppointment.due_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-          </span>
+      {/* Appointments list */}
+      {upcomingAppointments.length > 0 && (
+        <div className="mx-4 my-1 space-y-1">
+          {upcomingAppointments.map((appt, idx) => {
+            const isFirst = idx === 0
+            return (
+              <div
+                key={appt.id}
+                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${
+                  isFirst
+                    ? 'border-purple-200/80 bg-purple-50/60 dark:border-purple-900/50 dark:bg-purple-950/20'
+                    : 'border-border bg-muted/30'
+                }`}
+              >
+                <CalendarClock className={`h-3.5 w-3.5 flex-shrink-0 ${isFirst ? 'text-purple-600 dark:text-purple-400' : 'text-muted-foreground'}`} />
+                <span className={`font-medium ${isFirst ? 'text-purple-800 dark:text-purple-200' : 'text-foreground'}`}>
+                  {new Date(appt.due_at!).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                  {' at '}
+                  {new Date(appt.due_at!).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                </span>
+                <div className="ml-auto flex items-center gap-1">
+                  <button
+                    title="Reschedule"
+                    onClick={() => {
+                      const dt = new Date(appt.due_at!)
+                      const m = Math.round(dt.getMinutes() / 15) * 15
+                      dt.setMinutes(m === 60 ? 0 : m, 0, 0)
+                      if (m === 60) dt.setHours(dt.getHours() + 1)
+                      const pad = (n: number) => String(n).padStart(2, '0')
+                      setApptDatetime(`${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`)
+                      setEditingApptId(appt.id)
+                      setApptOpen(true)
+                    }}
+                    className="p-1 rounded hover:bg-purple-100 dark:hover:bg-purple-900/40 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                  <button
+                    title="Delete appointment"
+                    onClick={() => handleDeleteAppt(appt.id)}
+                    disabled={deletingApptId === appt.id}
+                    className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
+                  >
+                    {deletingApptId === appt.id
+                      ? <Loader2 className="h-3 w-3 animate-spin" />
+                      : <Trash2 className="h-3 w-3" />
+                    }
+                  </button>
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
 
       {/* Appointment picker */}
       {apptOpen && (
         <div className="mx-4 my-2 p-3 rounded-lg border bg-muted/40 space-y-2">
-          <p className="text-sm font-medium">Schedule appointment</p>
-          <div className="flex gap-2">
-            <input
-              aria-label="Appointment date"
-              type="date"
-              value={apptDate}
-              onChange={e => setApptDate(e.target.value)}
-              min={new Date().toISOString().slice(0, 10)}
-              className="flex-1 text-sm rounded border border-border bg-background px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-            <input
-              aria-label="Appointment time"
-              type="time"
-              value={apptTime}
-              onChange={e => setApptTime(e.target.value)}
-              className="w-28 text-sm rounded border border-border bg-background px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-          </div>
+          <p className="text-sm font-medium">{editingApptId ? 'Reschedule appointment' : 'Schedule appointment'}</p>
+          <DateTimePicker15 value={apptDatetime} onChange={setApptDatetime} />
           {apptError && (
             <p className="text-xs text-destructive">{apptError}</p>
           )}
           <div className="flex gap-2">
-            <Button size="sm" onClick={handleSaveAppt} disabled={!apptDate || apptSaving} className="flex-1">
+            <Button size="sm" onClick={handleSaveAppt} disabled={!apptDatetime || apptSaving} className="flex-1">
               {apptSaving ? 'Saving…' : 'Confirm'}
             </Button>
-            <Button size="sm" variant="outline" onClick={() => { setApptOpen(false); setApptError(null) }}>Cancel</Button>
+            <Button size="sm" variant="outline" onClick={() => { setApptOpen(false); setApptDatetime(''); setEditingApptId(null); setApptError(null) }}>Cancel</Button>
           </div>
         </div>
       )}
@@ -932,6 +1039,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
         autoOverride={autoOverride}
         savingAuto={savingAuto}
         onSetAutoOverride={setAutomationOverride}
+        locationBlocked={needsLocationBlock}
       />
 
       <ScheduledOutreachCard activities={scheduledActivities} />
@@ -1026,8 +1134,18 @@ export default function CustomerDetailClient({ customer, activities: initialActi
       {/* Sticky bottom action bar — mobile only, sits above BottomNav */}
       <div className="lg:hidden fixed bottom-16 inset-x-0 z-30 bg-card border-t border-border px-4 py-3 pb-safe flex gap-2">
         <CallButton customerId={customer.id} customerName={customer.name} phone={customer.primary_phone} className="flex-1" />
-        <TemplatePicker customer={customer} vehicle={primaryVehicle} />
-        <EmailButton customer={customer} vehicle={primaryVehicle} onSent={refreshActivities} replyContext={replyContext} onReplyComplete={() => setReplyContext(null)} />
+        <TemplatePicker customer={customer} vehicle={primaryVehicle} locationBlocked={needsLocationBlock} />
+        <EmailButton
+          customer={customer}
+          vehicle={primaryVehicle}
+          onSent={() => {
+            refreshActivities()
+            track({ event: 'email_sent', props: { template_used: false } })
+          }}
+          replyContext={replyContext}
+          onReplyComplete={() => setReplyContext(null)}
+          locationBlocked={needsLocationBlock}
+        />
         <Button variant="ghost" size="sm" onClick={() => setNoteOpen(true)} className="flex-1 gap-1.5">
           <FileText className="h-4 w-4" />Note
         </Button>

@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 import { enrollCustomer } from '@/lib/sequences/enrollCustomer'
+import { isMultiLocationOrg } from '@/lib/locations/resolve'
 
 export async function POST(req: NextRequest) {
   const profile = await requireProfile()
@@ -75,10 +76,13 @@ export async function POST(req: NextRequest) {
     template:    Array.isArray(s.template) ? (s.template[0] ?? null) : (s.template ?? null),
   }))
 
+  // Determine if this org has multiple locations (needed for the unresolved-lead skip below)
+  const multi = await isMultiLocationOrg(profile.org_id, service)
+
   // Fetch only the customers that belong to this org
   const { data: customers, error: custErr } = await service
     .from('customers')
-    .select('id, name, email, primary_phone, unsubscribe_email, unsubscribe_sms')
+    .select('id, name, email, primary_phone, unsubscribe_email, unsubscribe_sms, location_id')
     .in('id', customerIds)
     .eq('user_id', profile.org_id)
 
@@ -104,6 +108,12 @@ export async function POST(req: NextRequest) {
       .maybeSingle()
 
     if (activeEnrollment) {
+      skipped++
+      continue
+    }
+
+    // Skip unresolved multi-location leads — location must be set before outreach begins
+    if (multi && !customer.location_id) {
       skipped++
       continue
     }

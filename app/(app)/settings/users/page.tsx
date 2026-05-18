@@ -42,6 +42,11 @@ const ROLE_BADGE_COLOR: Record<string, string> = {
   agent: 'bg-gray-100 text-gray-700',
 }
 
+interface ActiveLocation {
+  id: string
+  name: string
+}
+
 interface User {
   id: string
   display_name: string
@@ -51,10 +56,23 @@ interface User {
   assigned_count: number
   deactivated_at?: string | null
   created_at: string
+  location_id?: string | null
+  location_name?: string | null
+}
+
+function showsAllLocations(user: User): boolean {
+  return user.role === 'dealer_admin' || user.role === 'admin' || user.id === user.org_id
+}
+
+function locationDisplayLabel(user: User): string {
+  if (showsAllLocations(user)) return 'All locations'
+  if (user.location_name) return user.location_name
+  return 'None'
 }
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([])
+  const [activeLocations, setActiveLocations] = useState<ActiveLocation[]>([])
   const [loading, setLoading] = useState(true)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [showDeactivated, setShowDeactivated] = useState(false)
@@ -67,12 +85,14 @@ export default function UsersPage() {
   const [copied, setCopied] = useState(false)
   const [generatingCode, setGeneratingCode] = useState(false)
   const [roleChanging, setRoleChanging] = useState<string | null>(null)
+  const [locationChanging, setLocationChanging] = useState<string | null>(null)
 
   const loadUsers = useCallback(async () => {
     const res = await fetch(`/api/admin/users${showDeactivated ? '?include_deactivated=true' : ''}`)
     if (res.status === 403) { setLoading(false); return }
     const data = await res.json()
     setUsers(data.users ?? [])
+    setActiveLocations(data.active_locations ?? [])
     if (data.lead_assignment_mode) setAssignMode(data.lead_assignment_mode)
     setLoading(false)
   }, [showDeactivated])
@@ -89,6 +109,7 @@ export default function UsersPage() {
         const data = await res.json()
         if (!cancelled) {
           setUsers(data.users ?? [])
+          setActiveLocations(data.active_locations ?? [])
           if (data.lead_assignment_mode) setAssignMode(data.lead_assignment_mode)
           setLoading(false)
         }
@@ -174,6 +195,38 @@ export default function UsersPage() {
     })
     setRoleChanging(null)
     loadUsers()
+  }
+
+  async function handleLocationChange(userId: string, value: string) {
+    setLocationChanging(userId)
+    const location_id = value === 'none' ? null : value
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/location`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ location_id }),
+      })
+      const data = await res.json().catch(() => ({})) as {
+        location_id?: string | null
+        location_name?: string | null
+        error?: string
+      }
+      if (!res.ok) {
+        setError(data.error ?? 'Failed to update location')
+        return
+      }
+      setUsers(prev =>
+        prev.map(u =>
+          u.id === userId
+            ? { ...u, location_id: data.location_id ?? null, location_name: data.location_name ?? null }
+            : u,
+        ),
+      )
+    } catch {
+      setError('Failed to update location')
+    } finally {
+      setLocationChanging(null)
+    }
   }
 
   return (
@@ -314,6 +367,34 @@ export default function UsersPage() {
                   <p className="text-xs text-muted-foreground">
                     {u.assigned_count} assigned lead{u.assigned_count !== 1 ? 's' : ''}
                   </p>
+                  <p className="text-xs text-muted-foreground">
+                    Location:{' '}
+                    <span className="font-medium text-foreground">{locationDisplayLabel(u)}</span>
+                  </p>
+                  {!showsAllLocations(u) && !isDeactivated && (
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Change location</Label>
+                      <Select
+                        value={u.location_id ?? 'none'}
+                        onValueChange={v => void handleLocationChange(u.id, v)}
+                        disabled={locationChanging === u.id}
+                      >
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Select location" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none" className="text-xs">
+                            None
+                          </SelectItem>
+                          {activeLocations.map(loc => (
+                            <SelectItem key={loc.id} value={loc.id} className="text-xs">
+                              {loc.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   {/* Role change dropdown (non-admin, non-deactivated) */}
                   {!isAdmin && !isDeactivated && (
                     <Select

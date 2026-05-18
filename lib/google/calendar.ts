@@ -48,18 +48,15 @@ export async function createCalendarEvent(
       .maybeSingle()
     if (tokens?.calendar_refresh_token) refreshToken = tokens.calendar_refresh_token
 
-    // Dynamic address map from org_settings.locations
-    const { data: settings } = await supabase
-      .from('org_settings')
-      .select('locations')
+    // Address map from dealer_locations (canonical source; JSONB org_settings.locations is legacy)
+    const { data: dealerLocations } = await supabase
+      .from('dealer_locations')
+      .select('name, address')
       .eq('org_id', orgId)
-      .maybeSingle()
+      .eq('is_active', true)
 
-    const locations = settings?.locations as Array<{ name: string; address: string }> | null
-    if (locations) {
-      for (const loc of locations) {
-        if (loc.name && loc.address) locationMap[loc.name] = loc.address
-      }
+    for (const loc of dealerLocations ?? []) {
+      if (loc.name && loc.address) locationMap[loc.name] = loc.address
     }
   }
 

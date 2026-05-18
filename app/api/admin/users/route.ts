@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
   const includeDeactivated = req.nextUrl.searchParams.get('include_deactivated') === 'true'
 
   const service = createServiceClient()
-  const [{ data: profiles, error }, { data: customerCounts }, { data: orgSettings }] = await Promise.all([
+  const [{ data: profiles, error }, { data: customerCounts }, { data: orgSettings }, { data: activeLocations }] = await Promise.all([
     service
       .from('profiles')
       .select('*')
@@ -72,6 +72,12 @@ export async function GET(req: NextRequest) {
       .select('lead_assignment_mode')
       .eq('org_id', auth.profile.org_id)
       .maybeSingle(),
+    service
+      .from('dealer_locations')
+      .select('id, name')
+      .eq('org_id', auth.profile.org_id)
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true }),
   ])
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -81,13 +87,20 @@ export async function GET(req: NextRequest) {
     if (c.assigned_to) counts[c.assigned_to] = (counts[c.assigned_to] ?? 0) + 1
   })
 
+  const locationNameById = new Map((activeLocations ?? []).map(l => [l.id, l.name]))
+
   const users = profiles?.map(p => ({
     ...p,
     assigned_count: counts[p.id] ?? 0,
     role_label: ROLE_LABELS[p.role as UserRole] ?? p.role,
+    location_name: p.location_id ? (locationNameById.get(p.location_id) ?? null) : null,
   })) ?? []
 
-  return NextResponse.json({ users, lead_assignment_mode: orgSettings?.lead_assignment_mode ?? 'owner' })
+  return NextResponse.json({
+    users,
+    active_locations: activeLocations ?? [],
+    lead_assignment_mode: orgSettings?.lead_assignment_mode ?? 'owner',
+  })
 }
 
 /** POST /api/admin/users — invite a new user to this org */

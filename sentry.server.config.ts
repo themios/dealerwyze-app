@@ -2,10 +2,21 @@ import * as Sentry from '@sentry/nextjs'
 
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  environment: process.env.NODE_ENV === 'production' ? 'production' : 'development',
+  tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
 
-  // Capture 10% of performance traces
-  tracesSampleRate: 0.1,
+  beforeSend(event) {
+    if (event.request?.data) event.request.data = '[redacted]'
+    if (event.request?.cookies) event.request.cookies = {}
+    if (event.request?.headers) {
+      const safe = ['content-type', 'x-forwarded-for', 'user-agent', 'x-pathname']
+      const h = event.request.headers as Record<string, string>
+      event.request.headers = Object.fromEntries(
+        Object.entries(h).filter(([k]) => safe.includes(k.toLowerCase())),
+      )
+    }
+    return event
+  },
 
-  // Don't log Sentry internals
   debug: false,
 })

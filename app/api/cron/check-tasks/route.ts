@@ -18,6 +18,8 @@ import { runGmailTokenHealth } from '@/lib/cron/jobs/gmailTokenHealth'
 import { runPulseSurveys } from '@/lib/cron/jobs/pulseSurveys'
 import { runAppointmentRemindersV2 } from '@/lib/cron/jobs/appointmentRemindersV2'
 import { runAbuseDetection } from '@/lib/cron/jobs/abuseDetection'
+import { runDealerFollowUps } from '@/lib/cron/jobs/dealerFollowUps'
+import { runPlatformOwnerDigest } from '@/lib/cron/jobs/platformOwnerDigest'
 
 export const runtime = 'nodejs'
 export const maxDuration = 55
@@ -57,7 +59,9 @@ export async function GET(req: NextRequest) {
   let gmailWatch:  Awaited<ReturnType<typeof runGmailWatchRenewal>>     | undefined
   let gmailTokens: Awaited<ReturnType<typeof runGmailTokenHealth>>      | undefined
   let apptV2:      Awaited<ReturnType<typeof runAppointmentRemindersV2>>| undefined
-  let abuse:       Awaited<ReturnType<typeof runAbuseDetection>>        | undefined
+  let abuse:         Awaited<ReturnType<typeof runAbuseDetection>>          | undefined
+  let followUps:     Awaited<ReturnType<typeof runDealerFollowUps>>         | undefined
+  let ownerDigest:   Awaited<ReturnType<typeof runPlatformOwnerDigest>>     | undefined
 
   try {
     receipts    = await runJob('receiptTasks',            () => runReceiptTasks(supabase))
@@ -76,6 +80,8 @@ export async function GET(req: NextRequest) {
     await          runJob('pulseSurveys',                 () => runPulseSurveys(supabase))
     apptV2      = await runJob('appointmentRemindersV2',  () => runAppointmentRemindersV2(supabase))
     abuse       = await runJob('abuseDetection',           () => runAbuseDetection(supabase))
+    followUps   = await runJob('dealerFollowUps',          () => runDealerFollowUps(supabase))
+    ownerDigest = await runJob('platformOwnerDigest',      () => runPlatformOwnerDigest(supabase))
   } finally {
     const anyFailed = Object.values(jobResults).some(v => v !== 'ok')
     await finishCronRun(runId, anyFailed ? 'partial_failure' : 'success', adminResult?.allOrgsCount)
@@ -97,6 +103,8 @@ export async function GET(req: NextRequest) {
     gmail_tokens_revoked:        gmailTokens?.gmailTokensRevoked,
     reminders_queued:            apptV2?.remindersQueued,
     abuse_flags_created:         abuse?.flagsCreated,
+    dealer_followups_sent:       followUps?.dealerFollowUpsSent,
+    platform_digest_sent:        ownerDigest?.platformDigestSent,
     job_results:                 jobResults,
   })
 }

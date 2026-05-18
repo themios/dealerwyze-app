@@ -133,7 +133,7 @@ export async function PATCH(req: NextRequest) {
   if (body.voice_business_hours_start !== undefined) settingsPayload.voice_business_hours_start = body.voice_business_hours_start
   if (body.voice_business_hours_end !== undefined) settingsPayload.voice_business_hours_end = body.voice_business_hours_end
   if (body.gbp_location_id !== undefined) settingsPayload.gbp_location_id = body.gbp_location_id
-  if (body.locations !== undefined) (settingsPayload as Record<string, unknown>).locations = body.locations
+  // JSONB org_settings.locations is read-only during multi-location rollout (Phase 8+).
   if (body.dealer_website_url !== undefined) {
     settingsPayload.dealer_website_url = body.dealer_website_url
     // Single inventory URL: when only URL is sent (e.g. from one-field form), clear path so sync uses URL as full page

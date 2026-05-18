@@ -4,7 +4,7 @@ import { sendLeadNotification } from '@/lib/push/send'
 import { createLeadResponseTask } from '@/lib/tasks/auto'
 import { sendTelegramMessage } from '@/lib/notifications/telegram'
 import { sendSmsConsentRequest } from '@/lib/sms/sendConsent'
-import { resolveLeadAssignee } from '@/lib/leads/assignLead'
+import { applyAutoLeadAssignment } from '@/lib/leads/assignLead'
 import { detectAppointmentIntent } from '@/lib/leads/detectAppointmentIntent'
 import { normalizePhone } from '@/lib/utils/phone'
 import { deriveLeadIntentFromLead, mergeLeadIntent } from '@/lib/leads/intent'
@@ -12,6 +12,10 @@ import { pickReInquiryCandidate } from '@/lib/leads/reinquiry'
 import { enqueueConversationRescore } from '@/lib/leads/conversationScore'
 import { refreshCustomerEngagement } from '@/lib/customers/engagement'
 import { emitEvent } from '@/lib/intelligence/emitEvent'
+import {
+  applyLeadLocationDetection,
+  type LeadLocationIngestContext,
+} from '@/lib/leads/detectLeadLocation'
 
 function normalizeName(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
@@ -20,6 +24,8 @@ function normalizeName(value: string): string {
 export type IngestLeadOptions = {
   /** Assign the customer to this profile (e.g. staff who captured a scan) so they see the lead on /customers when rep-scoped. */
   capturedByUserId?: string
+  /** Context for multi-location auto-detection (Phase 3). */
+  location?: LeadLocationIngestContext
 }
 
 export async function ingestLead(
@@ -143,7 +149,6 @@ export async function ingestLead(
           isReInquiry = true
           await supabase.from('customers').update({ email: lead.email }).eq('id', customerId).is('email', null)
         } else {
-          const assignedTo = options?.capturedByUserId ?? await resolveLeadAssignee(userId)
           const { data: created, error } = await supabase
             .from('customers')
             .insert({
@@ -153,7 +158,7 @@ export async function ingestLead(
               email: lead.email,
               lead_source: lead.source,
               zip_code: lead.zip,
-              assigned_to: assignedTo,
+              assigned_to: options?.capturedByUserId ?? null,
             })
             .select('id')
             .single()
@@ -174,6 +179,21 @@ export async function ingestLead(
       }
     }
   }
+
+  await applyLeadLocationDetection({
+    customerId,
+    orgId: userId,
+    context: options?.location,
+    customerPhone: lead.phone,
+    supabase,
+  })
+
+  await applyAutoLeadAssignment({
+    customerId,
+    orgId: userId,
+    capturedByUserId: options?.capturedByUserId,
+    supabase,
+  })
 
   // Mark as hot if source declared it or customer is re-inquiring
   const shouldMarkHot = lead.is_hot || lead.is_reengaged || isReInquiry
@@ -239,6 +259,30 @@ export async function ingestLead(
         .not('vin', 'is', null)
       const match = vinCandidates?.find(v => normVin(v.vin ?? '') === cleanVin) ?? null
       if (match) vehicleId = match.id
+    }
+
+    // Fallback: match by year + make + model when no VIN (e.g. CarGurus phone leads)
+    if (!vehicleId) {
+      const ymMatch = lead.vehicle.match(/^(\d{4})\s+(\S+)\s+(.+)/)
+      if (ymMatch) {
+        const [, yearStr, make, modelRest] = ymMatch
+        const { data: ymCandidates } = await supabase
+          .from('vehicles')
+          .select('id, year, make, model, trim')
+          .eq('user_id', userId)
+          .eq('year', parseInt(yearStr, 10))
+          .ilike('make', make)
+          .eq('status', 'available')
+        if (ymCandidates && ymCandidates.length > 0) {
+          const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
+          const leadModel = norm(modelRest)
+          const hit =
+            ymCandidates.find(v => leadModel.includes(norm(v.model))) ??
+            ymCandidates.find(v => norm(v.model).includes(norm(modelRest.split(/\s+/)[0]))) ??
+            (ymCandidates.length === 1 ? ymCandidates[0] : null)
+          if (hit) vehicleId = hit.id
+        }
+      }
     }
 
     if (vehicleId) {

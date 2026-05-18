@@ -16,6 +16,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { stopSequenceOnReply } from '@/lib/sequences/stopSequenceOnReply'
 import { parseAnyLead, parseCarGurusDigest } from '@/lib/leads/parser'
 import { ingestLead } from '@/lib/leads/ingest'
+import { applyLeadLocationDetection } from '@/lib/leads/detectLeadLocation'
 import { getLeadSourceEmailMatchers, matchesLeadSourceEmail } from '@/lib/leads/sourceMatchers'
 import { enqueueConversationRescore } from '@/lib/leads/conversationScore'
 
@@ -229,13 +230,17 @@ export async function processGmailHistory(
     if (digestLeads.length > 0) {
       for (let i = 0; i < digestLeads.length; i++) {
         const extId = `${gmailMsgId}-digest-${i}`
-        await ingestLead(digestLeads[i], extId, orgId)
+        await ingestLead(digestLeads[i], extId, orgId, {
+          location: { emailSubject: subject, emailBody: body },
+        })
         leads++
       }
     } else {
       const parsedLead = parseAnyLead(subject, body, fromEmail)
       if (parsedLead) {
-        await ingestLead(parsedLead, gmailMsgId, orgId)
+        await ingestLead(parsedLead, gmailMsgId, orgId, {
+          location: { emailSubject: subject, emailBody: body },
+        })
         leads++
       } else {
         if (!looksLikeLead(subject, body)) continue
@@ -261,6 +266,13 @@ export async function processGmailHistory(
           .single()
 
         if (!newCustomer) continue
+
+        void applyLeadLocationDetection({
+          customerId: newCustomer.id,
+          orgId,
+          context: { emailSubject: subject, emailBody: body },
+          supabase,
+        })
 
         // Create inbound lead activity
         await supabase.from('activities').insert({

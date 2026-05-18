@@ -19,6 +19,8 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { enrollCustomer } from '@/lib/sequences/enrollCustomer'
 import { checkQuota, incrementUsage } from '@/lib/sms/quota'
+import { getLeadOutboundTemplateVars } from '@/lib/locations/getLeadTemplateVars'
+import { fillTemplate } from '@/lib/utils'
 
 interface AutoResponseArgs {
   orgId:      string
@@ -195,10 +197,9 @@ export async function sendAutoResponseStep1(args: AutoResponseArgs): Promise<voi
         return
       }
 
-      // Fetch org Twilio number
       const { data: orgSettings } = await supabase
         .from('org_settings')
-        .select('twilio_phone_number, business_name')
+        .select('twilio_phone_number')
         .eq('org_id', orgId)
         .maybeSingle()
 
@@ -208,13 +209,12 @@ export async function sendAutoResponseStep1(args: AutoResponseArgs): Promise<voi
         return
       }
 
-      // Substitute basic vars in SMS body
       const firstName = customerName.split(' ')[0] || customerName
-      const msgBody = stepBody
-        .replace(/\{first_name\}/gi, firstName)
-        .replace(/\{firstName\}/g, firstName)
-        .replace(/\{business_name\}/gi, orgSettings?.business_name ?? '')
-        .trim()
+      const vars = await getLeadOutboundTemplateVars(orgId, customerId, supabase, {
+        firstName,
+        first_name: firstName,
+      })
+      const msgBody = fillTemplate(stepBody, vars).trim()
 
       // Normalize phone to E.164
       const digits = phone.replace(/\D/g, '')

@@ -1,5 +1,7 @@
 import 'server-only'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { createServiceClient } from '@/lib/supabase/service'
+import { isMultiLocationOrg } from '@/lib/locations/resolve'
 
 /**
  * Determines which profile ID to assign a new lead to, based on the org's
@@ -7,10 +9,27 @@ import { createServiceClient } from '@/lib/supabase/service'
  *   'owner'       — always assign to the dealer_admin (org owner)
  *   'round_robin' — rotate through active dealer_rep + dealer_manager profiles
  *   'manual'      — return null (owner assigns manually)
+ *
+ * Multi-location orgs: round-robin uses `dealer_locations.round_robin_index` and
+ * only staff at `lead.location_id`. Unresolved leads (null location_id) skip auto-assignment.
+ * Single-location orgs: unchanged — org-wide `lead_assignment_rep_index` on org_settings.
  */
-export async function resolveLeadAssignee(orgId: string): Promise<string | null> {
-  // lib function called from cron/webhook — no user session; orgId validated by caller
+export type ResolveLeadAssigneeOptions = {
+  locationId?: string | null
+}
+
+const REP_ROLES = new Set(['dealer_rep', 'dealer_manager'])
+
+export async function resolveLeadAssignee(
+  orgId: string,
+  options?: ResolveLeadAssigneeOptions,
+): Promise<string | null> {
   const supabase = createServiceClient()
+  const multi = await isMultiLocationOrg(orgId, supabase)
+
+  if (multi && !options?.locationId) {
+    return null
+  }
 
   const { data: settings } = await supabase
     .from('org_settings')
@@ -22,10 +41,9 @@ export async function resolveLeadAssignee(orgId: string): Promise<string | null>
 
   if (mode === 'manual') return null
 
-  // Get all active profiles for this org
   const { data: profiles } = await supabase
     .from('profiles')
-    .select('id, role')
+    .select('id, role, location_id')
     .eq('org_id', orgId)
     .is('deactivated_at', null)
 
@@ -36,20 +54,82 @@ export async function resolveLeadAssignee(orgId: string): Promise<string | null>
     return owner?.id ?? profiles[0].id
   }
 
-  // round_robin — rotate through reps + managers (exclude dealer_admin so owner isn't in rotation unless solo)
-  const reps = profiles.filter(p => p.role === 'dealer_rep' || p.role === 'dealer_manager')
-  const pool = reps.length > 0 ? reps : profiles // fallback to all if no reps
+  // round_robin
+  let pool = profiles.filter(p => REP_ROLES.has(p.role))
+  if (multi && options?.locationId) {
+    pool = pool.filter(p => p.location_id === options.locationId)
+  }
+  const rotationPool = pool.length > 0 ? pool : profiles
 
-  const currentIndex = settings?.lead_assignment_rep_index ?? 0
+  if (rotationPool.length === 0) return null
+
+  if (!multi) {
+    const currentIndex = settings?.lead_assignment_rep_index ?? 0
+    const nextIndex = (currentIndex + 1) % rotationPool.length
+    const assignee = rotationPool[currentIndex % rotationPool.length]
+
+    supabase
+      .from('org_settings')
+      .update({ lead_assignment_rep_index: nextIndex })
+      .eq('org_id', orgId)
+      .then(() => {})
+
+    return assignee.id
+  }
+
+  const locationId = options!.locationId!
+  const { data: location } = await supabase
+    .from('dealer_locations')
+    .select('id, round_robin_index')
+    .eq('id', locationId)
+    .eq('org_id', orgId)
+    .maybeSingle()
+
+  if (!location || pool.length === 0) return null
+
+  const currentIndex = location.round_robin_index ?? 0
   const nextIndex = (currentIndex + 1) % pool.length
   const assignee = pool[currentIndex % pool.length]
 
-  // Advance the index (fire-and-forget)
   supabase
-    .from('org_settings')
-    .update({ lead_assignment_rep_index: nextIndex })
-    .eq('org_id', orgId)
+    .from('dealer_locations')
+    .update({ round_robin_index: nextIndex })
+    .eq('id', locationId)
     .then(() => {})
 
   return assignee.id
+}
+
+/** Assign a new lead after location detection (ingest). Skips if already assigned or captured by staff. */
+export async function applyAutoLeadAssignment(params: {
+  customerId: string
+  orgId: string
+  capturedByUserId?: string
+  supabase?: SupabaseClient
+}): Promise<void> {
+  if (params.capturedByUserId) return
+
+  try {
+    const supabase = params.supabase ?? createServiceClient()
+    const { data: customer } = await supabase
+      .from('customers')
+      .select('assigned_to, location_id')
+      .eq('id', params.customerId)
+      .eq('user_id', params.orgId)
+      .maybeSingle()
+
+    if (!customer || customer.assigned_to) return
+
+    const assignee = await resolveLeadAssignee(params.orgId, {
+      locationId: customer.location_id ?? null,
+    })
+    if (!assignee) return
+
+    await supabase
+      .from('customers')
+      .update({ assigned_to: assignee })
+      .eq('id', params.customerId)
+  } catch {
+    // Non-fatal — ingest must not fail
+  }
 }

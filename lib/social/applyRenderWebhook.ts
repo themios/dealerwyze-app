@@ -4,6 +4,7 @@ import {
   captionForListing,
   runOrgSocialPublish,
 } from '@/lib/social/runOrgSocialPublish'
+import { autoPostContentRender } from '@/lib/content/autoPostContent'
 
 export interface RemotionRenderWebhookBody {
   type?: string
@@ -33,7 +34,10 @@ export async function applyRemotionRenderWebhook(
     .eq('lambda_render_id', renderId)
     .maybeSingle()
 
-  if (!row) return { matched: false }
+  if (!row) {
+    // Check content_renders table as fallback
+    return applyContentRenderWebhook(body, renderId)
+  }
 
   const completedAt = new Date().toISOString()
   let autoPosted = false
@@ -133,6 +137,69 @@ export async function applyRemotionRenderWebhook(
       completed_at:  completedAt,
       error_message: errMsg.slice(0, 2_000),
     })
+    .eq('id', row.id)
+
+  return { matched: true, autoPosted: false }
+}
+
+async function applyContentRenderWebhook(
+  body: RemotionRenderWebhookBody,
+  lambdaRenderId: string,
+): Promise<{ matched: boolean; autoPosted?: boolean; duplicateWebhook?: boolean }> {
+  const supabase = createServiceClient()
+
+  const { data: row } = await supabase
+    .from('content_renders')
+    .select('id, org_id, auto_post, auto_post_platforms, status, output_url')
+    .eq('lambda_render_id', lambdaRenderId)
+    .maybeSingle()
+
+  if (!row) return { matched: false }
+
+  const completedAt = new Date().toISOString()
+
+  if (body.type === 'success') {
+    if (typeof body.outputUrl !== 'string' || !body.outputUrl.startsWith('http')) {
+      await supabase
+        .from('content_renders')
+        .update({ status: 'failed', completed_at: completedAt, error_message: 'No output URL returned.' })
+        .eq('id', row.id)
+      return { matched: true, autoPosted: false }
+    }
+
+    try { assertSafeOutboundMediaUrl(body.outputUrl) } catch {
+      await supabase
+        .from('content_renders')
+        .update({ status: 'failed', completed_at: completedAt, error_message: 'Output URL failed policy checks.' })
+        .eq('id', row.id)
+      return { matched: true, autoPosted: false }
+    }
+
+    if (row.status === 'complete' && row.output_url === body.outputUrl) {
+      return { matched: true, duplicateWebhook: true }
+    }
+
+    await supabase
+      .from('content_renders')
+      .update({ status: 'complete', output_url: body.outputUrl, completed_at: completedAt, error_message: null })
+      .eq('id', row.id)
+
+    let autoPosted = false
+    if (row.auto_post && Array.isArray(row.auto_post_platforms) && row.auto_post_platforms.length > 0) {
+      const results = await autoPostContentRender(row.id)
+      autoPosted = results.some(r => r.ok)
+    }
+
+    return { matched: true, autoPosted }
+  }
+
+  let errMsg = typeof body.type === 'string' ? `Render ${body.type}` : 'Render failed'
+  if (body.errors) {
+    try { errMsg += `: ${typeof body.errors === 'string' ? body.errors : JSON.stringify(body.errors).slice(0, 500)}` } catch { /* ok */ }
+  }
+  await supabase
+    .from('content_renders')
+    .update({ status: 'failed', completed_at: completedAt, error_message: errMsg.slice(0, 2000) })
     .eq('id', row.id)
 
   return { matched: true, autoPosted: false }

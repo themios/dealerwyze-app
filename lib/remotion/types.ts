@@ -50,6 +50,47 @@ export interface VideoTemplate {
   created_at: string
 }
 
+// Content reel (marketing / brand content — not vehicle-specific)
+export interface ContentSlide {
+  headline: string
+  body?: string
+  emoji?: string
+  backgroundImageUrl?: string
+}
+
+export interface ContentReelProps {
+  brandName: string
+  brandHandle: string
+  accentColor: string
+  bgColor: string
+  topic: string
+  tagline?: string
+  slides: ContentSlide[]
+  ctaText: string
+  watermark: boolean
+  logoUrl?: string
+  website?: string
+  backgroundImageUrl?: string
+  ctaImages?: string[]
+  narrationUrl?: string
+  totalDurationFrames?: number
+}
+
+export interface ContentRender {
+  id: string
+  org_id: string
+  status: 'queued' | 'rendering' | 'complete' | 'failed' | 'cancelled'
+  props_snapshot: ContentReelProps
+  output_url: string | null
+  lambda_render_id: string | null
+  error_message: string | null
+  auto_post: boolean
+  auto_post_platforms: string[]
+  post_results: Record<string, unknown> | null
+  created_at: string
+  completed_at: string | null
+}
+
 export interface OrgVideoSettings {
   org_id: string
   favorite_template_ids: string[]

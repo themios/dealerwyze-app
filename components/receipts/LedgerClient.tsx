@@ -1,7 +1,9 @@
 'use client'
 
+import Image from 'next/image'
 import { useState, useMemo } from 'react'
-import { Download, Search, X, Car, Pencil, Check, Loader2, Trash2, ArrowUpDown } from 'lucide-react'
+import { toast } from 'sonner'
+import { Download, Search, X, Car, Pencil, Check, Loader2, Trash2, ArrowUpDown, Receipt, ExternalLink } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -33,6 +35,7 @@ interface Transaction {
   tags: string[] | null
   vehicle_id: string | null
   category_id: string | null
+  receipt_id: string | null
   created_at: string
   receipt_categories?: { name: string }[] | { name: string } | null
   vehicles?: VehicleJoin[] | VehicleJoin | null
@@ -101,18 +104,43 @@ function EditSheet({
   )
   const [vehicleId, setVehicleId] = useState<string | null>(tx.vehicle_id)
   const [memo, setMemo] = useState(tx.memo ?? '')
+  const [vendor, setVendor] = useState(tx.vendor_norm ?? '')
+  const [amount, setAmount] = useState(tx.amount_total != null ? String(tx.amount_total) : '')
+  const [date, setDate] = useState(tx.date?.slice(0, 10) ?? '')
   const [vehSearch, setVehSearch] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [receiptUrl, setReceiptUrl] = useState<string | null>(null)
+  const [receiptLoading, setReceiptLoading] = useState(false)
 
   const filteredVehicles = (list: Vehicle[]) =>
     vehSearch
       ? list.filter(v => vehicleLabel(v).toLowerCase().includes(vehSearch.toLowerCase()))
       : list
 
+  async function loadReceipt() {
+    if (!tx.receipt_id || receiptUrl) return
+    setReceiptLoading(true)
+    try {
+      const res = await fetch(`/api/receipts/${tx.receipt_id}`)
+      if (res.ok) {
+        const data = await res.json()
+        setReceiptUrl(data.receipt?.signed_url ?? null)
+      }
+    } finally {
+      setReceiptLoading(false)
+    }
+  }
+
   async function save() {
     setSaving(true)
     setError(null)
+    const parsedAmount = parseFloat(amount)
+    if (amount && isNaN(parsedAmount)) {
+      setError('Amount must be a valid number')
+      setSaving(false)
+      return
+    }
     try {
       const res = await fetch(`/api/receipts/ledger/${tx.id}`, {
         method: 'PATCH',
@@ -121,6 +149,9 @@ function EditSheet({
           category_id: categoryId || undefined,
           vehicle_id: vehicleId,
           memo: memo.trim() || null,
+          vendor_norm: vendor.trim() || null,
+          amount_total: amount ? parsedAmount : undefined,
+          date: date || undefined,
         }),
       })
       const data = await res.json()
@@ -137,7 +168,7 @@ function EditSheet({
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={onClose}>
       <div
-        className="bg-background border-t rounded-t-2xl shadow-xl max-h-[85vh] overflow-y-auto"
+        className="bg-background border-t rounded-t-2xl shadow-xl max-h-[90vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}
       >
         {/* Handle */}
@@ -148,13 +179,69 @@ function EditSheet({
         <div className="px-4 pb-8 space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-base font-semibold">Edit Transaction</p>
-            <button onClick={onClose}><X className="h-5 w-5 text-muted-foreground" /></button>
+            <div className="flex items-center gap-2">
+              {tx.receipt_id && (
+                <button
+                  onClick={loadReceipt}
+                  className="flex items-center gap-1.5 text-xs text-primary font-medium px-2 py-1 rounded-md hover:bg-primary/10 transition-colors"
+                >
+                  <Receipt className="h-3.5 w-3.5" />
+                  {receiptLoading ? 'Loading…' : 'View Receipt'}
+                </button>
+              )}
+              <button onClick={onClose}><X className="h-5 w-5 text-muted-foreground" /></button>
+            </div>
           </div>
 
-          <p className="text-sm text-muted-foreground">
-            {tx.vendor_norm ?? 'Unknown vendor'} ·{' '}
-            {tx.amount_total != null ? `$${Number(tx.amount_total).toFixed(2)}` : '—'}
-          </p>
+          {/* Receipt image */}
+          {receiptUrl && (
+            <div className="rounded-xl border overflow-hidden bg-muted/20">
+              <div className="relative w-full h-64">
+                <Image
+                  src={receiptUrl}
+                  alt="Receipt"
+                  fill
+                  className="object-contain"
+                  unoptimized
+                />
+              </div>
+              <a
+                href={receiptUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-1.5 py-2 text-xs text-primary hover:underline"
+              >
+                <ExternalLink className="h-3 w-3" />
+                Open full size
+              </a>
+            </div>
+          )}
+
+          {/* Vendor */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Vendor</p>
+            <Input value={vendor} onChange={e => setVendor(e.target.value)} placeholder="Vendor name…" />
+          </div>
+
+          {/* Amount + Date */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Amount ($)</p>
+              <Input
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0"
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Date</p>
+              <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
+            </div>
+          </div>
 
           {/* Category */}
           <div>
@@ -184,9 +271,7 @@ function EditSheet({
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Vehicle</p>
               {vehicleId && (
-                <button onClick={() => setVehicleId(null)} className="text-xs text-destructive">
-                  Clear
-                </button>
+                <button onClick={() => setVehicleId(null)} className="text-xs text-destructive">Clear</button>
               )}
             </div>
 
@@ -213,16 +298,12 @@ function EditSheet({
             <div className="rounded-xl border bg-card divide-y overflow-hidden max-h-40 overflow-y-auto">
               {filteredVehicles(lotVehicles).length > 0 && (
                 <>
-                  <p className="px-4 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide bg-muted/30">
-                    On Lot
-                  </p>
+                  <p className="px-4 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide bg-muted/30">On Lot</p>
                   {filteredVehicles(lotVehicles).map(v => (
                     <button
                       key={v.id}
                       onClick={() => setVehicleId(v.id === vehicleId ? null : v.id)}
-                      className={`w-full flex items-center gap-2 px-4 py-2 text-left hover:bg-muted/30 text-sm ${
-                        v.id === vehicleId ? 'bg-primary/5 text-primary' : ''
-                      }`}
+                      className={`w-full flex items-center gap-2 px-4 py-2 text-left hover:bg-muted/30 text-sm ${v.id === vehicleId ? 'bg-primary/5 text-primary' : ''}`}
                     >
                       <span className="truncate">{v.year} {v.make} {v.model} · {v.stock_no}</span>
                     </button>
@@ -231,16 +312,12 @@ function EditSheet({
               )}
               {filteredVehicles(soldVehicles).length > 0 && (
                 <>
-                  <p className="px-4 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide bg-muted/30">
-                    Recently Sold
-                  </p>
+                  <p className="px-4 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide bg-muted/30">Recently Sold</p>
                   {filteredVehicles(soldVehicles).map(v => (
                     <button
                       key={v.id}
                       onClick={() => setVehicleId(v.id === vehicleId ? null : v.id)}
-                      className={`w-full flex items-center gap-2 px-4 py-2 text-left hover:bg-muted/30 text-sm ${
-                        v.id === vehicleId ? 'bg-primary/5 text-primary' : ''
-                      }`}
+                      className={`w-full flex items-center gap-2 px-4 py-2 text-left hover:bg-muted/30 text-sm ${v.id === vehicleId ? 'bg-primary/5 text-primary' : ''}`}
                     >
                       <span className="truncate">{v.year} {v.make} {v.model} · {v.stock_no}</span>
                     </button>
@@ -256,11 +333,7 @@ function EditSheet({
           {/* Memo */}
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Memo</p>
-            <Input
-              value={memo}
-              onChange={e => setMemo(e.target.value)}
-              placeholder="Optional note…"
-            />
+            <Input value={memo} onChange={e => setMemo(e.target.value)} placeholder="Optional note…" />
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
@@ -351,7 +424,10 @@ export default function LedgerClient({
     setDeleting(id)
     try {
       const res = await fetch(`/api/receipts/ledger/${id}`, { method: 'DELETE' })
-      if (res.ok) setTransactions(prev => prev.filter(t => t.id !== id))
+      if (res.ok) {
+        setTransactions(prev => prev.filter(t => t.id !== id))
+        toast.success('Deleted. You can recover this within 7 days from your account admin or by contacting support.')
+      }
     } finally {
       setDeleting(null)
     }

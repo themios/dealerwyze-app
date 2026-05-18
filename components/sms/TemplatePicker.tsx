@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Template, Customer, Vehicle } from '@/types'
 import { fillTemplate, formatPhoneForTel, prefixWithAuthorName } from '@/lib/utils'
-import { useOrgSettings } from '@/hooks/useOrgSettings'
+import { useLeadTemplateVars } from '@/hooks/useLeadTemplateVars'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -35,6 +35,8 @@ interface TemplatePickerProps {
   vehicle?: Vehicle
   buttonClassName?: string
   labelClassName?: string
+  /** Multi-location lead without location — block SMS */
+  locationBlocked?: boolean
 }
 
 interface SmsMessage { id: string; body: string; direction: string | null; created_at: string }
@@ -46,6 +48,7 @@ export default function TemplatePicker({
   vehicle,
   buttonClassName,
   labelClassName = 'lg:hidden',
+  locationBlocked = false,
 }: TemplatePickerProps) {
   const [open, setOpen]                       = useState(false)
   const [view, setView]                       = useState<View>('categories')
@@ -63,7 +66,7 @@ export default function TemplatePicker({
 
   const supabase = createClient()
   const twilioEnabled = process.env.NEXT_PUBLIC_TWILIO_ENABLED === 'true'
-  const orgSettings = useOrgSettings()
+  const templateVars = useLeadTemplateVars(customer, vehicle)
 
   useEffect(() => {
     if (!open) return
@@ -88,19 +91,6 @@ export default function TemplatePicker({
 
   const templates = dbTemplates.length > 0 ? dbTemplates : FALLBACK_TEMPLATES
 
-  function getVars(): Record<string, string> {
-    const firstName = customer.name.split(' ')[0]
-    return {
-      firstName,
-      vehicle:     vehicle ? `${vehicle.year} ${vehicle.make} ${vehicle.model}` : '{vehicle}',
-      price:       vehicle?.price ? `$${vehicle.price.toLocaleString()}` : '{price}',
-      date: '{date}', time: '{time}', document: '{document}',
-      link:        vehicle?.listing_url ?? '[listing link not set]',
-      dealerName:  orgSettings.dealerName,
-      dealerPhone: orgSettings.dealerPhone,
-    }
-  }
-
   // Build category list
   const favorites = templates.filter(t => t.is_favorite)
   const categorySet = new Set<string>()
@@ -119,7 +109,7 @@ export default function TemplatePicker({
 
   function selectTemplate(t: Template) {
     setSelectedTemplate(t.name)
-    setBody(fillTemplate(t.body, getVars()))
+    setBody(fillTemplate(t.body, templateVars))
     setSendError(null)
     setView('compose')
   }
@@ -213,6 +203,21 @@ export default function TemplatePicker({
       >
         <MessageSquareOff className={`h-4 w-4 ${labelClassName ? 'mr-2' : ''} ${labelClassName === 'lg:hidden' ? 'lg:mr-0' : ''}`.trim()} />
         <span className={labelClassName}>SMS Off</span>
+      </Button>
+    )
+  }
+
+  if (locationBlocked) {
+    return (
+      <Button
+        variant="outline"
+        size="lg"
+        disabled
+        className={`border-muted text-muted-foreground opacity-60 cursor-not-allowed lg:px-3 ${buttonClassName ?? ''}`.trim()}
+        title="Assign a location before sending texts"
+      >
+        <MessageSquare className={`h-4 w-4 ${labelClassName ? 'mr-2' : ''} ${labelClassName === 'lg:hidden' ? 'lg:mr-0' : ''}`.trim()} />
+        <span className={labelClassName}>Text</span>
       </Button>
     )
   }

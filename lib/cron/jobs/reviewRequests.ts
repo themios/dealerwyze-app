@@ -1,6 +1,7 @@
 /** Process scheduled Google review request tasks, sending SMS and/or email to sold customers. */
 
 import type { createServiceClient } from '@/lib/supabase/service'
+import { getLeadOutboundIdentity } from '@/lib/locations/getLeadTemplateVars'
 
 export async function runReviewRequests(
   supabase: ReturnType<typeof createServiceClient>,
@@ -103,7 +104,8 @@ export async function runReviewRequests(
               continue
             }
 
-            const dealerName = settings.business_name || 'your dealership'
+            const identity = await getLeadOutboundIdentity(orgId, customer.id, supabase)
+            const dealerName = identity.name?.trim() || settings.business_name || 'your dealership'
             const reviewUrl  = settings.google_review_url
             const firstName  = customer.name?.split(' ')[0] || 'there'
 

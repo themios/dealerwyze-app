@@ -1,21 +1,45 @@
-import DOMPurify from 'isomorphic-dompurify'
-
-const SIGNATURE_PURIFY_CONFIG = {
-  ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'a', 'img'] as const,
-  ALLOWED_ATTR: ['href', 'src', 'alt', 'width', 'height'] as const,
+const ALLOWED_TAGS = new Set(['p', 'br', 'strong', 'em', 'a', 'img'])
+const ALLOWED_ATTRS: Record<string, Set<string>> = {
+  a:   new Set(['href']),
+  img: new Set(['src', 'alt', 'width', 'height']),
 }
 
-function sanitizeSignatureMarkup(value: string): string {
-  return DOMPurify.sanitize(value, {
-    ALLOWED_TAGS: [...SIGNATURE_PURIFY_CONFIG.ALLOWED_TAGS],
-    ALLOWED_ATTR: [...SIGNATURE_PURIFY_CONFIG.ALLOWED_ATTR],
+function stripDangerousAttrs(tag: string, attrs: string): string {
+  const allowed = ALLOWED_ATTRS[tag]
+  if (!allowed) return ''
+  // Remove event handlers and javascript: protocol anywhere
+  return attrs
+    .replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|\S+)/gi, '')
+    .replace(/\s+(href|src)\s*=\s*"javascript:[^"]*"/gi, '')
+    .replace(/\s+(href|src)\s*=\s*'javascript:[^']*'/gi, '')
+    .split(/(?=\s)/)
+    .filter(part => {
+      const attrName = part.trim().split(/[\s=]/)[0].toLowerCase()
+      return !attrName || allowed.has(attrName)
+    })
+    .join('')
+}
+
+function sanitizeMarkup(input: string): string {
+  // Strip script/style/iframe/form blocks entirely (including content)
+  let out = input.replace(/<(script|style|iframe|form|input|button|object|embed)[^>]*>[\s\S]*?<\/\1>/gi, '')
+  // Strip self-closing dangerous tags
+  out = out.replace(/<(script|style|iframe|form|input|button|object|embed)[^>]*\/?>/gi, '')
+  // Process remaining tags: keep allowed, strip others
+  out = out.replace(/<\/?([a-z][a-z0-9]*)((?:\s[^>]*)?)\s*\/?>/gi, (match, tag, attrs) => {
+    const t = tag.toLowerCase()
+    if (!ALLOWED_TAGS.has(t)) return ''
+    if (match.startsWith('</')) return `</${t}>`
+    const safeAttrs = stripDangerousAttrs(t, attrs ?? '')
+    return match.trim().endsWith('/>') ? `<${t}${safeAttrs}/>` : `<${t}${safeAttrs}>`
   })
+  return out
 }
 
 export function sanitizeEmailSignatureHtml(input: string | null | undefined): string {
   const value = input?.trim()
   if (!value) return ''
-  return sanitizeSignatureMarkup(value).trim()
+  return sanitizeMarkup(value).trim()
 }
 
 export function stripHtmlToText(input: string | null | undefined): string {

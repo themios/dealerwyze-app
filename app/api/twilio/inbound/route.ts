@@ -17,6 +17,8 @@ import { getTwilioWebhookBase, validateTwilioSignature } from '@/lib/twilio/sign
 import { enqueueConversationRescore } from '@/lib/leads/conversationScore'
 import { writeAuditLog } from '@/lib/audit/log'
 import { emitEvent } from '@/lib/intelligence/emitEvent'
+import { applyLeadLocationDetection } from '@/lib/leads/detectLeadLocation'
+import * as Sentry from '@sentry/nextjs'
 
 // Twilio sends form-encoded POST to this endpoint when a customer texts your number.
 // Webhook URL to set in Twilio console (no ?secret= needed — we use HMAC-SHA1 now):
@@ -33,6 +35,9 @@ function twimlMsg(text: string) {
 }
 
 export async function POST(req: NextRequest) {
+  return Sentry.startSpan(
+    { name: 'twilio.inbound', op: 'http.server' },
+    async () => {
   // Twilio sends application/x-www-form-urlencoded
   const text = await req.text()
   const params = Object.fromEntries(new URLSearchParams(text))
@@ -106,14 +111,13 @@ export async function POST(req: NextRequest) {
   // ── Dealer command: inbound SMS from the dealer's own cell ─────────────────
   // e.g. "Tim wants to see the 2009 Acura MDX on Monday at 2pm"
   if (orgId) {
-    const { data: orgSettings } = await supabase
-      .from('org_settings')
-      .select('dealer_cell_number, locations')
-      .eq('org_id', orgId)
-      .maybeSingle()
+    const [{ data: orgSettings }, { data: activeLocations }] = await Promise.all([
+      supabase.from('org_settings').select('dealer_cell_number').eq('org_id', orgId).maybeSingle(),
+      // Use dealer_locations as canonical source (replaces org_settings.locations JSONB)
+      supabase.from('dealer_locations').select('name').eq('org_id', orgId).eq('is_active', true),
+    ])
 
-    const rawLocations = orgSettings?.locations as Array<{ name: string }> | null
-    const locationNames = rawLocations?.map(l => l.name).filter(Boolean) ?? []
+    const locationNames = (activeLocations ?? []).map(l => l.name).filter(Boolean)
 
     const dealerCell = orgSettings?.dealer_cell_number
       ? normalizePhone(orgSettings.dealer_cell_number)
@@ -174,6 +178,13 @@ export async function POST(req: NextRequest) {
           }
           customerId = newCust.id
           isNew = true
+          void applyLeadLocationDetection({
+            customerId,
+            orgId,
+            context: { inboundSmsFrom: toRaw },
+            customerPhone: phoneDisplay ?? lead.phone,
+            supabase,
+          })
         }
 
         // Log inbound activity
@@ -246,6 +257,13 @@ export async function POST(req: NextRequest) {
           )
         }
         customerId = newCustomer.id
+        void applyLeadLocationDetection({
+          customerId,
+          orgId,
+          context: { inboundSmsFrom: toRaw },
+          customerPhone: phone,
+          supabase,
+        })
         dispatchWebhook(orgId, 'new_lead', {
           customer_id: newCustomer.id,
           name: parsed.customer_name,
@@ -463,6 +481,14 @@ export async function POST(req: NextRequest) {
 
   // ── Normal inbound message ────────────────────────────────────────────────
   if (customer) {
+    void applyLeadLocationDetection({
+      customerId: customer.id,
+      orgId,
+      context: { inboundSmsFrom: toRaw },
+      customerPhone: customer.primary_phone ?? customer.secondary_phone,
+      supabase,
+    })
+
     await supabase.from('activities').insert({
       user_id: customer.user_id,
       customer_id: customer.id,
@@ -557,4 +583,6 @@ export async function POST(req: NextRequest) {
     status: 200,
     headers: { 'Content-Type': 'text/xml' },
   })
+    },
+  )
 }

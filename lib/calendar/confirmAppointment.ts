@@ -12,6 +12,7 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { createCalendarEvent } from '@/lib/google/calendar'
 import { sendAppointmentNotification } from '@/lib/calendar/sendAppointmentNotification'
+import { getLeadOutboundIdentity } from '@/lib/locations/getLeadTemplateVars'
 
 export interface ConfirmAppointmentInput {
   activityId: string
@@ -73,13 +74,8 @@ export async function confirmAppointment(
       .eq('id', activityId)
   }
 
-  // 3. Fetch dealer name for notification
-  const { data: settings } = await supabase
-    .from('org_settings')
-    .select('business_name')
-    .eq('org_id', orgId)
-    .maybeSingle()
-  const dealerName = settings?.business_name ?? 'the dealership'
+  const identity = await getLeadOutboundIdentity(orgId, customerId, supabase)
+  const dealerName = identity.name?.trim() || 'the dealership'
 
   // 4. Send customer confirmation - non-blocking
   sendAppointmentNotification({

@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
       *,
       vehicles:linked_vehicle_id(stock_no, year, make, model),
       receipts:linked_receipt_id(vendor_norm, vendor_raw, total),
-      customers:linked_customer_id(name, primary_phone)
+      customers:linked_customer_id(name, primary_phone, archived)
     `)
     .eq('user_id', profile.org_id)
     .eq('status', status)
@@ -37,8 +37,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Database error' }, { status: 500 })
   }
 
+  // Filter out tasks whose linked customer has been archived (belt-and-suspenders;
+  // archiving a customer now auto-completes their tasks, but guards legacy records)
+  const active = (tasks ?? []).filter((t: Record<string, unknown>) => {
+    const c = t.customers as { archived?: boolean } | null
+    return !c?.archived
+  })
+
   // Sort: 'must' before 'should', then preserve due_at asc order within each group
-  const sorted = (tasks ?? []).sort((a, b) => {
+  const sorted = active.sort((a, b) => {
     if (a.priority === b.priority) return 0
     return a.priority === 'must' ? -1 : 1
   })

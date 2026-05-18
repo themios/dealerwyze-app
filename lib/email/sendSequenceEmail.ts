@@ -10,6 +10,7 @@ import nodemailer from 'nodemailer'
 import { sanitizeEmailSignatureHtml, stripHtmlToText } from '@/lib/security/html'
 import { createServiceClient } from '@/lib/supabase/service'
 import { sanitizeEmailHeaderText } from '@/lib/email/header'
+import { getLeadOutboundTemplateVars } from '@/lib/locations/getLeadTemplateVars'
 
 interface SendSequenceEmailArgs {
   orgId: string
@@ -119,7 +120,7 @@ export async function sendSequenceEmail(
   const [{ data: orgSettings }, { data: customerVehicle }] = await Promise.all([
     supabase
       .from('org_settings')
-      .select('email_signature, business_name, dealer_cell_number')
+      .select('email_signature')
       .eq('org_id', orgId)
       .maybeSingle(),
     supabase
@@ -136,16 +137,12 @@ export async function sendSequenceEmail(
   const vehicleLabel = vehicleRow
     ? `${vehicleRow.year ?? ''} ${vehicleRow.make ?? ''} ${vehicleRow.model ?? ''}`.trim()
     : ''
-  const dealerName  = orgSettings?.business_name ?? ''
-  const dealerPhone = orgSettings?.dealer_cell_number ?? ''
 
-  const vars: Record<string, string> = {
+  const vars = await getLeadOutboundTemplateVars(orgId, customerId, supabase, {
     firstName,
-    vehicle:     vehicleLabel,
-    dealerName,
-    dealerPhone,
-    link:        '',  // placeholder — no public VDP link in scope yet
-  }
+    first_name: firstName,
+    vehicle: vehicleLabel,
+  })
 
   const resolvedSubject = sanitizeEmailHeaderText(
     substituteVars(subject, vars),

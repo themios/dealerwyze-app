@@ -1,4 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/service'
+import { getLeadOutboundTemplateVars } from '@/lib/locations/getLeadTemplateVars'
+import { fillTemplate } from '@/lib/utils'
 
 const DEFAULT_CONSENT_TEMPLATE =
   'Hi {first_name}! This is {business_name}. You recently inquired about {vehicle}. ' +
@@ -26,11 +28,10 @@ export async function sendSmsConsentRequest(opts: {
 
   const supabase = createServiceClient()
 
-  // Fetch org settings + org name in parallel
   const [{ data: settings }, { data: org }] = await Promise.all([
     supabase
       .from('org_settings')
-      .select('business_name, twilio_phone_number, sms_consent_message')
+      .select('twilio_phone_number, sms_consent_message')
       .eq('org_id', orgId)
       .maybeSingle(),
     supabase
@@ -40,7 +41,6 @@ export async function sendSmsConsentRequest(opts: {
       .maybeSingle(),
   ])
 
-  const businessName = settings?.business_name?.trim() || org?.name?.trim() || 'our dealership'
   const fromNumber = settings?.twilio_phone_number || process.env.TWILIO_FROM_NUMBER
 
   if (!fromNumber) return { sent: false, reason: 'no_twilio_number' }
@@ -55,10 +55,16 @@ export async function sendSmsConsentRequest(opts: {
   const template = settings?.sms_consent_message ||
     (vehicle ? DEFAULT_CONSENT_TEMPLATE : DEFAULT_CONSENT_TEMPLATE_NO_VEHICLE)
 
-  const messageBody = template
-    .replace('{first_name}', firstName)
-    .replace('{business_name}', businessName)
-    .replace('{vehicle}', vehicle ? `the ${vehicle}` : 'your vehicle inquiry')
+  const vars = await getLeadOutboundTemplateVars(orgId, customerId, supabase, {
+    first_name: firstName,
+    firstName,
+    vehicle: vehicle ? `the ${vehicle}` : 'your vehicle inquiry',
+  })
+  if (!vars.business_name?.trim()) {
+    vars.business_name = org?.name?.trim() || 'our dealership'
+    vars.dealerName = vars.business_name
+  }
+  const messageBody = fillTemplate(template, vars)
 
   // Normalise phone to E.164
   const digits = phone.replace(/\D/g, '')

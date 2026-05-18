@@ -3,6 +3,7 @@ import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 import { isDealerAdmin } from '@/types/index'
 import type { UserRole } from '@/types/index'
+import { logger } from '@/lib/logger'
 
 // Admin-only: patch vehicle, category, memo on any org transaction
 export async function PATCH(
@@ -22,6 +23,9 @@ export async function PATCH(
     vehicle_id?: string | null
     category_id?: string
     memo?: string | null
+    amount_total?: number | null
+    vendor_norm?: string | null
+    date?: string | null
   }
 
   // Whitelist only editable fields
@@ -29,6 +33,9 @@ export async function PATCH(
   if ('vehicle_id' in body) patch.vehicle_id = body.vehicle_id
   if ('category_id' in body) patch.category_id = body.category_id
   if ('memo' in body) patch.memo = body.memo
+  if ('amount_total' in body && body.amount_total != null) patch.amount_total = Number(body.amount_total)
+  if ('vendor_norm' in body) patch.vendor_norm = body.vendor_norm
+  if ('date' in body && body.date) patch.date = body.date
 
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
@@ -43,7 +50,7 @@ export async function PATCH(
     .single()
 
   if (error) {
-    console.error('[receipts/ledger PATCH]', error)
+    logger.error('receipts/ledger', error, { op: 'patch' }, profile.org_id)
     return NextResponse.json({ error: 'Database error' }, { status: 400 })
   }
   return NextResponse.json({ transaction })
@@ -70,7 +77,7 @@ export async function DELETE(
     .eq('org_id', profile.org_id)
 
   if (error) {
-    console.error('[receipts/ledger DELETE]', error)
+    logger.error('receipts/ledger', error, { op: 'delete' }, profile.org_id)
     return NextResponse.json({ error: 'Database error' }, { status: 400 })
   }
   return NextResponse.json({ ok: true })

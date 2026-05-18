@@ -43,6 +43,14 @@
     {
       "path": "/api/cron/daily-social",
       "schedule": "15 13 * * *"
+    },
+    {
+      "path": "/api/cron/purge-recovery-archive",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/weekly-summary",
+      "schedule": "0 17 * * 1"
     }
   ],
   "functions": {
@@ -62,6 +70,9 @@
       "maxDuration": 300
     },
     "app/api/cron/daily-social/route.ts": {
+      "maxDuration": 120
+    },
+    "app/api/cron/purge-recovery-archive/route.ts": {
       "maxDuration": 120
     }
   }

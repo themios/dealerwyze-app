@@ -7,6 +7,8 @@ import { ingestLead } from '@/lib/leads/ingest'
 import type { LeadScanResult } from '@/lib/leads/visionIngestTypes'
 import { sendOutboundSms, SmsSendError } from '@/lib/sms/sendOutbound'
 import { normalizePhone } from '@/lib/utils/phone'
+import { createServiceClient } from '@/lib/supabase/service'
+import { getLeadOutboundIdentity } from '@/lib/locations/getLeadTemplateVars'
 
 export interface CreateFromScanBody {
   scan:             LeadScanResult
@@ -127,13 +129,8 @@ export async function POST(req: NextRequest) {
       const phone = customer?.primary_phone
       if (phone) {
         const firstName = (merged.first_name.value ?? customer?.name?.split(' ')[0] ?? 'there')
-        const { data: orgSettings } = await supabase
-          .from('org_settings')
-          .select('dealer_name')
-          .eq('org_id', orgId)
-          .maybeSingle()
-
-        const dealerName = orgSettings?.dealer_name ?? 'your dealer'
+        const identity = await getLeadOutboundIdentity(orgId, customerId, createServiceClient())
+        const dealerName = identity.name?.trim() || 'your dealer'
         const introBody = `Hi ${firstName}! Thanks for your interest. This is ${dealerName} — we'd love to help you find the right vehicle. Reply STOP to opt out.`
 
         try {

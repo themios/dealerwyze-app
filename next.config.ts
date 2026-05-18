@@ -72,12 +72,12 @@ const nextConfig: NextConfig = {
 }
 
 const sentryConfig = {
-  // Suppresses Sentry CLI output during build
   silent: !process.env.CI,
-  // Automatically instrument Next.js API routes and pages
   widenClientFileUpload: true,
-  // Don't create a release if DSN is missing (dev without Sentry configured)
+  hideSourceMaps: true,
   dryRun: !process.env.NEXT_PUBLIC_SENTRY_DSN,
+  disableServerWebpackPlugin: false,
+  disableClientWebpackPlugin: false,
 }
 
 module.exports = withSentryConfig(withPWA(nextConfig), sentryConfig)
