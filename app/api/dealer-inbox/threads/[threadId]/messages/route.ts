@@ -15,6 +15,7 @@ const attachmentSchema = z.object({
 
 const bodySchema = z.object({
   body:        z.string().trim().max(5000).default(''),
+  channel:     z.enum(['in_app', 'email']).default('in_app'),
   attachments: z.array(attachmentSchema).max(20).optional(),
 }).refine(d => d.body.length > 0 || (d.attachments?.length ?? 0) > 0, {
   message: 'Message body or at least one attachment is required',
@@ -33,7 +34,7 @@ export async function POST(
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
 
-  const { body, attachments = [] } = parsed.data
+  const { body, channel, attachments = [] } = parsed.data
 
   const supabase = await createClient()
   const { data: thread } = await supabase
@@ -52,7 +53,7 @@ export async function POST(
       org_id:      orgId,
       sender_type: 'dealer',
       sender_id:   profile.id,
-      channel:     'in_app',
+      channel,
       body,
       attachments: attachments.length > 0 ? attachments : [],
     })
@@ -70,7 +71,7 @@ export async function POST(
     action:     'dealer_inbox_dealer_reply',
     entityType: 'dealer_message',
     entityId:   message.id,
-    metadata:   { thread_id: threadId },
+    metadata:   { thread_id: threadId, channel },
   })
 
   const service = createServiceClient()

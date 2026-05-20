@@ -225,7 +225,7 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
       const res = await fetch(`/api/dealer-inbox/threads/${selectedThread.id}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body: replyBody.trim(), ...(uploaded.length > 0 ? { attachments: uploaded } : {}) }),
+        body: JSON.stringify({ body: replyBody.trim(), channel: activeTab, ...(uploaded.length > 0 ? { attachments: uploaded } : {}) }),
       })
       if (!res.ok) { setError('Could not send. Try again.'); return }
       setReplyBody('')
@@ -402,76 +402,69 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
 
       {/* Fixed composer */}
       <div className="shrink-0 border-t px-4 py-3 space-y-2 bg-background">
-        {activeTab === 'email' ? (
-          <p className="text-xs text-muted-foreground text-center py-1">
-            Emails are sent by your DealerWyze team. Switch to{' '}
-            <button type="button" className="underline font-medium" onClick={() => setActiveTab('in_app')}>
-              Messages
-            </button>
-            {' '}to reply, or reply directly from your email app.
-          </p>
-        ) : (
-          <>
-            {pendingFiles.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {pendingFiles.map((f, i) => (
-                  <span key={i} className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border border-border bg-muted text-xs">
-                    <span className="truncate max-w-[140px]">{f.name}</span>
-                    <span className="text-muted-foreground">({fmtSize(f.size)})</span>
-                    <button
-                      type="button"
-                      onClick={() => setPendingFiles(p => p.filter((_, j) => j !== i))}
-                      className="ml-0.5 text-muted-foreground hover:text-foreground"
-                      aria-label={`Remove ${f.name}`}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-            <div className="rounded-xl border-2 border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/20 p-2.5 space-y-2">
-              <textarea
-                value={replyBody}
-                onChange={e => setReplyBody(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void handleSend() }}
-                placeholder="Message DealerWyze…"
-                rows={3}
-                className="w-full bg-transparent text-sm resize-none outline-none placeholder:text-muted-foreground"
-              />
-              <div className="flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted/60 transition-colors"
-                  aria-label="Attach files"
-                >
-                  <Paperclip className="h-4 w-4" />
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
-                  onChange={handleFileChange}
-                  className="sr-only"
-                />
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-muted-foreground hidden sm:block">⌘↵</span>
-                  <Button
-                    size="sm"
-                    disabled={sending || (!replyBody.trim() && pendingFiles.length === 0)}
-                    onClick={() => void handleSend()}
-                    className="gap-1.5"
+        {pendingFiles.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {pendingFiles.map((f, i) => (
+                <span key={i} className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border border-border bg-muted text-xs">
+                  <span className="truncate max-w-[140px]">{f.name}</span>
+                  <span className="text-muted-foreground">({fmtSize(f.size)})</span>
+                  <button
+                    type="button"
+                    onClick={() => setPendingFiles(p => p.filter((_, j) => j !== i))}
+                    className="ml-0.5 text-muted-foreground hover:text-foreground"
+                    aria-label={`Remove ${f.name}`}
                   >
-                    {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                    Send Message
-                  </Button>
-                </div>
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className={cn(
+            'rounded-xl border-2 p-2.5 space-y-2',
+            activeTab === 'email'
+              ? 'border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-950/20'
+              : 'border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/20',
+          )}>
+            <textarea
+              value={replyBody}
+              onChange={e => setReplyBody(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void handleSend() }}
+              placeholder={activeTab === 'email' ? 'Send an email to DealerWyze…' : 'Message DealerWyze…'}
+              rows={3}
+              className="w-full bg-transparent text-sm resize-none outline-none placeholder:text-muted-foreground"
+            />
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted/60 transition-colors"
+                aria-label="Attach files"
+              >
+                <Paperclip className="h-4 w-4" />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                onChange={handleFileChange}
+                className="sr-only"
+              />
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-muted-foreground hidden sm:block">⌘↵</span>
+                <Button
+                  size="sm"
+                  disabled={sending || (!replyBody.trim() && pendingFiles.length === 0)}
+                  onClick={() => void handleSend()}
+                  className="gap-1.5"
+                >
+                  {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                  {activeTab === 'email' ? 'Send Email' : 'Send Message'}
+                </Button>
               </div>
             </div>
-          </>
-        )}
+          </div>
       </div>
     </div>
   ) : (
