@@ -157,6 +157,24 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
     return () => { void supabase.removeChannel(channel) }
   }, [activeThreadId])
 
+  // Polling fallback — catches messages if realtime websocket drops
+  useEffect(() => {
+    if (!activeThreadId) return
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/dealer-inbox/threads/${activeThreadId}`)
+        if (!res.ok) return
+        const data = await res.json() as { thread: DealerThread; messages: DealerMessage[] }
+        setMessages(prev => {
+          if (data.messages.length === prev.length) return prev
+          return data.messages
+        })
+      } catch { /* silent */ }
+    }
+    const id = setInterval(() => void poll(), 10_000)
+    return () => clearInterval(id)
+  }, [activeThreadId])
+
   // Scroll to bottom on new messages (initial load + realtime + send)
   useEffect(() => {
     if (messages.length > 0) {

@@ -171,6 +171,25 @@ export default function DealerThreadView({ orgId, thread, onBack, onThreadUpdate
   useEffect(() => { void loadMessages() }, [loadMessages])
   useEffect(() => { if (!loading) setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'instant' }), 50) }, [loading])
 
+  // Polling fallback — catches messages if realtime websocket drops
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/admin/orgs/${orgId}/threads/${thread.id}`)
+        if (!res.ok) return
+        const data = await res.json() as { messages: Array<Omit<DealerMessage, 'thread_id'> & { sender_display_name: string | null }> }
+        const fetched = data.messages.map(m => ({ ...m, thread_id: thread.id }))
+        setMessages(prev => {
+          if (fetched.length === prev.length) return prev
+          setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+          return fetched
+        })
+      } catch { /* silent */ }
+    }
+    const id = setInterval(() => void poll(), 10_000)
+    return () => clearInterval(id)
+  }, [orgId, thread.id])
+
   async function handleStatusChange(status: ThreadStatus) {
     const res = await fetch(`/api/admin/orgs/${orgId}/threads/${thread.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
     if (!res.ok) { setError('Could not update status.'); return }
