@@ -187,7 +187,7 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
   }
 
   async function handleSend() {
-    if (!selectedThread || !replyBody.trim() || sending) return
+    if (!selectedThread || ((!replyBody.trim() && pendingFiles.length === 0)) || sending) return
     setSending(true)
     setError(null)
     try {
@@ -363,7 +363,7 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
                     <Paperclip className="h-4 w-4" />
                   </button>
                   <input ref={fileInputRef} type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" onChange={handleFileChange} className="hidden" />
-                  <Button size="sm" disabled={sending || !replyBody.trim()} onClick={() => void handleSend()} className="gap-1.5">
+                  <Button size="sm" disabled={sending || (!replyBody.trim() && pendingFiles.length === 0)} onClick={() => void handleSend()} className="gap-1.5">
                     {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                     Send Message
                   </Button>

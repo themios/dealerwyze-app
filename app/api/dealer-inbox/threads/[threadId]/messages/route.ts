@@ -14,8 +14,10 @@ const attachmentSchema = z.object({
 })
 
 const bodySchema = z.object({
-  body:        z.string().trim().min(1).max(5000),
+  body:        z.string().trim().max(5000).default(''),
   attachments: z.array(attachmentSchema).max(20).optional(),
+}).refine(d => d.body.length > 0 || (d.attachments?.length ?? 0) > 0, {
+  message: 'Message body or at least one attachment is required',
 })
 
 export async function POST(

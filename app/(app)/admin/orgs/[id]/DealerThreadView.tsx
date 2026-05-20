@@ -178,7 +178,7 @@ export default function DealerThreadView({ orgId, thread, onBack, onThreadUpdate
   }
 
   async function handleSend() {
-    if (!replyBody.trim() || sending) return
+    if ((!replyBody.trim() && pendingFiles.length === 0) || sending) return
     setSending(true); setError(null)
     try {
       const uploaded: MessageAttachment[] = []
@@ -346,7 +346,7 @@ export default function DealerThreadView({ orgId, thread, onBack, onThreadUpdate
             <input ref={fileInputRef} type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" onChange={e => { setPendingFiles(p => [...p, ...Array.from(e.target.files ?? [])]); e.target.value = '' }} className="hidden" />
             <div className="flex items-center gap-2">
               <span className="text-[11px] text-muted-foreground hidden sm:block">⌘↵</span>
-              <Button size="sm" disabled={sending || !replyBody.trim()} onClick={() => void handleSend()} className="gap-1.5">
+              <Button size="sm" disabled={sending || (!replyBody.trim() && pendingFiles.length === 0)} onClick={() => void handleSend()} className="gap-1.5">
                 {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                 {tab.sendLabel}
               </Button>

@@ -17,10 +17,12 @@ const attachmentSchema = z.object({
 })
 
 const postMessageSchema = z.object({
-  body:        z.string().trim().min(1).max(10000),
+  body:        z.string().trim().max(10000).default(''),
   channel:     z.enum(['email', 'note', 'call_log', 'in_app']),
   subject:     z.string().trim().max(500).optional(),
   attachments: z.array(attachmentSchema).max(20).optional(),
+}).refine(d => d.body.length > 0 || (d.attachments?.length ?? 0) > 0, {
+  message: 'Message body or at least one attachment is required',
 })
 
 function escapeHtml(text: string): string {

@@ -34,7 +34,7 @@ export async function GET(
 
   const { data: messages, error } = await supabase
     .from('dealer_messages')
-    .select('id, sender_type, channel, body, sent_at, read_at')
+    .select('id, sender_type, channel, body, sent_at, read_at, attachments')
     .eq('thread_id', threadId)
     .eq('org_id', orgId)
     .order('sent_at', { ascending: true })
@@ -62,6 +62,7 @@ export async function GET(
       body:                  m.body,
       sent_at:               m.sent_at,
       read_at:               m.read_at,
+      attachments:           m.attachments ?? [],
     })),
   })
 }
