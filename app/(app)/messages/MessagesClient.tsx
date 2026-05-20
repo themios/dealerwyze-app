@@ -97,6 +97,7 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
   const [error, setError]                   = useState<string | null>(null)
   const fileInputRef                        = useRef<HTMLInputElement>(null)
   const bottomRef                           = useRef<HTMLDivElement>(null)
+  const autoSelectedRef                     = useRef(false)
 
   const loadThreads = useCallback(async () => {
     setThreadsLoading(true)
@@ -164,6 +165,16 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
   }, [messages])
 
   useEffect(() => { void loadThreads() }, [loadThreads])
+
+  // Auto-open the best thread on initial page load only
+  useEffect(() => {
+    if (autoSelectedRef.current || threads.length === 0) return
+    autoSelectedRef.current = true
+    const best = threads.reduce((a, b) =>
+      b.unread_count > a.unread_count ? b : (a.unread_count > 0 ? a : (b.updated_at > a.updated_at ? b : a))
+    )
+    void loadMessages(best.id)
+  }, [threads, loadMessages])
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = Array.from(e.target.files ?? [])
