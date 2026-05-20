@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   ArrowLeft, Phone, Mic, Users, Loader2, RefreshCw, Eye, ExternalLink,
-  AlertOctagon, Pencil, MessageSquarePlus, Clock, CheckCircle2, Circle,
-  Mail, Globe, MapPin, Send, ChevronDown, ChevronUp, ShieldCheck,
+  AlertOctagon, Pencil, CheckCircle2, Circle,
+  Mail, Globe, MapPin,
 } from 'lucide-react'
+import DealerInbox from './DealerInbox'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -57,13 +58,6 @@ interface ShadowLineItem {
 interface ShadowBilling {
   org_id: string; line_items: ShadowLineItem[]; total: number
 }
-interface RetentionNote {
-  id: string; admin_name: string; created_at: string; note: string; contact_method: string | null
-}
-type CommsItem =
-  | { kind: 'email'; id: string; subject: string; body_text: string | null; email_type: string; type_label: string; to_email: string; ts: string }
-  | { kind: 'note';  id: string; note: string; contact_method: string | null; admin_name: string; admin_user_id: string; ts: string }
-
 // ── constants ─────────────────────────────────────────────────────────────────
 
 const STATUS_STYLES: Record<string, string> = {
@@ -75,19 +69,6 @@ const STATUS_STYLES: Record<string, string> = {
 }
 const FEATURES     = ['Email Sync', 'Voice', 'Pipeline', 'BHPH', 'Analytics', 'Fax', 'Contacts']
 const FEATURE_KEYS = ['email_sync', 'voice', 'pipeline', 'bhph', 'analytics', 'fax', 'contacts']
-
-const EMAIL_ICON: Record<string, string> = {
-  welcome:            '👋',
-  onboarding_nudge:   '🔔',
-  dealer_followup_d1: '📧',
-  dealer_followup_d3: '📧',
-  dealer_followup_d7: '📧',
-}
-
-const CONTACT_METHOD_LABEL: Record<string, string> = {
-  email: 'Email', phone: 'Phone call', sms: 'SMS',
-  in_person: 'In person', other: 'Other',
-}
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -155,25 +136,6 @@ export default function AdminOrgDetailPage() {
   const [suspendReason, setSuspendReason] = useState('')
   const [showSuspendForm, setShowSuspendForm] = useState(false)
 
-  // Notes (for posting — comms tab reads from /comms)
-  const [noteText, setNoteText]     = useState('')
-  const [noteMethod, setNoteMethod] = useState('email')
-  const [savingNote, setSavingNote] = useState(false)
-
-  // Communications tab
-  const [comms, setComms]               = useState<CommsItem[]>([])
-  const [commsLoading, setCommsLoading] = useState(false)
-  const [commsFetched, setCommsFetched] = useState(false)
-  const [expanded, setExpanded]         = useState<Set<string>>(new Set())
-
-  function toggleExpand(id: string) {
-    setExpanded(prev => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
-  }
-
   useEffect(() => {
     fetch(`/api/admin/orgs/${orgId}`)
       .then(r => r.json())
@@ -195,17 +157,6 @@ export default function AdminOrgDetailPage() {
       .then((d: SystemHealth | null) => d && setSystemHealth(d))
       .catch(() => {})
   }, [orgId])
-
-  // Lazy-load comms when tab is first opened
-  useEffect(() => {
-    if (activeTab !== 'comms' || commsFetched) return
-    setCommsLoading(true)
-    setCommsFetched(true)
-    fetch(`/api/admin/orgs/${orgId}/comms`)
-      .then(r => r.ok ? r.json() : [])
-      .then((d: CommsItem[]) => setComms(Array.isArray(d) ? d : []))
-      .finally(() => setCommsLoading(false))
-  }, [activeTab, orgId, commsFetched])
 
   async function startImpersonation(writeMode = false) {
     setImpersonating(true)
@@ -232,22 +183,6 @@ export default function AdminOrgDetailPage() {
       setSuccess(label)
       fetch(`/api/admin/orgs/${orgId}`).then(r => r.json()).then((d: OrgDetail) => setData(d))
     }
-  }
-
-  async function saveNote() {
-    if (!noteText.trim()) return
-    setSavingNote(true)
-    const res = await fetch(`/api/admin/orgs/${orgId}/notes`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ note: noteText.trim(), contact_method: noteMethod }),
-    })
-    if (res.ok) {
-      setNoteText('')
-      // Refresh comms feed
-      setCommsFetched(false)
-    }
-    setSavingNote(false)
   }
 
   if (loading) {
@@ -676,176 +611,7 @@ export default function AdminOrgDetailPage() {
         </div>
       )}
 
-      {/* ── COMMUNICATIONS TAB ───────────────────────────────────────────── */}
-      {activeTab === 'comms' && (
-        <div className="px-4 py-4 space-y-4">
-
-          {/* Log a note */}
-          <section className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-              <MessageSquarePlus className="h-3.5 w-3.5" /> Log outreach
-            </p>
-            <div className="rounded-xl border bg-card p-4 space-y-3">
-              <textarea
-                value={noteText}
-                onChange={e => setNoteText(e.target.value)}
-                placeholder="Log a call, email, or check-in you did manually…"
-                rows={3}
-                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm resize-none"
-              />
-              <div className="flex items-center gap-3">
-                <select value={noteMethod} onChange={e => setNoteMethod(e.target.value)}
-                  className="px-3 py-1.5 rounded-lg border border-border bg-background text-sm">
-                  <option value="email">Email</option>
-                  <option value="phone">Phone call</option>
-                  <option value="sms">SMS</option>
-                  <option value="in_person">In person</option>
-                  <option value="other">Other</option>
-                </select>
-                <Button size="sm" disabled={savingNote || !noteText.trim()} onClick={saveNote} className="ml-auto gap-1.5">
-                  {savingNote ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Send className="h-3.5 w-3.5" /> Log it</>}
-                </Button>
-              </div>
-            </div>
-          </section>
-
-          {/* Timeline */}
-          <section className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">History</p>
-
-            {commsLoading && (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              </div>
-            )}
-
-            {!commsLoading && comms.length === 0 && (
-              <p className="text-xs text-muted-foreground py-6 text-center">No communications on record yet.</p>
-            )}
-
-            {!commsLoading && comms.length > 0 && (
-              <div className="relative">
-                {/* vertical line */}
-                <div className="absolute left-4 top-0 bottom-0 w-px bg-border" />
-
-                <div className="space-y-0">
-                  {comms.map((item, idx) => {
-                    const isOpen = expanded.has(item.id)
-                    return (
-                      <div key={item.id} className={`relative pl-10 ${idx < comms.length - 1 ? 'pb-4' : ''}`}>
-
-                        {/* dot */}
-                        <div className={`absolute left-2.5 top-3 h-3 w-3 rounded-full border-2 border-background ${
-                          item.kind === 'email' ? 'bg-blue-400' : 'bg-emerald-400'
-                        }`} />
-
-                        <div className="rounded-xl border bg-card overflow-hidden">
-
-                          {/* collapsed header — always visible, always clickable */}
-                          <button
-                            onClick={() => toggleExpand(item.id)}
-                            className="w-full text-left px-3 py-3 flex items-center gap-2 hover:bg-muted/40 transition-colors"
-                          >
-                            <span className="text-sm shrink-0">
-                              {item.kind === 'email' ? (EMAIL_ICON[item.email_type] ?? '📧') : '📝'}
-                            </span>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs font-semibold truncate">
-                                {item.kind === 'email' ? item.type_label : 'Outreach note'}
-                              </p>
-                              <p className="text-[11px] text-muted-foreground truncate">
-                                {item.kind === 'email' ? item.subject : item.note}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <span className="text-[10px] text-muted-foreground">{fmtTime(item.ts)}</span>
-                              {isOpen
-                                ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
-                                : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
-                            </div>
-                          </button>
-
-                          {/* expanded detail */}
-                          {isOpen && (
-                            <div className="border-t bg-muted/20 px-3 py-3 space-y-3">
-
-                              {item.kind === 'email' && (
-                                <>
-                                  {/* metadata grid */}
-                                  <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11px]">
-                                    <span className="text-muted-foreground font-medium">To</span>
-                                    <span className="font-mono">{item.to_email || '—'}</span>
-                                    <span className="text-muted-foreground font-medium">From</span>
-                                    <span>DealerWyze (noreply@dealerwyze.com)</span>
-                                    <span className="text-muted-foreground font-medium">Subject</span>
-                                    <span>{item.subject}</span>
-                                    <span className="text-muted-foreground font-medium">Type</span>
-                                    <span className="font-mono">{item.email_type}</span>
-                                    <span className="text-muted-foreground font-medium">Sent</span>
-                                    <span>{new Date(item.ts).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'long' })}</span>
-                                    <span className="text-muted-foreground font-medium">Log ID</span>
-                                    <span className="font-mono text-[10px] break-all">{item.id}</span>
-                                  </div>
-
-                                  {/* body */}
-                                  {item.body_text ? (
-                                    <div className="space-y-1">
-                                      <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Message body</p>
-                                      <pre className="text-[11px] leading-relaxed whitespace-pre-wrap font-sans bg-background rounded-lg border px-3 py-2.5 max-h-64 overflow-y-auto">
-                                        {item.body_text}
-                                      </pre>
-                                    </div>
-                                  ) : (
-                                    <p className="text-[11px] text-muted-foreground italic">Body not stored — sent before logging was added.</p>
-                                  )}
-                                </>
-                              )}
-
-                              {item.kind === 'note' && (
-                                <>
-                                  {/* metadata grid */}
-                                  <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11px]">
-                                    <span className="text-muted-foreground font-medium">Logged by</span>
-                                    <span>{item.admin_name}</span>
-                                    <span className="text-muted-foreground font-medium">Method</span>
-                                    <span>{CONTACT_METHOD_LABEL[item.contact_method ?? ''] ?? item.contact_method ?? 'Other'}</span>
-                                    <span className="text-muted-foreground font-medium">When</span>
-                                    <span>{new Date(item.ts).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'long' })}</span>
-                                    <span className="text-muted-foreground font-medium">Staff ID</span>
-                                    <span className="font-mono text-[10px] break-all">{item.admin_user_id}</span>
-                                    <span className="text-muted-foreground font-medium">Log ID</span>
-                                    <span className="font-mono text-[10px] break-all">{item.id}</span>
-                                  </div>
-
-                                  {/* full note */}
-                                  <div className="space-y-1">
-                                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Note</p>
-                                    <p className="text-[11px] leading-relaxed whitespace-pre-wrap bg-background rounded-lg border px-3 py-2.5">
-                                      {item.note}
-                                    </p>
-                                  </div>
-                                </>
-                              )}
-
-                              {/* audit badge */}
-                              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                                <ShieldCheck className="h-3 w-3 text-green-500" />
-                                Immutable audit record — cannot be edited or deleted
-                              </div>
-
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-          </section>
-
-        </div>
-      )}
+      {activeTab === 'comms' && <DealerInbox orgId={orgId} />}
 
     </div>
   )

@@ -32,6 +32,7 @@ export async function sendNotificationEmail({
   attachments,
   org_id,
   email_type,
+  reply_to,
 }: {
   to: string
   subject: string
@@ -40,22 +41,30 @@ export async function sendNotificationEmail({
   attachments?: { filename: string; content: string }[]
   org_id?: string
   email_type?: string
-}): Promise<void> {
+  reply_to?: string
+}): Promise<{ resendId?: string }> {
   const key = process.env.RESEND_API_KEY
-  if (!key) return
+  if (!key) return {}
 
   const fromAddress = from ?? `DealerWyze <noreply@${process.env.RESEND_FROM_DOMAIN ?? 'mail.dealerwyze.com'}>`
+  let resendId: string | undefined
   try {
     const body: {
       from: string; to: string[]; subject: string; html: string
+      reply_to?: string
       attachments?: { filename: string; content: string }[]
     } = { from: fromAddress, to: [to], subject, html }
+    if (reply_to) body.reply_to = reply_to
     if (attachments?.length) body.attachments = attachments
-    await fetch('https://api.resend.com/emails', {
+    const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
+    if (res.ok) {
+      const data = (await res.json()) as { id?: string }
+      resendId = data.id
+    }
   } catch {
     // Non-fatal
   }
@@ -77,4 +86,6 @@ export async function sendNotificationEmail({
       // Non-fatal
     }
   }
+
+  return { resendId }
 }

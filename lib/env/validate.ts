@@ -21,6 +21,12 @@ const REQUIRED: string[] = [
   'RENDER_WEBHOOK_SECRET',
 ]
 
+/** Optional — dealer inbox two-way email degrades gracefully when unset */
+export const OPTIONAL_DEALER_INBOX: string[] = [
+  'RESEND_INBOUND_SECRET',
+  'RESEND_REPLY_DOMAIN',
+]
+
 const REQUIRED_IN_PROD_ONLY: string[] = [
   // BHPH ACH: signed customer setup links + Stripe ACH webhook (dealer Connect account)
   'BHPH_ACH_SECRET',

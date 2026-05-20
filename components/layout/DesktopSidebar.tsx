@@ -13,7 +13,7 @@ import {
   LineChart, GitBranch, UserCog, TicketCheck, ScrollText,
   LogOut, Briefcase, Contact, Heart, Inbox,
   Activity, BarChart3, DatabaseBackup, ArchiveRestore,
-  Clapperboard,
+  Clapperboard, MessageCircle,
 } from 'lucide-react'
 
 interface MeResponse {
@@ -24,6 +24,22 @@ interface MeResponse {
 }
 
 // ── Dealer nav ────────────────────────────────────────────────────────────────
+
+function InboxUnreadBadge() {
+  const [count, setCount] = useState(0)
+  useEffect(() => {
+    fetch('/api/dealer-inbox/unread')
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { count?: number } | null) => setCount(d?.count ?? 0))
+      .catch(() => {})
+  }, [])
+  if (!count) return null
+  return (
+    <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+      {count > 99 ? '99+' : count}
+    </span>
+  )
+}
 
 function WebLeadsBadge() {
   const [count, setCount] = useState(0)
@@ -74,6 +90,7 @@ const ROLE_NAV = [
   { href: '/analytics', label: 'Analytics', icon: BarChart2,      requiresRole: (r: string) => ['dealer_admin', 'dealer_manager', 'admin'].includes(r) },
   { href: '/pulse',     label: 'Pulse',     icon: Heart,          requiresRole: (r: string) => ['dealer_admin', 'dealer_manager', 'admin'].includes(r) },
   { href: '/fax',               label: 'Fax',      icon: Printer,        requiresRole: () => true },
+  { href: '/messages',          label: 'Messages', icon: MessageCircle,  badge: 'inbox' as const, requiresRole: () => true },
   { href: '/support',           label: 'Support',  icon: HeadphonesIcon, requiresRole: () => true },
   { href: '/settings/website',  label: 'Website',  icon: Globe,          requiresRole: (r: string) => r === 'dealer_admin' || r === 'admin' },
   { href: '/settings',          label: 'Settings', icon: Settings,       requiresRole: () => true },
@@ -87,7 +104,7 @@ interface AdminNavItem {
   href: string
   label: string
   icon: React.ComponentType<{ className?: string }>
-  badge?: 'alerts' | 'retention' | 'tickets' | 'new_orgs'
+  badge?: 'alerts' | 'retention' | 'tickets' | 'new_orgs' | 'inbox'
   area?: string
 }
 
@@ -105,6 +122,7 @@ const ADMIN_NAV_GROUPS: { section: string; items: AdminNavItem[] }[] = [
       { href: '/admin/customers',  label: 'All Customers', icon: Contact,     area: 'dealers' },
       { href: '/admin/orgs',       label: 'Dealerships',   icon: Building2,   badge: 'new_orgs', area: 'dealers' },
       { href: '/admin/retention',  label: 'Retention',     icon: TrendingDown, badge: 'retention', area: 'retention' },
+      { href: '/admin/inbox',      label: 'Inbox',         icon: Inbox,        badge: 'inbox',     area: 'dealers' },
     ],
   },
   {
@@ -155,20 +173,27 @@ interface AdminBadgeCounts {
   tickets: number
   retention: number
   new_orgs: number
+  inbox: number
 }
 
 function useAdminBadges(): AdminBadgeCounts {
-  const [counts, setCounts] = useState<AdminBadgeCounts>({ alerts: 0, tickets: 0, retention: 0, new_orgs: 0 })
+  const [counts, setCounts] = useState<AdminBadgeCounts>({ alerts: 0, tickets: 0, retention: 0, new_orgs: 0, inbox: 0 })
   useEffect(() => {
     Promise.all([
       fetch('/api/admin/badges').then(r => r.ok ? r.json() : null),
       fetch('/api/admin/retention?count=1').then(r => r.ok ? r.json() : null),
-    ]).then(([badges, retention]: [{ alerts?: number; tickets?: number; new_orgs?: number } | null, { at_risk?: number } | null]) => {
+      fetch('/api/admin/inbox/threads?count_only=unread').then(r => r.ok ? r.json() : null),
+    ]).then(([badges, retention, inbox]: [
+      { alerts?: number; tickets?: number; new_orgs?: number } | null,
+      { at_risk?: number } | null,
+      { count?: number } | null,
+    ]) => {
       setCounts({
-        alerts: badges?.alerts ?? 0,
-        tickets: badges?.tickets ?? 0,
+        alerts:    badges?.alerts ?? 0,
+        tickets:   badges?.tickets ?? 0,
         retention: retention?.at_risk ?? 0,
-        new_orgs: badges?.new_orgs ?? 0,
+        new_orgs:  badges?.new_orgs ?? 0,
+        inbox:     inbox?.count ?? 0,
       })
     }).catch(() => {})
   }, [])
@@ -252,6 +277,7 @@ function AdminSidebar({ platformRole, platformPermissions, isSuperAdmin }: {
                       {badge === 'retention' && <BadgeCount count={badges.retention} color="bg-orange-500" />}
                       {badge === 'tickets'   && <BadgeCount count={badges.tickets}   color="bg-blue-500" />}
                       {badge === 'new_orgs'  && <BadgeCount count={badges.new_orgs}  color="bg-green-500" />}
+                      {badge === 'inbox'     && <BadgeCount count={badges.inbox}     color="bg-red-500" />}
                     </Link>
                   )
                 })}
@@ -332,6 +358,7 @@ function DealerSidebar({ orgName, role, isPlatformAdmin }: { orgName?: string | 
               <Icon className="h-4.5 w-4.5 shrink-0" />
               {label}
               {badge === 'webleads' && <WebLeadsBadge />}
+              {badge === 'inbox' && <InboxUnreadBadge />}
               {href === '/admin' && isPlatformAdmin && <AdminPanelBadge />}
             </Link>
           )

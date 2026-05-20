@@ -19,6 +19,7 @@ import { runPulseSurveys } from '@/lib/cron/jobs/pulseSurveys'
 import { runAppointmentRemindersV2 } from '@/lib/cron/jobs/appointmentRemindersV2'
 import { runAbuseDetection } from '@/lib/cron/jobs/abuseDetection'
 import { runDealerFollowUps } from '@/lib/cron/jobs/dealerFollowUps'
+import { runDealerInboxAutomations } from '@/lib/cron/jobs/dealerInboxAutomations'
 import { runPlatformOwnerDigest } from '@/lib/cron/jobs/platformOwnerDigest'
 
 export const runtime = 'nodejs'
@@ -81,6 +82,9 @@ export async function GET(req: NextRequest) {
     apptV2      = await runJob('appointmentRemindersV2',  () => runAppointmentRemindersV2(supabase))
     abuse       = await runJob('abuseDetection',           () => runAbuseDetection(supabase))
     followUps   = await runJob('dealerFollowUps',          () => runDealerFollowUps(supabase))
+    await runJob('dealerInboxAutomations', () =>
+      runDealerInboxAutomations().then(r => `triggered=${r.triggered} skipped=${r.skipped}`)
+    )
     ownerDigest = await runJob('platformOwnerDigest',      () => runPlatformOwnerDigest(supabase))
   } finally {
     const anyFailed = Object.values(jobResults).some(v => v !== 'ok')
