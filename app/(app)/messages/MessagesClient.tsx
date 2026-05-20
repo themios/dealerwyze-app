@@ -283,9 +283,12 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
                       <p className="text-[11px] text-muted-foreground">{formatRelativeTime(t.last_message_at)}</p>
                     )}
                   </div>
-                  {t.unread_count > 0 && (
-                    <span className="shrink-0 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white mt-1">
-                      {t.unread_count}
+                  {t.message_count > 0 && (
+                    <span className={cn(
+                      'shrink-0 inline-flex items-center justify-center rounded-full px-1.5 text-[10px] font-bold mt-1 min-w-[1.25rem] h-5',
+                      t.unread_count > 0 ? 'bg-red-500 text-white' : 'bg-muted text-muted-foreground',
+                    )}>
+                      {t.unread_count > 0 ? `${t.unread_count} / ${t.message_count}` : t.message_count}
                     </span>
                   )}
                 </button>
@@ -299,9 +302,14 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
 
   // ── Thread detail ─────────────────────────────────────────────────────────────
 
-  const visibleMessages  = messages.filter(m => m.channel === activeTab || m.sender_type === 'system')
-  const msgCount         = messages.filter(m => m.channel === 'in_app').length
-  const emailCount       = messages.filter(m => m.channel === 'email').length
+  const visibleMessages = messages.filter(m => m.channel === activeTab || m.sender_type === 'system')
+
+  // Per-channel stats: unread for dealer = platform messages not yet read
+  const statsByTab = (tab: DealerTab) => {
+    const ch_msgs = messages.filter(m => m.channel === tab)
+    const unread  = ch_msgs.filter(m => m.sender_type === 'platform' && m.read_at === null).length
+    return { total: ch_msgs.length, unread }
+  }
 
   const detailPanel = selectedThread ? (
     <div className="flex flex-col h-full">
@@ -334,29 +342,35 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
         {/* Channel tabs — frozen */}
         <div className="flex border-t px-1">
           {([
-            { tab: 'in_app' as DealerTab, label: 'Messages', icon: MessageSquare, count: msgCount,   accent: 'text-blue-600 border-blue-500' },
-            { tab: 'email'  as DealerTab, label: 'Emails',   icon: Mail,          count: emailCount, accent: 'text-amber-600 border-amber-500' },
-          ]).map(({ tab, label, icon: Icon, count, accent }) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setActiveTab(tab)}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors',
-                activeTab === tab
-                  ? cn('border-current -mb-px bg-transparent', accent)
-                  : 'border-transparent text-muted-foreground hover:text-foreground',
-              )}
-            >
-              <Icon className="h-3.5 w-3.5 shrink-0" />
-              {label}
-              {count > 0 && (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-muted min-w-[1.25rem] text-center">
-                  {count}
-                </span>
-              )}
-            </button>
-          ))}
+            { tab: 'in_app' as DealerTab, label: 'Messages', icon: MessageSquare, accent: 'text-blue-600 border-blue-500' },
+            { tab: 'email'  as DealerTab, label: 'Emails',   icon: Mail,          accent: 'text-amber-600 border-amber-500' },
+          ]).map(({ tab, label, icon: Icon, accent }) => {
+            const { total, unread } = statsByTab(tab)
+            return (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors',
+                  activeTab === tab
+                    ? cn('border-current -mb-px bg-transparent', accent)
+                    : 'border-transparent text-muted-foreground hover:text-foreground',
+                )}
+              >
+                <Icon className="h-3.5 w-3.5 shrink-0" />
+                {label}
+                {total > 0 && (
+                  <span className={cn(
+                    'text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[1.25rem] text-center',
+                    unread > 0 ? 'bg-red-500 text-white' : 'bg-muted text-muted-foreground',
+                  )}>
+                    {unread > 0 ? `${unread} / ${total}` : total}
+                  </span>
+                )}
+              </button>
+            )
+          })}
         </div>
       </div>
 

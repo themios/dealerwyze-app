@@ -218,9 +218,12 @@ export default function DealerThreadView({ orgId, thread, onBack, onThreadUpdate
     finally { setSending(false) }
   }
 
-  // Per-channel counts for tab badges
-  const countByChannel = (ch: MessageChannel) =>
-    messages.filter(m => m.channel === ch).length
+  // Per-channel total and unread (unread for admin = dealer messages not yet read)
+  const statsByChannel = (ch: MessageChannel) => {
+    const ch_msgs = messages.filter(m => m.channel === ch)
+    const unread  = ch_msgs.filter(m => m.sender_type === 'dealer' && m.read_at === null).length
+    return { total: ch_msgs.length, unread }
+  }
 
   // Filtered messages for active tab — always show system messages
   const visibleMessages = messages.filter(m => m.channel === activeTab || m.sender_type === 'system')
@@ -261,10 +264,10 @@ export default function DealerThreadView({ orgId, thread, onBack, onThreadUpdate
         {/* Channel tabs */}
         <div className="flex gap-0 border-b -mb-2">
           {TABS.map(t => {
-            const Icon    = t.icon
-            const count   = countByChannel(t.channel)
-            const isActive = activeTab === t.channel
-            const isAuto  = autoChannel === t.channel
+            const Icon              = t.icon
+            const { total, unread } = statsByChannel(t.channel)
+            const isActive          = activeTab === t.channel
+            const isAuto            = autoChannel === t.channel
             return (
               <button
                 key={t.channel}
@@ -279,9 +282,12 @@ export default function DealerThreadView({ orgId, thread, onBack, onThreadUpdate
               >
                 <Icon className="h-3.5 w-3.5 shrink-0" />
                 {t.label}
-                {count > 0 && (
-                  <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[1.25rem] text-center', isActive ? 'bg-current/10' : 'bg-muted')}>
-                    {count}
+                {total > 0 && (
+                  <span className={cn(
+                    'text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[1.25rem] text-center',
+                    unread > 0 ? 'bg-red-500 text-white' : (isActive ? 'bg-current/10' : 'bg-muted'),
+                  )}>
+                    {unread > 0 ? `${unread} / ${total}` : total}
                   </span>
                 )}
                 {isAuto && !isActive && (

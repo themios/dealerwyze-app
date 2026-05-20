@@ -162,11 +162,14 @@ export default function AdminInboxClient() {
                     </div>
                     <p className="text-sm text-muted-foreground truncate">{thread.subject}</p>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      {thread.unread_count > 0 && (
-                        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
-                          {thread.unread_count}
-                        </span>
-                      )}
+                      <span className={cn(
+                        'inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full',
+                        thread.unread_count > 0
+                          ? 'bg-red-500 text-white'
+                          : 'bg-muted text-muted-foreground',
+                      )}>
+                        {thread.unread_count > 0 ? `${thread.unread_count} / ` : ''}{thread.message_count}
+                      </span>
                       <span suppressHydrationWarning>
                         {formatRelativeTime(thread.updated_at)}
                       </span>
