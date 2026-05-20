@@ -7,5 +7,9 @@ export default async function AdminInboxPage() {
   const profile = await requireProfile()
   const denied  = await requirePlatformArea(profile.id, 'dealers')
   if (denied) return redirect('/admin')
-  return <AdminInboxClient />
+  return (
+    <div className="h-[calc(100vh-4rem)] flex flex-col">
+      <AdminInboxClient />
+    </div>
+  )
 }

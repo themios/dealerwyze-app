@@ -30,7 +30,7 @@ const STORAGE_KEY = (orgId: string) => `dealerwyze_onboarding_dismissed_${orgId}
 const DAYS_7 = 7 * 24 * 60 * 60 * 1000
 
 function shouldShowChecklist(orgId: string, onboardingCompletedAt: string | null): boolean {
-  if (!onboardingCompletedAt || typeof window === 'undefined') return false
+  if (!onboardingCompletedAt) return false
   if (localStorage.getItem(STORAGE_KEY(orgId)) === '1') return false
 
   const completedAt = new Date(onboardingCompletedAt).getTime()
@@ -38,7 +38,11 @@ function shouldShowChecklist(orgId: string, onboardingCompletedAt: string | null
 }
 
 export default function OnboardingChecklist({ orgId, onboardingCompletedAt, checkItems }: Props) {
-  const [visible, setVisible] = useState(() => shouldShowChecklist(orgId, onboardingCompletedAt))
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    setVisible(shouldShowChecklist(orgId, onboardingCompletedAt))
+  }, [orgId, onboardingCompletedAt])
 
   const completed = ITEMS.filter(i => checkItems[i.key]).length
   const allDone   = completed === ITEMS.length

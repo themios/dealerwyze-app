@@ -1,10 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { Loader2, ArrowLeft } from 'lucide-react'
+import Image from 'next/image'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Loader2, ArrowLeft, Paperclip, X, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { formatRelativeTime } from '@/lib/utils/relativeTime'
-import type { DealerMessage, DealerThread, ThreadStatus } from '@/app/(app)/admin/orgs/[id]/dealer-inbox.types'
+import { createClient } from '@/lib/supabase/client'
+import type { DealerMessage, DealerThread, MessageAttachment, ThreadStatus } from '@/app/(app)/admin/orgs/[id]/dealer-inbox.types'
 
 const TYPE_BADGE: Record<DealerThread['thread_type'], string> = {
   success: 'bg-green-100 text-green-700',
@@ -22,6 +25,63 @@ function fmtTime(d: string) {
   return new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
+function fmtSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function AttachmentDisplay({ attachment }: { attachment: MessageAttachment }) {
+  const [signedUrl, setSignedUrl] = useState<string | null>(null)
+  const isImage = attachment.type.startsWith('image/')
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.storage
+      .from('dealer-attachments')
+      .createSignedUrl(attachment.path, 3600)
+      .then(({ data }) => { if (data?.signedUrl) setSignedUrl(data.signedUrl) })
+      .catch(() => {})
+  }, [attachment.path])
+
+  if (isImage) {
+    return (
+      <a href={signedUrl ?? '#'} target="_blank" rel="noopener noreferrer" className="block">
+        {signedUrl
+          ? (
+            <Image
+              src={signedUrl}
+              alt={attachment.name}
+              width={128}
+              height={128}
+              unoptimized
+              className="max-h-32 w-auto rounded-lg border border-border object-cover"
+            />
+          )
+          : <span className="text-[11px] text-muted-foreground">{attachment.name}</span>
+        }
+      </a>
+    )
+  }
+
+  return (
+    <a
+      href={signedUrl ?? '#'}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cn(
+        'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border bg-background',
+        'text-xs text-foreground hover:bg-muted transition-colors',
+        !signedUrl && 'pointer-events-none opacity-60',
+      )}
+    >
+      <Download className="h-3 w-3 shrink-0" />
+      <span className="truncate max-w-[160px]">{attachment.name}</span>
+      <span className="text-muted-foreground shrink-0">({fmtSize(attachment.size)})</span>
+    </a>
+  )
+}
+
 export default function MessagesClient({ orgId }: { orgId: string }) {
   const [threads, setThreads]               = useState<DealerThread[]>([])
   const [threadsLoading, setThreadsLoading] = useState(true)
@@ -29,8 +89,10 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
   const [messages, setMessages]             = useState<DealerMessage[]>([])
   const [messagesLoading, setMessagesLoading] = useState(false)
   const [replyBody, setReplyBody]           = useState('')
+  const [pendingFiles, setPendingFiles]     = useState<File[]>([])
   const [sending, setSending]               = useState(false)
   const [error, setError]                   = useState<string | null>(null)
+  const fileInputRef                        = useRef<HTMLInputElement>(null)
 
   const loadThreads = useCallback(async () => {
     setThreadsLoading(true)
@@ -70,21 +132,51 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
 
   useEffect(() => { void loadThreads() }, [loadThreads])
 
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const selected = Array.from(e.target.files ?? [])
+    setPendingFiles(prev => [...prev, ...selected])
+    e.target.value = ''
+  }
+
+  function removeFile(index: number) {
+    setPendingFiles(prev => prev.filter((_, i) => i !== index))
+  }
+
   async function handleSend() {
     if (!selectedThread || !replyBody.trim() || sending) return
     setSending(true)
     setError(null)
     try {
+      const uploaded: MessageAttachment[] = []
+      for (const file of pendingFiles) {
+        const fd = new FormData()
+        fd.append('file', file)
+        const res = await fetch(`/api/dealer-inbox/threads/${selectedThread.id}/attachments`, {
+          method: 'POST',
+          body: fd,
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({})) as { error?: string }
+          setError(data.error ?? 'An attachment could not be uploaded. Try again.')
+          return
+        }
+        uploaded.push(await res.json() as MessageAttachment)
+      }
+
       const res = await fetch(`/api/dealer-inbox/threads/${selectedThread.id}/messages`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ body: replyBody.trim() }),
+        body:    JSON.stringify({
+          body: replyBody.trim(),
+          ...(uploaded.length > 0 ? { attachments: uploaded } : {}),
+        }),
       })
       if (!res.ok) {
         setError('Your reply could not be sent. Try again.')
         return
       }
       setReplyBody('')
+      setPendingFiles([])
       await loadMessages(selectedThread.id)
     } catch {
       setError('Your reply could not be sent. Check your connection.')
@@ -96,6 +188,7 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
   function handleBack() {
     setSelectedThread(null)
     setMessages([])
+    setPendingFiles([])
     void loadThreads()
   }
 
@@ -145,6 +238,13 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
                   }`}>
                     {msg.body}
                   </div>
+                  {msg.attachments && msg.attachments.length > 0 && (
+                    <div className={cn('flex flex-wrap gap-2 pt-1', isPlatform ? 'justify-end' : '')}>
+                      {msg.attachments.map((att, i) => (
+                        <AttachmentDisplay key={i} attachment={att} />
+                      ))}
+                    </div>
+                  )}
                   <p className={`text-[10px] text-muted-foreground ${isPlatform ? 'text-right' : ''}`}>
                     {msg.sender_display_name ?? (isPlatform ? 'DealerWyze' : 'You')} · {fmtTime(msg.sent_at)}
                   </p>
@@ -154,17 +254,58 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
           })}
         </div>
 
-        <div className="shrink-0 pt-3 border-t flex gap-2 items-end">
-          <textarea
-            value={replyBody}
-            onChange={e => setReplyBody(e.target.value)}
-            placeholder="Reply to DealerWyze…"
-            rows={3}
-            className="flex-1 px-3 py-2 rounded-lg border border-border bg-background text-sm resize-none"
-          />
-          <Button size="sm" disabled={sending || !replyBody.trim()} onClick={() => void handleSend()}>
-            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Send'}
-          </Button>
+        <div className="shrink-0 pt-3 border-t space-y-2">
+          {pendingFiles.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {pendingFiles.map((f, i) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border border-border bg-muted text-xs"
+                >
+                  <span className="truncate max-w-[140px]">{f.name}</span>
+                  <span className="text-muted-foreground">({fmtSize(f.size)})</span>
+                  <button
+                    type="button"
+                    onClick={() => removeFile(i)}
+                    className="ml-0.5 text-muted-foreground hover:text-foreground"
+                    aria-label={`Remove ${f.name}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-2 items-end">
+            <div className="flex-1 relative">
+              <textarea
+                value={replyBody}
+                onChange={e => setReplyBody(e.target.value)}
+                placeholder="Reply to DealerWyze…"
+                rows={3}
+                className="w-full px-3 py-2 pr-9 rounded-lg border border-border bg-background text-sm resize-none"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute bottom-2 right-2 p-1 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors"
+                aria-label="Attach files"
+              >
+                <Paperclip className="h-4 w-4" />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+            </div>
+            <Button size="sm" disabled={sending || !replyBody.trim()} onClick={() => void handleSend()}>
+              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Send'}
+            </Button>
+          </div>
         </div>
       </div>
     )

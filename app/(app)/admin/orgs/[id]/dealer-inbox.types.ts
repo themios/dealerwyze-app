@@ -17,6 +17,13 @@ export interface DealerThread {
   updated_at: string
 }
 
+export interface MessageAttachment {
+  name: string
+  path: string
+  size: number
+  type: string
+}
+
 export interface DealerMessage {
   id: string
   thread_id: string
@@ -26,6 +33,7 @@ export interface DealerMessage {
   body: string
   sent_at: string
   read_at: string | null
+  attachments?: MessageAttachment[]
 }
 
 export interface DealerTask {

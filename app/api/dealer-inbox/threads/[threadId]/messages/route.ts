@@ -6,8 +6,16 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { sendNotificationEmail } from '@/lib/email/notify'
 import { writeAuditLog } from '@/lib/audit/log'
 
+const attachmentSchema = z.object({
+  name: z.string().max(500),
+  path: z.string().max(2000),
+  size: z.number().int().nonnegative(),
+  type: z.string().max(200),
+})
+
 const bodySchema = z.object({
-  body: z.string().trim().min(1).max(5000),
+  body:        z.string().trim().min(1).max(5000),
+  attachments: z.array(attachmentSchema).max(20).optional(),
 })
 
 export async function POST(
@@ -22,6 +30,8 @@ export async function POST(
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
+
+  const { body, attachments = [] } = parsed.data
 
   const supabase = await createClient()
   const { data: thread } = await supabase
@@ -41,7 +51,8 @@ export async function POST(
       sender_type: 'dealer',
       sender_id:   profile.id,
       channel:     'in_app',
-      body:        parsed.data.body,
+      body,
+      attachments: attachments.length > 0 ? attachments : [],
     })
     .select('id')
     .single()

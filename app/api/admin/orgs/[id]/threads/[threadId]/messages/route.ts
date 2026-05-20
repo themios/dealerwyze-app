@@ -8,10 +8,18 @@ import { writeAuditLog } from '@/lib/audit/log'
 import { sendNotificationEmail } from '@/lib/email/notify'
 import { getDealerSignupEmail } from '@/lib/admin/dealerSignupEmail'
 
+const attachmentSchema = z.object({
+  name: z.string().max(500),
+  path: z.string().max(2000),
+  size: z.number().int().nonnegative(),
+  type: z.string().max(200),
+})
+
 const postMessageSchema = z.object({
-  body:    z.string().trim().min(1).max(10000),
-  channel: z.enum(['email', 'note', 'call_log']),
-  subject: z.string().trim().max(500).optional(),
+  body:        z.string().trim().min(1).max(10000),
+  channel:     z.enum(['email', 'note', 'call_log']),
+  subject:     z.string().trim().max(500).optional(),
+  attachments: z.array(attachmentSchema).max(20).optional(),
 })
 
 function escapeHtml(text: string): string {
@@ -55,7 +63,7 @@ export async function POST(
 
   if (!thread) return NextResponse.json({ error: 'Thread not found' }, { status: 404 })
 
-  const { body, channel, subject: messageSubject } = parsed.data
+  const { body, channel, subject: messageSubject, attachments = [] } = parsed.data
   let resendId: string | undefined
 
   if (channel === 'email') {
@@ -88,6 +96,7 @@ export async function POST(
       subject:     messageSubject ?? (channel === 'email' ? thread.subject : null),
       body,
       resend_id:   resendId ?? null,
+      attachments: attachments.length > 0 ? attachments : [],
     })
     .select('id')
     .single()
