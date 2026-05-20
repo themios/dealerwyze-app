@@ -210,6 +210,7 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
       }
       setReplyBody('')
       setPendingFiles([])
+      await loadMessages(selectedThread.id)
     } catch {
       setError('Your reply could not be sent. Check your connection.')
     } finally {
