@@ -156,6 +156,13 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
     return () => { void supabase.removeChannel(channel) }
   }, [activeThreadId])
 
+  // Scroll to bottom on new messages (initial load + realtime + send)
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+    }
+  }, [messages])
+
   useEffect(() => { void loadThreads() }, [loadThreads])
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -203,7 +210,6 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
       }
       setReplyBody('')
       setPendingFiles([])
-      await loadMessages(selectedThread.id)
     } catch {
       setError('Your reply could not be sent. Check your connection.')
     } finally {
