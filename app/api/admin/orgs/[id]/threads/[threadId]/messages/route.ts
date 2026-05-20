@@ -7,6 +7,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { writeAuditLog } from '@/lib/audit/log'
 import { sendNotificationEmail } from '@/lib/email/notify'
 import { getDealerSignupEmail } from '@/lib/admin/dealerSignupEmail'
+import { sendPushToOrg } from '@/lib/push/send'
 
 const attachmentSchema = z.object({
   name: z.string().max(500),
@@ -17,7 +18,7 @@ const attachmentSchema = z.object({
 
 const postMessageSchema = z.object({
   body:        z.string().trim().min(1).max(10000),
-  channel:     z.enum(['email', 'note', 'call_log']),
+  channel:     z.enum(['email', 'note', 'call_log', 'in_app']),
   subject:     z.string().trim().max(500).optional(),
   attachments: z.array(attachmentSchema).max(20).optional(),
 })
@@ -113,6 +114,12 @@ export async function POST(
     entityType: 'dealer_message',
     entityId:   message.id,
     metadata:   { thread_id: threadId, channel },
+  })
+
+  void sendPushToOrg(orgId, {
+    title: 'New message from DealerWyze',
+    body:  body.slice(0, 100),
+    url:   '/messages',
   })
 
   return NextResponse.json({ ok: true, message_id: message.id })

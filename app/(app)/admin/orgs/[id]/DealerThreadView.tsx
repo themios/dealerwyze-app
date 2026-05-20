@@ -94,14 +94,45 @@ type Props = {
 }
 
 export default function DealerThreadView({ orgId, thread, onBack, onThreadUpdated }: Props) {
-  const [messages, setMessages]         = useState<DealerMessage[]>([])
-  const [loading, setLoading]           = useState(true)
-  const [replyBody, setReplyBody]       = useState('')
-  const [replyChannel, setReplyChannel] = useState<MessageChannel>('email')
-  const [pendingFiles, setPendingFiles] = useState<File[]>([])
-  const [sending, setSending]           = useState(false)
-  const [error, setError]               = useState<string | null>(null)
-  const fileInputRef                    = useRef<HTMLInputElement>(null)
+  const [messages, setMessages]               = useState<DealerMessage[]>([])
+  const [loading, setLoading]                 = useState(true)
+  const [replyBody, setReplyBody]             = useState('')
+  const [replyChannel, setReplyChannel]       = useState<MessageChannel>('email')
+  const [autoChannel, setAutoChannel]         = useState<MessageChannel | null>(null)
+  const [pendingFiles, setPendingFiles]       = useState<File[]>([])
+  const [sending, setSending]                 = useState(false)
+  const [error, setError]                     = useState<string | null>(null)
+  const fileInputRef                          = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    fetch(`/api/admin/orgs/${orgId}/engagement`)
+      .then(r => r.ok ? r.json() : null)
+      .then((data: { preferred_channel: MessageChannel } | null) => {
+        const ch = data?.preferred_channel ?? 'email'
+        setReplyChannel(ch)
+        setAutoChannel(ch)
+      })
+      .catch(() => {})
+  }, [orgId])
+
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`dealer_messages:${thread.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'dealer_messages', filter: `thread_id=eq.${thread.id}` },
+        (payload) => {
+          const row = payload.new as DealerMessage & { sender_display_name?: string | null }
+          setMessages(prev => {
+            if (prev.some(m => m.id === row.id)) return prev
+            return [...prev, { ...row, thread_id: thread.id }]
+          })
+        },
+      )
+      .subscribe()
+    return () => { void supabase.removeChannel(channel) }
+  }, [thread.id])
 
   const loadMessages = useCallback(async () => {
     setLoading(true)
@@ -306,15 +337,23 @@ export default function DealerThreadView({ orgId, thread, onBack, onThreadUpdate
           </div>
         )}
         <div className="flex gap-2 items-end">
-          <select
-            value={replyChannel}
-            onChange={e => setReplyChannel(e.target.value as MessageChannel)}
-            className="px-2 py-2 rounded-lg border border-border bg-background text-xs shrink-0"
-          >
-            <option value="email">Email</option>
-            <option value="note">Note</option>
-            <option value="call_log">Call Log</option>
-          </select>
+          <div className="flex flex-col gap-0.5 shrink-0">
+            <select
+              value={replyChannel}
+              onChange={e => setReplyChannel(e.target.value as MessageChannel)}
+              className="px-2 py-2 rounded-lg border border-border bg-background text-xs"
+            >
+              <option value="in_app">In-App</option>
+              <option value="email">Email</option>
+              <option value="note">Note</option>
+              <option value="call_log">Call Log</option>
+            </select>
+            {autoChannel && (
+              <span className="text-[10px] text-muted-foreground px-0.5">
+                Auto: {autoChannel === 'in_app' ? 'in-app' : autoChannel}
+              </span>
+            )}
+          </div>
           <div className="flex-1 relative">
             <textarea
               value={replyBody}

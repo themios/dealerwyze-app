@@ -27,6 +27,14 @@ export const OPTIONAL_DEALER_INBOX: string[] = [
   'RESEND_REPLY_DOMAIN',
 ]
 
+/** Optional — browser push notifications degrade gracefully when unset */
+export const OPTIONAL_PUSH: string[] = [
+  'VAPID_PUBLIC_KEY',
+  'VAPID_PRIVATE_KEY',
+  'VAPID_SUBJECT',
+  'NEXT_PUBLIC_VAPID_PUBLIC_KEY',
+]
+
 const REQUIRED_IN_PROD_ONLY: string[] = [
   // BHPH ACH: signed customer setup links + Stripe ACH webhook (dealer Connect account)
   'BHPH_ACH_SECRET',

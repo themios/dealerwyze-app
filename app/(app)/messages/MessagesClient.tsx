@@ -130,6 +130,28 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
     }
   }, [])
 
+  const activeThreadId = selectedThread?.id ?? null
+
+  useEffect(() => {
+    if (!activeThreadId) return
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`dealer_messages:${activeThreadId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'dealer_messages', filter: `thread_id=eq.${activeThreadId}` },
+        (payload) => {
+          const row = payload.new as DealerMessage
+          setMessages(prev => {
+            if (prev.some(m => m.id === row.id)) return prev
+            return [...prev, row]
+          })
+        },
+      )
+      .subscribe()
+    return () => { void supabase.removeChannel(channel) }
+  }, [activeThreadId])
+
   useEffect(() => { void loadThreads() }, [loadThreads])
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
