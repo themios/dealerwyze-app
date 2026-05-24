@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Settings, Search, ChevronRight, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { GROUPS, SETTINGS_ITEMS, matchesSearch, getGroupForPath, type GroupId } from '@/lib/settings/config'
+import { GROUPS, SETTINGS_ITEMS, matchesSearch, getGroupForPath, resolveGroupTitle, resolveItemTitle, type GroupId } from '@/lib/settings/config'
+import { useVertical } from '@/hooks/useVertical'
 import { canViewSettingsAudience } from '@/lib/settings/access'
 import type { UserRole } from '@/types/index'
 
@@ -19,9 +20,11 @@ export default function SettingsMobileNav({ role, canManageReconTemplate }: Prop
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
+  const { vertical } = useVertical()
 
   const currentGroup = getGroupForPath(pathname)
-  const currentGroupLabel = GROUPS.find(g => g.id === currentGroup)?.title ?? 'Settings'
+  const currentGroupConfig = GROUPS.find(g => g.id === currentGroup)
+  const currentGroupLabel = currentGroupConfig ? resolveGroupTitle(currentGroupConfig, vertical) : 'Settings'
 
   const [activeGroup, setActiveGroup] = useState<GroupId>(currentGroup ?? 'business')
 
@@ -71,6 +74,7 @@ export default function SettingsMobileNav({ role, canManageReconTemplate }: Prop
 
   const visibleItems = SETTINGS_ITEMS.filter(item => {
     if (!canManageReconTemplate && item.id === 'recon-template') return false
+    if (item.verticalHide?.includes(vertical)) return false
     return canViewSettingsAudience(role, item.audience)
   })
 
@@ -155,7 +159,7 @@ export default function SettingsMobileNav({ role, canManageReconTemplate }: Prop
                     : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white',
                 )}
               >
-                {group.title}
+                {resolveGroupTitle(group, vertical)}
               </button>
             ))}
           </div>
@@ -179,7 +183,7 @@ export default function SettingsMobileNav({ role, canManageReconTemplate }: Prop
                   )}
                 >
                   <item.icon className={cn('h-4 w-4 shrink-0', active ? 'text-[#F07018]' : 'text-white/40')} />
-                  <p className="text-sm font-medium flex-1">{item.title}</p>
+                  <p className="text-sm font-medium flex-1">{resolveItemTitle(item, vertical)}</p>
                   <ChevronRight className={cn('h-4 w-4 shrink-0', active ? 'text-[#F07018]/60' : 'text-white/20')} />
                 </Link>
               )

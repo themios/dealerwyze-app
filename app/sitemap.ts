@@ -1,8 +1,10 @@
 import type { MetadataRoute } from 'next'
+import { headers } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase/service'
-import { getPublicAppBaseUrl } from '@/lib/dealer-public/site'
+import { getBaseUrlForHost } from '@/lib/dealer-public/site'
+import { resolveVertical } from '@/proxy'
 
-/** Dealer inventory changes often; always read from DB (not build-time snapshot). */
+/** Inventory changes often; always read from DB (not build-time snapshot). */
 export const dynamic = 'force-dynamic'
 
 type VehicleRow = {
@@ -12,18 +14,28 @@ type VehicleRow = {
   created_at: string | null
 }
 
-/** Flat URL list for all public dealer inventory + VDPs (excludes noindex orgs). Single vehicles query. */
+/** URL list for public inventory/listings scoped to the current domain's vertical. */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const base = getPublicAppBaseUrl().replace(/\/$/, '')
+  const host = (await headers()).get('host') ?? ''
+  const base = getBaseUrlForHost(host).replace(/\/$/, '')
+  const vertical = resolveVertical(host)
   const supabase = createServiceClient()
 
   const { data: orgs } = await supabase
     .from('organizations')
-    .select('id, slug, updated_at')
+    .select('id, slug, updated_at, vertical')
     .eq('public_inventory_enabled', true)
     .or('website_robots_noindex.is.null,website_robots_noindex.eq.false')
 
-  const orgList = (orgs ?? []).filter(o => (o.slug as string)?.trim()) as {
+  // Only include orgs that belong to this domain's vertical.
+  // dealer vertical = orgs where vertical is 'dealer' or null (legacy rows pre-dating the column).
+  // real_estate vertical = orgs where vertical is 'real_estate'.
+  const orgList = (orgs ?? [])
+    .filter(o => (o.slug as string)?.trim())
+    .filter(o => {
+      const v = (o as Record<string, unknown>).vertical as string | null
+      return vertical === 'real_estate' ? v === 'real_estate' : (v === 'dealer' || v == null)
+    }) as {
     id: string
     slug: string
     updated_at: string | null

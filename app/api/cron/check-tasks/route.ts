@@ -19,6 +19,7 @@ import { runPulseSurveys } from '@/lib/cron/jobs/pulseSurveys'
 import { runAppointmentRemindersV2 } from '@/lib/cron/jobs/appointmentRemindersV2'
 import { runAbuseDetection } from '@/lib/cron/jobs/abuseDetection'
 import { runDealerFollowUps } from '@/lib/cron/jobs/dealerFollowUps'
+import { runReFollowUps } from '@/lib/cron/jobs/reFollowUps'
 import { runDealerInboxAutomations } from '@/lib/cron/jobs/dealerInboxAutomations'
 import { runPlatformOwnerDigest } from '@/lib/cron/jobs/platformOwnerDigest'
 
@@ -62,6 +63,7 @@ export async function GET(req: NextRequest) {
   let apptV2:      Awaited<ReturnType<typeof runAppointmentRemindersV2>>| undefined
   let abuse:         Awaited<ReturnType<typeof runAbuseDetection>>          | undefined
   let followUps:     Awaited<ReturnType<typeof runDealerFollowUps>>         | undefined
+  let reFollowUps:   Awaited<ReturnType<typeof runReFollowUps>>             | undefined
   let ownerDigest:   Awaited<ReturnType<typeof runPlatformOwnerDigest>>     | undefined
 
   try {
@@ -82,6 +84,7 @@ export async function GET(req: NextRequest) {
     apptV2      = await runJob('appointmentRemindersV2',  () => runAppointmentRemindersV2(supabase))
     abuse       = await runJob('abuseDetection',           () => runAbuseDetection(supabase))
     followUps   = await runJob('dealerFollowUps',          () => runDealerFollowUps(supabase))
+    reFollowUps = await runJob('reFollowUps',              () => runReFollowUps(supabase))
     await runJob('dealerInboxAutomations', () =>
       runDealerInboxAutomations().then(r => `triggered=${r.triggered} skipped=${r.skipped}`)
     )
@@ -108,6 +111,7 @@ export async function GET(req: NextRequest) {
     reminders_queued:            apptV2?.remindersQueued,
     abuse_flags_created:         abuse?.flagsCreated,
     dealer_followups_sent:       followUps?.dealerFollowUpsSent,
+    re_followups_sent:           reFollowUps?.reFollowUpsSent,
     platform_digest_sent:        ownerDigest?.platformDigestSent,
     job_results:                 jobResults,
   })

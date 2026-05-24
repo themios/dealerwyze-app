@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { ArrowRightLeft } from 'lucide-react'
 
-export default function DangerZoneSection() {
+export default function DangerZoneSection({ isRE = false }: { isRE?: boolean }) {
   const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
@@ -27,7 +27,7 @@ export default function DangerZoneSection() {
         Transfer Business Ownership
       </Link>
       <p className="text-xs text-muted-foreground mt-1.5">
-        Sell or transfer this dealership to a new owner. Your account will be deactivated.
+        {isRE ? 'Transfer this agency to a new owner. Your account will be deactivated.' : 'Sell or transfer this dealership to a new owner. Your account will be deactivated.'}
       </p>
     </div>
   )

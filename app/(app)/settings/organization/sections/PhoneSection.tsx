@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Phone, X, Loader2 } from 'lucide-react'
 import ConfirmActionDialog from '@/components/settings/ConfirmActionDialog'
+import { useVertical } from '@/hooks/useVertical'
 
 function formatPhone(p: string) {
   const d = p.replace(/\D/g, '')
@@ -15,6 +16,8 @@ function formatPhone(p: string) {
 }
 
 export default function PhoneSection() {
+  const { vertical } = useVertical()
+  const isRe = vertical === 'real_estate'
   const [isAdmin, setIsAdmin]                 = useState(false)
   const [twilioNumber, setTwilioNumber]       = useState<string | null>(null)
   const [dealershipName, setDealershipName]   = useState('')
@@ -94,7 +97,7 @@ export default function PhoneSection() {
           </div>
           <ConfirmActionDialog
             title="Release this number?"
-            description="Your dealership will no longer be able to send or receive texts or calls on this number."
+            description={`Your ${isRe ? 'agency' : 'dealership'} will no longer be able to send or receive texts or calls on this number.`}
             confirmLabel={releasing ? 'Releasing...' : 'Release number'}
             confirmVariant="destructive"
             onConfirm={handleRelease}
@@ -166,7 +169,20 @@ export default function PhoneSection() {
                   <Input
                     placeholder="(818) 555-0100"
                     value={existingNumber}
-                    onChange={e => setExistingNumber(e.target.value)}
+                    onChange={e => {
+                      const digits = e.target.value.replace(/\D/g, '').slice(0, 10)
+                      const fmt = digits.length === 10
+                        ? `(${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`
+                        : digits.length > 6
+                        ? `(${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`
+                        : digits.length > 3
+                        ? `(${digits.slice(0,3)}) ${digits.slice(3)}`
+                        : digits.length > 0
+                        ? `(${digits}`
+                        : ''
+                      setExistingNumber(fmt)
+                    }}
+                    maxLength={14}
                     className="h-9 font-mono"
                   />
                   <p className="text-[10px] text-muted-foreground">

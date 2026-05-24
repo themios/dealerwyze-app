@@ -8,7 +8,7 @@ const SENTINEL_ORG_ID = '00000000-0000-0000-0000-000000000001'
 
 export async function GET(req: NextRequest) {
   const profile = await requireProfile()
-  const denied  = await requirePlatformArea(profile.id, 'dealers')
+  const denied  = await requirePlatformArea(profile.id, 'accounts')
   if (denied) return denied
 
   const { searchParams } = req.nextUrl

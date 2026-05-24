@@ -10,7 +10,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string; threadId: string }> },
 ) {
   const profile = await requireProfile()
-  const denied  = await requirePlatformArea(profile.id, 'dealers')
+  const denied  = await requirePlatformArea(profile.id, 'accounts')
   if (denied) return denied
 
   const { id: orgId, threadId } = await params

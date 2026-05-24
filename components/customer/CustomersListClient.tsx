@@ -48,10 +48,17 @@ function getActivityUrgency(lastActivityAt: string | null | undefined): {
 }
 
 const SOURCE_LABELS: Record<string, string> = {
+  // Dealer sources
   cargurus: 'CarGurus', cargurus_digest: 'CG Digest',
   autotrader: 'AutoTrader', offerup: 'OfferUp',
-  facebook: 'Facebook', kbb: 'KBB', autolist: 'Autolist', carsforsale: 'Carsforsale',
-  voice: 'Voice', manual: 'Manual', direct: 'Direct',
+  kbb: 'KBB', autolist: 'Autolist', carsforsale: 'Carsforsale',
+  // RE sources
+  zillow: 'Zillow', realtor_com: 'Realtor.com', homes_com: 'Homes.com',
+  open_house: 'Open House', referral: 'Referral',
+  // Shared
+  facebook: 'Facebook', instagram: 'Instagram',
+  voice: 'Voice', phone: 'Phone', email: 'Email', sms: 'Text',
+  manual: 'Manual', direct: 'Direct',
 }
 
 function getLeadIntentTier(customer: Customer): LeadIntentTier {

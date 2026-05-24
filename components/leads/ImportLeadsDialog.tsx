@@ -7,6 +7,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { FileSpreadsheet, Download } from 'lucide-react'
+import { useVertical } from '@/hooks/useVertical'
 
 interface ImportSummary {
   total_rows: number
@@ -18,9 +19,18 @@ interface ImportSummary {
   over_limit: number
 }
 
-export default function ImportLeadsDialog() {
+interface Props {
+  open?: boolean
+  onOpenChange?: (val: boolean) => void
+}
+
+export default function ImportLeadsDialog({ open: controlledOpen, onOpenChange: controlledChange }: Props = {}) {
   const router = useRouter()
-  const [open, setOpen] = useState(false)
+  const { vertical } = useVertical()
+  const isRE = vertical === 'real_estate'
+  const [internalOpen, setInternalOpen] = useState(false)
+  const isControlled = controlledOpen !== undefined
+  const open = isControlled ? controlledOpen! : internalOpen
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -33,7 +43,7 @@ export default function ImportLeadsDialog() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'leads-import-template.csv'
+    a.download = isRE ? 'clients-import-template.csv' : 'leads-import-template.csv'
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -70,7 +80,8 @@ export default function ImportLeadsDialog() {
   }
 
   function handleOpenChange(val: boolean) {
-    setOpen(val)
+    if (!isControlled) setInternalOpen(val)
+    controlledChange?.(val)
     if (!val) {
       setFile(null)
       setError(null)
@@ -80,20 +91,24 @@ export default function ImportLeadsDialog() {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="ghost" title="Import leads from spreadsheet">
-          <FileSpreadsheet className="h-5 w-5" />
-        </Button>
-      </DialogTrigger>
+      {!isControlled && (
+        <DialogTrigger asChild>
+          <Button size="sm" variant="ghost" title="Import leads from spreadsheet">
+            <FileSpreadsheet className="h-5 w-5" />
+          </Button>
+        </DialogTrigger>
+      )}
 
       <DialogContent className="max-w-md flex flex-col max-h-[85vh]">
         <DialogHeader className="shrink-0">
-          <DialogTitle>Import Leads</DialogTitle>
+          <DialogTitle>{isRE ? 'Import Clients' : 'Import Leads'}</DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-col gap-4 min-h-0">
           <p className="text-sm text-muted-foreground">
-            Upload a CSV or Excel file with columns for Name and Phone or Email. Use our template for the correct format, or use your own — we recognize many column names (e.g. Customer Name, Phone Number, Email Address).
+            {isRE
+              ? 'Upload a CSV or Excel file with columns for Name and Phone or Email. Use our template for the correct format, or use your own — we recognize many column names (e.g. Client Name, Phone Number, Property).'
+              : 'Upload a CSV or Excel file with columns for Name and Phone or Email. Use our template for the correct format, or use your own — we recognize many column names (e.g. Customer Name, Phone Number, Email Address).'}
           </p>
 
           <div className="flex flex-col gap-2">
@@ -105,7 +120,7 @@ export default function ImportLeadsDialog() {
               onClick={handleDownloadTemplate}
             >
               <Download className="h-4 w-4" />
-              Download template (CSV)
+              {isRE ? 'Download client template (CSV)' : 'Download template (CSV)'}
             </Button>
           </div>
 

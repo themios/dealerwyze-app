@@ -11,7 +11,6 @@ export async function runOnboardingNudges(
   let onboardingNudges = 0
 
   const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://dealerwyze.com'
 
   const { data: pendingOnboarding } = await supabase
     .from('org_settings')
@@ -24,13 +23,19 @@ export async function runOnboardingNudges(
 
     const { data: org } = await supabase
       .from('organizations')
-      .select('id, name, created_at')
+      .select('id, name, created_at, vertical')
       .eq('id', orgId)
       .not('approved_at', 'is', null)
       .lt('created_at', fourHoursAgo)
       .maybeSingle()
 
     if (!org) continue
+
+    const orgVertical = (org.vertical ?? 'dealer') as 'dealer' | 'real_estate'
+    const appUrl = orgVertical === 'real_estate'
+      ? `https://${process.env.REALTYWYZE_DOMAIN ?? 'realtywyze.us'}`
+      : process.env.NEXT_PUBLIC_APP_URL ?? 'https://dealerwyze.com'
+    const isRe = orgVertical === 'real_estate'
 
     const { data: existing } = await supabase
       .from('admin_alerts')
@@ -93,29 +98,59 @@ export async function runOnboardingNudges(
     }
 
     if (vehicleCount === 0) {
-      incomplete.push({
-        title:    'No vehicles in your inventory',
-        detail:   'Without inventory, DealerWyze cannot run market pricing analysis or let customers inquire about specific vehicles.',
-        action:   'Go to Inventory and add your first vehicle. You only need the VIN - DealerWyze fills in year, make, and model automatically.',
-        link:     `${appUrl}/vehicles/new`,
-        linkText: 'Add First Vehicle',
-      })
+      incomplete.push(
+        isRe
+          ? {
+              title:    'No listings added yet',
+              detail:   'Your listings appear on your public site and feed market pricing analysis. Add at least one property to activate pricing comparisons for your area.',
+              action:   'Open the setup wizard and add your first active listing.',
+              link:     `${appUrl}/onboarding`,
+              linkText: 'Add a Listing',
+            }
+          : {
+              title:    'No vehicles in your inventory',
+              detail:   'Without inventory, the system cannot run market pricing analysis or let customers inquire about specific vehicles.',
+              action:   'Go to Inventory and add your first vehicle. You only need the VIN and it fills in year, make, and model automatically.',
+              link:     `${appUrl}/vehicles/new`,
+              linkText: 'Add First Vehicle',
+            },
+      )
     }
 
     if (gmailCount === 0) {
-      incomplete.push({
-        title:    'Lead inbox not connected',
-        detail:   'Without a connected Gmail account, leads from CarGurus, AutoTrader, Cars.com, and direct email will not appear in DealerWyze. You could be missing inquiries right now.',
-        action:   'Go to Settings and connect your Gmail account. It takes about 30 seconds and you can pick any Google account.',
-        link:     `${appUrl}/settings`,
-        linkText: 'Connect Gmail',
-      })
+      incomplete.push(
+        isRe
+          ? {
+              title:    'Gmail not connected',
+              detail:   'Inquiries from Zillow, Realtor.com, and other platforms land in Gmail first. Connecting it pulls them into RealtyWyze automatically so nothing gets missed.',
+              action:   'Go to Settings and connect the Gmail account where your listing inquiries arrive.',
+              link:     `${appUrl}/settings`,
+              linkText: 'Connect Gmail',
+            }
+          : {
+              title:    'Lead inbox not connected',
+              detail:   'Without a connected Gmail account, leads from CarGurus, AutoTrader, Cars.com, and direct email will not appear in your inbox. You could be missing inquiries right now.',
+              action:   'Go to Settings and connect your Gmail account. It takes about 30 seconds and you can pick any Google account.',
+              link:     `${appUrl}/settings`,
+              linkText: 'Connect Gmail',
+            },
+      )
     }
 
+    if (isRe) {
+      for (const item of incomplete) {
+        if (item.title === 'Business phone number missing' || item.title === 'Business address or zip code missing' || item.title === 'Business hours not set') {
+          item.detail = item.detail.replace(/dealership/gi, 'brokerage')
+          item.action = item.action.replace(/dealership/gi, 'brokerage')
+        }
+      }
+    }
+
+    const brandLabel = isRe ? 'RealtyWyze' : 'DealerWyze'
     void sendNotificationEmail({
       to:         email,
-      subject:    `Action needed: ${incomplete.length} thing${incomplete.length !== 1 ? 's' : ''} left to finish your DealerWyze setup`,
-      html:       buildNudgeEmailHtml(adminProfile.display_name, appUrl, incomplete),
+      subject:    `Action needed: ${incomplete.length} thing${incomplete.length !== 1 ? 's' : ''} left to finish your ${brandLabel} setup`,
+      html:       buildNudgeEmailHtml(adminProfile.display_name, appUrl, incomplete, orgVertical),
       org_id:     orgId,
       email_type: 'onboarding_nudge',
     })

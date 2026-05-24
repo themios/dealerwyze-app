@@ -86,12 +86,12 @@ export async function PATCH(
           void sendNotificationEmail({
             to: dealerEmail,
             subject: `Re: ${t.subject ?? 'Your support ticket'}`,
-            html: `<p>Your support ticket has a new reply from the DealerWyze team:</p>
+            html: `<p>Your support ticket has a new reply from our support team:</p>
 <hr>
 <p>${body.message.trim().replace(/\n/g, '<br>')}</p>
 <hr>
 <p><a href="${process.env.NEXT_PUBLIC_APP_URL}/support">View your ticket</a></p>
-<p style="color:#888;font-size:12px">You are receiving this because you submitted a support ticket at DealerWyze.</p>`,
+<p style="color:#888;font-size:12px">You are receiving this because you submitted a support ticket.</p>`,
           })
         }
       }

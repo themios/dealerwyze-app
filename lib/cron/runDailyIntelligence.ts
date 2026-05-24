@@ -23,7 +23,7 @@ export async function runDailyIntelligenceJob(options: {
   // Limit guards against unbounded read; paginate before reaching 200 orgs.
   const { data: orgs, error: orgErr } = await supabase
     .from('organizations')
-    .select('id, name, subscription_status')
+    .select('id, name, subscription_status, vertical')
     .or(
       'subscription_status.is.null,subscription_status.eq.active,subscription_status.eq.trialing,subscription_status.eq.past_due',
     )
@@ -38,7 +38,8 @@ export async function runDailyIntelligenceJob(options: {
 
   for (const org of orgs ?? []) {
     const orgId = org.id as string
-    const dealerName = (org.name as string) ?? 'Dealership'
+    const isRe = (org.vertical as string | null) === 'real_estate'
+    const dealerName = (org.name as string) ?? (isRe ? 'Agency' : 'Dealership')
 
     try {
       await refreshVehicleSignalsForOrg(supabase, orgId)
@@ -83,7 +84,7 @@ export async function runDailyIntelligenceJob(options: {
         const signals = await fetchMarketSignals(4).catch(() => [])
         const payload = await computePayload(supabase, orgId, dealerName, forDate, signals)
         const { generateBriefing } = await import('@/lib/intelligence/claude')
-        const result = await generateBriefing(payload)
+        const result = await generateBriefing(payload, isRe ? 'real_estate' : 'dealer')
         // Upsert avoids a delete+insert window where the briefing is missing
         await supabase.from('briefings').upsert(
           {

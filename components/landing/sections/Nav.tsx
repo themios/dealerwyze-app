@@ -31,7 +31,7 @@ export default function Nav() {
 
           {/* Wordmark */}
           <div className="flex items-center">
-            <Image src="/logo.png" alt="DealerWyze" width={140} height={47} priority className="object-contain" />
+            <Image src="/logo.png" alt="DealerWyze" width={140} height={47} priority style={{ height: 'auto' }} className="object-contain" />
           </div>
 
           {/* Desktop nav */}

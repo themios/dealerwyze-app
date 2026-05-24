@@ -23,6 +23,14 @@ export async function POST(_req: NextRequest, { params }: Params) {
     // Auth client (forRequest): RLS enforces org isolation when reading the vehicle for AI input.
     const supabase = await createClientForRequest()
 
+    // Check org vertical to choose the right prompt path
+    const { data: org } = await supabase
+      .from('organizations')
+      .select('vertical')
+      .eq('id', profile.org_id)
+      .single()
+    const isRe = (org?.vertical as string | null) === 'real_estate'
+
     const { data: vehicle } = await supabase
       .from('vehicles')
       .select('id, year, make, model, trim, color, mileage, price, notes, status, market_data_json, voice_summary')
@@ -34,8 +42,9 @@ export async function POST(_req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    if (vehicle.status === 'sold') {
-      return NextResponse.json({ error: 'Cannot generate description for sold vehicle' }, { status: 400 })
+    const soldStatus = isRe ? 'closed' : 'sold'
+    if (vehicle.status === soldStatus) {
+      return NextResponse.json({ error: `Cannot generate description for ${isRe ? 'closed' : 'sold'} listing` }, { status: 400 })
     }
 
     const apiKey = process.env.ANTHROPIC_API_KEY
@@ -68,13 +77,29 @@ export async function POST(_req: NextRequest, { params }: Params) {
 
     const vehicleLabel = [vehicle.year, vehicle.make, vehicle.model, vehicle.trim].filter(Boolean).join(' ')
     const pricingContext = mi.fairMarketPrice
-      ? `\nFair market value for this make/model/mileage is approximately $${mi.fairMarketPrice.toLocaleString()}.`
+      ? `\nFair market value is approximately $${mi.fairMarketPrice.toLocaleString()}.`
       : ''
     const problemsContext = mi.topProblems?.length
       ? `\nKnown considerations: ${mi.topProblems.slice(0, 2).join('; ')}.`
       : ''
 
-    const prompt = `Write 6–8 bullet points for a ${vehicleLabel} listing on Facebook Marketplace or Craigslist.
+    // RE property listing prompt vs. vehicle listing prompt
+    const prompt = isRe
+      ? `Write 6–8 bullet points for a property listing on Zillow, Realtor.com, or Facebook Marketplace.
+
+Property details:
+- Address / label: ${vehicleLabel || 'the listing'}
+- Asking price: ${vehicle.price ? '$' + vehicle.price.toLocaleString() : 'call for price'}
+- Agent notes: ${vehicle.notes ?? 'none'}
+${pricingContext}${docContext}
+
+RULES:
+- Output ONLY bullet lines. Start every line with "• " (bullet + space).
+- Each bullet: one short phrase or fact, under 14 words. No full paragraphs.
+- Cover in order: property type/bedrooms/bathrooms if known, price, standout features, location/neighborhood highlights, then any inspection or disclosure facts from uploaded documents (only facts explicitly stated), last bullet = short call to action.
+- Honest tone. Do not invent features not stated in the notes or documents.
+- No headers, no markdown, no numbered lines, no blank lines between bullets.`
+      : `Write 6–8 bullet points for a ${vehicleLabel} listing on Facebook Marketplace or Craigslist.
 
 Vehicle details:
 - Mileage: ${vehicle.mileage ? vehicle.mileage.toLocaleString() + ' miles' : 'not listed'}

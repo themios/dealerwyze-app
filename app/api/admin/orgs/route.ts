@@ -26,7 +26,7 @@ function computeHealthScore(org: {
 
 export async function GET() {
   const profile = await requireProfile()
-  const denied = await requirePlatformArea(profile.id, 'dealers')
+  const denied = await requirePlatformArea(profile.id, 'accounts')
   if (denied) return denied
 
   const service = createServiceClient()
@@ -39,7 +39,7 @@ export async function GET() {
   ] = await Promise.all([
     service
       .from('organizations')
-      .select('id, name, plan, subscription_status, trial_ends_at, current_period_end, approved_at, created_at, stripe_customer_id, suspended_at, sms_plan, sms_quota, monthly_message_count, last_active_at')
+      .select('id, name, plan, subscription_status, trial_ends_at, current_period_end, approved_at, created_at, stripe_customer_id, suspended_at, sms_plan, sms_quota, monthly_message_count, last_active_at, vertical')
       .order('created_at', { ascending: false }),
 
     service
@@ -131,6 +131,7 @@ export async function GET() {
     return {
       id:                  org.id,
       name:                org.name,
+      vertical:            (org as { vertical?: string | null }).vertical ?? 'dealer',
       plan:                org.plan,
       subscription_status: org.subscription_status,
       trial_ends_at:       org.trial_ends_at ?? null,

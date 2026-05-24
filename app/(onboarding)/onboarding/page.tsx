@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Loader2, CheckCircle2, Building2, Car, Mail, Users,
-  Plus, Trash2, ChevronRight, AlertCircle,
+  Plus, Trash2, ChevronRight, AlertCircle, Home,
 } from 'lucide-react'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -26,21 +26,29 @@ interface OrgSettings {
 interface VinData { year: number; make: string; model: string; trim: string }
 
 const TOTAL_STEPS = 5
-const STEP_LABELS = ['Your Dealership', 'First Vehicle', 'Lead Inbox', 'Your Team', 'Ready!']
+const DEALER_STEP_LABELS = ['Your Dealership', 'First Vehicle', 'Lead Inbox', 'Your Team', 'Ready!']
+const RE_STEP_LABELS     = ['Your Agency',      'First Listing', 'Lead Inbox', 'Your Team', 'Ready!']
 const TIMEZONES = [
   'America/Los_Angeles','America/Denver','America/Chicago',
   'America/New_York','America/Phoenix','Pacific/Honolulu',
 ]
-const ROLE_OPTIONS = [
+const DEALER_ROLE_OPTIONS = [
   { value: 'dealer_admin',   label: 'Admin (full access)' },
   { value: 'dealer_manager', label: 'Manager' },
   { value: 'dealer_finance', label: 'Finance' },
   { value: 'dealer_staff',   label: 'Staff' },
   { value: 'dealer_rep',     label: 'Sales Rep (limited)' },
 ]
+const RE_ROLE_OPTIONS = [
+  { value: 'dealer_admin',   label: 'Admin (full access)' },
+  { value: 'dealer_manager', label: 'Broker / Team Lead' },
+  { value: 'dealer_staff',   label: 'Agent' },
+  { value: 'dealer_rep',     label: 'Agent (limited)' },
+]
 
 // ── Progress bar ──────────────────────────────────────────────────────────────
-function ProgressBar({ step }: { step: number }) {
+function ProgressBar({ step, vertical }: { step: number; vertical: string }) {
+  const labels = vertical === 'real_estate' ? RE_STEP_LABELS : DEALER_STEP_LABELS
   const pct = Math.round((step / (TOTAL_STEPS - 1)) * 100)
   return (
     <div className="px-6 py-4 space-y-2">
@@ -48,13 +56,13 @@ function ProgressBar({ step }: { step: number }) {
         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
           Step {step + 1} of {TOTAL_STEPS}
         </span>
-        <span className="text-xs text-muted-foreground">{STEP_LABELS[step]}</span>
+        <span className="text-xs text-muted-foreground">{labels[step]}</span>
       </div>
       <div className="h-2 bg-muted rounded-full overflow-hidden">
         <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
       </div>
       <div className="flex justify-between">
-        {STEP_LABELS.map((label, i) => (
+        {labels.map((label, i) => (
           <div key={i} className="flex flex-col items-center gap-0.5">
             <div className={`w-4 h-4 rounded-full flex items-center justify-center border-2 transition-colors ${
               i < step ? 'bg-primary border-primary' :
@@ -71,10 +79,11 @@ function ProgressBar({ step }: { step: number }) {
   )
 }
 
-// ── Step 1: Dealership Profile ────────────────────────────────────────────────
-function StepProfile({ settings, orgName, onNext }: {
-  settings: OrgSettings | null; orgName: string; onNext: (data: object) => Promise<void>
+// ── Step 1: Profile ───────────────────────────────────────────────────────────
+function StepProfile({ settings, orgName, vertical, onNext }: {
+  settings: OrgSettings | null; orgName: string; vertical: string; onNext: (data: object) => Promise<void>
 }) {
+  const isRE = vertical === 'real_estate'
   const [name,   setName]   = useState(orgName || '')
   const [dba,    setDba]    = useState(settings?.business_name    || '')
   const [phone,  setPhone]  = useState(settings?.business_phone   || '')
@@ -109,7 +118,7 @@ function StepProfile({ settings, orgName, onNext }: {
       <div className="flex items-center gap-3">
         <div className="p-2 rounded-xl bg-primary/10"><Building2 className="h-6 w-6 text-primary" /></div>
         <div>
-          <h2 className="text-xl font-bold">Your Dealership</h2>
+          <h2 className="text-xl font-bold">{isRE ? 'Your Agency' : 'Your Dealership'}</h2>
           <p className="text-sm text-muted-foreground">Used in messages, reports, and your AI voice agent.</p>
         </div>
       </div>
@@ -118,8 +127,8 @@ function StepProfile({ settings, orgName, onNext }: {
 
       <div className="space-y-3">
         <div>
-          <label className="text-sm font-medium block mb-1">Dealership Name <span className="text-destructive">*</span></label>
-          <input value={name} onChange={e => setName(e.target.value)} placeholder="Apollo Auto"
+          <label className="text-sm font-medium block mb-1">{isRE ? 'Agency Name' : 'Dealership Name'} <span className="text-destructive">*</span></label>
+          <input value={name} onChange={e => setName(e.target.value)} placeholder={isRE ? 'Westside Realty' : 'Apollo Auto'}
             className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
         </div>
         <div>
@@ -141,7 +150,7 @@ function StepProfile({ settings, orgName, onNext }: {
           <label className="text-sm font-medium block mb-1">Zip Code</label>
           <input value={zip} onChange={e => setZip(e.target.value)} placeholder="91731" maxLength={10}
             className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
-          <p className="text-xs text-muted-foreground mt-1">Used for local market pricing data</p>
+          <p className="text-xs text-muted-foreground mt-1">{isRE ? 'Used for local market comps' : 'Used for local market pricing data'}</p>
         </div>
         <div>
           <label className="text-sm font-medium block mb-1">Timezone</label>
@@ -171,7 +180,111 @@ function StepProfile({ settings, orgName, onNext }: {
   )
 }
 
-// ── Step 2: First Vehicle ─────────────────────────────────────────────────────
+// ── Step 2 (RE): First Listing ────────────────────────────────────────────────
+function StepListing({ onNext, onSkip }: { onNext: () => void; onSkip: () => void }) {
+  const [address,  setAddress]  = useState('')
+  const [price,    setPrice]    = useState('')
+  const [beds,     setBeds]     = useState('')
+  const [baths,    setBaths]    = useState('')
+  const [sqft,     setSqft]     = useState('')
+  const [mls,      setMls]      = useState('')
+  const [saving,   setSaving]   = useState(false)
+  const [added,    setAdded]    = useState(false)
+  const [err,      setErr]      = useState<string | null>(null)
+
+  async function addListing() {
+    if (!address.trim()) { setErr('Enter a property address'); return }
+    setSaving(true); setErr(null)
+    try {
+      const res = await fetch('/api/vehicles', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          address: address.trim(),
+          price:   price   ? parseInt(price.replace(/\D/g, ''),   10) : null,
+          bedrooms:    beds  ? parseInt(beds,  10) : null,
+          bathrooms:   baths ? parseFloat(baths) : null,
+          sqft:    sqft  ? parseInt(sqft.replace(/\D/g, ''), 10) : null,
+          mls_number: mls.trim() || null,
+          status: 'available',
+        }),
+      })
+      if (!res.ok) throw new Error('Failed to add')
+      setAdded(true)
+      setTimeout(() => onNext(), 1500)
+    } catch {
+      setErr('Could not add listing. Try again or skip this step.')
+    } finally { setSaving(false) }
+  }
+
+  if (added) return (
+    <div className="flex-1 flex flex-col items-center justify-center py-16 text-center gap-4 px-6">
+      <CheckCircle2 className="h-12 w-12 text-green-500" />
+      <p className="font-semibold text-lg">Listing added!</p>
+      <p className="text-sm text-muted-foreground">Moving to the next step...</p>
+    </div>
+  )
+
+  return (
+    <div className="flex-1 px-6 py-4 space-y-5">
+      <div className="flex items-center gap-3">
+        <div className="p-2 rounded-xl bg-primary/10"><Home className="h-6 w-6 text-primary" /></div>
+        <div>
+          <h2 className="text-xl font-bold">Add Your First Listing</h2>
+          <p className="text-sm text-muted-foreground">Enter a property address to get started. Add the rest later.</p>
+        </div>
+      </div>
+
+      {err && <div className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">{err}</div>}
+
+      <div className="space-y-3">
+        <div>
+          <label className="text-sm font-medium block mb-1">Property Address <span className="text-destructive">*</span></label>
+          <input value={address} onChange={e => setAddress(e.target.value)}
+            placeholder="123 Maple St, Los Angeles, CA 90001"
+            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+        </div>
+        <div>
+          <label className="text-sm font-medium block mb-1">List Price</label>
+          <input value={price} onChange={e => setPrice(e.target.value)} placeholder="$650,000"
+            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label className="text-xs font-medium block mb-1">Beds</label>
+            <input value={beds} onChange={e => setBeds(e.target.value)} placeholder="3"
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          </div>
+          <div>
+            <label className="text-xs font-medium block mb-1">Baths</label>
+            <input value={baths} onChange={e => setBaths(e.target.value)} placeholder="2"
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          </div>
+          <div>
+            <label className="text-xs font-medium block mb-1">Sq Ft</label>
+            <input value={sqft} onChange={e => setSqft(e.target.value)} placeholder="1,450"
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          </div>
+        </div>
+        <div>
+          <label className="text-sm font-medium block mb-1">MLS # <span className="text-xs text-muted-foreground">(optional)</span></label>
+          <input value={mls} onChange={e => setMls(e.target.value)} placeholder="ML12345678"
+            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+        </div>
+      </div>
+
+      <Button className="w-full" onClick={addListing} disabled={saving || !address.trim()}>
+        {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+        Add Listing <ChevronRight className="h-4 w-4 ml-1" />
+      </Button>
+
+      <Button variant="ghost" className="w-full text-muted-foreground" onClick={onSkip}>
+        Skip - I&apos;ll add listings later
+      </Button>
+    </div>
+  )
+}
+
+// ── Step 2 (Dealer): First Vehicle ────────────────────────────────────────────
 function StepVehicle({ onNext, onSkip }: { onNext: () => void; onSkip: () => void }) {
   const [vin,      setVin]      = useState('')
   const [vinData,  setVinData]  = useState<VinData | null>(null)
@@ -280,7 +393,8 @@ function StepVehicle({ onNext, onSkip }: { onNext: () => void; onSkip: () => voi
 }
 
 // ── Step 3: Connect Gmail ─────────────────────────────────────────────────────
-function StepGmail({ onNext, onSkip }: { onNext: () => void; onSkip: () => void }) {
+function StepGmail({ onNext, onSkip, vertical }: { onNext: () => void; onSkip: () => void; vertical: string }) {
+  const isRE = vertical === 'real_estate'
   const [connected, setConnected] = useState(() => {
     if (typeof window === 'undefined') return false
     return new URLSearchParams(window.location.search).get('gmail_connected') === '1'
@@ -375,15 +489,17 @@ function StepGmail({ onNext, onSkip }: { onNext: () => void; onSkip: () => void 
         <div>
           <h2 className="text-xl font-bold">Connect Your Lead Inbox</h2>
           <p className="text-sm text-muted-foreground">
-            We&apos;ll pull leads from the inbox where your CarGurus, AutoTrader, and website leads land today.
+            {isRE
+              ? "We'll pull leads from the inbox where your Zillow, Realtor.com, and website inquiries land today."
+              : "We'll pull leads from the inbox where your CarGurus, AutoTrader, and website leads land today."}
           </p>
         </div>
       </div>
 
       <div className="bg-muted/40 rounded-lg p-4 space-y-2">
-        <p className="text-sm font-semibold">What DealerWyze reads:</p>
+        <p className="text-sm font-semibold">What {isRE ? 'RealtyWyze' : 'DealerWyze'} reads:</p>
         <ul className="text-sm text-muted-foreground space-y-1">
-          <li className="flex gap-1.5"><span className="text-green-500 font-bold">+</span> Lead emails from CarGurus, AutoTrader, Cars.com, Facebook</li>
+          <li className="flex gap-1.5"><span className="text-green-500 font-bold">+</span> {isRE ? 'Inquiries from Zillow, Realtor.com, and your website' : 'Lead emails from CarGurus, AutoTrader, Cars.com, Facebook'}</li>
           <li className="flex gap-1.5"><span className="text-green-500 font-bold">+</span> Direct customer inquiries</li>
           <li className="flex gap-1.5"><span className="text-green-500 font-bold">+</span> Full reply threads so you see the whole conversation</li>
         </ul>
@@ -393,7 +509,7 @@ function StepGmail({ onNext, onSkip }: { onNext: () => void; onSkip: () => void 
       </div>
 
       <div className="space-y-3">
-        <Link
+        <a
           href="/api/integrations/gmail/connect?from=onboarding"
           className="flex items-center justify-center gap-2 w-full bg-white border-2 border-border rounded-lg px-4 py-3 text-sm font-semibold hover:bg-accent transition-colors"
         >
@@ -404,7 +520,7 @@ function StepGmail({ onNext, onSkip }: { onNext: () => void; onSkip: () => void 
             <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
           </svg>
           Connect Gmail / Google Workspace
-        </Link>
+        </a>
 
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
@@ -532,7 +648,9 @@ function StepGmail({ onNext, onSkip }: { onNext: () => void; onSkip: () => void 
 }
 
 // ── Step 4: Invite Team ───────────────────────────────────────────────────────
-function StepTeam({ onNext, onSkip }: { onNext: () => void; onSkip: () => void }) {
+function StepTeam({ onNext, onSkip, vertical }: { onNext: () => void; onSkip: () => void; vertical?: string }) {
+  const isRE = vertical === 'real_estate'
+  const roleOptions = isRE ? RE_ROLE_OPTIONS : DEALER_ROLE_OPTIONS
   const [members, setMembers] = useState([{ email: '', role: 'dealer_staff' }])
   const [saving,  setSaving]  = useState(false)
   const [invited, setInvited] = useState(0)
@@ -582,11 +700,11 @@ function StepTeam({ onNext, onSkip }: { onNext: () => void; onSkip: () => void }
         {members.map((m, i) => (
           <div key={i} className="flex gap-2">
             <input type="email" value={m.email} onChange={e => setMembers(ms => ms.map((x, j) => j === i ? { ...x, email: e.target.value } : x))}
-              placeholder="jane@mydealer.com"
+              placeholder={isRE ? 'jane@myagency.com' : 'jane@mydealer.com'}
               className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
             <select value={m.role} onChange={e => setMembers(ms => ms.map((x, j) => j === i ? { ...x, role: e.target.value } : x))}
               className="border rounded-lg px-2 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
-              {ROLE_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              {roleOptions.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
             {members.length > 1 && (
               <button type="button" onClick={() => setMembers(ms => ms.filter((_, j) => j !== i))}
@@ -614,23 +732,26 @@ function StepTeam({ onNext, onSkip }: { onNext: () => void; onSkip: () => void }
   )
 }
 
-function StepComplete({ businessName, onFinish, finishing }: {
-  businessName: string; onFinish: () => void; finishing: boolean
+function StepComplete({ businessName, vertical, onFinish, finishing }: {
+  businessName: string; vertical: string; onFinish: () => void; finishing: boolean
 }) {
+  const isRE = vertical === 'real_estate'
   return (
     <div className="flex-1 px-4 py-4 sm:px-6 sm:py-6 flex flex-col gap-4">
       <div className="rounded-xl overflow-hidden border border-border bg-background shadow-sm">
         <div className="bg-[#0D2B55] px-5 py-4">
           <p className="text-[11px] font-semibold tracking-[0.18em] text-amber-300 uppercase">
-            DealerWyze
+            {isRE ? 'RealtyWyze' : 'DealerWyze'}
           </p>
           <h2 className="mt-2 text-lg sm:text-xl font-bold text-white">
-            You&apos;re in{businessName ? `, ${businessName}` : ''}. Let&apos;s turn more leads into sold deals.
+            {isRE
+              ? `You're in${businessName ? `, ${businessName}` : ''}. Let's turn more inquiries into closed deals.`
+              : `You're in${businessName ? `, ${businessName}` : ''}. Let's turn more leads into sold deals.`}
           </h2>
           <p className="mt-2 text-xs sm:text-sm text-blue-100 max-w-xl">
-            You&apos;ve just given your dealership a single place for leads, follow-ups, and customer conversations.
-            From here on, every morning starts with a clear list of who needs you — and every deal has a clean trail
-            from first click to sold.
+            {isRE
+              ? "You've just given your agency a single place for buyer and seller inquiries, follow-ups, and client conversations. From here on, every morning starts with a clear list of who needs you and every transaction has a clean trail from first contact to closing."
+              : "You've just given your dealership a single place for leads, follow-ups, and customer conversations. From here on, every morning starts with a clear list of who needs you — and every deal has a clean trail from first click to sold."}
           </p>
         </div>
 
@@ -642,8 +763,9 @@ function StepComplete({ businessName, onFinish, finishing }: {
                 Confidence &amp; Safety
               </p>
               <p className="text-xs text-emerald-900 leading-relaxed">
-                DealerWyze keeps you from missing the leads and follow-ups that silently cost you real money.
-                When it&apos;s in the system, it&apos;s on your radar.
+                {isRE
+                  ? 'RealtyWyze keeps you from missing inquiries and follow-ups that silently cost you closings. When it\'s in the system, it\'s on your radar.'
+                  : 'DealerWyze keeps you from missing the leads and follow-ups that silently cost you real money. When it\'s in the system, it\'s on your radar.'}
               </p>
             </div>
             <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-3">
@@ -651,8 +773,9 @@ function StepComplete({ businessName, onFinish, finishing }: {
                 Status &amp; Team
               </p>
               <p className="text-xs text-slate-800 leading-relaxed">
-                You&apos;re now running the same follow-up playbook as top-performing stores that treat every
-                opportunity like it matters — and your team sees your work, not just the results.
+                {isRE
+                  ? "You're now running the same follow-up playbook as top-producing agents who treat every buyer and seller like it matters — and your team sees your work, not just the results."
+                  : "You're now running the same follow-up playbook as top-performing stores that treat every opportunity like it matters — and your team sees your work, not just the results."}
               </p>
             </div>
             <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-3">
@@ -668,166 +791,193 @@ function StepComplete({ businessName, onFinish, finishing }: {
 
           {/* Main feature grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+            {/* 1. Today Page */}
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
-              <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-900 uppercase">
-                1. Today Page
-              </p>
-              <p className="mt-1 text-sm font-semibold text-slate-900">
-                Start here every morning
-              </p>
+              <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-900 uppercase">1. Today Page</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">Start here every morning</p>
               <p className="mt-1 text-xs text-slate-600 leading-relaxed">
-                See who&apos;s waiting for a reply, what&apos;s overdue, and what&apos;s coming up. Protect every opportunity
-                without digging through inboxes and sticky notes.
+                {isRE
+                  ? "See which clients are waiting for a reply, what showings need confirming, and what follow-ups are overdue. Every morning starts with a clear list instead of a guess."
+                  : "See who's waiting for a reply, what's overdue, and what's coming up. Protect every opportunity without digging through inboxes and sticky notes."}
               </p>
               <ul className="mt-2 text-[11px] text-slate-600 list-disc list-inside space-y-0.5">
-                <li>Clear list of customers who need a call, text, or email</li>
-                <li>Instant view of what&apos;s urgent versus what can wait</li>
-                <li>Daily habit that keeps your pipeline moving</li>
+                {isRE ? <>
+                  <li>Clear list of buyers and sellers who need a response</li>
+                  <li>Showing confirmations and follow-ups in one place</li>
+                  <li>Daily habit that keeps every deal moving</li>
+                </> : <>
+                  <li>Clear list of customers who need a call, text, or email</li>
+                  <li>Instant view of what&apos;s urgent versus what can wait</li>
+                  <li>Daily habit that keeps your pipeline moving</li>
+                </>}
               </ul>
               <Link href="/today" className="mt-2 inline-flex text-[11px] font-semibold text-[#F07018] hover:underline">
                 Open Today and clear the list &rarr;
               </Link>
             </div>
 
+            {/* 2. Lead Inbox */}
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
-              <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-900 uppercase">
-                2. Lead Inbox
-              </p>
-              <p className="mt-1 text-sm font-semibold text-slate-900">
-                One place for every new opportunity
-              </p>
+              <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-900 uppercase">2. Lead Inbox</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">One place for every new inquiry</p>
               <p className="mt-1 text-xs text-slate-600 leading-relaxed">
-                Leads from CarGurus, AutoTrader, your website, Facebook, and email all land in one queue.
-                Reply by text or email without ever leaving DealerWyze.
+                {isRE
+                  ? 'Inquiries from Zillow, Realtor.com, your website, and email all land in one queue. Reply by text or email without ever leaving RealtyWyze.'
+                  : 'Leads from CarGurus, AutoTrader, your website, Facebook, and email all land in one queue. Reply by text or email without ever leaving DealerWyze.'}
               </p>
               <ul className="mt-2 text-[11px] text-slate-600 list-disc list-inside space-y-0.5">
                 <li>No more hunting across inboxes and logins</li>
-                <li>Every message is saved to the customer&apos;s timeline</li>
+                <li>Every message saved to the {isRE ? 'client' : 'customer'}&apos;s timeline</li>
                 <li>Faster responses that win more conversations</li>
               </ul>
               <Link href="/customers" className="mt-2 inline-flex text-[11px] font-semibold text-[#F07018] hover:underline">
-                Open the Lead Inbox and reply to one new lead &rarr;
+                {isRE ? 'Open the Inbox and reply to a new inquiry →' : 'Open the Lead Inbox and reply to one new lead →'}
               </Link>
             </div>
 
+            {/* 3. Listings / Inventory */}
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
               <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-900 uppercase">
-                3. Inventory &amp; Market Intelligence
+                {isRE ? '3. Listings' : '3. Inventory & Market Intelligence'}
               </p>
               <p className="mt-1 text-sm font-semibold text-slate-900">
-                Price to win, not guess
+                {isRE ? 'Manage your active listings' : 'Price to win, not guess'}
               </p>
               <p className="mt-1 text-xs text-slate-600 leading-relaxed">
-                See each vehicle with live market context: competition, days on market, and pricing guidance.
-                Spot cars that are invisible or overpriced and fix them before they go stale.
+                {isRE
+                  ? 'Add listings and let RealtyWyze match them to buyers automatically. Each property page tracks showing requests, offer history, and buyer interest so nothing slips through.'
+                  : 'See each vehicle with live market context: competition, days on market, and pricing guidance. Spot cars that are invisible or overpriced before they go stale.'}
               </p>
               <ul className="mt-2 text-[11px] text-slate-600 list-disc list-inside space-y-0.5">
-                <li>Understand which units are underpriced or stuck</li>
-                <li>Make faster price and promotion decisions</li>
-                <li>Turn inventory without sacrificing margin</li>
+                {isRE ? <>
+                  <li>Buyer-to-listing matching runs automatically</li>
+                  <li>Track showings, offers, and status per property</li>
+                  <li>Shareable public listing page included</li>
+                </> : <>
+                  <li>Understand which units are underpriced or stuck</li>
+                  <li>Make faster price and promotion decisions</li>
+                  <li>Turn inventory without sacrificing margin</li>
+                </>}
               </ul>
               <Link href="/vehicles" className="mt-2 inline-flex text-[11px] font-semibold text-[#F07018] hover:underline">
-                Run Market Intelligence on 3 aging units &rarr;
+                {isRE ? 'Open Listings and add your first property →' : 'Run Market Intelligence on 3 aging units →'}
               </Link>
             </div>
 
+            {/* 4. Client / Customer Profiles */}
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
               <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-900 uppercase">
-                4. Customer Profiles
+                {isRE ? '4. Client Profiles' : '4. Customer Profiles'}
               </p>
-              <p className="mt-1 text-sm font-semibold text-slate-900">
-                Every conversation in one timeline
-              </p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">Every conversation in one timeline</p>
               <p className="mt-1 text-xs text-slate-600 leading-relaxed">
-                Calls, texts, emails, notes, and vehicles all live in a single view per customer.
-                Anyone on your team can pick up the conversation without asking, &ldquo;What happened last time?&rdquo;
+                {isRE
+                  ? "Calls, texts, emails, notes, and saved searches all live in a single view per client. Anyone on your team can pick up the conversation without asking what happened last time."
+                  : "Calls, texts, emails, notes, and vehicles all live in a single view per customer. Anyone on your team can pick up the conversation without asking what happened last time."}
               </p>
               <ul className="mt-2 text-[11px] text-slate-600 list-disc list-inside space-y-0.5">
-                <li>Instant context before every call or message</li>
+                <li>Instant context before every call or showing</li>
                 <li>Professional, consistent communication every time</li>
-                <li>Trust-building experience customers can feel</li>
+                <li>{isRE ? 'Track buyer criteria and price range in one place' : 'Trust-building experience customers can feel'}</li>
               </ul>
               <Link href="/customers" className="mt-2 inline-flex text-[11px] font-semibold text-[#F07018] hover:underline">
-                Open an active deal and scan the full timeline &rarr;
+                {isRE ? 'Open a client profile and review their timeline →' : 'Open an active deal and scan the full timeline →'}
               </Link>
             </div>
 
+            {/* 5. Automation & Templates */}
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
-              <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-900 uppercase">
-                5. Automation &amp; Templates
-              </p>
-              <p className="mt-1 text-sm font-semibold text-slate-900">
-                Keep your follow-up tight on autopilot
-              </p>
+              <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-900 uppercase">5. Automation &amp; Templates</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">Keep your follow-up tight on autopilot</p>
               <p className="mt-1 text-xs text-slate-600 leading-relaxed">
-                Save the messages you send every day as simple, human templates. Turn on light automation to bump
-                stale leads and key events without sounding like a robot.
+                {isRE
+                  ? "Save the messages you send after every showing, inquiry, and open house as simple templates. Turn on light automation to follow up with buyers and sellers without sounding like a bot."
+                  : "Save the messages you send every day as simple, human templates. Turn on light automation to bump stale leads and key events without sounding like a robot."}
               </p>
               <ul className="mt-2 text-[11px] text-slate-600 list-disc list-inside space-y-0.5">
                 <li>More touches with less typing</li>
                 <li>A consistent voice across your whole team</li>
-                <li>Follow-up that feels intentional, not random</li>
+                <li>{isRE ? 'Nurture sequences for buyers and sellers automatically' : 'Follow-up that feels intentional, not random'}</li>
               </ul>
               <Link href="/settings/automation" className="mt-2 inline-flex text-[11px] font-semibold text-[#F07018] hover:underline">
-                Save one of your go-to follow-ups as a template &rarr;
+                {isRE ? 'Save your post-showing follow-up as a template →' : 'Save one of your go-to follow-ups as a template →'}
               </Link>
             </div>
 
+            {/* 6. Mobile & Voice */}
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
-              <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-900 uppercase">
-                6. Mobile &amp; Voice Assistant
-              </p>
+              <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-900 uppercase">6. Mobile &amp; Voice Assistant</p>
               <p className="mt-1 text-sm font-semibold text-slate-900">
-                Run the store from anywhere — even after hours
+                {isRE ? 'Run your business from anywhere' : 'Run the store from anywhere — even after hours'}
               </p>
               <p className="mt-1 text-xs text-slate-600 leading-relaxed">
-                DealerWyze is built to be mobile-friendly so you can check Today, reply to leads,
-                and update notes from the lot, the lane, or your couch.
+                {isRE
+                  ? "RealtyWyze is built mobile-first so you can check Today, reply to buyers, and update notes between showings, at open houses, or from home."
+                  : "DealerWyze is built to be mobile-friendly so you can check Today, reply to leads, and update notes from the lot, the lane, or your couch."}
               </p>
               <p className="mt-1 text-xs text-slate-600 leading-relaxed">
                 When you&apos;re ready, turn on the <span className="font-semibold text-lime-700">AI Voice Assistant</span>
-                so missed calls after hours become new leads in your inbox by morning.
+                {isRE
+                  ? ' so missed calls from buyers become new leads in your inbox automatically.'
+                  : ' so missed calls after hours become new leads in your inbox by morning.'}
               </p>
               <ul className="mt-2 text-[11px] text-slate-600 list-disc list-inside space-y-0.5">
-                <li>Stay in control of your pipeline from your phone</li>
-                <li>Never let after-hours calls die in voicemail</li>
-                <li>Operate like a bigger store without a bigger payroll</li>
+                {isRE ? <>
+                  <li>Stay on top of every client between showings</li>
+                  <li>Never miss a buyer call — AI captures the lead for you</li>
+                  <li>Operate like a full team even when you&apos;re solo</li>
+                </> : <>
+                  <li>Stay in control of your pipeline from your phone</li>
+                  <li>Never let after-hours calls die in voicemail</li>
+                  <li>Operate like a bigger store without a bigger payroll</li>
+                </>}
               </ul>
               <Link href="/settings/organization" className="mt-2 inline-flex text-[11px] font-semibold text-[#F07018] hover:underline">
                 Explore Voice Assistant settings &rarr;
               </Link>
             </div>
 
+            {/* 7. Video & Social */}
             <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-3">
-              <p className="text-[11px] font-semibold tracking-[0.16em] text-orange-800 uppercase">
-                7. Video &amp; Social
-              </p>
+              <p className="text-[11px] font-semibold tracking-[0.16em] text-orange-800 uppercase">7. Video &amp; Social</p>
               <p className="mt-1 text-sm font-semibold text-slate-900">
-                Get more eyes on your inventory, automatically
+                {isRE ? 'Get your listings in front of buyers automatically' : 'Get more eyes on your inventory, automatically'}
               </p>
               <p className="mt-1 text-xs text-slate-600 leading-relaxed">
-                Connect your Facebook, Instagram, TikTok, and YouTube accounts. When you list a car, DealerWyze
-                creates a branded narrated video and posts it to all your social accounts without you lifting a finger.
+                {isRE
+                  ? 'Connect Facebook, Instagram, TikTok, and YouTube. When you add a listing, RealtyWyze creates a narrated property video and posts it to all your social accounts — no editing needed.'
+                  : 'Connect your Facebook, Instagram, TikTok, and YouTube accounts. When you list a car, DealerWyze creates a branded narrated video and posts it to all your social accounts without you lifting a finger.'}
               </p>
               <ul className="mt-2 text-[11px] text-slate-600 list-disc list-inside space-y-0.5">
-                <li>AI-narrated video with your dealer branding and phone number</li>
-                <li>Posts to all connected platforms automatically</li>
-                <li>50 free listing videos per month included</li>
+                {isRE ? <>
+                  <li>AI-narrated property video with your agency branding</li>
+                  <li>Posts to all connected platforms automatically</li>
+                  <li>50 free listing videos per month included</li>
+                </> : <>
+                  <li>AI-narrated video with your dealer branding and phone number</li>
+                  <li>Posts to all connected platforms automatically</li>
+                  <li>50 free listing videos per month included</li>
+                </>}
               </ul>
               <Link href="/settings/social" className="mt-2 inline-flex text-[11px] font-semibold text-[#F07018] hover:underline">
                 Connect your social accounts &rarr;
               </Link>
             </div>
+
           </div>
 
           <div className="pt-3 mt-1 border-t border-slate-200 text-[11px] text-slate-500">
-            <p className="font-semibold text-slate-800">DealerWyze</p>
+            <p className="font-semibold text-slate-800">{isRE ? 'RealtyWyze' : 'DealerWyze'}</p>
             <p className="mt-0.5">
-              One place for your leads, follow-ups, and customer conversations — so your team can sell more without burning out.
+              {isRE
+                ? 'One place for your clients, listings, and follow-ups — so your team can close more without burning out.'
+                : 'One place for your leads, follow-ups, and customer conversations — so your team can sell more without burning out.'}
             </p>
             <p className="mt-0.5">
-              Make DealerWyze the first tab you open every morning and the last one you close at night. The heavier you use it,
-              the more it will grow your store.
+              {isRE
+                ? 'Make RealtyWyze the first tab you open every morning and the last one you close at night. The heavier you use it, the more it will grow your business.'
+                : 'Make DealerWyze the first tab you open every morning and the last one you close at night. The heavier you use it, the more it will grow your store.'}
             </p>
           </div>
         </div>
@@ -838,7 +988,9 @@ function StepComplete({ businessName, onFinish, finishing }: {
           Questions? Text Tim at{' '}
           <a href="sms:+18054043873" className="font-semibold text-foreground hover:text-primary">(805) 404-3873</a>
           {' '}or email{' '}
-          <a href="mailto:support@dealerwyze.com" className="font-semibold text-foreground hover:text-primary">support@dealerwyze.com</a>
+          <a href={isRE ? 'mailto:support@realtywyze.us' : 'mailto:support@dealerwyze.com'} className="font-semibold text-foreground hover:text-primary">
+            {isRE ? 'support@realtywyze.us' : 'support@dealerwyze.com'}
+          </a>
         </div>
 
         <Button className="w-full" size="lg" onClick={onFinish} disabled={finishing}>
@@ -856,15 +1008,17 @@ export default function OnboardingPage() {
   const [step,      setStep]      = useState(0)
   const [settings,  setSettings]  = useState<OrgSettings | null>(null)
   const [orgName,   setOrgName]   = useState('')
+  const [vertical,  setVertical]  = useState('dealer')
   const [loading,   setLoading]   = useState(true)
   const [finishing, setFinishing] = useState(false)
 
   useEffect(() => {
     fetch('/api/onboarding')
       .then(r => r.json())
-      .then((d: { org: { name: string } | null; settings: OrgSettings | null }) => {
+      .then((d: { org: { name: string; vertical?: string } | null; settings: OrgSettings | null }) => {
         setSettings(d.settings)
         setOrgName(d.org?.name ?? '')
+        setVertical(d.org?.vertical ?? 'dealer')
         if (d.settings?.onboarding_completed_at) { router.replace('/today'); return }
         setStep(d.settings?.onboarding_step ?? 0)
         setLoading(false)
@@ -898,22 +1052,27 @@ export default function OnboardingPage() {
     </div>
   )
 
+  const isRE = vertical === 'real_estate'
+
   return (
     <div className="flex flex-col flex-1">
       <div className="px-6 pt-5">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">DealerWyze Setup</p>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          {isRE ? 'RealtyWyze Setup' : 'DealerWyze Setup'}
+        </p>
       </div>
 
-      <ProgressBar step={step} />
+      <ProgressBar step={step} vertical={vertical} />
 
       {step === 0 && (
-        <StepProfile settings={settings} orgName={orgName}
+        <StepProfile settings={settings} orgName={orgName} vertical={vertical}
           onNext={async (body) => advance(1, body as Record<string, unknown>)} />
       )}
-      {step === 1 && <StepVehicle onNext={() => advance(2)} onSkip={() => advance(2)} />}
-      {step === 2 && <StepGmail  onNext={() => advance(3)} onSkip={() => advance(3)} />}
-      {step === 3 && <StepTeam   onNext={() => advance(4)} onSkip={() => advance(4)} />}
-      {step === 4 && <StepComplete businessName={orgName} onFinish={finish} finishing={finishing} />}
+      {step === 1 && isRE  && <StepListing onNext={() => advance(2)} onSkip={() => advance(2)} />}
+      {step === 1 && !isRE && <StepVehicle onNext={() => advance(2)} onSkip={() => advance(2)} />}
+      {step === 2 && <StepGmail  onNext={() => advance(3)} onSkip={() => advance(3)} vertical={vertical} />}
+      {step === 3 && <StepTeam   onNext={() => advance(4)} onSkip={() => advance(4)} vertical={vertical} />}
+      {step === 4 && <StepComplete businessName={orgName} vertical={vertical} onFinish={finish} finishing={finishing} />}
 
       {step > 0 && step < 4 && (
         <div className="px-6 pb-4">

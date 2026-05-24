@@ -79,7 +79,7 @@ export async function runGmailTokenHealth(
                 <p>This happens periodically and is quick to fix.</p>
                 <p><a href="${appUrl}/settings/organization" style="background:#F07018;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;margin:12px 0">Reconnect Gmail in Settings</a></p>
                 <p>Once reconnected, lead syncing will resume automatically.</p>
-                <p>- The DealerWyze Team</p>
+                <p>- The Support Team</p>
               `,
             })
           }

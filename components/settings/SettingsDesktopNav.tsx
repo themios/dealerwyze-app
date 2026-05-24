@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Search, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { GROUPS, SETTINGS_ITEMS, matchesSearch, type SettingsItemConfig } from '@/lib/settings/config'
+import { GROUPS, SETTINGS_ITEMS, matchesSearch, resolveGroupTitle, resolveItemTitle, type SettingsItemConfig } from '@/lib/settings/config'
+import { useVertical } from '@/hooks/useVertical'
 import { canViewSettingsAudience } from '@/lib/settings/access'
 import type { UserRole } from '@/types/index'
 
@@ -17,9 +18,11 @@ interface Props {
 export default function SettingsDesktopNav({ role, canManageReconTemplate }: Props) {
   const pathname = usePathname()
   const [query, setQuery] = useState('')
+  const { vertical } = useVertical()
 
   const visibleItems = SETTINGS_ITEMS.filter(item => {
     if (!canManageReconTemplate && item.id === 'recon-template') return false
+    if (item.verticalHide?.includes(vertical)) return false
     return canViewSettingsAudience(role, item.audience)
   })
 
@@ -39,6 +42,7 @@ export default function SettingsDesktopNav({ role, canManageReconTemplate }: Pro
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/30 pointer-events-none" />
           <input
             type="text"
+            autoComplete="off"
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Search settings…"
@@ -56,7 +60,7 @@ export default function SettingsDesktopNav({ role, canManageReconTemplate }: Pro
           ) : (
             <div className="space-y-0.5">
               {filtered.map(item => (
-                <NavItem key={item.id} item={item} active={isActive(item)} />
+                <NavItem key={item.id} item={item} active={isActive(item)} vertical={vertical} />
               ))}
             </div>
           )
@@ -65,13 +69,13 @@ export default function SettingsDesktopNav({ role, canManageReconTemplate }: Pro
           GROUPS.filter(group => visibleItems.some(i => i.group === group.id)).map(group => (
             <div key={group.id}>
               <p className="px-3 mb-1 text-[9px] font-bold tracking-widest text-white/30 uppercase">
-                {group.title}
+                {resolveGroupTitle(group, vertical)}
               </p>
               <div className="space-y-0.5">
                 {visibleItems
                   .filter(i => i.group === group.id)
                   .map(item => (
-                    <NavItem key={item.id} item={item} active={isActive(item)} />
+                    <NavItem key={item.id} item={item} active={isActive(item)} vertical={vertical} />
                   ))}
               </div>
             </div>
@@ -82,7 +86,7 @@ export default function SettingsDesktopNav({ role, canManageReconTemplate }: Pro
   )
 }
 
-function NavItem({ item, active }: { item: SettingsItemConfig; active: boolean }) {
+function NavItem({ item, active, vertical }: { item: SettingsItemConfig; active: boolean; vertical: 'dealer' | 'real_estate' }) {
   return (
     <Link
       href={item.href}
@@ -97,7 +101,7 @@ function NavItem({ item, active }: { item: SettingsItemConfig; active: boolean }
         <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[#F07018] rounded-r-full" />
       )}
       <item.icon className={cn('h-4 w-4 shrink-0', active ? 'text-[#F07018]' : 'text-white/40 group-hover:text-white/70')} />
-      <span className="flex-1 truncate">{item.title}</span>
+      <span className="flex-1 truncate">{resolveItemTitle(item, vertical)}</span>
       {active && <ChevronRight className="h-3 w-3 text-[#F07018]/60 shrink-0" />}
     </Link>
   )

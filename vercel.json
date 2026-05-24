@@ -51,6 +51,10 @@
     {
       "path": "/api/cron/weekly-summary",
       "schedule": "0 17 * * 1"
+    },
+    {
+      "path": "/api/cron/post-scheduled-content",
+      "schedule": "*/5 * * * *"
     }
   ],
   "functions": {

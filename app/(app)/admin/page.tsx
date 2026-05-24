@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
 import { isPlatformSuperAdmin, getPlatformProfile } from '@/lib/auth/platform'
@@ -55,7 +56,9 @@ function HealthDot({ score }: { score: number }) {
 }
 
 export default async function AdminPage() {
-  const profile    = await requireProfile()
+  const hdrs     = await headers()
+  const isRE     = hdrs.get('x-vertical') === 'real_estate'
+  const profile  = await requireProfile()
   const superAdmin = await isPlatformSuperAdmin(profile.id)
   if (!superAdmin) {
     // Route non-superadmin platform members to their vertical's home page
@@ -74,7 +77,7 @@ export default async function AdminPage() {
   const [orgsRes, pendingRes, transfersRes, alertsRes, cronRes, ticketsRes, staffCountRes, emailRes, profilesRes] =
     await Promise.allSettled([
       service.from('organizations').select(`
-        id, name, plan, subscription_status, trial_ends_at, current_period_end,
+        id, name, plan, vertical, subscription_status, trial_ends_at, current_period_end,
         created_at, approved_at, suspended_at,
         org_settings ( business_phone, monthly_message_count, sms_quota, onboarding_completed_at )
       `).order('created_at', { ascending: false }),
@@ -143,10 +146,14 @@ export default async function AdminPage() {
   const emailMap = new Map<string, boolean>()
   for (const ea of emailAccs) { if (ea.status === 'active') emailMap.set(ea.org_id, true) }
 
-  // Approved orgs (exclude sentinel + pending)
-  const approvedRows = rawOrgs.filter(o =>
-    o.id !== '00000000-0000-0000-0000-000000000001' && !!o.approved_at
-  )
+  // Approved orgs — scoped to current vertical's domain
+  const approvedRows = rawOrgs.filter(o => {
+    if (o.id === '00000000-0000-0000-0000-000000000001') return false
+    if (!o.approved_at) return false
+    const orgVertical = (o as Record<string, unknown>).vertical as string | null
+    if (isRE) return orgVertical === 'real_estate'
+    return !orgVertical || orgVertical === 'dealer'
+  })
 
   // Compute attrition for all approved orgs
   type TierCount = { critical: number; at_risk: number; healthy: number; totalScore: number }
@@ -274,7 +281,7 @@ export default async function AdminPage() {
 
   return (
     <div>
-      <TopBar title="Admin Dashboard" />
+      <TopBar title={isRE ? 'RealtyWyze Admin' : 'DealerWyze Admin'} />
       <div className="px-4 py-4 lg:px-6 space-y-6">
 
         {/* Alert banner */}
@@ -291,7 +298,7 @@ export default async function AdminPage() {
         {/* Revenue summary strip */}
         <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
           {[
-            { label: 'Total Dealers', value: total },
+            { label: isRE ? 'Total Agencies' : 'Total Dealers', value: total },
             { label: 'Active',        value: active },
             { label: 'Trialing',      value: trialing },
             { label: 'Past Due',      value: pastDue,  red: pastDue > 0 },
@@ -461,7 +468,7 @@ export default async function AdminPage() {
                 </div>
                 <div className="flex items-center gap-1">
                   <Building2 className="h-3 w-3 shrink-0" />
-                  <span>{total} total dealerships</span>
+                  <span>{total} total {isRE ? 'agencies' : 'dealerships'}</span>
                 </div>
               </div>
             </div>
@@ -535,7 +542,7 @@ export default async function AdminPage() {
 
           {/* Weekly dealer signups */}
           <div className="rounded-xl border bg-card p-4">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Dealer Signups — Last 8 Weeks</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">{isRE ? 'Agency Signups' : 'Dealer Signups'} — Last 8 Weeks</p>
             <div className="flex items-end gap-1.5 h-24">
               {weeklySignups.map((w, i) => (
                 <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
@@ -661,7 +668,7 @@ export default async function AdminPage() {
         {/* All dealerships table */}
         <section>
           <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">All Dealerships</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{isRE ? 'All Agencies' : 'All Dealerships'}</p>
             <Link href="/admin/orgs" className="text-xs text-primary hover:underline flex items-center gap-1">
               View all <ArrowRight className="h-3 w-3" />
             </Link>
@@ -690,7 +697,7 @@ export default async function AdminPage() {
             })}
             {approvedRows.length > 10 && (
               <Link href="/admin/orgs" className="block text-center text-sm text-primary py-2 hover:underline">
-                View all {approvedRows.length} dealerships →
+                View all {approvedRows.length} {isRE ? 'agencies' : 'dealerships'} →
               </Link>
             )}
           </div>
@@ -737,7 +744,7 @@ export default async function AdminPage() {
             {approvedRows.length > 20 && (
               <div className="py-3 text-center">
                 <Link href="/admin/orgs" className="text-sm text-primary hover:underline">
-                  View all {approvedRows.length} dealerships →
+                  View all {approvedRows.length} {isRE ? 'agencies' : 'dealerships'} →
                 </Link>
               </div>
             )}

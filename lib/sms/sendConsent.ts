@@ -61,7 +61,7 @@ export async function sendSmsConsentRequest(opts: {
     vehicle: vehicle ? `the ${vehicle}` : 'your vehicle inquiry',
   })
   if (!vars.business_name?.trim()) {
-    vars.business_name = org?.name?.trim() || 'our dealership'
+    vars.business_name = org?.name?.trim() || 'our office'
     vars.dealerName = vars.business_name
   }
   const messageBody = fillTemplate(template, vars)

@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from 'next'
+import { headers } from 'next/headers'
 import { Inter, Barlow_Semi_Condensed, Archivo, Lora, Oswald } from 'next/font/google'
+import { getVerticalConfig } from '@/lib/vertical'
+import type { Vertical } from '@/lib/vertical'
 import { ThemeProvider } from 'next-themes'
 import FontSizeProvider from '@/components/providers/FontSizeProvider'
 import AnalyticsProvider from '@/components/providers/AnalyticsProvider'
@@ -32,24 +35,35 @@ const oswald = Oswald({
   variable: '--font-bold-style',
 })
 
-export const metadata: Metadata = {
-  title: 'DealerWyze',
-  description:
-    'DealerWyze — CRM for independent and used car dealers. Lead inbox, texting, inventory, BHPH, and receipts in one place.',
-  manifest: '/manifest.json',
-  other: {
-    'facebook-domain-verification': 'szgt61sv00zpbbljhjit57coefp7a8',
-  },
-  icons: {
-    icon: '/DealerWyseLogoWithName.png',
-    shortcut: '/DealerWyseLogoWithName.png',
-    apple: '/DealerWyseLogoWithName.png',
-  },
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'default',
-    title: 'DealerWyze',
-  },
+export async function generateMetadata(): Promise<Metadata> {
+  const headersList = await headers()
+  const vertical = (headersList.get('x-vertical') ?? 'dealer') as Vertical
+  const config = getVerticalConfig(vertical)
+
+  return {
+    title: config.brandName,
+    description: `${config.brandName} - ${config.tagline}`,
+    manifest: '/manifest.json',
+    other: {
+      'facebook-domain-verification': 'szgt61sv00zpbbljhjit57coefp7a8',
+    },
+    icons: vertical === 'real_estate'
+      ? {
+          icon:    [{ url: '/rw-favicon.ico', sizes: '32x32' }, { url: '/rw-icon.png' }],
+          shortcut:'/rw-favicon.ico',
+          apple:   '/rw-icon.png',
+        }
+      : {
+          icon:    '/DealerWyseLogoWithName.png',
+          shortcut:'/DealerWyseLogoWithName.png',
+          apple:   '/DealerWyseLogoWithName.png',
+        },
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: 'default',
+      title: config.brandName,
+    },
+  }
 }
 
 export const viewport: Viewport = {
@@ -64,9 +78,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <link rel="apple-touch-icon" href="/DealerWyseLogoWithName.png" />
-      </head>
+      <head />
       <body className={`${inter.className} ${barlow.variable} ${archivo.variable} ${lora.variable} ${oswald.variable}`} suppressHydrationWarning>
         <GoogleAdsGtag />
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>

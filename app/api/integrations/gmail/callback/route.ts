@@ -10,13 +10,16 @@ import crypto from 'crypto'
  * OAuth token in email_accounts.
  */
 export async function GET(req: NextRequest) {
-  const appUrl    = process.env.NEXT_PUBLIC_APP_URL!
   const code      = req.nextUrl.searchParams.get('code')
   const rawState  = req.nextUrl.searchParams.get('state') ?? ''
 
+  // Fallback to NEXT_PUBLIC_APP_URL if state can't be parsed
+  const fallbackUrl = process.env.NEXT_PUBLIC_APP_URL!
+
   // Default error destination — will be overridden once state is parsed
-  let errorUrl = `${appUrl}/settings/organization?email=error`
-  let successUrl = `${appUrl}/settings/organization?email=connected`
+  let errorUrl   = `${fallbackUrl}/settings/organization?email=error`
+  let successUrl = `${fallbackUrl}/settings/organization?email=connected`
+  let appUrl     = fallbackUrl
 
   if (!code || !rawState) {
     return NextResponse.redirect(errorUrl)
@@ -30,18 +33,27 @@ export async function GET(req: NextRequest) {
       orgId: string
       csrf: string
       from: string | null
+      origin?: string    // OAuth redirect_uri origin (used to reconstruct redirect_uri for token exchange)
+      appOrigin?: string // actual app origin to redirect user back to after callback
     }
     orgId = parsed.orgId
     const from = parsed.from ?? null
+
+    // appOrigin is where the user actually is — use this for final redirect URLs.
+    // Fall back to origin, then NEXT_PUBLIC_APP_URL.
+    const userOrigin = parsed.appOrigin ?? parsed.origin ?? fallbackUrl
+    if (parsed.origin) appUrl = parsed.origin  // appUrl used only for OAuth client redirect_uri
 
     if (!orgId || !parsed.csrf) {
       return NextResponse.redirect(errorUrl)
     }
 
-    // Update redirect URLs now that we know the return destination
+    // Update redirect URLs using the real app origin
+    errorUrl   = `${userOrigin}/settings/organization?email=error`
+    successUrl = `${userOrigin}/settings/organization?email=connected`
     if (from === 'onboarding') {
-      successUrl = `${appUrl}/onboarding?gmail_connected=1`
-      errorUrl   = `${appUrl}/onboarding?gmail_error=1`
+      successUrl = `${userOrigin}/onboarding?gmail_connected=1`
+      errorUrl   = `${userOrigin}/onboarding?gmail_error=1`
     }
 
     // Verify the CSRF token against the one stored server-side
@@ -78,6 +90,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(`${errorUrl}&reason=invalid_state`)
   }
 
+  // redirect_uri must match exactly what was sent in the connect route
   const oauth2Client = new google.auth.OAuth2(
     process.env.GMAIL_CLIENT_ID,
     process.env.GMAIL_CLIENT_SECRET,
@@ -88,7 +101,7 @@ export async function GET(req: NextRequest) {
     const { tokens } = await oauth2Client.getToken(code)
 
     if (!tokens.refresh_token) {
-      return NextResponse.redirect(`${appUrl}/settings/organization?email=error&reason=no_token`)
+      return NextResponse.redirect(`${errorUrl}&reason=no_token`)
     }
 
     oauth2Client.setCredentials(tokens)

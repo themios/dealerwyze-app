@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useVertical } from '@/hooks/useVertical'
 
 interface Stat {
   label: string
@@ -19,15 +20,16 @@ interface Props {
 }
 
 export default function TodayKpiStrip({ newLeadCount, apptCount, voiceCount, waitingCount, overdueCount }: Props) {
+  const { vertical } = useVertical()
   const stats: Stat[] = [
     {
-      label: 'New Leads',
+      label: vertical === 'real_estate' ? 'New Inquiries' : 'New Leads',
       value: newLeadCount,
       color: newLeadCount > 0 ? 'text-blue-500' : 'text-muted-foreground',
       href: '/customers?status=new_lead',
     },
     {
-      label: 'Appt Requests',
+      label: vertical === 'real_estate' ? 'Showing Requests' : 'Appt Requests',
       value: apptCount,
       color: apptCount > 0 ? 'text-orange-500' : 'text-muted-foreground',
       href: '/calendar',

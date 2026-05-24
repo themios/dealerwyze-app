@@ -41,7 +41,7 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
   else if (sort === 'oldest') vehicleQuery = vehicleQuery.order('created_at', { ascending: true })
   else vehicleQuery = vehicleQuery.order('created_at', { ascending: false })
 
-  const [{ data: vehicles }, { data: allVehicles }, { data: syncRemoved }] = await Promise.all([
+  const [{ data: vehicles }, { data: allVehicles }, { data: syncRemoved }, { data: orgRow }] = await Promise.all([
     vehicleQuery,
     supabase.from('vehicles').select('status').eq('user_id', profile.org_id),
     supabase
@@ -50,7 +50,9 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
       .eq('user_id', profile.org_id)
       .eq('status', 'sync_removed')
       .order('sync_removed_at', { ascending: false }),
+    supabase.from('organizations').select('vertical').eq('id', profile.org_id).maybeSingle(),
   ])
+  const isRe = (orgRow?.vertical as string | null) === 'real_estate'
 
   // Fetch recon costs + ledger totals for all vehicles on this page
   const stagingIds = (vehicles ?? []).map(v => v.id)
@@ -138,11 +140,11 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
   return (
     <div>
       <TopBar
-        title="Inventory"
+        title={isRe ? 'Listings' : 'Inventory'}
         right={
           <div className="flex items-center gap-1">
-            {profile.role === 'admin' && <RunMarketIntelligenceButton />}
-            <SyncInventoryButton />
+            {profile.role === 'admin' && !isRe && <RunMarketIntelligenceButton />}
+            {!isRe && <SyncInventoryButton />}
             <VehicleIntakeButton />
           </div>
         }
@@ -156,9 +158,12 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
         {!vehicles || vehicles.length === 0 ? (
           <EmptyState
             icon={Car}
-            title={validStatus ? `No ${validStatus} vehicles` : 'No vehicles yet'}
-            description={!validStatus ? 'Add your first vehicle to get started' : undefined}
-            action={!validStatus ? { label: 'Add First Vehicle', href: '/vehicles/new' } : undefined}
+            title={isRe
+              ? (validStatus ? `No ${validStatus} listings` : 'No listings yet')
+              : (validStatus ? `No ${validStatus} vehicles` : 'No vehicles yet')
+            }
+            description={!validStatus ? (isRe ? 'Add your first listing to get started' : 'Add your first vehicle to get started') : undefined}
+            action={!validStatus ? { label: isRe ? 'Add First Listing' : 'Add First Vehicle', href: '/vehicles/new' } : undefined}
           />
         ) : (
           vehicles.map(vehicle => (

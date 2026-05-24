@@ -54,14 +54,14 @@ export async function runDealerFollowUps(
 ): Promise<{ dealerFollowUpsSent: number }> {
   try {
     let dealerFollowUpsSent = 0
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://dealerwyze.com'
-
-    // Fetch all approved orgs with their onboarding status
+    // Fetch all approved dealer orgs with their onboarding status
+    // RE orgs skip this sequence — their follow-up templates are dealer-specific
     const { data: orgs } = await supabase
       .from('organizations')
-      .select('id, name, created_at')
+      .select('id, name, created_at, vertical')
       .not('approved_at', 'is', null)
       .neq('id', '00000000-0000-0000-0000-000000000001')
+      .eq('vertical', 'dealer')
 
     if (!orgs?.length) return { dealerFollowUpsSent }
 
@@ -113,6 +113,7 @@ export async function runDealerFollowUps(
         const email = authUser?.user?.email
         if (!email) continue
 
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://dealerwyze.com'
         void sendNotificationEmail({
           to:         email,
           subject:    step.subject,

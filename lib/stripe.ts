@@ -23,6 +23,10 @@ export {
 export const PRICE_ID       = process.env.STRIPE_PRICE_ID!            // Tier 1
 export const PRICE_ID_TIER2 = process.env.STRIPE_PRICE_ID_TIER2 ?? '' // Tier 2
 export const PRICE_ID_TIER3 = process.env.STRIPE_PRICE_ID_TIER3 ?? '' // Tier 3
+
+// RealtyWyze plans — Starter $150/mo, Pro $300/mo
+export const PRICE_ID_RE_STARTER = process.env.STRIPE_PRICE_ID_RE_STARTER ?? ''
+export const PRICE_ID_RE_PRO     = process.env.STRIPE_PRICE_ID_RE_PRO     ?? ''
 export const SMS_PRICE_ID   = process.env.STRIPE_SMS_PRICE_ID!        // Legacy add-on
 export const APP_URL        = process.env.NEXT_PUBLIC_APP_URL || 'https://dealerwyze.com'
 

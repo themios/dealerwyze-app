@@ -15,7 +15,7 @@ interface VoiceForm {
   twilio_phone_number: string | null
 }
 
-export default function VoiceAgentSection() {
+export default function VoiceAgentSection({ isRE = false }: { isRE?: boolean }) {
   const [form, setForm] = useState<VoiceForm>({
     dealer_cell_number: '',
     voice_business_hours_start: '09:00',
@@ -109,7 +109,7 @@ export default function VoiceAgentSection() {
       <p className="text-sm font-semibold mb-3">Voice Agent</p>
       <div className="space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="dealer-cell" className="text-sm font-medium">Dealer Cell Number</Label>
+          <Label htmlFor="dealer-cell" className="text-sm font-medium">{isRE ? 'Agent Cell Number' : 'Dealer Cell Number'}</Label>
           <Input
             id="dealer-cell" type="tel"
             value={form.dealer_cell_number}

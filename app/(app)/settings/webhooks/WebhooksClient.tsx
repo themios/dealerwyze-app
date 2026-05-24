@@ -19,7 +19,7 @@ const ALL_EVENTS = [
   { value: 'new_lead', label: 'New Lead' },
   { value: 'stage_change', label: 'Stage Change' },
   { value: 'appointment_created', label: 'Appointment Created' },
-  { value: 'bhph_payment_received', label: 'BHPH Payment Received' },
+  { value: 'bhph_payment_received', label: 'BHPH Payment Received', dealerOnly: true },
 ]
 
 function SecretBox({ secret }: { secret: string }) {
@@ -53,9 +53,10 @@ function SecretBox({ secret }: { secret: string }) {
 
 interface AddFormProps {
   onAdded: (hook: OrgWebhook & { secret: string }) => void
+  isRe?: boolean
 }
 
-function AddWebhookForm({ onAdded }: AddFormProps) {
+function AddWebhookForm({ onAdded, isRe = false }: AddFormProps) {
   const [open, setOpen] = useState(false)
   const [url, setUrl] = useState('')
   const [selectedEvents, setSelectedEvents] = useState<string[]>([])
@@ -128,7 +129,7 @@ function AddWebhookForm({ onAdded }: AddFormProps) {
       <div>
         <label className="text-xs text-muted-foreground mb-2 block">Events to receive</label>
         <div className="flex flex-wrap gap-2">
-          {ALL_EVENTS.map(ev => (
+          {ALL_EVENTS.filter(ev => !isRe || !ev.dealerOnly).map(ev => (
             <button
               key={ev.value}
               type="button"
@@ -157,7 +158,7 @@ function AddWebhookForm({ onAdded }: AddFormProps) {
   )
 }
 
-export default function WebhooksClient({ initialWebhooks }: { initialWebhooks: OrgWebhook[] }) {
+export default function WebhooksClient({ initialWebhooks, isRe = false }: { initialWebhooks: OrgWebhook[]; isRe?: boolean }) {
   const [webhooks, setWebhooks] = useState<OrgWebhook[]>(initialWebhooks)
   const [newSecret, setNewSecret] = useState<{ id: string; secret: string } | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
@@ -193,7 +194,7 @@ export default function WebhooksClient({ initialWebhooks }: { initialWebhooks: O
         </p>
       </div>
 
-      <AddWebhookForm onAdded={handleAdded} />
+      <AddWebhookForm onAdded={handleAdded} isRe={isRe} />
 
       {newSecret && (
         <SecretBox secret={newSecret.secret} />

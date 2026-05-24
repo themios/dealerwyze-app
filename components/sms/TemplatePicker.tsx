@@ -125,8 +125,12 @@ export default function TemplatePicker({
     setHistory((data ?? []).reverse() as SmsMessage[])
   }
 
-  async function logActivity() {
-    const bodyWithAuthor = prefixWithAuthorName(displayName, body)
+  async function logActivity(extraUrls?: string[]) {
+    const attachmentUrls = extraUrls ?? attachments.map(a => a.signedUrl).filter(Boolean) as string[]
+    const fullBody = attachmentUrls.length > 0
+      ? [body, ...attachmentUrls].filter(Boolean).join('\n')
+      : body
+    const bodyWithAuthor = prefixWithAuthorName(displayName, fullBody)
     await supabase.from('activities').insert({
       type: 'sms', direction: 'outbound',
       customer_id: customer.id,
@@ -139,8 +143,12 @@ export default function TemplatePicker({
 
   async function handleOpenMessages() {
     if (customer.sms_opt_out) return
-    await logActivity()
-    window.location.href = `sms:${formatPhoneForTel(customer.primary_phone)}?body=${encodeURIComponent(body)}`
+    const attachmentUrls = attachments.map(a => a.signedUrl).filter(Boolean) as string[]
+    await logActivity(attachmentUrls)
+    const fullBody = attachmentUrls.length > 0
+      ? [body, ...attachmentUrls].filter(Boolean).join('\n')
+      : body
+    window.location.href = `sms:${formatPhoneForTel(customer.primary_phone)}?body=${encodeURIComponent(fullBody)}`
     resetAndClose()
   }
 

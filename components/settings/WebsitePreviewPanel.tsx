@@ -13,6 +13,7 @@ export default function WebsitePreviewPanel({
   serviceArea,
   theme,
   logoUrl,
+  isRE = false,
 }: {
   businessName: string
   tagline: string
@@ -22,9 +23,10 @@ export default function WebsitePreviewPanel({
   serviceArea: string
   theme: ThemeColors
   logoUrl: string
+  isRE?: boolean
 }) {
-  const scriptLine = heroSubline.trim() || tagline.trim() || 'Quality pre-owned vehicles'
-  const titleLine = heroHeadline.trim() || 'Browse our inventory'
+  const scriptLine = heroSubline.trim() || tagline.trim() || (isRE ? 'Your trusted real estate partner' : 'Quality pre-owned vehicles')
+  const titleLine = heroHeadline.trim() || (isRE ? 'Browse our listings' : 'Browse our inventory')
 
   return (
     <div
@@ -55,7 +57,7 @@ export default function WebsitePreviewPanel({
           )}
         </div>
         <div className="min-w-0">
-          <p className="truncate text-xs font-semibold text-white">{businessName || 'Your dealership'}</p>
+          <p className="truncate text-xs font-semibold text-white">{businessName || (isRE ? 'Your agency' : 'Your dealership')}</p>
           {tagline.trim() ? (
             <p className="truncate text-[10px] text-white/70">{tagline}</p>
           ) : (
@@ -68,7 +70,7 @@ export default function WebsitePreviewPanel({
           {scriptLine}
         </p>
         <h3 className="mt-1.5 font-semibold text-sm leading-tight text-white">{titleLine}</h3>
-        <p className="mt-2 text-[10px] text-white/75">Preview only — counts and inventory load on the live site.</p>
+        <p className="mt-2 text-[10px] text-white/75">Preview only — {isRE ? 'listings' : 'inventory'} loads on the live site.</p>
         {specialtyTags.length ? (
           <ul className="mt-3 flex flex-wrap gap-1" aria-hidden>
             {specialtyTags.slice(0, 6).map(t => (

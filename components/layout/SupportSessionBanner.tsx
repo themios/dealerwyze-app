@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import { ShieldCheck, X } from 'lucide-react'
+import { useVertical } from '@/hooks/useVertical'
 
 interface Session { active: boolean; write_mode?: boolean }
 
 export default function SupportSessionBanner() {
+  const { brandName } = useVertical()
   const [session, setSession] = useState<Session | null>(null)
   const [ending, setEnding] = useState(false)
 
@@ -40,7 +42,7 @@ export default function SupportSessionBanner() {
       <div className="flex items-center gap-2">
         <ShieldCheck className="h-4 w-4 shrink-0" />
         <span>
-          A DealerWyze support agent is viewing your account
+          A {brandName} support agent is viewing your account
           {session.write_mode ? ' and may make changes on your behalf' : ''}.
         </span>
       </div>

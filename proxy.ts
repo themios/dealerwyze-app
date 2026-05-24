@@ -53,7 +53,27 @@ async function isRateLimited(limiter: Ratelimit | null, key: string): Promise<bo
 // when the session is read-only (writeMode=0). Write-mode sessions (writeMode=1) pass through.
 // Cookie: dealerwyze_staff_org_id | Secret: STAFF_SESSION_SECRET
 
-import { createHmac, timingSafeEqual } from 'crypto'
+// Edge Runtime compatible: use Web Crypto API instead of Node.js 'crypto'
+const _enc = new TextEncoder()
+
+// Constant-time byte comparison (Web Crypto has no timingSafeEqual)
+function edgeTimingSafeEqual(a: string, b: string): boolean {
+  const ab = _enc.encode(a)
+  const bb = _enc.encode(b)
+  if (ab.length !== bb.length) return false
+  let diff = 0
+  for (let i = 0; i < ab.length; i++) diff |= ab[i] ^ bb[i]
+  return diff === 0
+}
+
+// HMAC-SHA256 hex digest via Web Crypto
+async function hmacHex(secret: string, value: string): Promise<string> {
+  const key = await globalThis.crypto.subtle.importKey(
+    'raw', _enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+  )
+  const sig = await globalThis.crypto.subtle.sign('HMAC', key, _enc.encode(value))
+  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('')
+}
 
 const IMPERSONATION_COOKIE = 'dealerwyze_staff_org_id'
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
@@ -62,21 +82,16 @@ const IMPERSONATION_ALLOWED_PREFIXES = ['/api/admin/impersonate', '/api/auth/']
 
 const _SECRET = process.env.STAFF_SESSION_SECRET ?? ''
 
-function _verifyStaffCookie(signed: string): string | null {
+async function _verifyStaffCookie(signed: string): Promise<string | null> {
   const lastDot = signed.lastIndexOf('.')
   if (lastDot === -1) return null
-  const value = signed.slice(0, lastDot)
-  const mac   = signed.slice(lastDot + 1)
-  const expected = createHmac('sha256', _SECRET).update(value).digest('hex')
-  try {
-    const a = Buffer.from(mac,      'hex')
-    const b = Buffer.from(expected, 'hex')
-    if (a.length !== b.length) return null
-    return timingSafeEqual(a, b) ? value : null
-  } catch { return null }
+  const value    = signed.slice(0, lastDot)
+  const mac      = signed.slice(lastDot + 1)
+  const expected = await hmacHex(_SECRET, value)
+  return edgeTimingSafeEqual(mac, expected) ? value : null
 }
 
-function isImpersonationBlocked(request: NextRequest): boolean {
+async function isImpersonationBlocked(request: NextRequest): Promise<boolean> {
   if (!MUTATING_METHODS.has(request.method)) return false
   const raw = request.cookies.get(IMPERSONATION_COOKIE)?.value
   if (!raw) return false
@@ -85,7 +100,7 @@ function isImpersonationBlocked(request: NextRequest): boolean {
   if (IMPERSONATION_ALLOWED_PREFIXES.some(p => pathname.startsWith(p))) return false
 
   // Decode cookie to check write mode
-  const payload = _verifyStaffCookie(raw)
+  const payload = await _verifyStaffCookie(raw)
   if (!payload) return false  // invalid cookie — don't block (will fail auth downstream)
 
   // payload format: `orgId|1` (write) or `orgId|0` / `orgId` (read-only)
@@ -123,6 +138,15 @@ function isPublic(pathname: string): boolean {
   return false
 }
 
+// ── Vertical Detection ────────────────────────────────────────────────────────
+// Determines which product brand is active based on the request hostname.
+// 'dealer' is the default — all existing DealerWyze orgs are unaffected.
+const REALTY_HOSTS = ['realtywyze.us', 'www.realtywyze.us', 'realtywyze.localhost']
+
+export function resolveVertical(host: string): 'dealer' | 'real_estate' {
+  return REALTY_HOSTS.some(h => host.includes(h)) ? 'real_estate' : 'dealer'
+}
+
 function isAppRoute(pathname: string): boolean {
   return (
     !pathname.startsWith('/api/') &&
@@ -143,9 +167,10 @@ function isSuspended(suspendedAt: string | null | undefined): boolean {
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
+  const vertical = resolveVertical(request.headers.get('host') ?? '')
 
   // Block mutating API calls during staff impersonation sessions
-  if (isImpersonationBlocked(request)) {
+  if (await isImpersonationBlocked(request)) {
     return new NextResponse('Forbidden: read-only during staff impersonation', { status: 403 })
   }
 
@@ -164,14 +189,17 @@ export async function proxy(request: NextRequest) {
   // Pass through all other API routes without auth check
   if (pathname.startsWith('/api/')) return NextResponse.next()
 
-  // Pass through public paths immediately
+  // Pass through public paths — still inject x-vertical so landing/signup pages can read it
   if (isPublic(pathname)) {
-    return NextResponse.next({ request })
+    const pubHeaders = new Headers(request.headers)
+    pubHeaders.set('x-vertical', vertical)
+    return NextResponse.next({ request: { headers: pubHeaders } })
   }
 
-  // Inject pathname as header so server layouts can read it via headers()
+  // Inject pathname + vertical as headers so server layouts can read them via headers()
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-pathname', pathname)
+  requestHeaders.set('x-vertical', vertical)
 
   let supabaseResponse = NextResponse.next({ request: { headers: requestHeaders } })
 
@@ -194,13 +222,21 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
 
   // Redirect unauthenticated users to login
   if (!user) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
-    return NextResponse.redirect(url)
+    const redirectResponse = NextResponse.redirect(url)
+    // If the session exists but the refresh token is invalid/expired, clear the
+    // stale sb-* cookies so the browser stops sending them on every request.
+    if (authError) {
+      request.cookies.getAll()
+        .filter(c => c.name.startsWith('sb-'))
+        .forEach(c => redirectResponse.cookies.delete(c.name))
+    }
+    return redirectResponse
   }
 
   // Redirect authenticated users away from login

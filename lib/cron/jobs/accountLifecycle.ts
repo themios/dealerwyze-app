@@ -14,19 +14,17 @@
 import type { createServiceClient } from '@/lib/supabase/service'
 import { sendNotificationEmail } from '@/lib/email/notify'
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://dealerwyze.com'
-
-function billingUrl(): string {
-  return `${APP_URL}/settings/billing`
+function billingUrl(appUrl: string): string {
+  return `${appUrl}/settings/billing`
 }
 
-function warnHtml(displayName: string, daysLeft: number, headline: string, body: string): string {
+function warnHtml(displayName: string, daysLeft: number, headline: string, body: string, appUrl: string): string {
   return `
 <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#111;">
   <h2 style="margin:0 0 12px;">Hi ${displayName},</h2>
   <p style="margin:0 0 16px;font-size:15px;">${body}</p>
   ${daysLeft > 0 ? `<p style="font-size:15px;margin:0 0 20px;">You have <strong>${daysLeft} day${daysLeft !== 1 ? 's' : ''}</strong> before your account is downgraded to the free tier.</p>` : ''}
-  <a href="${billingUrl()}" style="display:inline-block;background:#f97316;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;">Go to Billing Settings</a>
+  <a href="${billingUrl(appUrl)}" style="display:inline-block;background:#f97316;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;">Go to Billing Settings</a>
   <p style="font-size:12px;color:#666;margin-top:24px;">If you have questions, reply to this email and we will help.</p>
 </div>`
 }
@@ -102,7 +100,7 @@ export async function runAccountLifecycle(
     // Find orgs currently in grace (past_due_since set, no free_tier_since yet).
     const { data: inGrace } = await supabase
       .from('organizations')
-      .select('id, name, past_due_since, lifecycle_warnings')
+      .select('id, name, past_due_since, lifecycle_warnings, vertical')
       .not('past_due_since', 'is', null)
       .is('free_tier_since', null)
       .is('suspended_at', null)
@@ -135,15 +133,21 @@ export async function runAccountLifecycle(
       const email = authUser.user?.email
       if (!email) continue
 
+      const orgVertical = ((org as { vertical?: string }).vertical ?? 'dealer') as 'dealer' | 'real_estate'
+      const appUrl = orgVertical === 'real_estate'
+        ? `https://${process.env.REALTYWYZE_DOMAIN ?? 'realtywyze.us'}`
+        : process.env.NEXT_PUBLIC_APP_URL ?? 'https://dealerwyze.com'
+      const brandName = orgVertical === 'real_estate' ? 'RealtyWyze' : 'DealerWyze'
       const daysLeft = Math.max(0, 7 - daysInGrace)
       await sendNotificationEmail({
         to:      email,
-        subject: `Action needed: your DealerWyze trial has ended`,
+        subject: `Action needed: your ${brandName} trial has ended`,
         html: warnHtml(
           admin.display_name ?? 'there',
           daysLeft,
           'Your trial has ended',
-          `Your DealerWyze trial period has ended. To keep all your features - including texting, the voice agent, and automated sequences - you need to add a payment method.`,
+          `Your ${brandName} trial period has ended. To keep all your features - including texting, the voice agent, and automated sequences - you need to add a payment method.`,
+          appUrl,
         ),
       })
 

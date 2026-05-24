@@ -185,7 +185,7 @@ export default function RetentionPage() {
             <div className="flex items-center gap-2">
               <PhoneCall className="h-4 w-4 text-orange-600 shrink-0" />
               <p className="text-sm font-medium text-orange-800">
-                {counts.never_used > 0 && `${counts.never_used} dealer${counts.never_used !== 1 ? 's have' : ' has'} never logged in`}
+                {counts.never_used > 0 && `${counts.never_used} account${counts.never_used !== 1 ? 's have' : ' has'} never logged in`}
                 {counts.never_used > 0 && counts.dormant > 0 && ' · '}
                 {counts.dormant > 0 && `${counts.dormant} dormant 30+ days`}
               </p>
@@ -240,7 +240,7 @@ export default function RetentionPage() {
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search dealerships…"
+              placeholder="Search accounts…"
               className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border bg-card"
             />
           </div>

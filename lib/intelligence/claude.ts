@@ -1,11 +1,15 @@
 import 'server-only'
 import { IntelligencePayload } from './metrics'
 
-const SYSTEM_PROMPT = `You are a sharp operations analyst for small independent used-car dealers.
+const DEALER_SYSTEM_PROMPT = `You are a sharp operations analyst for small independent used-car dealers.
 Rules: Only use numbers from the JSON payload. No invented data. No fluff. Be direct and specific.
 CRITICAL: Your entire response must be a single raw JSON object. Start with { and end with }. No markdown, no code fences, no explanation before or after.`
 
-function buildUserPrompt(payload: IntelligencePayload): string {
+const RE_SYSTEM_PROMPT = `You are a sharp operations analyst for independent real estate brokerages.
+Rules: Only use numbers from the JSON payload. No invented data. No fluff. Be direct and specific.
+CRITICAL: Your entire response must be a single raw JSON object. Start with { and end with }. No markdown, no code fences, no explanation before or after.`
+
+function buildDealerUserPrompt(payload: IntelligencePayload): string {
   return `Generate a dealer morning brief JSON using ONLY data from the payload below.
 
 OUTPUT: a single JSON object with these exact fields (no extra keys):
@@ -13,21 +17,50 @@ OUTPUT: a single JSON object with these exact fields (no extra keys):
 "bullets": exactly 3 strings, most critical business facts, max 15 words each,
 "key_lever": single most impactful action for today (max 15 words),
 "scorecards": array of 8 objects {label, value, delta, status("good"|"warn"|"bad"|"neutral")},
-  Use these 8 labels in order: "Units Sold (MTD)", "Revenue (MTD)", "BHPH Overdue", "Active BHPH Loans", "Leads Yesterday", "Response Rate", "Lead→Appt Rate", "Tasks Overdue",
+  Use these 8 labels in order: "Units Sold (MTD)", "Revenue (MTD)", "BHPH Overdue", "Active BHPH Loans", "Leads Yesterday", "Response Rate", "Lead->Appt Rate", "Tasks Overdue",
 "top_actions": exactly 3 objects {rank(1-3), action(max 15 words), minutes(number)},
 "performance_insight": one sentence on lead response rate and conversion (use salesperson_performance data),
 "sales_insight": one sentence on units sold and revenue trend (use sales_metrics data),
-"bhph_insight": one sentence on BHPH portfolio health — overdue accounts, upcoming payments, default risk (use bhph_metrics data),
+"bhph_insight": one sentence on BHPH portfolio health -- overdue accounts, upcoming payments, default risk (use bhph_metrics data),
 "lead_insight": one sentence on lead flow vs average,
 "inventory_insight": one sentence on inventory age risk or opportunity,
 "discipline_insight": one sentence on task completion and follow-up compliance,
 "twilio_insight": one sentence on SMS usage rate, quota health, and response effectiveness (use twilio_metrics data),
-"pricing_insight": one sentence on how inventory is priced vs. market — call out overpriced units by name if any, avg premium/discount, and pricing strategy impact on turn rate (use pricing_intelligence data),
-"retention_insight": one sentence on retention activity — active sequences, cards sent this month, upcoming birthdays, and referrals (use retention_metrics data; omit if all zeros),
-"alerts": array of 0-4 objects {severity("warn"|"critical"), message(max 20 words)} — include BHPH overdue and defaulted alerts if applicable,
+"pricing_insight": one sentence on how inventory is priced vs. market -- call out overpriced units by name if any, avg premium/discount, and pricing strategy impact on turn rate (use pricing_intelligence data),
+"retention_insight": one sentence on retention activity -- active sequences, cards sent this month, upcoming birthdays, and referrals (use retention_metrics data; omit if all zeros),
+"alerts": array of 0-4 objects {severity("warn"|"critical"), message(max 20 words)} -- include BHPH overdue and defaulted alerts if applicable,
 
 PAYLOAD:
 ${JSON.stringify(payload)}`
+}
+
+function buildReUserPrompt(payload: IntelligencePayload): string {
+  return `Generate a real estate agent morning brief JSON using ONLY data from the payload below.
+
+OUTPUT: a single JSON object with these exact fields (no extra keys):
+"headline": one punchy sentence covering active listings + client pipeline + key actions today (max 20 words),
+"bullets": exactly 3 strings, most critical business facts, max 15 words each,
+"key_lever": single most impactful action for today (max 15 words),
+"scorecards": array of 8 objects {label, value, delta, status("good"|"warn"|"bad"|"neutral")},
+  Use these 8 labels in order: "Active Listings", "Prospects (MTD)", "Showings This Week", "Closings (MTD)", "Leads Yesterday", "Response Rate", "Lead->Showing Rate", "Tasks Overdue",
+"top_actions": exactly 3 objects {rank(1-3), action(max 15 words), minutes(number)},
+"performance_insight": one sentence on lead response rate and conversion to showings,
+"sales_insight": one sentence on listings activity and transaction trend (use sales_metrics data),
+"bhph_insight": "N/A",
+"lead_insight": one sentence on inquiry flow vs average,
+"inventory_insight": one sentence on listing age risk -- flag any listings with no showings in 14+ days,
+"discipline_insight": one sentence on task completion and follow-up compliance,
+"twilio_insight": one sentence on SMS usage rate, quota health, and response effectiveness (use twilio_metrics data),
+"pricing_insight": one sentence on how active listings are priced vs. market and any price reduction opportunities,
+"retention_insight": one sentence on retention activity -- active sequences, past clients to re-engage, referrals (use retention_metrics data; omit if all zeros),
+"alerts": array of 0-4 objects {severity("warn"|"critical"), message(max 20 words)} -- include expiring listing agreements and overdue follow-ups if applicable,
+
+PAYLOAD:
+${JSON.stringify(payload)}`
+}
+
+function buildUserPrompt(payload: IntelligencePayload, vertical: 'dealer' | 'real_estate' = 'dealer'): string {
+  return vertical === 'real_estate' ? buildReUserPrompt(payload) : buildDealerUserPrompt(payload)
 }
 
 export interface BriefReport {
@@ -53,9 +86,14 @@ export interface BriefingResult {
   tokens_used: number
 }
 
-export async function generateBriefing(payload: IntelligencePayload): Promise<BriefingResult> {
+export async function generateBriefing(
+  payload: IntelligencePayload,
+  vertical: 'dealer' | 'real_estate' = 'dealer',
+): Promise<BriefingResult> {
   const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) throw new Error('GROQ_API_KEY is not set in environment variables')
+
+  const systemPrompt = vertical === 'real_estate' ? RE_SYSTEM_PROMPT : DEALER_SYSTEM_PROMPT
 
   // Lazy-load so groq-sdk is never required at module eval (avoids client bundle loading it)
   const { default: Groq } = await import('groq-sdk')
@@ -65,8 +103,8 @@ export async function generateBriefing(payload: IntelligencePayload): Promise<Br
     max_tokens: 1600,
     temperature: 0.3,
     messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: buildUserPrompt(payload) },
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: buildUserPrompt(payload, vertical) },
     ],
   })
 

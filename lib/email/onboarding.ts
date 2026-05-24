@@ -3,24 +3,28 @@
  * All text must be plain English. No em dashes. No jargon.
  */
 
+type V = 'dealer' | 'real_estate'
+
 // Shared email signature block used in every dealer-facing email.
-function sig(appUrl: string): string {
+function sig(appUrl: string, vertical: V = 'dealer'): string {
+  const brand = vertical === 'real_estate' ? 'RealtyWyze' : 'DealerWyze'
   return `
     <div style="border-top:1px solid #F1F5F9;margin-top:28px;padding-top:20px">
       <p style="margin:0;font-size:14px;color:#374151;line-height:1.8">
         Tim Harmantzis<br>
-        <span style="color:#64748B">Founder, DealerWyze</span><br>
+        <span style="color:#64748B">Founder, ${brand}</span><br>
         <a href="sms:+18054043873" style="color:#F07018;text-decoration:none">(805) 404-3873</a><br>
-        <a href="${appUrl}" style="color:#F07018;text-decoration:none">dealerwyze.com</a>
+        <a href="${appUrl}" style="color:#F07018;text-decoration:none">${appUrl.replace('https://', '')}</a>
       </p>
     </div>`
 }
 
 // Shared footer strip at the bottom of every email.
-function footer(appUrl: string): string {
+function footer(appUrl: string, vertical: V = 'dealer'): string {
+  const brand = vertical === 'real_estate' ? 'RealtyWyze' : 'DealerWyze'
   return `
     <div style="padding:16px;text-align:center;color:#94A3B8;font-size:11px">
-      DealerWyze &nbsp;|&nbsp; <a href="${appUrl}" style="color:#94A3B8;text-decoration:underline">dealerwyze.com</a> &nbsp;|&nbsp;
+      ${brand} &nbsp;|&nbsp; <a href="${appUrl}" style="color:#94A3B8;text-decoration:underline">${appUrl.replace('https://', '')}</a> &nbsp;|&nbsp;
       <a href="${appUrl}/settings/billing" style="color:#94A3B8;text-decoration:underline">Manage subscription</a>
     </div>`
 }
@@ -37,7 +41,49 @@ function helpCta(): string {
     </div>`
 }
 
-export function buildWelcomeEmailHtml(dealerName: string, appUrl: string): string {
+export function buildWelcomeEmailHtml(dealerName: string, appUrl: string, vertical: V = 'dealer'): string {
+  const isRe = vertical === 'real_estate'
+  const brand = isRe ? 'RealtyWyze' : 'DealerWyze'
+  const welcomeHeadline = isRe
+    ? `Welcome, ${dealerName}. Let's get your brokerage ready today.`
+    : `Welcome, ${dealerName}. Let's get your dealership ready today.`
+  const intro = isRe
+    ? `Thanks for signing up. RealtyWyze puts every prospect, every listing, and every client conversation in one place so you never lose a transaction because something slipped through the cracks. Setup takes about 10 minutes.`
+    : `Thanks for signing up. DealerWyze puts every lead, every car, and every customer conversation in one place so you never lose a deal because something slipped through the cracks. Setup takes about 10 minutes.`
+  const bullets = isRe
+    ? [
+        'Every inquiry from Zillow, Realtor.com, email, and text in one inbox',
+        'Text and email clients without switching apps',
+        'AI voice agent answers calls when you are showing a property',
+        'Weekly market report so your listings stay competitive',
+      ]
+    : [
+        'Every lead from CarGurus, AutoTrader, email, and text in one inbox',
+        'Text and email customers without switching apps',
+        'AI voice agent answers calls when you are on the lot',
+        'Weekly market pricing report so your inventory stays competitive',
+      ]
+  const checklist = isRe
+    ? [
+        'Brokerage legal name and DBA (if different)',
+        'Business address and zip code',
+        'Main business phone number',
+        'Business hours',
+        'Your active listings (address, asking price, beds, baths, square footage)',
+        'Agent names and emails',
+        'Gmail address for inquiry emails (optional but recommended)',
+      ]
+    : [
+        'Dealership legal name and DBA (if different)',
+        'Business address and zip code',
+        'Main business phone number',
+        'Business hours',
+        'Your vehicle inventory (year, make, model, VIN, price, and mileage)',
+        'Staff names and emails',
+        'Gmail address for lead emails (optional but recommended)',
+      ]
+  const ctaLabel = isRe ? 'Set Up My Brokerage' : 'Set Up My Dealership'
+
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -46,29 +92,22 @@ export function buildWelcomeEmailHtml(dealerName: string, appUrl: string): strin
   <tr><td>
 
     <div style="background:#0D2B55;border-radius:12px 12px 0 0;padding:28px 32px">
-      <p style="margin:0;color:#F07018;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em">DealerWyze</p>
+      <p style="margin:0;color:#F07018;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em">${brand}</p>
       <h1 style="margin:8px 0 0;color:#FFFFFF;font-size:22px;font-weight:700;line-height:1.3">
-        Welcome, ${dealerName}. Let's get your dealership ready today.
+        ${welcomeHeadline}
       </h1>
     </div>
 
     <div style="background:#FFFFFF;padding:32px;border:1px solid #E2E8F0;border-top:none">
 
       <p style="margin:0 0 20px;color:#374151;font-size:15px;line-height:1.7">
-        Thanks for signing up. DealerWyze puts every lead, every car, and every customer conversation
-        in one place so you never lose a deal because something slipped through the cracks.
-        Setup takes about 10 minutes.
+        ${intro}
       </p>
 
       <div style="background:#F0F7FF;border-radius:10px;padding:20px 24px;margin:0 0 24px">
-        <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#0D2B55;text-transform:uppercase;letter-spacing:0.05em">What DealerWyze does for you</p>
+        <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#0D2B55;text-transform:uppercase;letter-spacing:0.05em">What ${brand} does for you</p>
         <table cellpadding="0" cellspacing="0" width="100%">
-          ${[
-            'Every lead from CarGurus, AutoTrader, email, and text in one inbox',
-            'Text and email customers without switching apps',
-            'AI voice agent answers calls when you are on the lot',
-            'Weekly market pricing report so your inventory stays competitive',
-          ].map((item, i) => `
+          ${bullets.map((item, i) => `
           <tr>
             <td style="padding:6px 0;font-size:14px;color:#1E293B">
               <span style="color:#F07018;font-weight:700;margin-right:8px">${i + 1}.</span>${item}
@@ -79,15 +118,7 @@ export function buildWelcomeEmailHtml(dealerName: string, appUrl: string): strin
 
       <p style="margin:0 0 12px;font-size:15px;font-weight:700;color:#0D2B55">Have these ready before you log in:</p>
       <table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:28px">
-        ${[
-          'Dealership legal name and DBA (if different)',
-          'Business address and zip code',
-          'Main business phone number',
-          'Business hours',
-          'Your vehicle inventory (year, make, model, VIN, price, and mileage)',
-          'Staff names and emails',
-          'Gmail address for lead emails (optional but recommended)',
-        ].map(item => `
+        ${checklist.map(item => `
         <tr>
           <td style="padding:5px 0;font-size:14px;color:#374151;vertical-align:top">
             <span style="color:#16A34A;font-weight:700;margin-right:8px">+</span>${item}
@@ -99,7 +130,7 @@ export function buildWelcomeEmailHtml(dealerName: string, appUrl: string): strin
         <a href="${appUrl}/onboarding"
            style="display:inline-block;background:#F07018;color:#FFFFFF;font-weight:700;font-size:15px;
                   padding:15px 40px;border-radius:8px;text-decoration:none">
-          Set Up My Dealership
+          ${ctaLabel}
         </a>
         <p style="margin:12px 0 0;font-size:12px;color:#94A3B8">Takes about 10 minutes</p>
       </div>
@@ -109,10 +140,10 @@ export function buildWelcomeEmailHtml(dealerName: string, appUrl: string): strin
         I want to make sure your first day goes well.
       </p>
 
-      ${sig(appUrl)}
+      ${sig(appUrl, vertical)}
     </div>
 
-    ${footer(appUrl)}
+    ${footer(appUrl, vertical)}
 
   </td></tr>
 </table>
@@ -128,7 +159,12 @@ export interface NudgeItem {
   linkText: string
 }
 
-export function buildNudgeEmailHtml(dealerName: string, appUrl: string, incomplete: NudgeItem[]): string {
+export function buildNudgeEmailHtml(dealerName: string, appUrl: string, incomplete: NudgeItem[], vertical: V = 'dealer'): string {
+  const isRe = vertical === 'real_estate'
+  const brand = isRe ? 'RealtyWyze' : 'DealerWyze'
+  const intro = isRe
+    ? `Your RealtyWyze account is almost ready. A few things are still missing. Taking care of these now means inquiries won't slip through and your pricing data will be accurate from day one.`
+    : `Your DealerWyze account is almost ready. A few things are still missing. Taking care of these now means leads won't slip through and your pricing data will be accurate from day one.`
   const itemsHtml = incomplete.map((item, i) => `
   <tr>
     <td style="padding:16px 0;border-bottom:1px solid #F1F5F9;vertical-align:top">
@@ -160,7 +196,7 @@ export function buildNudgeEmailHtml(dealerName: string, appUrl: string, incomple
 <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;padding:24px 16px">
   <tr><td>
     <div style="background:#0D2B55;border-radius:12px 12px 0 0;padding:24px 32px">
-      <p style="margin:0;color:#F07018;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em">DealerWyze</p>
+      <p style="margin:0;color:#F07018;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em">${brand}</p>
       <h1 style="margin:8px 0 0;color:#FFFFFF;font-size:20px;font-weight:700;line-height:1.3">
         ${dealerName}, a few things still need your attention
       </h1>
@@ -168,8 +204,7 @@ export function buildNudgeEmailHtml(dealerName: string, appUrl: string, incomple
     <div style="background:#FFFFFF;padding:32px;border:1px solid #E2E8F0;border-top:none">
 
       <p style="margin:0 0 20px;color:#374151;font-size:14px;line-height:1.7">
-        Your DealerWyze account is almost ready. A few things are still missing.
-        Taking care of these now means leads won't slip through and your pricing data will be accurate from day one.
+        ${intro}
       </p>
 
       ${incomplete.length > 0 ? `
@@ -196,9 +231,9 @@ export function buildNudgeEmailHtml(dealerName: string, appUrl: string, incomple
         and I am happy to walk you through it.
       </p>
 
-      ${sig(appUrl)}
+      ${sig(appUrl, vertical)}
     </div>
-    ${footer(appUrl)}
+    ${footer(appUrl, vertical)}
   </td></tr>
 </table>
 </body>
@@ -354,6 +389,156 @@ export function buildDaySevenFollowUpHtml(dealerName: string, appUrl: string): s
       ${helpCta()}
     </div>
     ${footer(appUrl)}
+  </td></tr>
+</table>
+</body>
+</html>`
+}
+
+// ── RealtyWyze follow-up sequence ─────────────────────────────────────────────
+
+function reTip(num: string, title: string, body: string, link: string, linkText: string): string {
+  return `
+      <div style="margin-bottom:24px;padding-bottom:24px;border-bottom:1px solid #F1F5F9">
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <div style="background:#F07018;color:#fff;font-weight:700;font-size:14px;
+                      min-width:28px;height:28px;border-radius:50%;display:flex;
+                      align-items:center;justify-content:center;text-align:center;
+                      line-height:28px;flex-shrink:0">${num}</div>
+          <div>
+            <p style="margin:0 0 6px;font-size:15px;font-weight:700;color:#0D2B55">${title}</p>
+            <p style="margin:0 0 10px;font-size:13px;color:#374151;line-height:1.6">${body}</p>
+            <a href="${link}" style="font-size:12px;color:#F07018;font-weight:600;text-decoration:none">${linkText} &rarr;</a>
+          </div>
+        </div>
+      </div>`
+}
+
+export function buildReDayOneTipsEmailHtml(agentName: string, appUrl: string): string {
+  const reUrl = appUrl.replace('dealerwyze.com', 'realtywyze.us')
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#F8FAFC;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;padding:24px 16px">
+  <tr><td>
+    <div style="background:#0D2B55;border-radius:12px 12px 0 0;padding:24px 32px">
+      <p style="margin:0;color:#F07018;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em">RealtyWyze</p>
+      <h1 style="margin:8px 0 0;color:#FFFFFF;font-size:20px;font-weight:700">3 things to do first, ${agentName}</h1>
+    </div>
+    <div style="background:#FFFFFF;padding:32px;border:1px solid #E2E8F0;border-top:none">
+      ${reTip('1', 'Add your first listing',
+        'Go to Listings and tap the + button to add a property. Fill in the address, beds, baths, and asking price. Your public listing page goes live the moment you save.',
+        `${reUrl}/vehicles/new`, 'Add a Listing')}
+      ${reTip('2', 'Connect Gmail to pull in inquiries automatically',
+        'Go to Settings and connect your Gmail account. Every showing request and buyer inquiry that lands in your inbox will show up in RealtyWyze within 15 minutes.',
+        `${reUrl}/settings`, 'Connect Gmail')}
+      ${reTip('3', 'Check your Today page every morning',
+        'Your Today page shows who is waiting for a reply, your upcoming showings, and your daily numbers. Make it your first stop each morning and you will not miss a prospect.',
+        `${reUrl}/today`, 'Open Today')}
+
+      <p style="margin:0;font-size:14px;color:#374151;line-height:1.7">
+        Any questions, just reply here. I read everything personally.
+      </p>
+
+      ${sig(reUrl, 'real_estate')}
+      ${helpCta()}
+    </div>
+    ${footer(reUrl, 'real_estate')}
+  </td></tr>
+</table>
+</body>
+</html>`
+}
+
+export function buildReDayThreeFollowUpHtml(agentName: string, appUrl: string): string {
+  const reUrl = appUrl.replace('dealerwyze.com', 'realtywyze.us')
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#F8FAFC;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;padding:24px 16px">
+  <tr><td>
+    <div style="background:#0D2B55;border-radius:12px 12px 0 0;padding:24px 32px">
+      <p style="margin:0;color:#F07018;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em">RealtyWyze</p>
+      <h1 style="margin:8px 0 0;color:#FFFFFF;font-size:20px;font-weight:700">Hey ${agentName}, how is setup going?</h1>
+    </div>
+    <div style="background:#FFFFFF;padding:32px;border:1px solid #E2E8F0;border-top:none">
+      <p style="margin:0 0 16px;color:#374151;font-size:15px;line-height:1.7">
+        You signed up a few days ago and I wanted to check in. Most agents finish setup in one sitting
+        but life gets busy. No pressure.
+      </p>
+      <p style="margin:0 0 20px;color:#374151;font-size:15px;line-height:1.7">
+        The two things that make the biggest difference on day one:
+      </p>
+      <div style="background:#F0F7FF;border-radius:10px;padding:20px 24px;margin:0 0 28px">
+        <p style="margin:0 0 10px;font-size:14px;color:#1E293B">
+          <span style="color:#F07018;font-weight:700;margin-right:8px">1.</span>
+          <strong>Add your first listing.</strong> Even one property unlocks your public listing page.
+        </p>
+        <p style="margin:0;font-size:14px;color:#1E293B">
+          <span style="color:#F07018;font-weight:700;margin-right:8px">2.</span>
+          <strong>Connect Gmail.</strong> Inquiries from Zillow and Realtor.com will flow in automatically.
+        </p>
+      </div>
+      <div style="text-align:center;margin-bottom:24px">
+        <a href="${reUrl}/onboarding"
+           style="display:inline-block;background:#F07018;color:#FFFFFF;font-weight:700;
+                  font-size:15px;padding:14px 40px;border-radius:8px;text-decoration:none">
+          Finish Setup
+        </a>
+      </div>
+      <p style="margin:0;font-size:14px;color:#374151;line-height:1.7">
+        If you ran into a problem or just have a question, reply here or send me a text.
+        Happy to walk you through it.
+      </p>
+      ${sig(reUrl, 'real_estate')}
+      ${helpCta()}
+    </div>
+    ${footer(reUrl, 'real_estate')}
+  </td></tr>
+</table>
+</body>
+</html>`
+}
+
+export function buildReDaySevenFollowUpHtml(agentName: string, appUrl: string): string {
+  const reUrl = appUrl.replace('dealerwyze.com', 'realtywyze.us')
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#F8FAFC;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;padding:24px 16px">
+  <tr><td>
+    <div style="background:#0D2B55;border-radius:12px 12px 0 0;padding:24px 32px">
+      <p style="margin:0;color:#F07018;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em">RealtyWyze</p>
+      <h1 style="margin:8px 0 0;color:#FFFFFF;font-size:20px;font-weight:700">Still here for you, ${agentName}</h1>
+    </div>
+    <div style="background:#FFFFFF;padding:32px;border:1px solid #E2E8F0;border-top:none">
+      <p style="margin:0 0 16px;color:#374151;font-size:15px;line-height:1.7">
+        It has been about a week since you signed up. Your account is ready and waiting whenever you are.
+      </p>
+      <p style="margin:0 0 24px;color:#374151;font-size:15px;line-height:1.7">
+        If something got in the way or you have a question before you start, just reply to this email.
+        I read every message personally and I am happy to jump on a quick call or text.
+      </p>
+      <div style="background:#FEF9F0;border:1px solid #FED7AA;border-radius:10px;padding:20px 24px;margin:0 0 28px">
+        <p style="margin:0;font-size:14px;color:#92400E;line-height:1.7">
+          Agents who finish setup in their first week typically see their first inquiry within 48 hours
+          of connecting Gmail. The agent who replies first usually wins the showing.
+        </p>
+      </div>
+      <div style="text-align:center;margin-bottom:24px">
+        <a href="${reUrl}/onboarding"
+           style="display:inline-block;background:#F07018;color:#FFFFFF;font-weight:700;
+                  font-size:15px;padding:14px 40px;border-radius:8px;text-decoration:none">
+          Set Up My Account
+        </a>
+      </div>
+      ${sig(reUrl, 'real_estate')}
+      ${helpCta()}
+    </div>
+    ${footer(reUrl, 'real_estate')}
   </td></tr>
 </table>
 </body>

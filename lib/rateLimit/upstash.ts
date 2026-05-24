@@ -49,6 +49,7 @@ const _orgSmsLimiter    = makeLimiter(redis, { requests: 20,  windowSeconds: 300
 // AI calls per org per day — prevents runaway cost from a single org
 const _orgMarketCheck   = makeLimiter(redis, { requests: 10,  windowSeconds: 86400 })  // Groq compound (expensive)
 const _orgAiBrief       = makeLimiter(redis, { requests: 10,  windowSeconds: 86400 })  // Groq summary/brief
+const _orgAiAsk         = makeLimiter(redis, { requests: 10,  windowSeconds: 86400 })  // Groq freeform question (10/day)
 const _orgReceiptScan   = makeLimiter(redis, { requests: 25,  windowSeconds: 86400 })  // Anthropic receipt OCR
 const _orgDocSummarize  = makeLimiter(redis, { requests: 10,  windowSeconds: 86400 })  // Anthropic vehicle doc
 const _orgContactScan   = makeLimiter(redis, { requests: 20,  windowSeconds: 86400 })  // Anthropic contact card
@@ -92,6 +93,9 @@ export const orgMarketCheckLimiter  = (orgId: string) => check(_orgMarketCheck, 
 
 /** 10 AI brief generations per org per day. */
 export const orgAiBriefLimiter      = (orgId: string) => check(_orgAiBrief,      `org:${orgId}:aibrief`)
+
+/** 3 freeform AI questions per org per day. */
+export const orgAiAskLimiter        = (orgId: string) => check(_orgAiAsk,        `org:${orgId}:aiask`)
 
 /** 25 receipt AI scans per org per day. */
 export const orgReceiptScanLimiter  = (orgId: string) => check(_orgReceiptScan,  `org:${orgId}:receipt`)

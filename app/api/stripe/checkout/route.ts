@@ -5,10 +5,16 @@ import { canAccessBilling } from '@/lib/auth/dealerRoles'
 import type { UserRole } from '@/types/index'
 import {
   stripe, PRICE_ID, PRICE_ID_TIER2, PRICE_ID_TIER3, SMS_PRICE_ID, APP_URL,
+  PRICE_ID_RE_STARTER, PRICE_ID_RE_PRO,
   type PlanTier, type SmsTier, priceIdForSmsTier,
 } from '@/lib/stripe'
 
-function priceIdForPlan(plan: PlanTier): string {
+function priceIdForPlan(plan: PlanTier, vertical: string): string {
+  if (vertical === 'real_estate') {
+    // RE has 2 plans: tier1 = Starter $150, tier2+ = Pro $300
+    if (plan === 'tier2' || plan === 'tier3') return PRICE_ID_RE_PRO || PRICE_ID_RE_STARTER || PRICE_ID
+    return PRICE_ID_RE_STARTER || PRICE_ID
+  }
   if (plan === 'tier2') return PRICE_ID_TIER2 || PRICE_ID
   if (plan === 'tier3') return PRICE_ID_TIER3 || PRICE_ID
   return PRICE_ID
@@ -23,7 +29,7 @@ export async function POST(req: Request) {
 
   const { data: org } = await supabase
     .from('organizations')
-    .select('stripe_customer_id, name')
+    .select('stripe_customer_id, name, vertical')
     .eq('id', profile.org_id)
     .single()
 
@@ -45,8 +51,9 @@ export async function POST(req: Request) {
   const plan: PlanTier = body.plan ?? 'tier1'
   const smsTier: SmsTier | null = body.smsTier ?? null
   const includeSms = body.includeSms === true  // legacy
+  const vertical = (org?.vertical as string | null) ?? 'dealer'
 
-  const lineItems: Array<{ price: string; quantity: number }> = [{ price: priceIdForPlan(plan), quantity: 1 }]
+  const lineItems: Array<{ price: string; quantity: number }> = [{ price: priceIdForPlan(plan, vertical), quantity: 1 }]
 
   if (smsTier) {
     // New tiered SMS add-on checkout

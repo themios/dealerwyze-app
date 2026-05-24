@@ -36,7 +36,7 @@ export default async function VideoSettingsPage() {
       .single(),
   ])
 
-  const PLAN_RENDER_QUOTA: Record<string, number> = { growth: 25, pro: 75 }
+  const PLAN_RENDER_QUOTA: Record<string, number> = { growth: 25, pro: 75, platform: 999, lifetime: 999 }
   const planLimit = PLAN_RENDER_QUOTA[(org?.plan ?? 'growth').toLowerCase()] ?? 25
 
   return (

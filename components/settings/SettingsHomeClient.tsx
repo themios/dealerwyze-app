@@ -17,8 +17,10 @@ import StatusChip, { type StatusChipTone } from '@/components/settings/StatusChi
 import { canViewSettingsAudience } from '@/lib/settings/access'
 import {
   GROUPS, SETTINGS_ITEMS, SETTINGS_STORAGE_KEY, matchesSearch,
+  resolveGroupTitle, resolveItemTitle,
   type GroupId, type SettingsItemConfig,
 } from '@/lib/settings/config'
+import { useVertical } from '@/hooks/useVertical'
 import type { UserRole } from '@/types/index'
 
 type RouteStatus = 'connected' | 'healthy' | 'optional' | 'pending' | 'error' | undefined
@@ -58,6 +60,7 @@ export default function SettingsHomeClient({
   statusItems,
   routeRuntime,
 }: SettingsHomeClientProps) {
+  const { vertical } = useVertical()
   const [query, setQuery] = useState('')
   const [selectedGroupId, setSelectedGroupId] = useState<GroupId>(() => {
     if (typeof window === 'undefined') return 'business'
@@ -89,8 +92,9 @@ export default function SettingsHomeClient({
   const normalizedQuery = query.trim().toLowerCase()
   const visibleItems = useMemo(() => SETTINGS_ITEMS.filter(item => {
     if (!canManageReconTemplate && item.id === 'recon-template') return false
+    if (item.verticalHide?.includes(vertical)) return false
     return canViewSettingsAudience(role, item.audience)
-  }), [canManageReconTemplate, role])
+  }), [canManageReconTemplate, role, vertical])
 
   const visibleGroupIds = useMemo(
     () => GROUPS.filter(group => visibleItems.some(item => item.group === group.id)).map(group => group.id),
@@ -110,10 +114,10 @@ export default function SettingsHomeClient({
       .filter(group => visibleItems.some(item => item.group === group.id))
       .map(group => {
         const items = filteredItems.filter(item => item.group === group.id)
-        return { ...group, items, count: items.length }
+        return { ...group, title: resolveGroupTitle(group, vertical), items, count: items.length }
       })
       .filter(group => normalizedQuery ? group.items.length > 0 : true)
-  }, [filteredItems, normalizedQuery, visibleItems])
+  }, [filteredItems, normalizedQuery, visibleItems, vertical])
 
   const selectedGroup = groupsForRender.find(group => group.id === effectiveSelectedGroupId) ?? groupsForRender[0] ?? null
   const criticalStatusCount = buildStatusSummary(statusItems)
@@ -130,7 +134,7 @@ export default function SettingsHomeClient({
         key={item.id}
         href={item.href}
         icon={item.icon}
-        title={item.title}
+        title={resolveItemTitle(item, vertical)}
         description={item.description}
         status={runtime?.status}
         summary={runtime?.summary}
@@ -203,7 +207,9 @@ export default function SettingsHomeClient({
           <div className="space-y-1">
             <h1 className="text-2xl font-semibold">Settings</h1>
             <p className="text-sm text-muted-foreground">
-              Control center for dealership configuration, integrations, governance, and personal preferences.
+              {vertical === 'real_estate'
+                ? 'Control center for brokerage configuration, integrations, governance, and personal preferences.'
+                : 'Control center for dealership configuration, integrations, governance, and personal preferences.'}
             </p>
           </div>
           <div className="w-full max-w-sm">

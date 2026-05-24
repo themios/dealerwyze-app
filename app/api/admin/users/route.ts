@@ -192,11 +192,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: profileErr.message }, { status: 500 })
   }
 
+  const { data: orgRow } = await service
+    .from('organizations')
+    .select('vertical')
+    .eq('id', auth.profile.org_id)
+    .maybeSingle()
+  const orgVertical = (orgRow?.vertical ?? 'dealer') as 'dealer' | 'real_estate'
+
   // Fire-and-forget: send a rich team invite email that explains the value prop
   void sendNotificationEmail({
     to: email,
-    subject: 'Your DealerWyze login is ready',
-    html: buildTeamInviteEmailHtml(finalDisplayName, APP_URL),
+    subject: orgVertical === 'real_estate' ? 'Your RealtyWyze login is ready' : 'Your DealerWyze login is ready',
+    html: buildTeamInviteEmailHtml(finalDisplayName, APP_URL, orgVertical),
   })
 
   void logOrgAudit({ org_id: auth.profile.org_id, actor_id: auth.user.id, actor_type: 'user',

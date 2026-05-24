@@ -2,11 +2,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useVertical } from '@/hooks/useVertical'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Star, Heart, ExternalLink, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Textarea } from '@/components/ui/textarea'
+import { Star, Heart, ExternalLink, CheckCircle2, AlertCircle, MessageSquare, RotateCcw } from 'lucide-react'
 
 interface OutreachSettings {
   // Pulse
@@ -14,6 +16,7 @@ interface OutreachSettings {
   pulse_auto_send_on_sold: boolean
   pulse_send_day30: boolean
   pulse_send_day180: boolean
+  pulse_sms_template: string | null
   // Google Reviews
   google_review_url: string
   review_request_enabled: boolean
@@ -23,32 +26,56 @@ interface OutreachSettings {
 const DEFAULTS: OutreachSettings = {
   pulse_enabled: false, pulse_auto_send_on_sold: true,
   pulse_send_day30: true, pulse_send_day180: false,
+  pulse_sms_template: null,
   google_review_url: '', review_request_enabled: false, review_request_delay_days: 0,
 }
 
+const SYSTEM_DEFAULT_SMS = `Hi {firstName}! Thank you for your recent purchase at {businessName}. Your experience matters to us. Please take a moment to share your feedback: {surveyLink}`
+const SYSTEM_DEFAULT_SMS_RE = `Hi {firstName}! Thank you for letting us be part of your journey. Your experience matters to us. Please take a moment to share your feedback: {surveyLink}`
+
+const VARIABLES = ['{firstName}', '{businessName}', '{surveyLink}']
+
 export default function PulseSettingsClient() {
+  const { vertical } = useVertical()
+  const isRE = vertical === 'real_estate'
+  const systemDefault = isRE ? SYSTEM_DEFAULT_SMS_RE : SYSTEM_DEFAULT_SMS
+
   const [settings, setSettings] = useState<OutreachSettings>(DEFAULTS)
   const [saving, setSaving]     = useState(false)
   const [status, setStatus]     = useState<'idle' | 'saved' | 'error'>('idle')
+  // Local textarea state — null means "use system default"
+  const [smsTemplate, setSmsTemplate] = useState<string>('')
+  const [smsTemplateEnabled, setSmsTemplateEnabled] = useState(false)
 
   useEffect(() => {
     fetch('/api/settings/pulse')
       .then(r => r.ok ? r.json() : null)
       .then(d => {
-        if (d) setSettings({
-          pulse_enabled:           d.pulse_enabled           ?? false,
-          pulse_auto_send_on_sold: d.pulse_auto_send_on_sold ?? true,
-          pulse_send_day30:        d.pulse_send_day30        ?? true,
-          pulse_send_day180:       d.pulse_send_day180       ?? false,
-          google_review_url:       d.google_review_url       ?? '',
-          review_request_enabled:  d.review_request_enabled  ?? false,
-          review_request_delay_days: d.review_request_delay_days ?? 0,
-        })
+        if (d) {
+          setSettings({
+            pulse_enabled:             d.pulse_enabled             ?? false,
+            pulse_auto_send_on_sold:   d.pulse_auto_send_on_sold   ?? true,
+            pulse_send_day30:          d.pulse_send_day30           ?? true,
+            pulse_send_day180:         d.pulse_send_day180          ?? false,
+            pulse_sms_template:        d.pulse_sms_template         ?? null,
+            google_review_url:         d.google_review_url          ?? '',
+            review_request_enabled:    d.review_request_enabled     ?? false,
+            review_request_delay_days: d.review_request_delay_days  ?? 0,
+          })
+          if (d.pulse_sms_template) {
+            setSmsTemplate(d.pulse_sms_template)
+            setSmsTemplateEnabled(true)
+          }
+        }
       })
   }, [])
 
   function set<K extends keyof OutreachSettings>(key: K, val: OutreachSettings[K]) {
     setSettings(p => ({ ...p, [key]: val }))
+  }
+
+  function resetToDefault() {
+    setSmsTemplate(systemDefault)
   }
 
   async function save() {
@@ -59,10 +86,15 @@ export default function PulseSettingsClient() {
     }
     setSaving(true)
     setStatus('idle')
+    const templateToSave = smsTemplateEnabled && smsTemplate.trim() ? smsTemplate.trim() : null
     const res = await fetch('/api/settings/pulse', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...settings, review_request_delay_days: delayDays }),
+      body: JSON.stringify({
+        ...settings,
+        review_request_delay_days: delayDays,
+        pulse_sms_template: templateToSave,
+      }),
     })
     setSaving(false)
     if (res.ok) {
@@ -74,6 +106,12 @@ export default function PulseSettingsClient() {
   }
 
   const delayStr = String(settings.review_request_delay_days)
+
+  // Live preview of the SMS
+  const previewSms = (smsTemplateEnabled && smsTemplate.trim() ? smsTemplate : systemDefault)
+    .replace('{firstName}', 'Alex')
+    .replace('{businessName}', isRE ? 'Sunrise Realty' : 'Main Street Motors')
+    .replace('{surveyLink}', 'dealerwyze.com/pulse/abc123')
 
   return (
     <div className="px-4 py-6 space-y-6 max-w-lg">
@@ -120,7 +158,7 @@ export default function PulseSettingsClient() {
           <div>
             <Label className="text-sm font-medium">Auto-send after sale</Label>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Send a review request when you mark a vehicle sold
+              {isRE ? 'Send a review request when you close a deal' : 'Send a review request when you mark a vehicle sold'}
             </p>
           </div>
           <Switch
@@ -149,7 +187,9 @@ export default function PulseSettingsClient() {
               </p>
             </div>
             <p className="text-xs text-muted-foreground">
-              Day 0 = immediately (excitement is highest right after the sale). Day 3-7 = after they have driven the car.
+              {isRE
+                ? 'Day 0 = immediately after closing. Day 3–7 = once the client has settled in.'
+                : 'Day 0 = immediately (excitement is highest right after the sale). Day 3–7 = after they have driven the car.'}
             </p>
           </div>
         )}
@@ -159,14 +199,16 @@ export default function PulseSettingsClient() {
       <div className="bg-card rounded-xl border p-5 space-y-5">
         <div className="flex items-center gap-2">
           <Heart className="h-5 w-5 text-primary" />
-          <h2 className="font-semibold text-base">Customer Pulse Surveys</h2>
+          <h2 className="font-semibold text-base">{isRE ? 'Client' : 'Customer'} Pulse Surveys</h2>
         </div>
 
         <div className="flex items-center justify-between">
           <div>
-            <Label className="text-sm font-medium">Enable Customer Pulse</Label>
+            <Label className="text-sm font-medium">Enable {isRE ? 'Client' : 'Customer'} Pulse</Label>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Send satisfaction surveys after every sale and track your team scores
+              {isRE
+                ? 'Send satisfaction surveys after every closing and track your team scores'
+                : 'Send satisfaction surveys after every sale and track your team scores'}
             </p>
           </div>
           <Switch
@@ -177,12 +219,15 @@ export default function PulseSettingsClient() {
 
         {settings.pulse_enabled && (
           <div className="border-t pt-4 space-y-4">
+            {/* Auto-send triggers */}
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Auto-Send Triggers</p>
 
             <div className="flex items-center justify-between">
               <div>
                 <Label className="text-sm">On sale (immediately)</Label>
-                <p className="text-xs text-muted-foreground">Survey sent when you mark a vehicle sold</p>
+                <p className="text-xs text-muted-foreground">
+                  {isRE ? 'Survey sent when you close a deal' : 'Survey sent when you mark a vehicle sold'}
+                </p>
               </div>
               <Switch
                 checked={settings.pulse_auto_send_on_sold}
@@ -211,6 +256,75 @@ export default function PulseSettingsClient() {
                 onCheckedChange={v => set('pulse_send_day180', v)}
               />
             </div>
+
+            {/* Invitation message customisation */}
+            <div className="border-t pt-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                <p className="text-sm font-semibold">Survey invitation message</p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                This is the SMS {isRE ? 'clients' : 'customers'} receive when a pulse survey is triggered.
+                Customise it to match your voice.
+              </p>
+
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">Use a custom message</Label>
+                <Switch
+                  checked={smsTemplateEnabled}
+                  onCheckedChange={v => {
+                    setSmsTemplateEnabled(v)
+                    if (v && !smsTemplate.trim()) setSmsTemplate(systemDefault)
+                  }}
+                />
+              </div>
+
+              {smsTemplateEnabled && (
+                <div className="space-y-2">
+                  <Textarea
+                    value={smsTemplate}
+                    onChange={e => setSmsTemplate(e.target.value)}
+                    rows={4}
+                    maxLength={320}
+                    className="text-sm resize-none"
+                    placeholder={systemDefault}
+                  />
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap gap-1">
+                      {VARIABLES.map(v => (
+                        <code
+                          key={v}
+                          className="bg-muted border rounded px-1.5 py-0.5 text-[11px] font-mono cursor-pointer hover:bg-accent"
+                          title="Click to insert"
+                          onClick={() => setSmsTemplate(t => t + v)}
+                        >
+                          {v}
+                        </code>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={resetToDefault}
+                      className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      Reset to default
+                    </button>
+                  </div>
+                  <div className="text-right text-[11px] text-muted-foreground tabular-nums">
+                    {smsTemplate.length} / 320
+                  </div>
+                </div>
+              )}
+
+              {/* Live preview */}
+              <div className="rounded-lg border bg-muted/30 p-3 space-y-1">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Preview — as {isRE ? 'client' : 'customer'} receives it
+                </p>
+                <p className="text-xs text-foreground leading-relaxed">{previewSms}</p>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -235,16 +349,17 @@ export default function PulseSettingsClient() {
       {/* Info box */}
       <div className="rounded-lg border bg-card p-4 space-y-2">
         <p className="text-sm font-semibold">What gets sent</p>
-        <p className="text-xs text-muted-foreground">When triggered, the customer receives a text and email (if they have contact info on file and have not opted out).</p>
+        <p className="text-xs text-muted-foreground">
+          When triggered, the {isRE ? 'client' : 'customer'} receives a text (if they have a phone on file and have not opted out).
+        </p>
         <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
-          <li><strong>Review request</strong> - short message with your Google review link</li>
-          <li><strong>Pulse survey</strong> - quick satisfaction survey link (anonymous)</li>
+          <li><strong>Review request</strong> — short message with your Google review link</li>
+          <li><strong>Pulse survey</strong> — quick satisfaction survey link (anonymous)</li>
         </ul>
         <p className="text-xs text-muted-foreground pt-1">
           Review requests deduplicate at 60 days. Pulse surveys deduplicate at 7 days per trigger type.
         </p>
       </div>
-
     </div>
   )
 }

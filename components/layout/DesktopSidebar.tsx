@@ -5,6 +5,8 @@ import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
+import { useVertical } from '@/hooks/useVertical'
+import type { VerticalFeatures } from '@/lib/vertical'
 import {
   Home, Users, Car, BookUser,
   CreditCard, BarChart2, HeadphonesIcon,
@@ -13,7 +15,7 @@ import {
   LineChart, GitBranch, UserCog, TicketCheck, ScrollText,
   LogOut, Briefcase, Contact, Heart, Inbox,
   Activity, BarChart3, DatabaseBackup, ArchiveRestore,
-  Clapperboard, MessageCircle,
+  Clapperboard, MessageCircle, SlidersHorizontal, FileSignature,
 } from 'lucide-react'
 
 interface MeResponse {
@@ -84,12 +86,22 @@ const BASE_NAV = [
   { href: '/contacts',  label: 'Contacts',  icon: BookUser },
 ]
 
-const ROLE_NAV = [
-  { href: '/bhph',      label: 'BHPH',      icon: CreditCard,     requiresRole: (r: string) => r !== 'dealer_rep' },
+type RoleNavItem = {
+  href: string
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  requiresRole: (r: string) => boolean
+  badge?: 'inbox'
+  feature?: keyof VerticalFeatures
+}
+
+const ROLE_NAV: RoleNavItem[] = [
+  { href: '/bhph',      label: 'BHPH',          icon: CreditCard,      requiresRole: (r: string) => r !== 'dealer_rep', feature: 'bhph' },
+  { href: '/bhph',      label: 'Leases',        icon: FileSignature,   requiresRole: (r: string) => r !== 'dealer_rep', feature: 'leaseManagement' },
   { href: '/admin/security-audit', label: 'Security Audit', icon: ShieldCheck, requiresRole: (r: string) => ['dealer_admin', 'dealer_manager', 'admin'].includes(r) },
   { href: '/analytics', label: 'Analytics', icon: BarChart2,      requiresRole: (r: string) => ['dealer_admin', 'dealer_manager', 'admin'].includes(r) },
   { href: '/pulse',     label: 'Pulse',     icon: Heart,          requiresRole: (r: string) => ['dealer_admin', 'dealer_manager', 'admin'].includes(r) },
-  { href: '/fax',               label: 'Fax',      icon: Printer,        requiresRole: () => true },
+  { href: '/fax',               label: 'Fax',      icon: Printer,        requiresRole: () => true, feature: 'fax' },
   { href: '/messages',          label: 'Messages', icon: MessageCircle,  badge: 'inbox' as const, requiresRole: () => true },
   { href: '/support',           label: 'Support',  icon: HeadphonesIcon, requiresRole: () => true },
   { href: '/settings/website',  label: 'Website',  icon: Globe,          requiresRole: (r: string) => r === 'dealer_admin' || r === 'admin' },
@@ -108,56 +120,86 @@ interface AdminNavItem {
   area?: string
 }
 
-const ADMIN_NAV_GROUPS: { section: string; items: AdminNavItem[] }[] = [
+// Shared platform section (same for both verticals)
+const ADMIN_NAV_PLATFORM: AdminNavItem[] = [
+  { href: '/admin/platform-health',  label: 'Platform Health',  icon: Activity,       area: 'alerts' },
+  { href: '/admin/feature-adoption', label: 'Feature Adoption', icon: BarChart3,      area: 'analytics' },
+  { href: '/admin/data-recovery',    label: 'Data Recovery',    icon: ArchiveRestore, area: 'accounts' },
+  { href: '/admin/backup-status',    label: 'Backup Status',    icon: DatabaseBackup, area: 'staff' },
+  { href: '/admin/staff',            label: 'Platform Team',    icon: UserCog,        area: 'staff' },
+  { href: '/admin/tickets',          label: 'Tickets',          icon: TicketCheck,    badge: 'tickets', area: 'tickets' },
+  { href: '/admin/audit-log',        label: 'Audit Log',        icon: ScrollText },
+  { href: '/admin/settings',         label: 'Platform Settings',icon: SlidersHorizontal },
+  { href: '/admin/content',          label: 'Content',          icon: Clapperboard },
+]
+
+// DealerWyze admin nav
+const ADMIN_NAV_GROUPS_DEALER: { section: string; items: AdminNavItem[] }[] = [
   {
     section: 'OVERVIEW',
     items: [
-      { href: '/admin',          label: 'Dashboard',   icon: LayoutDashboard },
-      { href: '/admin/alerts',   label: 'Alerts',      icon: Bell,           badge: 'alerts',    area: 'alerts' },
+      { href: '/admin',        label: 'Dashboard', icon: LayoutDashboard },
+      { href: '/admin/alerts', label: 'Alerts',    icon: Bell, badge: 'alerts', area: 'alerts' },
     ],
   },
   {
     section: 'DEALERS',
     items: [
-      { href: '/admin/customers',  label: 'All Customers', icon: Contact,     area: 'dealers' },
-      { href: '/admin/orgs',       label: 'Dealerships',   icon: Building2,   badge: 'new_orgs', area: 'dealers' },
-      { href: '/admin/retention',  label: 'Retention',     icon: TrendingDown, badge: 'retention', area: 'retention' },
-      { href: '/admin/inbox',      label: 'Inbox',         icon: Inbox,        badge: 'inbox',     area: 'dealers' },
+      { href: '/admin/customers', label: 'All Customers', icon: Contact,     area: 'accounts' },
+      { href: '/admin/orgs',      label: 'Dealerships',   icon: Building2,   badge: 'new_orgs', area: 'accounts' },
+      { href: '/admin/retention', label: 'Retention',     icon: TrendingDown,badge: 'retention', area: 'retention' },
+      { href: '/admin/inbox',     label: 'Inbox',         icon: Inbox,       badge: 'inbox',    area: 'accounts' },
     ],
   },
   {
     section: 'SALES TEAM',
     items: [
-      { href: '/admin/sales',      label: 'Sales Team',    icon: Briefcase,   area: 'sales' },
+      { href: '/admin/sales', label: 'Sales Team', icon: Briefcase, area: 'sales' },
     ],
   },
   {
     section: 'REVENUE',
     items: [
-      { href: '/admin/analytics',  label: 'Analytics',    icon: LineChart,    area: 'analytics' },
-      { href: '/admin/affiliates', label: 'Affiliates',   icon: GitBranch,    area: 'affiliates' },
+      { href: '/admin/analytics',  label: 'Analytics',  icon: LineChart, area: 'analytics' },
+      { href: '/admin/affiliates', label: 'Affiliates', icon: GitBranch, area: 'affiliates' },
+    ],
+  },
+  { section: 'PLATFORM', items: ADMIN_NAV_PLATFORM },
+]
+
+// RealtyWyze admin nav
+const ADMIN_NAV_GROUPS_RE: { section: string; items: AdminNavItem[] }[] = [
+  {
+    section: 'OVERVIEW',
+    items: [
+      { href: '/admin',        label: 'Dashboard', icon: LayoutDashboard },
+      { href: '/admin/alerts', label: 'Alerts',    icon: Bell, badge: 'alerts', area: 'alerts' },
     ],
   },
   {
-    section: 'PLATFORM',
+    section: 'AGENCIES',
     items: [
-      { href: '/admin/platform-health',  label: 'Platform Health',  icon: Activity,       area: 'alerts' },
-      { href: '/admin/feature-adoption', label: 'Feature Adoption', icon: BarChart3,      area: 'analytics' },
-      { href: '/admin/data-recovery',    label: 'Data Recovery',    icon: ArchiveRestore, area: 'dealers' },
-      { href: '/admin/backup-status',    label: 'Backup Status',    icon: DatabaseBackup, area: 'staff' },
-      { href: '/admin/staff',      label: 'Platform Team', icon: UserCog,     area: 'staff' },
-      { href: '/admin/tickets',    label: 'Tickets',       icon: TicketCheck, badge: 'tickets', area: 'tickets' },
-      { href: '/admin/audit-log',  label: 'Audit Log',     icon: ScrollText },
-      { href: '/marketing/content', label: 'Content',      icon: Clapperboard },
+      { href: '/admin/customers', label: 'All Clients',  icon: Contact,     area: 'accounts' },
+      { href: '/admin/orgs',      label: 'Agencies',     icon: Building2,   badge: 'new_orgs', area: 'accounts' },
+      { href: '/admin/retention', label: 'Retention',    icon: TrendingDown,badge: 'retention', area: 'retention' },
+      { href: '/admin/inbox',     label: 'Inbox',        icon: Inbox,       badge: 'inbox',    area: 'accounts' },
     ],
   },
+  {
+    section: 'REVENUE',
+    items: [
+      { href: '/admin/analytics',  label: 'Analytics',  icon: LineChart, area: 'analytics' },
+      { href: '/admin/affiliates', label: 'Affiliates', icon: GitBranch, area: 'affiliates' },
+    ],
+  },
+  { section: 'PLATFORM', items: ADMIN_NAV_PLATFORM },
 ]
 
 const ROLE_DEFAULT_AREAS: Record<string, string[]> = {
   platform_admin:          [],
-  platform_staff_manager:  ['dealers', 'retention', 'staff', 'tickets', 'alerts'],
-  platform_sales_manager:  ['dealers', 'retention', 'sales', 'analytics', 'affiliates', 'commissions'],
-  platform_staff:          ['tickets', 'dealers'],
+  platform_staff_manager:  ['accounts', 'retention', 'staff', 'tickets', 'alerts'],
+  platform_sales_manager:  ['accounts', 'retention', 'sales', 'analytics', 'affiliates', 'commissions'],
+  platform_staff:          ['tickets', 'accounts'],
 }
 
 const ROLE_LABEL: Record<string, string> = {
@@ -216,6 +258,10 @@ function AdminSidebar({ platformRole, platformPermissions, isSuperAdmin }: {
 }) {
   const pathname = usePathname()
   const badges = useAdminBadges()
+  const { vertical } = useVertical()
+  const isRE = vertical === 'real_estate'
+
+  const navGroups = isRE ? ADMIN_NAV_GROUPS_RE : ADMIN_NAV_GROUPS_DEALER
 
   const allowedAreas: Set<string> = isSuperAdmin
     ? new Set(['*'])
@@ -242,13 +288,17 @@ function AdminSidebar({ platformRole, platformPermissions, isSuperAdmin }: {
     <aside className="hidden lg:flex flex-col w-60 shrink-0 h-dvh bg-[#0D2B55] border-r border-[#1B4A8A] overflow-y-auto">
       {/* Logo */}
       <div className="px-4 py-4 border-b border-[#1B4A8A]">
-        <Image src="/logo.png" alt="DealerWyze" width={160} height={107} priority style={{ height: 'auto' }} className="object-contain rounded-sm" />
+        {isRE ? (
+          <Image src="/rw-logo.png" alt="RealtyWyze" width={140} height={48} priority style={{ height: '44px', width: 'auto' }} className="object-contain" />
+        ) : (
+          <Image src="/logo.png" alt="DealerWyze" width={160} height={107} priority style={{ height: 'auto' }} className="object-contain rounded-sm" />
+        )}
         <p className="text-white/40 text-[10px] mt-1.5 font-semibold uppercase tracking-widest">{roleLabel}</p>
       </div>
 
       {/* Admin nav groups */}
       <nav className="flex-1 py-3 px-2 space-y-4 overflow-y-auto">
-        {ADMIN_NAV_GROUPS.map(({ section, items }) => {
+        {navGroups.map(({ section, items }) => {
           const visibleItems = items.filter(item => canSee(item.area))
           if (!visibleItems.length) return null
           return (
@@ -312,8 +362,11 @@ interface DealerNavItem {
 
 function DealerSidebar({ orgName, role, isPlatformAdmin }: { orgName?: string | null; role: string; isPlatformAdmin: boolean }) {
   const pathname = usePathname()
+  const { features, vertical, brandName } = useVertical()
 
-  const visibleRoleNav = ROLE_NAV.filter(item => item.requiresRole(role))
+  const visibleRoleNav = ROLE_NAV.filter(
+    item => item.requiresRole(role) && (!item.feature || features[item.feature]),
+  )
   const allNav: DealerNavItem[] = [
     ...BASE_NAV,
     ...visibleRoleNav,
@@ -331,7 +384,11 @@ function DealerSidebar({ orgName, role, isPlatformAdmin }: { orgName?: string | 
     <aside className="hidden lg:flex flex-col w-60 shrink-0 h-dvh bg-[#0D2B55] border-r border-[#1B4A8A] overflow-y-auto">
       {/* Logo / org name */}
       <div className="px-4 py-4 border-b border-[#1B4A8A]">
-        <Image src="/logo.png" alt="DealerWyze" width={160} height={107} priority style={{ height: 'auto' }} className="object-contain rounded-sm" />
+        {vertical === 'real_estate' ? (
+          <Image src="/rw-logo.png" alt="RealtyWyze" width={148} height={80} priority style={{ height: 'auto' }} className="object-contain" />
+        ) : (
+          <Image src="/logo.png" alt={brandName} width={160} height={107} priority style={{ height: 'auto' }} className="object-contain rounded-sm" />
+        )}
         {orgName && (
           <p className="text-white/50 text-xs mt-2 truncate">{orgName}</p>
         )}

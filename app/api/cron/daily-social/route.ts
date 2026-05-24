@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
       const { data: org } = await supabase
         .from('organizations')
         .select(
-          'id, slug, name, public_inventory_enabled, suspended_at, canceled_at, plan',
+          'id, slug, name, public_inventory_enabled, suspended_at, canceled_at, plan, vertical',
         )
         .eq('id', orgId)
         .maybeSingle()
@@ -110,10 +110,11 @@ export async function GET(req: NextRequest) {
         .eq('org_id', orgId)
         .maybeSingle()
 
+      const isRe = (org.vertical as string | null) === 'real_estate'
       const dealerName =
         (orgSettings?.business_name as string | null)?.trim() ||
         (org.name as string) ||
-        'Our dealership'
+        (isRe ? 'Our brokerage' : 'Our dealership')
 
       const vdpSeg =
         (vehicle.public_slug as string | null)?.trim() || (vehicle.id as string)
@@ -134,6 +135,7 @@ export async function GET(req: NextRequest) {
         price:     vehicle.price as number | null,
         city:      orgSettings?.city as string | null,
         state:     orgSettings?.state as string | null,
+        vertical:  isRe ? 'real_estate' : 'dealer',
       })
 
       const caption =

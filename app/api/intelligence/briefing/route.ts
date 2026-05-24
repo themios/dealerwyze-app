@@ -57,12 +57,13 @@ export async function POST() {
     )
   }
 
-  const { data: org } = await supabase.from('organizations').select('name').eq('id', orgId).maybeSingle()
+  const { data: org } = await supabase.from('organizations').select('name, vertical').eq('id', orgId).maybeSingle()
   const dealerName = (org?.name as string) ?? 'Dealership'
+  const vertical = ((org?.vertical as string) === 'real_estate' ? 'real_estate' : 'dealer') as 'dealer' | 'real_estate'
 
   const signals = await fetchMarketSignals(4).catch(() => [])
   const payload = await computePayload(supabase, orgId, dealerName, forDate, signals)
-  const result = await generateBriefing(payload)
+  const result = await generateBriefing(payload, vertical)
 
   // Log usage before writing (failure to log is non-fatal)
   await supabase.from('ai_usage_log').insert({

@@ -7,8 +7,14 @@ import { emitEvent } from '@/lib/intelligence/emitEvent'
 import { logger } from '@/lib/logger'
 
 const EDITABLE_FIELDS = [
+  // Shared / dealer fields
   'stock_no', 'year', 'make', 'model', 'trim', 'color',
   'mileage', 'price', 'vin', 'status', 'notes', 'listing_url', 'body_style',
+  // RE fields (migration 179) — safe to accept from RE orgs; ignored by dealer UI
+  'property_type', 'bedrooms', 'bathrooms', 'sqft', 'lot_size', 'year_built',
+  'address_line1', 'city', 'state', 'zip', 'school_district', 'subdivision',
+  'mls_number', 'parcel_id', 'listing_type', 'expiration_date', 'showing_instructions',
+  'commission_pct', 'co_broke_pct', 'hoa_monthly',
 ] as const
 
 const MAX_AI_DESCRIPTION = 24_000

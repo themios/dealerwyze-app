@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -18,6 +18,7 @@ interface Props {
   dealerName:           string
   dealerPhone:          string
   orgSlug:              string
+  isRe?:                boolean
 }
 
 const MASK = '••••••••••••••••'
@@ -34,7 +35,7 @@ async function patchOrgSettings(payload: Record<string, unknown>) {
 }
 
 export default function PaymentSettingsClient({
-  stripePublishableKey, stripeSecretKey, bookingEnabled, bookingIntroText, orgSlug,
+  stripePublishableKey, stripeSecretKey, bookingEnabled, bookingIntroText, orgSlug, isRe = false,
 }: Props) {
   const initialPubKey = stripePublishableKey ?? ''
   const initialBookingText = bookingIntroText
@@ -54,7 +55,10 @@ export default function PaymentSettingsClient({
   const [bookingError, setBookingError] = useState<string | null>(null)
   const [bookingSaved, setBookingSaved] = useState(false)
 
-  const bookUrl = `${typeof window !== 'undefined' ? window.location.origin : 'https://dealerwyze.com'}/book/${orgSlug}`
+  const [bookUrl, setBookUrl] = useState(`/book/${orgSlug}`)
+  useEffect(() => {
+    setBookUrl(`${window.location.origin}/book/${orgSlug}`)
+  }, [orgSlug])
   const isDirty =
     pubKey !== initialPubKey ||
     secKeyEditing ||
@@ -116,12 +120,14 @@ export default function PaymentSettingsClient({
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
               <CreditCard className="h-4 w-4" />
-              Stripe Keys (BHPH Online Payments)
+              {isRe ? 'Stripe Keys (Online Payments)' : 'Stripe Keys (BHPH Online Payments)'}
             </CardTitle>
             {stripeConfigured && <Badge variant="secondary" className="text-xs text-green-600">Connected</Badge>}
           </div>
           <p className="text-xs text-muted-foreground">
-            Customers receive a pay-by-phone link in their payment reminder. Money goes directly to your Stripe account.
+            {isRe
+              ? 'Connect Stripe to accept online payments from clients. Money goes directly to your Stripe account.'
+              : 'Customers receive a pay-by-phone link in their payment reminder. Money goes directly to your Stripe account.'}
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -186,17 +192,19 @@ export default function PaymentSettingsClient({
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Calendar className="h-4 w-4" />
-            Customer Booking Page
+            {isRe ? 'Client Booking Page' : 'Customer Booking Page'}
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            A public link where customers can book a test drive or call without calling you.
+            {isRe
+              ? 'A public link where clients can schedule a showing or call without calling you.'
+              : 'A public link where customers can book a test drive or call without calling you.'}
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium">Enable booking page</p>
-              <p className="text-xs text-muted-foreground">Customers can book a test drive online</p>
+              <p className="text-xs text-muted-foreground">{isRe ? 'Clients can schedule a showing online' : 'Customers can book a test drive online'}</p>
             </div>
             <button
               type="button"
@@ -216,7 +224,10 @@ export default function PaymentSettingsClient({
                 <Textarea
                   value={bookingText}
                   onChange={e => setBookingText(e.target.value)}
-                  placeholder="Welcome! Pick a time that works for you and we will be ready when you arrive."
+                  placeholder={isRe
+                    ? "Welcome! Pick a time that works for you and we will have the property ready for your showing."
+                    : "Welcome! Pick a time that works for you and we will be ready when you arrive."
+                  }
                   className="resize-none h-20"
                 />
               </div>

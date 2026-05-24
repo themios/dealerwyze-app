@@ -5,9 +5,10 @@ import type { VehicleDocument } from '@/types'
 import { Button } from '@/components/ui/button'
 import { FileText, ExternalLink, Trash2, Upload, X, ChevronDown, ChevronRight, Globe, Lock } from 'lucide-react'
 import Link from 'next/link'
+import { useVertical } from '@/hooks/useVertical'
 
 /** Shown on the public VDP; summarized for AI overview when uploaded. */
-const WEBSITE_LABELS = [
+const WEBSITE_LABELS_DEALER = [
   'Carfax',
   'Autocheck',
   'NVMTIS',
@@ -17,13 +18,31 @@ const WEBSITE_LABELS = [
   'Other (shopper)',
 ]
 
-/** Dealer-only — never on the website or in AI context. */
-const INVENTORY_LABELS = [
+const WEBSITE_LABELS_RE = [
+  'Seller disclosure',
+  'Inspection report',
+  'Floor plan',
+  'HOA documents',
+  'Survey',
+  'Appraisal',
+  'Other (buyer-facing)',
+]
+
+/** Private files — never on the website or in AI context. */
+const INVENTORY_LABELS_DEALER = [
   'Bill of sale',
   'Smog certificate',
   'Mechanic / repair receipt',
   'Title paperwork',
   'Auction paperwork',
+  'Other (private)',
+]
+
+const INVENTORY_LABELS_RE = [
+  'Purchase agreement',
+  'Commission agreement',
+  'Agent notes',
+  'Title / escrow docs',
   'Other (private)',
 ]
 
@@ -50,7 +69,11 @@ export default function VehicleDocuments({
   /** `website`: shopper-facing only. `inventory`: private dealer files only. `both`: accordion with both panels. */
   documentScope?: DocumentScopeProp
 }) {
+  const { vertical } = useVertical()
+  const isRe = vertical === 'real_estate'
   const isSold = vehicleStatus === 'sold'
+  const WEBSITE_LABELS = isRe ? WEBSITE_LABELS_RE : WEBSITE_LABELS_DEALER
+  const INVENTORY_LABELS = isRe ? INVENTORY_LABELS_RE : INVENTORY_LABELS_DEALER
   const [websiteOpen, setWebsiteOpen] = useState(documentScope !== 'inventory')
   const [inventoryOpen, setInventoryOpen] = useState(documentScope === 'inventory')
   const [docs, setDocs] = useState<(VehicleDocument & { signed_url?: string | null })[]>([])
@@ -235,7 +258,7 @@ export default function VehicleDocuments({
     const header = (
       <span className="flex items-center gap-2 text-sm font-medium">
         <Globe className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-        Website & shopper documents
+        {isRe ? 'Website documents' : 'Website & shopper documents'}
         {websiteDocs.length > 0 && (
           <span className="text-xs text-muted-foreground font-normal">({websiteDocs.length})</span>
         )}
@@ -270,7 +293,7 @@ export default function VehicleDocuments({
     const header = (
       <span className="flex items-center gap-2 text-sm font-medium">
         <Lock className="h-4 w-4 text-amber-600 dark:text-amber-500" />
-        Inventory (private)
+        {isRe ? 'Private files' : 'Inventory (private)'}
         {inventoryDocs.length > 0 && (
           <span className="text-xs text-muted-foreground font-normal">({inventoryDocs.length})</span>
         )}
@@ -305,13 +328,13 @@ export default function VehicleDocuments({
     return (
       <div className="border-t px-3 pb-3 pt-2 space-y-3">
         <p className="text-xs text-muted-foreground bg-emerald-500/5 dark:bg-emerald-950/20 rounded-md px-3 py-2">
-          These files can appear on your public vehicle page for buyers to open. They are also summarized for AI when you
-          regenerate the overview. Use for Carfax, Autocheck, KBB exports, etc. Uploads from before this split defaulted
-          here — if anything sensitive slipped in, delete it and re-add under Inventory documents.
+          {isRe
+            ? 'These files can appear on your public listing page for buyers to open. They are also summarized for AI when you regenerate the overview. Use for disclosures, inspection reports, floor plans, etc.'
+            : 'These files can appear on your public vehicle page for buyers to open. They are also summarized for AI when you regenerate the overview. Use for Carfax, Autocheck, KBB exports, etc. Uploads from before this split defaulted here -- if anything sensitive slipped in, delete it and re-add under Inventory documents.'}
         </p>
         {isSold ? (
           <p className="text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
-            Uploads disabled — vehicle is sold.
+            Uploads disabled -- {isRe ? 'listing is closed' : 'vehicle is sold'}.
           </p>
         ) : (
           <>
@@ -348,7 +371,9 @@ export default function VehicleDocuments({
           <p className="text-xs text-muted-foreground text-center py-3">Loading…</p>
         ) : websiteDocs.length === 0 ? (
           <p className="text-xs text-muted-foreground text-center py-3">
-            No shopper-facing documents yet. Add Carfax, Autocheck, or similar above.
+            {isRe
+              ? 'No buyer-facing documents yet. Add disclosures, inspection reports, or similar above.'
+              : 'No shopper-facing documents yet. Add Carfax, Autocheck, or similar above.'}
           </p>
         ) : (
           <div className="space-y-2">{websiteDocs.map(renderDocRow)}</div>
@@ -361,12 +386,13 @@ export default function VehicleDocuments({
     return (
       <div className="border-t px-3 pb-3 pt-2 space-y-3">
         <p className="text-xs text-muted-foreground bg-amber-500/5 dark:bg-amber-950/20 rounded-md px-3 py-2">
-          Dealer-only. Never shown on your public site and not sent to listing AI. For bills of sale, smog, mechanic receipts,
-          and other internal records.
+          {isRe
+            ? 'Agent-only. Never shown on your public site and not sent to listing AI. For purchase agreements, commission records, and other internal files.'
+            : 'Dealer-only. Never shown on your public site and not sent to listing AI. For bills of sale, smog, mechanic receipts, and other internal records.'}
         </p>
         {isSold ? (
           <p className="text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
-            Uploads disabled — vehicle is sold.
+            Uploads disabled -- {isRe ? 'listing is closed' : 'vehicle is sold'}.
           </p>
         ) : (
           <div className="flex gap-2 items-center flex-wrap">
@@ -401,7 +427,9 @@ export default function VehicleDocuments({
           <p className="text-xs text-muted-foreground text-center py-3">Loading…</p>
         ) : inventoryDocs.length === 0 ? (
           <p className="text-xs text-muted-foreground text-center py-3">
-            No private documents yet. Upload BOS, smog, repairs, etc. here.
+            {isRe
+              ? 'No private files yet. Upload agreements, commission docs, etc. here.'
+              : 'No private documents yet. Upload BOS, smog, repairs, etc. here.'}
           </p>
         ) : (
           <div className="space-y-2">{inventoryDocs.map(renderDocRow)}</div>

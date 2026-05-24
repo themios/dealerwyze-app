@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckCircle, XCircle, Pencil, ChevronDown, ChevronUp, Loader2, Video, CalendarClock, X, Archive, Trash2 } from 'lucide-react'
+import { CheckCircle, XCircle, Pencil, ChevronDown, ChevronUp, Loader2, Video, CalendarClock, X, Archive, Trash2, Play } from 'lucide-react'
 
 interface Slide {
   headline: string
@@ -17,6 +17,8 @@ interface Draft {
   slides: Slide[]
   cta_text: string
   content_theme: string | null
+  platform_targets: string[]
+  platform_captions: Record<string, string>
   render_id: string | null
   scheduled_at: string | null
   created_at: string
@@ -53,9 +55,12 @@ const THEME_LABELS: Record<string, string> = {
 
 export default function DraftCard({ draft, onApprove, onReject, onEdit, onSchedule, onArchive, onDelete }: DraftCardProps) {
   const [expanded, setExpanded]       = useState(false)
-  const [loading, setLoading]         = useState<'approve' | 'reject' | 'schedule' | 'archive' | 'delete' | null>(null)
+  const [loading, setLoading]         = useState<'approve' | 'reject' | 'schedule' | 'archive' | 'delete' | 'render' | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [showScheduler, setShowScheduler] = useState(false)
+  const [localRenderId, setLocalRenderId] = useState<string | null>(draft.render_id)
+  const [playUrl, setPlayUrl]             = useState<string | null>(null)
+  const [loadingPlay, setLoadingPlay]     = useState(false)
   const [scheduledValue, setScheduledValue] = useState<string>(
     draft.scheduled_at ? toLocalDatetimeInput(draft.scheduled_at) : ''
   )
@@ -66,6 +71,20 @@ export default function DraftCard({ draft, onApprove, onReject, onEdit, onSchedu
   async function handleApprove() {
     setLoading('approve')
     await onApprove(draft.id)
+    setLoading(null)
+  }
+
+  async function handleRender() {
+    setLoading('render')
+    const res = await fetch(`/api/content/drafts/${draft.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'approve' }),
+    })
+    if (res.ok) {
+      const data = await res.json() as { renderId?: string }
+      if (data.renderId) setLocalRenderId(data.renderId)
+    }
     setLoading(null)
   }
 
@@ -102,6 +121,17 @@ export default function DraftCard({ draft, onApprove, onReject, onEdit, onSchedu
     setLoading(null)
   }
 
+  async function handlePlay() {
+    if (!localRenderId) return
+    setLoadingPlay(true)
+    const res = await fetch(`/api/content/render?id=${localRenderId}`)
+    if (res.ok) {
+      const { render } = await res.json() as { render: { output_url?: string } }
+      if (render?.output_url) setPlayUrl(render.output_url)
+    }
+    setLoadingPlay(false)
+  }
+
   const statusColors: Record<string, string> = {
     pending:  'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
     approved: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
@@ -113,6 +143,7 @@ export default function DraftCard({ draft, onApprove, onReject, onEdit, onSchedu
   const isArchived = draft.status === 'archived'
 
   return (
+    <>
     <div className="bg-[#0d1f3c] border border-[#1B4A8A]/40 rounded-xl overflow-hidden">
       {/* Header */}
       <div className="p-4">
@@ -131,6 +162,27 @@ export default function DraftCard({ draft, onApprove, onReject, onEdit, onSchedu
             <h3 className="text-white font-semibold text-base leading-snug">{draft.topic}</h3>
             {draft.tagline && (
               <p className="text-blue-300/70 text-sm mt-0.5">{draft.tagline}</p>
+            )}
+            {draft.platform_captions?.instagram && (
+              <p className="text-slate-400 text-xs mt-1.5 italic leading-relaxed">
+                {draft.platform_captions.instagram.length > 100
+                  ? draft.platform_captions.instagram.slice(0, 100) + '…'
+                  : draft.platform_captions.instagram}
+              </p>
+            )}
+            {draft.platform_targets?.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {draft.platform_targets.slice(0, 4).map(p => (
+                  <span key={p} className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.08] text-white/40 uppercase tracking-wide">
+                    {p}
+                  </span>
+                ))}
+                {draft.platform_targets.length > 4 && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.08] text-white/40">
+                    +{draft.platform_targets.length - 4}
+                  </span>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -212,11 +264,31 @@ export default function DraftCard({ draft, onApprove, onReject, onEdit, onSchedu
               </button>
             </>
           )}
-          {isApproved && draft.render_id && (
+          {draft.status === 'rendered' && localRenderId && (
+            <button
+              onClick={handlePlay}
+              disabled={loadingPlay}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-700/40 hover:bg-green-700/70 text-green-300 text-sm transition-colors disabled:opacity-50"
+            >
+              {loadingPlay ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-green-300" />}
+              Preview
+            </button>
+          )}
+          {draft.status === 'approved' && localRenderId && (
             <span className="flex items-center gap-1.5 text-sm text-green-400/80">
               <Video className="w-4 h-4" />
               Render queued
             </span>
+          )}
+          {isApproved && !localRenderId && draft.status === 'approved' && (
+            <button
+              onClick={handleRender}
+              disabled={!!loading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-900/30 hover:bg-green-900/50 text-green-400 text-sm transition-colors disabled:opacity-50"
+            >
+              {loading === 'render' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Video className="w-4 h-4" />}
+              Render
+            </button>
           )}
           {isApproved && (
             <button
@@ -281,7 +353,7 @@ export default function DraftCard({ draft, onApprove, onReject, onEdit, onSchedu
             <input
               type="datetime-local"
               value={scheduledValue}
-              min={new Date().toISOString().slice(0, 16)}
+              min={toLocalDatetimeInput(new Date().toISOString())}
               onChange={e => setScheduledValue(e.target.value)}
               className="flex-1 bg-[#0a1628] border border-[#1B4A8A]/40 rounded-lg px-2 py-1.5 text-white text-xs outline-none focus:border-purple-500/60 [color-scheme:dark]"
             />
@@ -302,5 +374,35 @@ export default function DraftCard({ draft, onApprove, onReject, onEdit, onSchedu
         )}
       </div>
     </div>
+
+    {/* Video preview modal */}
+    {playUrl && (
+      <div
+        className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+        onClick={() => setPlayUrl(null)}
+      >
+        <div
+          className="relative w-full max-w-sm"
+          onClick={e => e.stopPropagation()}
+        >
+          <button
+            onClick={() => setPlayUrl(null)}
+            className="absolute -top-10 right-0 text-white/60 hover:text-white transition-colors flex items-center gap-1.5 text-sm"
+          >
+            <X className="w-4 h-4" /> Close
+          </button>
+          <video
+            src={playUrl}
+            controls
+            autoPlay
+            playsInline
+            className="w-full rounded-2xl shadow-2xl"
+            style={{ maxHeight: '80dvh' }}
+          />
+          <p className="mt-3 text-center text-white/50 text-xs truncate">{draft.topic}</p>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

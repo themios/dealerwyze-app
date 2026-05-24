@@ -24,7 +24,7 @@ const ROLE_COLORS: Record<string, string> = {
 }
 
 const AREAS = [
-  { key: 'dealers',     label: 'Dealerships' },
+  { key: 'accounts',    label: 'Accounts' },
   { key: 'retention',   label: 'Retention' },
   { key: 'sales',       label: 'Sales Team' },
   { key: 'analytics',   label: 'Analytics' },
@@ -38,9 +38,9 @@ const AREAS = [
 ]
 
 const ROLE_DEFAULT_AREAS: Record<string, string[]> = {
-  platform_staff_manager: ['dealers', 'retention', 'staff', 'tickets', 'alerts'],
-  platform_sales_manager: ['dealers', 'retention', 'sales', 'analytics', 'affiliates', 'commissions'],
-  platform_staff:         ['tickets', 'dealers'],
+  platform_staff_manager: ['accounts', 'retention', 'staff', 'tickets', 'alerts'],
+  platform_sales_manager: ['accounts', 'retention', 'sales', 'analytics', 'affiliates', 'commissions'],
+  platform_staff:         ['tickets', 'accounts'],
   platform_admin:         [],
 }
 
@@ -419,7 +419,7 @@ export default function AdminStaffPage() {
                           <span className="text-[10px] uppercase tracking-wide font-medium">Assigned</span>
                         </div>
                         <p className="text-sm font-bold">{stats.orgs_assigned}</p>
-                        <p className="text-[10px] text-muted-foreground">dealerships</p>
+                        <p className="text-[10px] text-muted-foreground">accounts</p>
                       </div>
                       <div className="py-2.5 px-2">
                         <div className="flex items-center justify-center gap-1 text-muted-foreground mb-0.5">

@@ -31,7 +31,7 @@ interface OrgDetail {
     sms_overage_enabled: boolean; stripe_customer_id: string | null
     suspended_at: string | null; suspension_reason: string | null
     created_at: string; business_address: string | null
-    website_contact_email: string | null
+    website_contact_email: string | null; vertical: string | null
   }
   settings: {
     business_phone: string | null; business_name: string | null
@@ -209,7 +209,18 @@ export default function AdminOrgDetailPage() {
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm truncate">{org.name || 'Unnamed Org'}</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="font-semibold text-sm truncate">{org.name || 'Unnamed Org'}</p>
+              {org.vertical === 'real_estate' ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-violet-100 text-violet-700">
+                  RealtyWyze
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+                  DealerWyze
+                </span>
+              )}
+            </div>
             {org.suspended_at && <p className="text-[10px] text-orange-600 font-medium">SUSPENDED</p>}
           </div>
           <Badge label={org.subscription_status ?? org.plan} />
@@ -416,7 +427,7 @@ export default function AdminOrgDetailPage() {
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Remote Support</p>
             <div className="rounded-xl border bg-card p-3 space-y-3">
               <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Start a session to assist this dealer. Read-only lets you browse without risk. Write Access lets you make changes — all actions are audited.
+                Start a session to assist this account. Read-only lets you browse without risk. Write Access lets you make changes — all actions are audited.
               </p>
               <div className="grid grid-cols-2 gap-2">
                 <Button size="sm" variant="outline" className="h-9 text-xs gap-1.5" onClick={() => startImpersonation(false)} disabled={impersonating}>

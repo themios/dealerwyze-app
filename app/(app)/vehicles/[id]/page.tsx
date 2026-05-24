@@ -112,7 +112,7 @@ export default async function VehicleDetailPage({ params }: PageProps) {
       .select('*, customer:customers(id, name, primary_phone)')
       .eq('vehicle_id', id)
       .order('created_at', { ascending: false }),
-    supabase.from('organizations').select('slug, public_inventory_enabled').eq('id', profile.org_id).single(),
+    supabase.from('organizations').select('slug, public_inventory_enabled, vertical').eq('id', profile.org_id).single(),
     supabase
       .from('vehicle_documents')
       .select('created_at')
@@ -145,12 +145,17 @@ export default async function VehicleDetailPage({ params }: PageProps) {
     vehicle.status !== 'staging' &&
     Boolean(vehicle.demand_signal || (vehicle.lead_count_30d ?? 0) > 0)
 
+  const isRe = (org?.vertical as string | null) === 'real_estate'
+
+  // Dealer-only sections — hidden for RE (no recon, floor plan, or mechanic worksheet)
   const showAcquisition =
+    !isRe &&
     canEdit &&
     (vehicle.status === 'staging' || vehicle.status === 'available' || vehicle.status === 'pending')
 
   const showOperations =
-    vehicle.status === 'staging' || vehicle.status === 'available' || vehicle.status === 'pending'
+    !isRe &&
+    (vehicle.status === 'staging' || vehicle.status === 'available' || vehicle.status === 'pending')
 
   const showSaleDetail = vehicle.status === 'sold' && vehicle.sold_price
   const showWebsiteOverviewPanel = canEdit && vehicle.status !== 'sold'
@@ -159,25 +164,36 @@ export default async function VehicleDetailPage({ params }: PageProps) {
   navSections.push({ id: VEHICLE_DETAIL_SECTION_IDS.listing, label: 'Listing & market' })
   if (showAcquisition) navSections.push({ id: VEHICLE_DETAIL_SECTION_IDS.acquisition, label: 'Acquisition' })
   if (showOperations) navSections.push({ id: VEHICLE_DETAIL_SECTION_IDS.operations, label: 'Recon & shop' })
-  if (showSaleDetail) navSections.push({ id: VEHICLE_DETAIL_SECTION_IDS.sale, label: 'Sale' })
+  if (showSaleDetail) navSections.push({ id: VEHICLE_DETAIL_SECTION_IDS.sale, label: isRe ? 'Closing' : 'Sale' })
   if (leads && leads.length > 0) {
-    navSections.push({ id: VEHICLE_DETAIL_SECTION_IDS.customers, label: 'Customers' })
+    navSections.push({ id: VEHICLE_DETAIL_SECTION_IDS.customers, label: isRe ? 'Buyers' : 'Customers' })
   }
   navSections.push({ id: VEHICLE_DETAIL_SECTION_IDS.media, label: 'Social Media' })
-  navSections.push({ id: VEHICLE_DETAIL_SECTION_IDS.inventory, label: 'Inventory' })
+  navSections.push({ id: VEHICLE_DETAIL_SECTION_IDS.inventory, label: isRe ? 'Listing details' : 'Inventory' })
   if (showWebsiteOverviewPanel) {
-    navSections.push({ id: VEHICLE_DETAIL_SECTION_IDS.website, label: 'Website' })
+    navSections.push({ id: VEHICLE_DETAIL_SECTION_IDS.website, label: isRe ? 'Website' : 'Website' })
   }
   if (activities && activities.length > 0) {
     navSections.push({ id: VEHICLE_DETAIL_SECTION_IDS.activity, label: 'Activity' })
   }
 
-  const details = [formatMileage(vehicle.mileage), vehicle.color || null, vehicle.trim || null]
-    .filter(Boolean)
-    .join(' · ')
+  // RE listing header line: beds/baths/sqft
+  const reDetails = isRe ? [
+    vehicle.bedrooms != null ? `${vehicle.bedrooms} bd` : null,
+    vehicle.bathrooms != null ? `${vehicle.bathrooms} ba` : null,
+    vehicle.sqft ? `${(vehicle.sqft as number).toLocaleString()} sqft` : null,
+    vehicle.property_type ?? null,
+  ].filter(Boolean).join(' · ') : null
+
+  const details = isRe
+    ? reDetails
+    : [formatMileage(vehicle.mileage as number | null), vehicle.color || null, vehicle.trim || null]
+        .filter(Boolean)
+        .join(' · ')
+
   const isSlug = vehicle.stock_no && /^web-\d{4}-/.test(vehicle.stock_no)
   const stockNo = !isSlug ? vehicle.stock_no : null
-  const vin = formatVin(vehicle.vin)
+  const vin = formatVin(isRe ? (vehicle.mls_number ?? null) : vehicle.vin)
 
   const uniqSections = uniqueNavSections(navSections)
 
@@ -188,8 +204,17 @@ export default async function VehicleDetailPage({ params }: PageProps) {
 
         <div className="space-y-0.5">
           {details ? <p className="text-xs text-muted-foreground">{details}</p> : null}
-          <VehicleVinLine display={vin} />
-          {stockNo ? <p className="text-xs text-muted-foreground truncate">Stock: {stockNo}</p> : null}
+          {isRe ? (
+            vehicle.mls_number
+              ? <p className="text-xs text-muted-foreground font-mono">MLS#: {vehicle.mls_number as string}</p>
+              : null
+          ) : (
+            <VehicleVinLine display={vin} />
+          )}
+          {isRe
+            ? (vehicle.address_line1 ? <p className="text-xs text-muted-foreground truncate">{[vehicle.address_line1, vehicle.city, vehicle.state].filter(Boolean).join(', ')}</p> : null)
+            : (stockNo ? <p className="text-xs text-muted-foreground truncate">Stock: {stockNo}</p> : null)
+          }
         </div>
 
         {vehicleRec ? (
@@ -288,7 +313,7 @@ export default async function VehicleDetailPage({ params }: PageProps) {
 
     [VEHICLE_DETAIL_SECTION_IDS.inventory]: (
       <div className="space-y-3">
-        <SectionHeading>Inventory</SectionHeading>
+        <SectionHeading>{isRe ? 'Listing details' : 'Inventory'}</SectionHeading>
         <VehicleDocuments vehicleId={id} vehicleStatus={vehicle.status} documentScope="inventory" />
       </div>
     ),
@@ -336,14 +361,14 @@ export default async function VehicleDetailPage({ params }: PageProps) {
   if (showSaleDetail) {
     panels[VEHICLE_DETAIL_SECTION_IDS.sale] = (
       <div className="space-y-3">
-        <SectionHeading>Sale</SectionHeading>
+        <SectionHeading>{isRe ? 'Closing' : 'Sale'}</SectionHeading>
         <div className="border rounded-lg p-3 space-y-2 bg-card">
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div>
-              <p className="text-xs text-muted-foreground">Sale price</p>
+              <p className="text-xs text-muted-foreground">{isRe ? 'Closing price' : 'Sale price'}</p>
               <p className="font-semibold tabular-nums">{formatCurrency(vehicle.sold_price)}</p>
             </div>
-            {vehicle.finance_type ? (
+            {!isRe && vehicle.finance_type ? (
               <div>
                 <p className="text-xs text-muted-foreground">Finance type</p>
                 <p className="font-semibold capitalize">
@@ -351,7 +376,7 @@ export default async function VehicleDetailPage({ params }: PageProps) {
                 </p>
               </div>
             ) : null}
-            {vehicle.finance_company ? (
+            {!isRe && vehicle.finance_company ? (
               <div className="col-span-2">
                 <p className="text-xs text-muted-foreground">Finance company</p>
                 <p className="font-semibold">{vehicle.finance_company}</p>
@@ -359,7 +384,7 @@ export default async function VehicleDetailPage({ params }: PageProps) {
             ) : null}
             {vehicle.sold_at ? (
               <div>
-                <p className="text-xs text-muted-foreground">Sold date</p>
+                <p className="text-xs text-muted-foreground">{isRe ? 'Closing date' : 'Sold date'}</p>
                 <p className="font-semibold">{formatDate(vehicle.sold_at)}</p>
               </div>
             ) : null}
@@ -372,7 +397,7 @@ export default async function VehicleDetailPage({ params }: PageProps) {
   if (leads && leads.length > 0) {
     panels[VEHICLE_DETAIL_SECTION_IDS.customers] = (
       <div className="space-y-3">
-        <SectionHeading>Customers · {leads.length} linked</SectionHeading>
+        <SectionHeading>{isRe ? 'Buyers' : 'Customers'} · {leads.length} linked</SectionHeading>
         <div className="space-y-2">
           {(leads as VehicleLead[]).map(lead => (
             <Link key={lead.id} href={lead.customer?.id ? `/customers/${lead.customer.id}` : '#'}>
@@ -455,28 +480,31 @@ export default async function VehicleDetailPage({ params }: PageProps) {
   return (
     <div className="min-h-screen bg-background">
       <TopBar
-        title={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
+        title={isRe
+          ? ((vehicle.address_line1 as string | null) || 'Listing')
+          : `${vehicle.year} ${vehicle.make} ${vehicle.model}`
+        }
         right={
           <div className="flex items-center gap-1">
-            {vehicle.status === 'staging' && canDelete && (
+            {vehicle.status === 'staging' && canDelete && !isRe && (
               <VehicleMarkReadyButton
                 vehicleId={id}
                 vehicleLabel={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
               />
             )}
-            {isAdmin && vehicle.status !== 'sold' && vehicle.status !== 'staging' && (
+            {isAdmin && vehicle.status !== 'sold' && vehicle.status !== 'staging' && !isRe && (
               <VehicleSoldButton
                 vehicleId={id}
                 vehicleLabel={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
               />
             )}
-            {isAdmin && vehicle.status === 'sold' && (
+            {isAdmin && vehicle.status === 'sold' && !isRe && (
               <VehicleRestoreButton
                 vehicleId={id}
                 vehicleLabel={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
               />
             )}
-            {vehicle.published && vehicle.public_slug && org && (
+            {vehicle.published && vehicle.public_slug && org && !isRe && (
               <ShareVehicleSheet
                 vehicleId={id}
                 vehicleLabel={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}

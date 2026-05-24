@@ -6,6 +6,8 @@ import { buildWelcomeEmailHtml } from '@/lib/email/onboarding'
 import { sendTelegramMessage } from '@/lib/notifications/telegram'
 import { normalizePhone } from '@/lib/utils/phone'
 import { registrationLimiter } from '@/lib/rateLimit/upstash'
+import type { Vertical } from '@/lib/vertical'
+import { defaultStagesForVertical } from '@/lib/leads/states'
 
 function generateInviteCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -42,7 +44,11 @@ export async function POST(req: NextRequest) {
     referred_by_slug, // referral from existing dealer (?via=their-slug)
     // UTM attribution — captured from the landing page visit via sessionStorage
     utm_source, utm_medium, utm_campaign, utm_term, utm_content,
+    vertical: rawVertical,
   } = await req.json()
+
+  const vertical: Vertical =
+    rawVertical === 'real_estate' ? 'real_estate' : 'dealer'
 
   if (!email || !password || !display_name) {
     return NextResponse.json({ error: 'email, password, and display_name are required' }, { status: 400 })
@@ -168,7 +174,7 @@ export async function POST(req: NextRequest) {
 
     const { error: orgErr } = await service.from('organizations').insert({
       id: orgId,
-      name: `${display_name}'s Dealership`,
+      name: vertical === 'real_estate' ? `${display_name}'s Agency` : `${display_name}'s Dealership`,
       // Free beta tier: auto-approve immediately (no superadmin review gate)
       approved_at:         new Date().toISOString(),
       subscription_status: 'free',
@@ -187,6 +193,7 @@ export async function POST(req: NextRequest) {
       utm_campaign: sanitizeUtm(utm_campaign),
       utm_term:     sanitizeUtm(utm_term),
       utm_content:  sanitizeUtm(utm_content),
+      vertical,
     })
     if (orgErr && !orgErr.message.includes('duplicate') && !orgErr.code?.includes('23505')) {
       await service.auth.admin.deleteUser(userId)
@@ -195,12 +202,22 @@ export async function POST(req: NextRequest) {
 
     await service.from('org_settings').insert({ org_id: orgId })
 
+    // Seed pipeline stages — RE gets RE-specific labels, dealer gets dealer defaults
+    const stages = defaultStagesForVertical(vertical)
+    await service.from('org_pipeline_stages').insert(
+      stages.map(s => ({ ...s, org_id: orgId }))
+    )
+
     // Welcome email -- fire and forget
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://dealerwyze.com'
+    const appUrl = vertical === 'real_estate'
+      ? `https://${process.env.REALTYWYZE_DOMAIN ?? 'realtywyze.us'}`
+      : process.env.NEXT_PUBLIC_APP_URL ?? 'https://dealerwyze.com'
     void sendNotificationEmail({
       to: email,
-      subject: "You're in. Let's get your dealership ready today.",
-      html: buildWelcomeEmailHtml(display_name, appUrl),
+      subject: vertical === 'real_estate'
+        ? "You're in. Let's get your brokerage ready today."
+        : "You're in. Let's get your dealership ready today.",
+      html: buildWelcomeEmailHtml(display_name, appUrl, vertical),
       org_id: orgId,
       email_type: 'welcome',
     })
@@ -217,7 +234,7 @@ export async function POST(req: NextRequest) {
         subject: `New signup: ${display_name}`,
         html: `
 <div style="font-family:sans-serif;max-width:520px;padding:24px">
-  <h2 style="margin:0 0 12px;color:#0D2B55">New dealer signed up</h2>
+  <h2 style="margin:0 0 12px;color:#0D2B55">New ${vertical === 'real_estate' ? 'agent' : 'dealer'} signed up</h2>
   <table cellpadding="0" cellspacing="0" style="font-size:14px;color:#374151;line-height:1.8">
     <tr><td style="padding-right:16px;color:#64748B">Name</td><td><strong>${display_name}</strong></td></tr>
     ${email    ? `<tr><td style="padding-right:16px;color:#64748B">Email</td><td><a href="mailto:${email}" style="color:#F07018">${email}</a></td></tr>` : ''}

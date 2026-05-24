@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useVertical } from '@/hooks/useVertical'
 
 type FeedbackType = 'bug' | 'suggestion' | 'question' | 'compliment'
 
@@ -14,6 +15,7 @@ const MAX_IMAGES = 5
 const MAX_FILE_MB = 5
 
 export default function FeedbackButton() {
+  const { brandName } = useVertical()
   const [open, setOpen]       = useState(false)
   const [type, setType]       = useState<FeedbackType>('suggestion')
   const [message, setMessage] = useState('')
@@ -105,7 +107,7 @@ export default function FeedbackButton() {
               <div className="text-center py-8">
                 <div className="text-4xl mb-3">🙏</div>
                 <p className="font-bold text-lg" style={{ color: '#0D2B55' }}>Thank you!</p>
-                <p className="text-sm text-muted-foreground mt-1">Your feedback helps shape DealerWyze.</p>
+                <p className="text-sm text-muted-foreground mt-1">Your feedback helps shape {brandName}.</p>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">

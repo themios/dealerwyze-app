@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useVertical } from '@/hooks/useVertical'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -22,12 +23,20 @@ const ROLE_LABELS: Record<string, string> = {
   agent: 'Agent',
 }
 
-const ROLE_DESCRIPTIONS: Record<string, string> = {
+const DEALER_ROLE_DESCRIPTIONS: Record<string, string> = {
   dealer_admin: 'Full access including billing and user management',
-  dealer_manager: 'All leads, inventory and reports — no billing',
+  dealer_manager: 'All leads, inventory and reports. No billing.',
   dealer_finance: 'Full operational access including BHPH and ledger',
   dealer_rep: 'Sees only their assigned leads',
-  dealer_staff: 'Full operational access — no billing or user management',
+  dealer_staff: 'Full operational access. No billing or user management.',
+}
+
+const RE_ROLE_DESCRIPTIONS: Record<string, string> = {
+  dealer_admin: 'Full access including billing and user management',
+  dealer_manager: 'All clients, listings and reports. No billing.',
+  dealer_finance: 'Full operational access',
+  dealer_rep: 'Sees only their assigned clients',
+  dealer_staff: 'Full operational access. No billing or user management.',
 }
 
 const INVITE_ROLES: UserRole[] = ['dealer_staff', 'dealer_rep', 'dealer_finance', 'dealer_manager', 'dealer_admin']
@@ -71,6 +80,9 @@ function locationDisplayLabel(user: User): string {
 }
 
 export default function UsersPage() {
+  const { vertical } = useVertical()
+  const isRE = vertical === 'real_estate'
+  const orgLabel = isRE ? 'agency' : 'dealership'
   const [users, setUsers] = useState<User[]>([])
   const [activeLocations, setActiveLocations] = useState<ActiveLocation[]>([])
   const [loading, setLoading] = useState(true)
@@ -250,7 +262,7 @@ export default function UsersPage() {
           </div>
           <div className="space-y-2">
             {([
-              { value: 'owner', label: 'Owner only', desc: 'All new leads go to the dealership admin' },
+              { value: 'owner', label: 'Owner only', desc: `All new leads go to the ${orgLabel} admin` },
               { value: 'round_robin', label: 'Round robin', desc: 'Rotate leads evenly across all active sales reps' },
               { value: 'manual', label: 'Manual', desc: 'Leads arrive unassigned — admin assigns them' },
             ] as const).map(opt => (
@@ -294,7 +306,7 @@ export default function UsersPage() {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground mt-2">
-              Team members use this code during signup to join your dealership.
+              Team members use this code during signup to join your {orgLabel}.
             </p>
           </div>
         )}
@@ -408,7 +420,7 @@ export default function UsersPage() {
                       <SelectContent>
                         {INVITE_ROLES.filter(r => r !== 'dealer_admin').map(r => (
                           <SelectItem key={r} value={r} className="text-xs">
-                            {ROLE_LABELS[r]} — {ROLE_DESCRIPTIONS[r]}
+                            {ROLE_LABELS[r]} — {(isRE ? RE_ROLE_DESCRIPTIONS : DEALER_ROLE_DESCRIPTIONS)[r]}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -449,7 +461,7 @@ export default function UsersPage() {
               <Label>Email</Label>
               <Input
                 type="email"
-                placeholder="john@yourdealership.com"
+                placeholder={`john@your${orgLabel}.com`}
                 value={form.email}
                 onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
                 required
@@ -479,7 +491,7 @@ export default function UsersPage() {
                     <SelectItem key={r} value={r}>
                       <div>
                         <p className="font-medium">{ROLE_LABELS[r]}</p>
-                        <p className="text-xs text-muted-foreground">{ROLE_DESCRIPTIONS[r]}</p>
+                        <p className="text-xs text-muted-foreground">{(isRE ? RE_ROLE_DESCRIPTIONS : DEALER_ROLE_DESCRIPTIONS)[r]}</p>
                       </div>
                     </SelectItem>
                   ))}

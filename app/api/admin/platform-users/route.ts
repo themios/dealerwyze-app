@@ -12,7 +12,7 @@ import { logAdminAction } from '@/lib/admin/audit'
 export const dynamic = 'force-dynamic'
 
 const VALID_ROLES = ['platform_admin', 'platform_staff_manager', 'platform_sales_manager', 'platform_staff'] as const
-const VALID_AREAS = ['dealers','retention','sales','analytics','staff','tickets','alerts','audit','affiliates','commissions','billing']
+const VALID_AREAS = ['accounts','retention','sales','analytics','staff','tickets','alerts','audit','affiliates','commissions','billing']
 
 export async function GET() {
   const profile = await requireProfile()

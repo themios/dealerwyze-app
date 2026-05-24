@@ -7,7 +7,7 @@ import type { ParsedLead } from './parser'
 import type { LeadSource } from './parser'
 import { normalizePhone } from '@/lib/utils/phone'
 
-export const TEMPLATE_HEADERS = [
+export const TEMPLATE_HEADERS_DEALER = [
   'Name',
   'Phone',
   'Email',
@@ -18,31 +18,52 @@ export const TEMPLATE_HEADERS = [
   'Comments',
 ] as const
 
-export type TemplateHeader = (typeof TEMPLATE_HEADERS)[number]
+export const TEMPLATE_HEADERS_RE = [
+  'Name',
+  'Phone',
+  'Email',
+  'Property',
+  'MLS#',
+  'ZIP',
+  'Source',
+  'Comments',
+] as const
+
+export const TEMPLATE_HEADERS = TEMPLATE_HEADERS_DEALER
+export type TemplateHeader = (typeof TEMPLATE_HEADERS_DEALER)[number]
 
 /** Canonical field names we output */
 const FIELDS = ['name', 'phone', 'email', 'vehicle', 'vin', 'zip', 'source', 'comments'] as const
 type Field = (typeof FIELDS)[number]
 
-/** Synonyms per field (lowercase). First in each array is the template header. */
+/** Synonyms per field (lowercase). Covers both dealer and RE column names. */
 const COLUMN_SYNONYMS: Record<Field, string[]> = {
   name: [
-    'name', 'full name', 'customer name', 'lead name', 'contact name', 'buyer name',
-    'first name', 'last name', 'customer', 'contact',
+    'name', 'full name', 'customer name', 'client name', 'lead name', 'contact name',
+    'buyer name', 'first name', 'last name', 'customer', 'client', 'contact',
   ],
   phone: [
     'phone', 'phone number', 'telephone', 'mobile', 'cell', 'cell phone',
     'primary phone', 'contact phone', 'work phone', 'home phone',
   ],
   email: [
-    'email', 'email address', 'e-mail', 'e-mail address', 'customer email', 'contact email',
+    'email', 'email address', 'e-mail', 'e-mail address', 'customer email',
+    'client email', 'contact email',
   ],
   vehicle: [
+    // Dealer
     'vehicle', 'car', 'interest', 'vehicle of interest', 'interested in', 'interested vehicle',
     'year make model', 'ymm', 'year', 'make', 'model', 'trim',
+    // Real estate
+    'property', 'listing', 'property of interest', 'property interest', 'home',
+    'property type', 'address of interest',
   ],
   vin: [
+    // Dealer
     'vin', 'vehicle identification number', 'vin number',
+    // Real estate
+    'mls#', 'mls', 'mls number', 'mls id', 'listing id', 'listing number',
+    'address', 'street address', 'property address',
   ],
   zip: [
     'zip', 'zip code', 'zipcode', 'postal code', 'postcode',
@@ -51,7 +72,8 @@ const COLUMN_SYNONYMS: Record<Field, string[]> = {
     'source', 'lead source', 'origin', 'where did they come from', 'referral source',
   ],
   comments: [
-    'comments', 'notes', 'message', 'buyer comments', 'customer message', 'notes/comments',
+    'comments', 'notes', 'message', 'buyer comments', 'customer message',
+    'client notes', 'notes/comments',
   ],
 }
 
@@ -184,18 +206,30 @@ export async function parseXlsx(buffer: ArrayBuffer): Promise<{ headers: string[
 }
 
 /** Generate CSV template content (headers + one example row). */
-export function generateTemplateCsv(): string {
-  const headers = [...TEMPLATE_HEADERS]
-  const example = [
-    'John Smith',
-    '(555) 123-4567',
-    'john@example.com',
-    '2020 Honda Civic',
-    '',
-    '90210',
-    'Website',
-    'Interested in test drive',
-  ]
+export function generateTemplateCsv(vertical: 'dealer' | 'real_estate' = 'dealer'): string {
+  const isRE = vertical === 'real_estate'
+  const headers = isRE ? [...TEMPLATE_HEADERS_RE] : [...TEMPLATE_HEADERS_DEALER]
+  const example = isRE
+    ? [
+        'Sarah Johnson',
+        '(555) 987-6543',
+        'sarah@example.com',
+        '4BD/3BA Colonial, Thousand Oaks',
+        'ML81234567',
+        '91360',
+        'Zillow',
+        'Looking to close within 60 days',
+      ]
+    : [
+        'John Smith',
+        '(555) 123-4567',
+        'john@example.com',
+        '2020 Honda Civic',
+        '',
+        '90210',
+        'Website',
+        'Interested in test drive',
+      ]
   const escape = (v: string) => (v.includes(',') || v.includes('"') ? `"${v.replace(/"/g, '""')}"` : v)
   return [headers.map(escape).join(','), example.map(escape).join(',')].join('\n')
 }

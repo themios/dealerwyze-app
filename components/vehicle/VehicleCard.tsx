@@ -9,6 +9,7 @@ import { Paperclip, ChevronDown, ChevronUp, ChevronRight, Flame } from 'lucide-r
 import VehicleQuickUploadSheet from './VehicleQuickUploadSheet'
 import { assessPricing, RATING_COLOR } from '@/lib/pricing/pricingAssessment'
 import { demandSignalShortLabel } from '@/lib/intelligence/demandLabels'
+import { useVertical } from '@/hooks/useVertical'
 
 interface InvestmentSummary {
   purchase_price: number | null
@@ -63,10 +64,14 @@ function ProfitRow({ label, value, profit }: { label: string; value: string; pro
 export default function VehicleCard({ vehicle, reconStatus, investmentSummary }: VehicleCardProps) {
   const [uploadOpen, setUploadOpen] = useState(false)
   const [costOpen, setCostOpen] = useState(false)
+  const { vertical } = useVertical()
+  const isRe = vertical === 'real_estate'
 
   const isSold = vehicle.status === 'sold'
   const isStaging = vehicle.status === 'staging'
-  const vehicleLabel = `${vehicle.year} ${vehicle.make} ${vehicle.model}`
+  const vehicleLabel = isRe
+    ? (vehicle.address_line1 ?? `${vehicle.year} ${vehicle.make} ${vehicle.model}`)
+    : `${vehicle.year} ${vehicle.make} ${vehicle.model}`
 
   const pricing = (!isSold && !isStaging && vehicle.price && vehicle.market_data_json)
     ? assessPricing(vehicle.price, vehicle.market_data_json as Parameters<typeof assessPricing>[1])
@@ -105,16 +110,25 @@ export default function VehicleCard({ vehicle, reconStatus, investmentSummary }:
               <div className="flex-1 min-w-0">
                 <p className="text-[15px] font-semibold truncate leading-snug">
                   {vehicleLabel}
-                  {vehicle.trim && <span className="font-normal text-muted-foreground"> {vehicle.trim}</span>}
+                  {!isRe && vehicle.trim && <span className="font-normal text-muted-foreground"> {vehicle.trim}</span>}
+                  {isRe && vehicle.city && <span className="font-normal text-muted-foreground">{', '}{vehicle.city}{vehicle.state ? `, ${vehicle.state}` : ''}</span>}
                 </p>
-                {/* Line 2: mileage · price · status badge */}
+                {/* Line 2: details · price · status badge */}
                 <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                  {vehicle.mileage && <span className="text-sm text-muted-foreground">{vehicle.mileage.toLocaleString('en-US')} mi</span>}
+                  {isRe ? (
+                    <>
+                      {vehicle.bedrooms != null && <span className="text-sm text-muted-foreground">{vehicle.bedrooms} bd</span>}
+                      {vehicle.bathrooms != null && <span className="text-sm text-muted-foreground">{vehicle.bathrooms} ba</span>}
+                      {vehicle.sqft && <span className="text-sm text-muted-foreground">{(vehicle.sqft as number).toLocaleString()} sqft</span>}
+                    </>
+                  ) : (
+                    vehicle.mileage && <span className="text-sm text-muted-foreground">{vehicle.mileage.toLocaleString('en-US')} mi</span>
+                  )}
                   {vehicle.price && (
                     <span className="text-sm font-semibold text-[#F07018]">{formatCurrency(vehicle.price)}</span>
                   )}
                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${statusColors[vehicle.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                    {vehicle.status}
+                    {isRe && vehicle.status === 'available' ? 'Active' : isRe && vehicle.status === 'sold' ? 'Closed' : vehicle.status}
                   </span>
                   {vehicle.lead_rating === 'hot' && (
                     <span className="flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-semibold bg-red-100 text-red-700">
@@ -180,17 +194,17 @@ export default function VehicleCard({ vehicle, reconStatus, investmentSummary }:
         {/* Cost breakdown panel */}
         {costOpen && hasCostData && investmentSummary && (
           <div className="px-4 pb-3 pt-1 border-t bg-muted/30 space-y-1">
-            <ProfitRow label="Purchase Price" value={fmt(investmentSummary.purchase_price)} />
-            {isStaging && investmentSummary.recon_total > 0 && (
+            <ProfitRow label={isRe ? 'Offer Price' : 'Purchase Price'} value={fmt(investmentSummary.purchase_price)} />
+            {!isRe && isStaging && investmentSummary.recon_total > 0 && (
               <ProfitRow label="Recon Costs" value={fmt(investmentSummary.recon_total)} />
             )}
             {isStaging && investmentSummary.ledger_total > 0 && (
               <ProfitRow label="Other Expenses" value={fmt(investmentSummary.ledger_total)} />
             )}
-            {investmentSummary.flooring_fee > 0 && (
+            {!isRe && investmentSummary.flooring_fee > 0 && (
               <ProfitRow label="Flooring Fee" value={fmt(investmentSummary.flooring_fee)} />
             )}
-            {investmentSummary.floor_plan_interest > 0 && (
+            {!isRe && investmentSummary.floor_plan_interest > 0 && (
               <ProfitRow label="Floor Plan Interest" value={fmt(investmentSummary.floor_plan_interest)} />
             )}
             {investmentSummary.total_investment != null && (
@@ -201,8 +215,8 @@ export default function VehicleCard({ vehicle, reconStatus, investmentSummary }:
             )}
             {isSold ? (
               <>
-                <ProfitRow label="Sale Price" value={fmt(investmentSummary.sold_price)} />
-                <ProfitRow label="Gross Profit" value={fmt(profit)} profit />
+                <ProfitRow label={isRe ? 'Closing Price' : 'Sale Price'} value={fmt(investmentSummary.sold_price)} />
+                <ProfitRow label={isRe ? 'Gross Commission' : 'Gross Profit'} value={fmt(profit)} profit />
               </>
             ) : (
               <>

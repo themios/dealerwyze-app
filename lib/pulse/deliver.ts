@@ -17,7 +17,7 @@ export async function deliverPulseSurvey(opts: DeliverPulseOptions): Promise<{ t
   // Check pulse is enabled for this org
   const { data: settings } = await supabase
     .from('org_settings')
-    .select('pulse_enabled, pulse_auto_send_on_sold, twilio_phone_number, business_name')
+    .select('pulse_enabled, pulse_auto_send_on_sold, twilio_phone_number, business_name, pulse_sms_template')
     .eq('org_id', orgId)
     .maybeSingle()
 
@@ -86,6 +86,15 @@ export async function deliverPulseSurvey(opts: DeliverPulseOptions): Promise<{ t
   const firstName = name.split(' ')[0] || 'there'
   const bizName   = settings.business_name || 'the dealership'
 
+  // Build SMS body — use org's custom template if set, otherwise system default.
+  // Supported variables: {firstName}, {businessName}, {surveyLink}
+  const DEFAULT_SMS = `Hi {firstName}! Thank you for your recent purchase at {businessName}. Your experience matters to us. Please take a moment to share your feedback: {surveyLink}`
+  const smsTemplate = (settings as Record<string, unknown>).pulse_sms_template as string | null | undefined
+  const smsBody = (smsTemplate?.trim() || DEFAULT_SMS)
+    .replace(/\{firstName\}/g, firstName)
+    .replace(/\{businessName\}/g, bizName)
+    .replace(/\{surveyLink\}/g, surveyUrl)
+
   // Send SMS via Twilio REST API (non-blocking — survey already created above)
   const twilioSid   = process.env.TWILIO_ACCOUNT_SID
   const twilioToken = process.env.TWILIO_AUTH_TOKEN
@@ -102,7 +111,7 @@ export async function deliverPulseSurvey(opts: DeliverPulseOptions): Promise<{ t
           body: new URLSearchParams({
             To:   phone,
             From: settings.twilio_phone_number,
-            Body: `Hi ${firstName}! Thank you for your recent purchase at ${bizName}. Your experience matters to us. Please take a moment to share your feedback: ${surveyUrl}`,
+            Body: smsBody,
           }),
         }
       )

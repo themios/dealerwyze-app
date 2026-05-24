@@ -4,6 +4,230 @@ Shipped product changes with migration pointers and rationale. See also `docs/en
 
 ---
 
+## 2026-05-21 — RealtyWyze Phase 1A.7: email and SMS string sweep
+
+- **Category:** UX / Integrations
+- **Migration:** none
+- **Why:** Team invite emails and SMS consent fallback still used hardcoded DealerWyze/dealership copy for RE orgs.
+- **What was built:**
+  - `lib/email/teamInvite.ts` — `vertical` param; RE brand/org/role copy branches.
+  - `app/api/admin/users/route.ts` — org `vertical` from DB on invite flow; subject and builder pass `orgVertical`.
+  - `lib/sms/sendConsent.ts` — neutral fallback `our office` instead of `our dealership`.
+
+---
+
+## 2026-05-21 — RealtyWyze Phase 1A.6: component string sweep (brand labels)
+
+- **Category:** UX
+- **Migration:** none
+- **Why:** In-app shell strings still said DealerWyze/dealership for RE orgs inside VerticalProvider.
+- **What was built:**
+  - `components/layout/DesktopSidebar.tsx` — RE text wordmark in user sidebar; `brandName` on dealer logo alt.
+  - `components/layout/SupportSessionBanner.tsx`, `FeedbackButton.tsx` — `{brandName}` in one sentence each.
+  - `components/settings/SettingsHomeClient.tsx` — brokerage vs dealership settings description.
+
+---
+
+## 2026-05-21 — RealtyWyze Phase 1A.5: Today dashboard RE KPI labels
+
+- **Category:** UX
+- **Migration:** none
+- **Why:** RE orgs on the Today page should see agent-appropriate KPI and brief headings without new queries.
+- **What was built:**
+  - `components/today/TodayKpiStrip.tsx` — "New Inquiries" / "Showing Requests" when `real_estate`.
+  - `components/today/DealerBrief.tsx` — "Agent Brief" heading when `real_estate`.
+
+---
+
+## 2026-05-21 — RealtyWyze Phase 1A.4: RE landing page + vertical root route
+
+- **Category:** UX / Marketing
+- **Migration:** none
+- **Why:** realtywyze.us `/` was rendering the DealerWyze landing page; RE needs its own lean marketing page and metadata.
+- **What was built:**
+  - `app/page.tsx` — `generateMetadata()` from `x-vertical`; branch `RealtyWyzeLandingPage` vs `LandingPage`; logged-in redirect to `/today`.
+  - `components/landing/RealtyWyzeLandingPage.tsx` — nav, hero, how-it-works, features, founder, CTA, footer (text wordmark, no pricing).
+
+---
+
+## 2026-05-21 — RealtyWyze Phase 1A.3: signup + onboarding RE copy
+
+- **Category:** UX / Integrations
+- **Migration:** none
+- **Why:** RealtyWyze signups need brokerage-specific copy on the signup form, welcome email, and onboarding nudge emails; RE links must resolve to realtywyze.us.
+- **What was built:**
+  - `lib/email/onboarding.ts` — `buildWelcomeEmailHtml` and `buildNudgeEmailHtml` accept `vertical`; `sig()`/`footer()` brand swap; day 1/3/7 templates unchanged.
+  - `app/api/auth/register/route.ts` — vertical-based `appUrl`, welcome subject, owner notification H2.
+  - `lib/cron/jobs/onboardingNudges.ts` — org `vertical` in query; per-org `appUrl`; RE nudge items for listings/Gmail; `buildNudgeEmailHtml` passes `orgVertical`.
+  - `app/(auth)/signup/SignupForm.tsx` — RealtyWyze text wordmark, brokerage copy branches.
+
+---
+
+## 2026-05-21 — RealtyWyze Phase 1A.2: settings nav vertical labels + gating
+
+- **Category:** UX
+- **Migration:** none
+- **Why:** RE orgs should not see dealer-only settings items (recon, bookkeeping) and need relabeled group/item titles in settings nav.
+- **What was built:**
+  - `lib/settings/config.ts` — `verticalHide`, `verticalTitle`, `resolveItemTitle`, `resolveGroupTitle`.
+  - `SettingsDesktopNav.tsx`, `SettingsMobileNav.tsx`, `SettingsHomeClient.tsx` — filter + relabel via `useVertical()`.
+
+---
+
+## 2026-05-21 — RealtyWyze Phase 1A.1: vertical-aware sidebar + bottom nav
+
+- **Category:** UX
+- **Migration:** none
+- **Why:** RE orgs must not see dealer-only modules (BHPH, Fax) in navigation; uses Phase 0 `useVertical()` feature flags.
+- **What was built:**
+  - `components/layout/DesktopSidebar.tsx` — `ROLE_NAV` items with `feature` key; filter by `features.bhph` / `features.fax`.
+  - `components/layout/BottomNav.tsx` — `useVertical()` + filter hook for future dealer-only mobile items (none in nav today).
+
+---
+
+## 2026-05-21 — RealtyWyze Phase 0.5: signup vertical stamping + admin org filter
+
+- **Category:** Integrations / Platform admin
+- **Migration:** none (uses migration 178 `organizations.vertical`)
+- **Why:** New orgs from realtywyze.us must persist `vertical='real_estate'`; platform admin needs brand filter on org list. Register API cannot read `x-vertical` (middleware skips header injection on `/api/*`).
+- **What was built:**
+  - `app/api/auth/register/route.ts` — validate `vertical` from POST body, stamp on org INSERT.
+  - `app/(auth)/signup/page.tsx` — server page reads `x-vertical`, passes to `SignupForm`.
+  - `app/(auth)/signup/SignupForm.tsx` — client form with hidden `vertical` + JSON body field.
+  - `app/api/admin/orgs/route.ts` — SELECT and return `vertical`.
+  - `app/(app)/admin/orgs/page.tsx` — brand filter tabs + DealerWyze/RealtyWyze badges.
+
+---
+
+## 2026-05-21 — RealtyWyze Phase 0.4: VerticalProvider + useVertical + app shell
+
+- **Category:** UX / Architecture
+- **Migration:** none
+- **Why:** Client components need brand config without prop drilling; server layout reads `organizations.vertical` once and feeds context.
+- **What was built:**
+  - `components/providers/VerticalProvider.tsx` — context default `dealerConfig`, `useVertical()`, `useLabels()`.
+  - `hooks/useVertical.ts` — re-exports for `@/hooks/useVertical` import path.
+  - `app/(app)/layout.tsx` — SELECT `name, vertical`, wrap shell in `<VerticalProvider vertical={orgVertical}>`.
+
+---
+
+## 2026-05-21 — RealtyWyze Phase 0.3: root layout brand metadata + env stubs
+
+- **Category:** UX / Integrations
+- **Migration:** none
+- **Why:** Static `metadata` export showed "DealerWyze" on every domain; `realtywyze.us` needs correct browser tab and OG title from `x-vertical` middleware header.
+- **What was built:**
+  - `app/layout.tsx` — `generateMetadata()` reads `x-vertical`, uses `getVerticalConfig()` for `title` and `description` (hyphen, no em dash); manifest/icons/other preserved.
+  - `.env.example` — `DEALERWYZE_DOMAIN`, `REALTYWYZE_DOMAIN`, `NEXT_PUBLIC_POSTHOG_KEY_REALTY` stubs.
+
+---
+
+## 2026-05-21 — RealtyWyze Phase 0.2: vertical in org settings API + hook
+
+- **Category:** Integrations / UX
+- **Migration:** none (depends on `178_vertical_support.sql` applied in Supabase)
+- **Why:** `useVertical()` (Phase 0.4) needs `org.vertical` from the same cached fetch as dealer name/phone; this session wires the column through GET `/api/settings/org` and `useOrgSettings()`.
+- **What was built:**
+  - `app/api/settings/org/route.ts` — GET selects `vertical` from `organizations`, returns `vertical` with `'dealer'` fallback.
+  - `hooks/useOrgSettings.ts` — `OrgSettings.vertical: Vertical`, DEFAULT and fetch mapping default to `'dealer'`.
+
+---
+
+## 2026-05-21 — RealtyWyze Phase 0.1: vertical config packs + migration 178
+
+- **Category:** Integrations / Architecture
+- **Migration:** `178_vertical_support.sql` (Tim applies manually in Supabase)
+- **Why:** Dual-brand DealerWyze / RealtyWyze needs a single source of truth for labels, feature flags, pipeline defaults, and lead sources before wiring hooks and org settings in later Phase 0 sessions.
+- **What was built:**
+  - `lib/vertical/types.ts` — `Vertical`, `VerticalLabels`, `VerticalFeatures`, `VerticalConfig` types (`dealer` | `real_estate` only).
+  - `lib/vertical/dealer.ts` — `dealerConfig` pack for DealerWyze.
+  - `lib/vertical/realEstate.ts` — `realEstateConfig` pack for RealtyWyze.
+  - `lib/vertical/index.ts` — public API: re-exports + `getVerticalConfig()` (defaults to dealer).
+  - `supabase/migrations/178_vertical_support.sql` — `organizations.vertical`, `org_settings.vertical_labels`, index.
+
+---
+
+## 2026-05-21 — Admin settings: Compliance + Danger Zone baseline
+
+- **Category:** Platform admin / Compliance
+- **Migration:** none
+- **Why:** Platform operators need a single compliance snapshot and a safe way to verify outbound notification channels before adding irreversible admin operations.
+- **What was built:**
+  - `app/(app)/admin/settings/compliance/page.tsx` — superadmin-gated compliance dashboard with audit-log counts (total + 30-day), latest event date, retention policy summary, and privacy/support links sourced from `platform_settings`.
+  - `app/(app)/admin/settings/danger/page.tsx` and `app/(app)/admin/settings/danger/DangerZoneClient.tsx` — superadmin-gated Danger Zone page plus client-side test panel (channel toggles, send action, result state) and three disabled placeholders for future destructive actions.
+  - `app/api/admin/settings/danger/test-notification/route.ts` — superadmin-only POST endpoint validating `channels` (`email`/`telegram`), sending test notifications, and writing `audit_log` entry with channel/results metadata.
+
+---
+
+## 2026-05-19 — Dealer Success Inbox Phase 5: templates, automations, global inbox
+
+- **Category:** Platform admin / Integrations
+- **Migration:** none
+- **Why:** Proactively open success/billing threads for at-risk dealers and give operators a single view of all open conversations.
+- **What was built:**
+  - `lib/dealer-inbox/templates.ts` — activation, stale, trial-ending message constants.
+  - `lib/cron/jobs/dealerInboxAutomations.ts` — activation (0 leads after 48h) and trial-ending (≤3 days, &lt;3 leads/30d) rules with `admin_alerts` dedup-first.
+  - `app/api/cron/check-tasks/route.ts` — registers `dealerInboxAutomations` job.
+  - `GET /api/admin/inbox/threads` — global thread list + `count_only=unread` for sidebar badge.
+  - `/admin/inbox` — `AdminInboxClient.tsx` with status/type filters, org links.
+  - `DesktopSidebar` — admin Inbox nav + unread dealer-reply badge.
+
+---
+
+## 2026-05-19 — Dealer Success Inbox Phase 4: dealer-facing inbox UI
+
+- **Category:** UX / Platform admin
+- **Migration:** none
+- **Why:** Dealers need to read and reply to platform messages in-app; many org owners use `dealer_admin` role and were missed by email lookup.
+- **What was built:**
+  - `getDealerSignupEmail` — prefers `admin`, falls back to `dealer_admin`.
+  - Dealer APIs: `GET/POST /api/dealer-inbox/threads`, `GET …/threads/[threadId]`, `POST …/messages`, `GET /api/dealer-inbox/unread`.
+  - `/messages` page (`MessagesClient.tsx`) — thread list + in-app reply.
+  - `DesktopSidebar` — Messages nav item + `InboxUnreadBadge` (platform unread count).
+
+---
+
+## 2026-05-19 — Dealer Success Inbox Phase 3: two-way email (inbound webhook)
+
+- **Category:** Platform admin / Integrations
+- **Migration:** none
+- **Why:** Dealer replies to platform outreach emails must land in the correct thread automatically.
+- **What was built:**
+  - `GET /api/admin/orgs/[id]/threads` returns `assigned_name` (field name aligned with UI types).
+  - `sendNotificationEmail` accepts optional `reply_to`; outbound inbox emails set `reply+{threadId}@{RESEND_REPLY_DOMAIN}` when configured.
+  - `POST /api/webhooks/dealer-reply` — Resend inbound webhook with timing-safe secret, sender verification, Message-ID idempotency, rep notification.
+  - `.env.example` + `OPTIONAL_DEALER_INBOX` in `lib/env/validate.ts` for `RESEND_INBOUND_SECRET` and `RESEND_REPLY_DOMAIN`.
+
+---
+
+## 2026-05-19 — Dealer Success Inbox Phase 2: admin Communications tab UI
+
+- **Category:** Platform admin / UX
+- **Migration:** none
+- **Why:** Operators need thread list, messaging, tasks, and legacy comms history on the dealer detail page without building global inbox yet.
+- **What was built:**
+  - `dealer-inbox.types.ts` — shared thread/message/task/legacy types.
+  - `DealerInbox.tsx` — list view, new thread modal, tasks, legacy accordion orchestration.
+  - `DealerThreadView.tsx` — thread detail, message bubbles, reply bar, status control.
+  - `DealerInboxLegacy.tsx` — read-only previous `platform_email_log` + retention notes timeline.
+  - `page.tsx` — Communications tab renders `<DealerInbox orgId={orgId} />`; removed inline comms UI.
+
+---
+
+## 2026-05-19 — Dealer Success Inbox Phase 1: schema + admin API
+
+- **Category:** Platform admin / Integrations
+- **Migration:** `supabase/migrations/167_dealer_inbox.sql`
+- **Why:** Platform↔dealer two-way communication needs a dedicated thread/message/task model separate from customer CRM and support tickets.
+- **What was built:**
+  - Tables `dealer_threads`, `dealer_messages`, `dealer_tasks` with indexes, dealer RLS policies, and `update_dealer_thread_ts()` trigger.
+  - Admin APIs: `GET/POST …/threads`, `GET/PATCH …/threads/[threadId]`, `POST …/threads/[threadId]/messages`, `GET/POST …/tasks`, `PATCH …/tasks/[taskId]` — all gated by `requirePlatformArea('dealers')` + service client org scoping.
+  - `lib/admin/dealerSignupEmail.ts` — org owner email via auth admin (same pattern as org detail).
+  - `sendNotificationEmail` returns optional `resendId`; inbox email channel logs `platform_email_log` with `email_type='dealer_inbox'`.
+  - Mutations write to `audit_log` via `writeAuditLog()`.
+
+---
+
 ## 2026-05-17 — Multi-location post-audit hardening (Codex audit follow-up)
 
 - **Category:** Quality / Multi-location

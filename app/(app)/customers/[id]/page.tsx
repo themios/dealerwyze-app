@@ -6,6 +6,7 @@ import Link from 'next/link'
 import TopBar from '@/components/layout/TopBar'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Pencil, Flame } from 'lucide-react'
+import AddLeadMenu from '@/components/leads/AddLeadMenu'
 import { isDealerAdmin, type LeadIntentTier } from '@/types/index'
 import CustomerDetailClient from './CustomerDetailClient'
 import { LEAD_INTENT_TIER_LABELS, LEAD_INTENT_TIER_STYLES } from '@/lib/leads/intent'
@@ -89,6 +90,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
         }
         right={
           <div className="flex items-center gap-1">
+            <AddLeadMenu />
             <Link href={`/customers/${id}/edit`} title="Edit lead">
               <Button variant="ghost" size="sm"><Pencil className="h-4 w-4" /></Button>
             </Link>

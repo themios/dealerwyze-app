@@ -1,3 +1,6 @@
+'use client'
+
+import { useVertical } from '@/hooks/useVertical'
 import SettingsPageShell from '@/components/settings/SettingsPageShell'
 import BasicInfoSection            from './sections/BasicInfoSection'
 import PhoneSection                from './sections/PhoneSection'
@@ -11,6 +14,9 @@ import BhphPaymentMethodsSection   from './sections/BhphPaymentMethodsSection'
 import DangerZoneSection           from './sections/DangerZoneSection'
 
 export default function OrganizationSettingsPage() {
+  const { vertical } = useVertical()
+  const isRE = vertical === 'real_estate'
+
   return (
     <SettingsPageShell
       title="Organization"
@@ -18,16 +24,17 @@ export default function OrganizationSettingsPage() {
       type="form"
     >
       <div className="space-y-4">
-        <BasicInfoSection />
+        <BasicInfoSection isRE={isRE} />
         <PhoneSection />
-        <BhphPaymentMethodsSection />
-        <EmailLeadSyncSection />
-        <VoiceAgentSection />
+        {/* BHPH payment reminders are dealer-only */}
+        {!isRE && <BhphPaymentMethodsSection />}
+        <EmailLeadSyncSection isRE={isRE} />
+        <VoiceAgentSection isRE={isRE} />
         <GoogleBusinessProfileSection />
         <GoogleCalendarSection />
         <EmailFromDomainSection />
-        <SocialPostingSection />
-        <DangerZoneSection />
+        <SocialPostingSection isRE={isRE} />
+        <DangerZoneSection isRE={isRE} />
       </div>
     </SettingsPageShell>
   )

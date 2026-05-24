@@ -21,7 +21,8 @@ const PatchSchema = z.object({
   tagline:         z.string().max(120).optional(),
   slides:          z.array(SlideSchema).min(1).max(6).optional(),
   cta_text:        z.string().min(1).max(120).optional(),
-  platform_targets: z.array(z.string()).max(6).optional(),
+  platform_targets:  z.array(z.string()).max(6).optional(),
+  platform_captions: z.record(z.string(), z.string()).optional(),
   // schedule-only fields
   scheduled_at:    z.string().datetime().optional(),
   // approve-only options
@@ -95,7 +96,8 @@ export async function PATCH(
     if (parsed.data.tagline)          updates.tagline          = parsed.data.tagline
     if (parsed.data.slides)           updates.slides           = parsed.data.slides
     if (parsed.data.cta_text)         updates.cta_text         = parsed.data.cta_text
-    if (parsed.data.platform_targets) updates.platform_targets = parsed.data.platform_targets
+    if (parsed.data.platform_targets)              updates.platform_targets  = parsed.data.platform_targets
+    if (parsed.data.platform_captions !== undefined) updates.platform_captions = parsed.data.platform_captions
     await supabase.from('content_drafts').update(updates).eq('id', id)
     return NextResponse.json({ ok: true, status: 'edited' })
   }

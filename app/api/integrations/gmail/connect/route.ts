@@ -29,15 +29,26 @@ export async function GET(req: NextRequest) {
     .update({ gmail_oauth_csrf: csrf, gmail_oauth_csrf_expires_at: expiresAt })
     .eq('org_id', profile.org_id)
 
+  // Read host header — this preserves subdomains (e.g. realtywyze.localhost:3000)
+  // that req.nextUrl.origin strips in the Next.js dev server.
+  const host = req.headers.get('host') ?? req.nextUrl.host
+  const isLocalhost = host.includes('localhost')
+  const protocol = isLocalhost ? 'http' : 'https'
+  const appOrigin = `${protocol}://${host}`   // real origin, used for final redirect after callback
+  const oauthOrigin = isLocalhost
+    ? `http://localhost:${req.nextUrl.port || host.split(':')[1] || '3000'}`
+    : appOrigin
+  const origin = oauthOrigin                  // what Google sees as redirect_uri
   const oauth2Client = new google.auth.OAuth2(
     process.env.GMAIL_CLIENT_ID,
     process.env.GMAIL_CLIENT_SECRET,
-    `${process.env.NEXT_PUBLIC_APP_URL}/api/integrations/gmail/callback`,
+    `${origin}/api/integrations/gmail/callback`,
   )
 
-  // Encode org_id, CSRF token, and return destination in state.
-  // Format: base64url(JSON) — self-contained but verified server-side on callback.
-  const statePayload = JSON.stringify({ orgId: profile.org_id, csrf, from: from || null })
+  // Encode org_id, CSRF token, return destination, and both origins in state.
+  // origin = OAuth redirect_uri origin (what Google was given, used to reconstruct redirect_uri in callback).
+  // appOrigin = where to send the user after callback (may differ in local dev).
+  const statePayload = JSON.stringify({ orgId: profile.org_id, csrf, from: from || null, origin, appOrigin })
   const state = Buffer.from(statePayload).toString('base64url')
 
   const url = oauth2Client.generateAuthUrl({

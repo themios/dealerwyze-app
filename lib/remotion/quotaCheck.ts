@@ -35,6 +35,8 @@ export async function checkRenderQuota(supabase: SupabaseClient, orgId: string):
     .single()
 
   const plan = (org?.plan ?? 'free').toLowerCase()
+  // Lifetime / platform plans: skip all quota checks
+  if (plan === 'lifetime' || plan === 'platform') return { allowed: true, used: 0, limit: Infinity, plan }
   const limit = QUOTA[plan] ?? 0
 
   // Get or create org_video_settings

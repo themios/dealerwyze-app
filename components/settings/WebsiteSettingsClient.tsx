@@ -52,6 +52,7 @@ const FONT_LABELS: Record<FontPresetId, string> = {
 
 interface Props {
   slug: string
+  isRE?: boolean
   businessName: string
   initialEnabled: boolean
   initialTagline: string
@@ -86,6 +87,7 @@ interface Props {
 
 export default function WebsiteSettingsClient({
   slug,
+  isRE = false,
   businessName,
   initialEnabled,
   initialTagline,
@@ -155,7 +157,12 @@ export default function WebsiteSettingsClient({
   const ogFileRef = useRef<HTMLInputElement>(null)
   const faviconFileRef = useRef<HTMLInputElement>(null)
 
-  const publicUrl = `${getPublicAppBaseUrl()}/${slug}/inventory`
+  const publicBaseUrl = isRE
+    ? (typeof window !== 'undefined' && window.location.origin.includes('localhost')
+        ? window.location.origin
+        : 'https://realtywyze.us')
+    : getPublicAppBaseUrl()
+  const publicUrl = `${publicBaseUrl}/${slug}/${isRE ? 'listings' : 'inventory'}`
   const isDirty =
     enabled !== initialEnabled ||
     tagline !== initialTagline ||
@@ -398,9 +405,9 @@ export default function WebsiteSettingsClient({
       <div className="rounded-lg border p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <p className="font-medium text-sm">Public inventory page</p>
+            <p className="font-medium text-sm">{isRE ? 'Public listings page' : 'Public inventory page'}</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Let customers browse and contact you from a public website.
+              {isRE ? 'Let clients browse your listings and contact you from a public website.' : 'Let customers browse and contact you from a public website.'}
             </p>
           </div>
           <button
@@ -409,7 +416,7 @@ export default function WebsiteSettingsClient({
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${
               enabled ? 'bg-blue-600' : 'bg-gray-300'
             }`}
-            aria-label={enabled ? 'Disable public inventory' : 'Enable public inventory'}
+            aria-label={enabled ? `Disable public ${isRE ? 'listings' : 'inventory'}` : `Enable public ${isRE ? 'listings' : 'inventory'}`}
           >
             <span
               className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
@@ -439,9 +446,7 @@ export default function WebsiteSettingsClient({
               </a>
             </div>
             <p className="text-[11px] text-muted-foreground leading-snug">
-              Uses your organization <span className="font-medium text-foreground">slug</span> in the path — not the{' '}
-              <code className="rounded bg-background px-1 py-0.5 text-[10px]">dealer-themes/apollo-auto</code> folder (that is
-              only the default theme assets).
+              Uses your organization <span className="font-medium text-foreground">slug</span> in the path.
             </p>
           </div>
         )}
@@ -450,12 +455,12 @@ export default function WebsiteSettingsClient({
       <section className="space-y-4">
         <h3 className="text-sm font-semibold">Brand &amp; story</h3>
         <div className="space-y-1.5">
-          <Label htmlFor="tagline">Dealer tagline</Label>
+          <Label htmlFor="tagline">{isRE ? 'Agency tagline' : 'Dealer tagline'}</Label>
           <Input
             id="tagline"
             value={tagline}
             onChange={e => setTagline(e.target.value)}
-            placeholder="e.g. Quality used cars in El Monte"
+            placeholder={isRE ? 'e.g. Your trusted real estate partner in Los Angeles' : 'e.g. Quality used cars in El Monte'}
             maxLength={120}
           />
           <p className="text-xs text-muted-foreground">
@@ -470,11 +475,14 @@ export default function WebsiteSettingsClient({
             className={textareaClassName}
             value={about}
             onChange={e => setAbout(e.target.value)}
-            placeholder="Tell shoppers who you are, how long you’ve been in business, what makes your inventory different. Use blank lines between paragraphs."
+            placeholder={isRE
+              ? "Tell clients who you are, how long you’ve been in real estate, what makes your agency different. Use blank lines between paragraphs."
+              : "Tell shoppers who you are, how long you’ve been in business, what makes your inventory different. Use blank lines between paragraphs."
+            }
             maxLength={12000}
           />
           <p className="text-xs text-muted-foreground">
-            Appears on your inventory page (with a dedicated #about section) and enriches structured data for Google and
+            Appears on your {isRE ? 'listings page' : 'inventory page'} (with a dedicated #about section) and enriches structured data for Google and
             AI answers.
           </p>
         </div>
@@ -547,7 +555,7 @@ export default function WebsiteSettingsClient({
             type="email"
             value={contactEmail}
             onChange={e => setContactEmail(e.target.value)}
-            placeholder="sales@yourdealership.com"
+            placeholder={isRE ? 'info@youragency.com' : 'sales@yourdealership.com'}
           />
         </div>
 
@@ -656,10 +664,9 @@ export default function WebsiteSettingsClient({
       </section>
 
       <section className="space-y-4">
-        <h3 className="text-sm font-semibold">Inventory hero</h3>
+        <h3 className="text-sm font-semibold">{isRE ? 'Listings hero' : 'Inventory hero'}</h3>
         <p className="text-xs text-muted-foreground">
-          Overrides the default script line and headline on your public inventory page. Leave blank to use tagline /
-          defaults.
+          Overrides the default script line and headline on your public {isRE ? 'listings' : 'inventory'} page. Leave blank to use tagline / defaults.
         </p>
         <div className="space-y-1.5">
           <Label htmlFor="hero-headline">Hero headline (H1)</Label>
@@ -667,7 +674,7 @@ export default function WebsiteSettingsClient({
             id="hero-headline"
             value={heroHeadline}
             onChange={e => setHeroHeadline(e.target.value)}
-            placeholder="e.g. Browse our inventory"
+            placeholder={isRE ? 'e.g. Browse our listings' : 'e.g. Browse our inventory'}
             maxLength={80}
           />
         </div>
@@ -701,9 +708,9 @@ export default function WebsiteSettingsClient({
             id="specialty-tags"
             value={specialtyTagsInput}
             onChange={e => setSpecialtyTagsInput(e.target.value)}
-            placeholder="BHPH, trucks, imports…"
+            placeholder={isRE ? 'Luxury, condos, first-time buyers…' : 'BHPH, trucks, imports…'}
           />
-          <p className="text-xs text-muted-foreground">Up to eight short tags; shown as chips on the inventory hero.</p>
+          <p className="text-xs text-muted-foreground">Up to eight short tags; shown as chips on the {isRE ? 'listings' : 'inventory'} hero.</p>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="service-area">Service area</Label>
@@ -711,7 +718,7 @@ export default function WebsiteSettingsClient({
             id="service-area"
             value={serviceArea}
             onChange={e => setServiceArea(e.target.value)}
-            placeholder="e.g. Serving El Monte and the San Gabriel Valley"
+            placeholder={isRE ? 'e.g. Serving Los Angeles and the South Bay' : 'e.g. Serving El Monte and the San Gabriel Valley'}
             maxLength={300}
           />
         </div>
@@ -852,7 +859,7 @@ export default function WebsiteSettingsClient({
             id="seo-kw"
             value={seoKeywords}
             onChange={e => setSeoKeywords(e.target.value)}
-            placeholder="e.g. used cars, BHPH, El Monte, Toyota"
+            placeholder={isRE ? 'e.g. real estate, Los Angeles, condos, buyer agent' : 'e.g. used cars, BHPH, El Monte, Toyota'}
             maxLength={500}
           />
           <p className="text-xs text-muted-foreground">Comma-separated. Used for meta keywords and extra topical signals.</p>
@@ -871,7 +878,7 @@ export default function WebsiteSettingsClient({
           <span>
             <span className="text-sm font-medium">Hide public site from search engines</span>
             <span className="block text-xs text-muted-foreground mt-0.5">
-              Sets noindex on dealer pages and removes this dealer from the DealerWyze sitemap index.
+              {isRE ? 'Sets noindex on listing pages and removes this agency from the RealtyWyze sitemap index.' : 'Sets noindex on dealer pages and removes this dealer from the DealerWyze sitemap index.'}
             </span>
           </span>
         </label>
@@ -927,6 +934,7 @@ export default function WebsiteSettingsClient({
           serviceArea={serviceArea}
           theme={theme}
           logoUrl={logoUrl}
+          isRE={isRE}
         />
       </aside>
     </div>

@@ -92,7 +92,21 @@ export interface Customer {
   first_response_at?: string | null
   response_time_seconds?: number | null
   created_at: string
+  // RE-specific fields (migration 179b) — null/undefined for dealer orgs
+  contact_type?: string | null         // 'buyer','seller','tenant','landlord','investor','both'
+  pre_approval_amt?: number | null
+  pre_approval_lender?: string | null
+  pre_approval_exp?: string | null
+  price_min?: number | null
+  price_max?: number | null
+  beds_min?: number | null
+  baths_min?: number | null
+  desired_areas?: string[] | null
+  buyer_agreement_at?: string | null  // NAR 2024 buyer rep requirement
 }
+
+export type PropertyType = 'single_family' | 'condo' | 'townhouse' | 'multi_family' | 'land' | 'commercial'
+export type ListingType = 'sale' | 'rental' | 'lease'
 
 export interface Vehicle {
   id: string
@@ -140,6 +154,32 @@ export interface Vehicle {
   demand_signal?: 'high_demand' | 'needs_price_drop' | 'needs_financing_push' | 'buy_signal' | null
   demand_updated_at?: string | null
   created_at: string
+  // RE-specific fields (migration 179) — null/undefined for dealer orgs
+  property_type?: PropertyType | null
+  bedrooms?: number | null
+  bathrooms?: number | null
+  sqft?: number | null
+  lot_size?: string | null
+  year_built?: number | null
+  address_line1?: string | null
+  city?: string | null
+  state?: string | null
+  zip?: string | null
+  school_district?: string | null
+  subdivision?: string | null
+  mls_number?: string | null
+  parcel_id?: string | null
+  listing_type?: ListingType | null
+  expiration_date?: string | null
+  showing_instructions?: string | null
+  idx_source?: string | null
+  idx_external_id?: string | null
+  idx_synced_at?: string | null
+  seller_contact_id?: string | null
+  listing_agent_id?: string | null
+  commission_pct?: number | null
+  co_broke_pct?: number | null
+  hoa_monthly?: number | null
 }
 
 export interface ReconChecklistItem {
@@ -373,5 +413,51 @@ export interface CustomerSequence {
   status: CustomerSequenceStatus
   enrolled_at: string
   completed_at: string | null
+  created_at: string
+}
+
+// RE-specific types (migration 180)
+
+export type ShowingStatus = 'scheduled' | 'completed' | 'cancelled' | 'no_show'
+
+export interface ShowingFeedback {
+  interest_level?: 'high' | 'medium' | 'low' | null
+  price_feedback?: string | null
+  objections?: string | null
+  notes?: string | null
+}
+
+export interface Showing {
+  id: string
+  org_id: string
+  listing_id: string
+  contact_id?: string | null
+  agent_id?: string | null
+  scheduled_at: string
+  status: ShowingStatus
+  feedback_json?: ShowingFeedback | null
+  created_at: string
+  listing?: Pick<Vehicle, 'id' | 'address_line1' | 'city' | 'state' | 'mls_number' | 'price'> | null
+  contact?: Pick<Customer, 'id' | 'name' | 'primary_phone' | 'email'> | null
+}
+
+export type TransactionStatus = 'pending' | 'closed' | 'cancelled'
+
+export interface Transaction {
+  id: string
+  org_id: string
+  vehicle_id?: string | null
+  buyer_id?: string | null
+  seller_id?: string | null
+  listing_agent_id?: string | null
+  buyer_agent_id?: string | null
+  closing_date?: string | null
+  closing_price?: number | null
+  commission_pct?: number | null
+  co_broke_pct?: number | null
+  gci_listing?: number | null
+  gci_buyer?: number | null
+  status: TransactionStatus
+  notes?: string | null
   created_at: string
 }

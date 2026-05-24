@@ -3,6 +3,7 @@ import { requireProfile } from '@/lib/auth/profile'
 import { isDealerAdmin } from '@/types/index'
 import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
+import { headers } from 'next/headers'
 import WebsiteSettingsClient from '@/components/settings/WebsiteSettingsClient'
 import WebsiteAnalytics from '@/components/settings/WebsiteAnalytics'
 import SettingsPageShell from '@/components/settings/SettingsPageShell'
@@ -24,6 +25,8 @@ function formatTrialEndDate(iso: string): string {
 }
 
 export default async function WebsiteSettingsPage() {
+  const hdrs = await headers()
+  const isRE = hdrs.get('x-vertical') === 'real_estate'
   const profile = await requireProfile()
 
   if (!isDealerAdmin(profile.role)) {
@@ -51,7 +54,7 @@ export default async function WebsiteSettingsPage() {
     .eq('org_id', profile.org_id)
     .maybeSingle()
 
-  const businessName = orgSettings?.business_name?.trim() || org?.name || 'Your dealership'
+  const businessName = orgSettings?.business_name?.trim() || org?.name || (isRE ? 'Your agency' : 'Your dealership')
   const initialSpecialtyTags = Array.isArray(org?.website_specialty_tags)
     ? (org!.website_specialty_tags as string[]).filter(Boolean)
     : []
@@ -63,7 +66,7 @@ export default async function WebsiteSettingsPage() {
   return (
     <SettingsPageShell
       title="Website Settings"
-      description="Public inventory page, custom domain details, and customer-facing website controls."
+      description={isRE ? 'Public listings page, custom domain details, and client-facing website controls.' : 'Public inventory page, custom domain details, and customer-facing website controls.'}
       type="form"
     >
       <div className="max-w-5xl space-y-8">
@@ -71,14 +74,15 @@ export default async function WebsiteSettingsPage() {
           <div className="rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800 px-4 py-3 text-sm">
             <p className="font-medium text-blue-900 dark:text-blue-100">Included in your 30-day trial</p>
             <p className="text-blue-800 dark:text-blue-200 mt-0.5">
-              Your public dealer website and inventory are part of the free demo through {trialEndsFormatted}. After
-              that, the public site stays available on every plan — no upgrade required to keep it on.
+              Your public {isRE ? 'agency website and listings are' : 'dealer website and inventory are'} part of the free demo through {trialEndsFormatted}. After
+              that, the public site stays available on every plan. No upgrade required to keep it on.
             </p>
           </div>
         )}
 
         <WebsiteSettingsClient
           slug={org?.slug ?? ''}
+          isRE={isRE}
           businessName={businessName}
           initialEnabled={org?.public_inventory_enabled ?? false}
           initialTagline={org?.website_tagline ?? ''}

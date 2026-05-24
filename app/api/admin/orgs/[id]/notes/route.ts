@@ -18,7 +18,7 @@ export async function GET(
 ) {
   const { id: orgId } = await params
   const profile = await requireProfile()
-  const denied  = await requirePlatformArea(profile.id, 'dealers')
+  const denied  = await requirePlatformArea(profile.id, 'accounts')
   if (denied) return denied
 
   const service = createServiceClient()
@@ -61,7 +61,7 @@ export async function POST(
 ) {
   const { id: orgId } = await params
   const profile = await requireProfile()
-  const denied  = await requirePlatformArea(profile.id, 'dealers')
+  const denied  = await requirePlatformArea(profile.id, 'accounts')
   if (denied) return denied
 
   const body = await req.json().catch(() => ({}))

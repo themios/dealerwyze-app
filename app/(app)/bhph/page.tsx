@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import { createClientForRequest } from '@/lib/supabase/forRequest'
 import { requireProfile } from '@/lib/auth/profile'
 import { canAccessBhph } from '@/lib/auth/dealerRoles'
@@ -44,6 +45,8 @@ interface BhphAccount {
 }
 
 export default async function BhphPage() {
+  const hdrs = await headers()
+  const isRE = hdrs.get('x-vertical') === 'real_estate'
   const profile = await requireProfile()
   if (!canAccessBhph(profile.role as UserRole)) redirect('/today')
   const supabase = await createClientForRequest()
@@ -64,7 +67,7 @@ export default async function BhphPage() {
 
   return (
     <div>
-      <TopBar title="BHPH Accounts" />
+      <TopBar title={isRE ? 'Lease Accounts' : 'BHPH Accounts'} />
 
       {accounts && accounts.length > 0 && (
         <div className="px-4 py-3 border-b">
@@ -102,8 +105,8 @@ export default async function BhphPage() {
         {!accounts || accounts.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground">
             <p className="text-4xl mb-3">💳</p>
-            <p className="font-medium">No active BHPH accounts</p>
-            <p className="text-sm mt-1">Mark a vehicle as sold with BHPH financing to track payments here.</p>
+            <p className="font-medium">{isRE ? 'No active lease accounts' : 'No active BHPH accounts'}</p>
+            <p className="text-sm mt-1">{isRE ? 'Create a lease agreement on a client record to track it here.' : 'Mark a vehicle as sold with BHPH financing to track payments here.'}</p>
           </div>
         ) : (
           accounts.map((acct: BhphAccount) => {

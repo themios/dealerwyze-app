@@ -66,6 +66,7 @@ const MODES: { value: AutoMode; label: string; desc: string }[] = [
 interface Props {
   initial: AutoSettings
   sequences: SequenceOption[]
+  isRe?: boolean
 }
 
 function SequencePicker({
@@ -195,7 +196,7 @@ function ChipRow({
   )
 }
 
-export default function AutomationClient({ initial, sequences }: Props) {
+export default function AutomationClient({ initial, sequences, isRe = false }: Props) {
   const [settings, setSettings] = useState<AutoSettings>(initial)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -296,16 +297,16 @@ export default function AutomationClient({ initial, sequences }: Props) {
                   Sent automatically when a new lead comes in. Leave blank to use the default.
                   Available placeholders: <code className="bg-muted px-1 rounded">{'{first_name}'}</code>{' '}
                   <code className="bg-muted px-1 rounded">{'{business_name}'}</code>{' '}
-                  <code className="bg-muted px-1 rounded">{'{vehicle}'}</code>
+                  <code className="bg-muted px-1 rounded">{isRe ? '{property}' : '{vehicle}'}</code>
                 </p>
                 <Textarea
                   value={settings.sms_consent_message}
                   onChange={e => setSettings(s => ({ ...s, sms_consent_message: e.target.value }))}
                   rows={4}
                   className="text-sm resize-y"
-                  placeholder={
-                    'Hi {first_name}! This is {business_name}. You recently inquired about {vehicle}. ' +
-                    'Reply YES to get text updates. Msg & data rates may apply. Reply STOP to opt out.'
+                  placeholder={isRe
+                    ? 'Hi {first_name}! This is {business_name}. You recently inquired about {property}. Reply YES to get text updates. Msg & data rates may apply. Reply STOP to opt out.'
+                    : 'Hi {first_name}! This is {business_name}. You recently inquired about {vehicle}. Reply YES to get text updates. Msg & data rates may apply. Reply STOP to opt out.'
                   }
                 />
               </div>
@@ -331,8 +332,8 @@ export default function AutomationClient({ initial, sequences }: Props) {
               <div className="rounded-lg bg-muted/50 px-3 py-2.5">
                 <p className="text-xs text-muted-foreground">
                   <span className="font-medium text-foreground">SMS note:</span>{' '}
-                  Only sends to customers who have already replied YES to the consent request.
-                  New leads get the consent request first - returning customers with opt-in get the sequence immediately.
+                  Only sends to {isRe ? 'clients' : 'customers'} who have already replied YES to the consent request.
+                  New leads get the consent request first - returning {isRe ? 'clients' : 'customers'} with opt-in get the sequence immediately.
                 </p>
               </div>
             </div>
@@ -368,7 +369,7 @@ export default function AutomationClient({ initial, sequences }: Props) {
               <div className="rounded-lg bg-muted/50 px-3 py-2.5">
                 <p className="text-xs text-muted-foreground">
                   <span className="font-medium text-foreground">Auto-stop:</span>{' '}
-                  If a customer replies by email or SMS, the sequence pauses and moves to manual.
+                  If a {isRe ? 'client' : 'customer'} replies by email or SMS, the sequence pauses and moves to manual.
                 </p>
               </div>
             </div>
@@ -387,7 +388,10 @@ export default function AutomationClient({ initial, sequences }: Props) {
                   onChange={e => setSettings(s => ({ ...s, email_signature: e.target.value }))}
                   rows={5}
                   className="font-mono text-xs resize-y"
-                  placeholder={'<b>Tim — Apollo Auto</b><br>(805) 404-3873<br><a href="https://www.apolloauto-em.com">www.apolloauto-em.com</a>'}
+                  placeholder={isRe
+                    ? '<b>Your Name — Agency Name</b><br>(555) 000-0000<br><a href="https://www.youragency.com">www.youragency.com</a>'
+                    : '<b>Your Name — Dealership Name</b><br>(555) 000-0000<br><a href="https://www.yourdealer.com">www.yourdealer.com</a>'
+                  }
                 />
               </div>
               {sanitizedEmailSignature && (

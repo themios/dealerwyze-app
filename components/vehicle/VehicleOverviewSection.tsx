@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { Loader2, Save } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useVertical } from '@/hooks/useVertical'
 
 interface Props {
   vehicleId: string
@@ -39,6 +40,8 @@ export default function VehicleOverviewSection({
   const [saving, setSaving] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
   const [reflowing, setReflowing] = useState(false)
+  const { vertical } = useVertical()
+  const isRe = vertical === 'real_estate'
 
   async function saveEdits() {
     setSaving(true)
@@ -139,11 +142,25 @@ export default function VehicleOverviewSection({
           Public website overview
         </p>
         <p className="text-xs text-muted-foreground mt-1">
-          Shoppers see this on your dealer site as short sections — not a wall of text. AI can be wrong; edit every
-          line. Put Carfax / Autocheck / KBB files in{' '}
-          <span className="font-medium text-foreground">Website & shopper documents</span> above (summarized for AI and
-          shown on the listing). Private BOS and receipts go in <span className="font-medium text-foreground">Inventory (private)</span> — not used for the
-          website. Or paste plain text below.
+          {isRe ? (
+            <>
+              Buyers see this on your listing site as short sections. AI can be wrong; edit every line. Put disclosure
+              reports, inspection reports, or floor plans in{' '}
+              <span className="font-medium text-foreground">Website documents</span> above (summarized for AI and shown
+              on the listing). Private documents go in{' '}
+              <span className="font-medium text-foreground">Private files</span> -- not used for the website. Or paste
+              plain text below.
+            </>
+          ) : (
+            <>
+              Shoppers see this on your dealer site as short sections -- not a wall of text. AI can be wrong; edit every
+              line. Put Carfax / Autocheck / KBB files in{' '}
+              <span className="font-medium text-foreground">Website &amp; shopper documents</span> above (summarized for
+              AI and shown on the listing). Private BOS and receipts go in{' '}
+              <span className="font-medium text-foreground">Inventory (private)</span> -- not used for the website. Or
+              paste plain text below.
+            </>
+          )}
         </p>
       </div>
 
@@ -162,7 +179,10 @@ export default function VehicleOverviewSection({
           value={description}
           onChange={e => setDescription(e.target.value)}
           rows={12}
-          placeholder="Example format (blank line between sections):&#10;&#10;✨ Why it stands out&#10;Low miles for the year.&#10;Great commuter MPG.&#10;&#10;🛡️ History&#10;Clean title. One owner in notes.&#10;&#10;📞 Next step&#10;Call today to schedule a test drive."
+          placeholder={isRe
+            ? "Example format (blank line between sections):\n\n✨ Why it stands out\nCorner lot. Newly remodeled kitchen.\nOpen concept main floor.\n\n🏡 Property highlights\n3 bed / 2 bath. 1,850 sqft.\nAttached 2-car garage.\n\n📞 Next step\nSchedule a showing today."
+            : "Example format (blank line between sections):\n\n✨ Why it stands out\nLow miles for the year.\nGreat commuter MPG.\n\n🛡️ History\nClean title. One owner in notes.\n\n📞 Next step\nCall today to schedule a test drive."
+          }
           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono leading-relaxed min-h-[200px]"
         />
         <p className="text-[10px] text-muted-foreground">
@@ -181,7 +201,10 @@ export default function VehicleOverviewSection({
           value={enrichment}
           onChange={e => setEnrichment(e.target.value)}
           rows={5}
-          placeholder="Paste Carfax/Autocheck/KBB text, auction announcements, or inspection bullets. Used when you click Regenerate. Shoppers never see this field."
+          placeholder={isRe
+            ? "Paste disclosure text, inspection report bullets, or agent notes. Used when you click Regenerate. Buyers never see this field."
+            : "Paste Carfax/Autocheck/KBB text, auction announcements, or inspection bullets. Used when you click Regenerate. Shoppers never see this field."
+          }
           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm leading-relaxed"
         />
       </div>
@@ -233,8 +256,8 @@ export default function VehicleOverviewSection({
       )}
 
       <p className="text-[10px] text-muted-foreground border-t pt-2">
-        Only <span className="font-medium text-foreground">Website & shopper documents</span> are summarized for AI (rate
-        limits apply). Private inventory uploads are never sent to listing AI.
+        Only <span className="font-medium text-foreground">{isRe ? 'Website documents' : 'Website & shopper documents'}</span> are
+        summarized for AI (rate limits apply). Private {isRe ? 'files' : 'inventory uploads'} are never sent to listing AI.
       </p>
     </div>
   )

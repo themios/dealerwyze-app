@@ -11,14 +11,28 @@ import DateTimePicker15 from '@/components/ui/DateTimePicker15'
 import { useAnalytics } from '@/hooks/useAnalytics'
 
 const SOURCE_LABELS: Record<string, string> = {
+  // Dealer sources
   cargurus: 'CarGurus',
   autotrader: 'AutoTrader',
   offerup: 'OfferUp',
   cargurus_digest: 'CarGurus Digest',
-  facebook: 'Facebook',
   kbb: 'KBB',
   autolist: 'Autolist',
   carsforsale: 'Carsforsale.com',
+  // RE sources
+  zillow: 'Zillow',
+  realtor_com: 'Realtor.com',
+  homes_com: 'Homes.com',
+  open_house: 'Open House',
+  referral: 'Referral',
+  // Shared
+  facebook: 'Facebook',
+  instagram: 'Instagram',
+  phone: 'Phone',
+  email: 'Email',
+  sms: 'Text',
+  manual: 'Manual',
+  direct: 'Direct',
 }
 
 export interface SequenceStatus {

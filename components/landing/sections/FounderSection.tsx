@@ -30,8 +30,10 @@ export default function FounderSection() {
               I needed to stop bleeding leads and turn chaos into a simple Today list.
             </p>
           </blockquote>
-          <div className="mt-6 pl-4">
-            <p className="font-bold text-sm" style={{ color: NAVY }}>Independent dealer, Los Angeles, CA</p>
+          <div className="mt-6 pl-4 border-t border-gray-200 pt-5">
+            <p className="font-black text-lg" style={{ color: NAVY }}>Tim Harmantzis</p>
+            <p className="text-gray-500 text-sm mb-2">Founder, DealerWyze</p>
+            <a href="tel:+18054043873" className="text-sm font-semibold hover:underline" style={{ color: ORANGE }}>(805) 404-3873</a>
           </div>
         </div>
         <div className="mt-10 rounded-xl px-5 py-4 text-sm text-center leading-relaxed"

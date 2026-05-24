@@ -13,7 +13,7 @@ interface SocialDefaults {
   social_footer:   string
 }
 
-export default function SocialDefaultsCard() {
+export default function SocialDefaultsCard({ isRe = false }: { isRe?: boolean }) {
   const [form, setForm]       = useState<SocialDefaults>({
     social_hashtags: '',
     social_tagline:  '',
@@ -103,7 +103,7 @@ export default function SocialDefaultsCard() {
             maxLength={200}
           />
           <p className="text-[11px] text-muted-foreground">
-            One-line brand phrase shown right after the vehicle description.
+            One-line brand phrase shown right after the {isRe ? 'listing description' : 'vehicle description'}.
           </p>
         </div>
 
@@ -140,7 +140,7 @@ export default function SocialDefaultsCard() {
             id="social-hashtags"
             value={form.social_hashtags}
             onChange={e => setForm(prev => ({ ...prev, social_hashtags: e.target.value }))}
-            placeholder="#usedcars #dealerwyze #carsofinstagram #ventura"
+            placeholder={isRe ? '#realestate #realtywyze #homesforsale #newlisting' : '#usedcars #dealerwyze #carsofinstagram #ventura'}
             rows={3}
             maxLength={500}
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/30 resize-y"

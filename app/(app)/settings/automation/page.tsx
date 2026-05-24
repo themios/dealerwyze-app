@@ -1,3 +1,4 @@
+import { headers } from 'next/headers'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClientForRequest } from '@/lib/supabase/forRequest'
 import AutomationClient from './AutomationClient'
@@ -5,6 +6,8 @@ import TemplatesClient from '../TemplatesClient'
 import SettingsPageShell from '@/components/settings/SettingsPageShell'
 
 export default async function AutomationSettingsPage() {
+  const hdrs = await headers()
+  const isRe = hdrs.get('x-vertical') === 'real_estate'
   const profile = await requireProfile()
   const supabase = await createClientForRequest()
 
@@ -49,17 +52,17 @@ export default async function AutomationSettingsPage() {
     >
       <div className="space-y-8">
 
-        <AutomationClient initial={initial} sequences={sequences ?? []} />
+        <AutomationClient initial={initial} sequences={sequences ?? []} isRe={isRe} />
 
         <section className="space-y-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Templates</p>
           <p className="text-xs text-muted-foreground">
             Variables:{' '}
             <code className="bg-muted px-1 rounded">{'{firstName}'}</code>{' '}
-            <code className="bg-muted px-1 rounded">{'{vehicle}'}</code>{' '}
+            <code className="bg-muted px-1 rounded">{isRe ? '{property}' : '{vehicle}'}</code>{' '}
             <code className="bg-muted px-1 rounded">{'{price}'}</code>{' '}
-            <code className="bg-muted px-1 rounded">{'{dealerName}'}</code>{' '}
-            <code className="bg-muted px-1 rounded">{'{dealerPhone}'}</code>{' '}
+            <code className="bg-muted px-1 rounded">{isRe ? '{agencyName}' : '{dealerName}'}</code>{' '}
+            <code className="bg-muted px-1 rounded">{isRe ? '{agencyPhone}' : '{dealerPhone}'}</code>{' '}
             <code className="bg-muted px-1 rounded">{'{link}'}</code>
           </p>
           <TemplatesClient templates={templates || []} userId={profile.org_id} channel="sms" />

@@ -1,3 +1,4 @@
+import { headers } from 'next/headers'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 import { isDealerAdmin } from '@/lib/auth/dealerRoles'
@@ -8,6 +9,8 @@ import SettingsPageShell from '@/components/settings/SettingsPageShell'
 export const dynamic = 'force-dynamic'
 
 export default async function PaymentSettingsPage() {
+  const hdrs = await headers()
+  const isRe = hdrs.get('x-vertical') === 'real_estate'
   const profile  = await requireProfile()
   if (!isDealerAdmin(profile.role)) redirect('/settings')
 
@@ -21,7 +24,9 @@ export default async function PaymentSettingsPage() {
   return (
     <SettingsPageShell
       title="Payments and Booking"
-      description="Enable online BHPH payments via Stripe and configure the customer self-booking page."
+      description={isRe
+        ? 'Accept online payments via Stripe and configure the client self-booking page.'
+        : 'Enable online BHPH payments via Stripe and configure the customer self-booking page.'}
       type="form"
     >
       <PaymentSettingsClient
@@ -32,6 +37,7 @@ export default async function PaymentSettingsPage() {
         dealerName={settings?.business_name ?? ''}
         dealerPhone={settings?.business_phone ?? ''}
         orgSlug={profile.org_id}
+        isRe={isRe}
       />
     </SettingsPageShell>
   )

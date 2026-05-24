@@ -5,6 +5,7 @@ import { apiFetch, ApiError } from '@/lib/api/fetchClient'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { normalizePhone, formatPhone } from '@/lib/utils/phone'
 import {
   Select,
   SelectContent,
@@ -37,7 +38,7 @@ function SkeletonField() {
   )
 }
 
-export default function BasicInfoSection() {
+export default function BasicInfoSection({ isRE = false }: { isRE?: boolean }) {
   const [form, setForm] = useState<OrgBasicInfo>({
     name: '',
     business_phone: '',
@@ -56,7 +57,7 @@ export default function BasicInfoSection() {
       .then(d => {
         setForm({
           name:               d.name ?? '',
-          business_phone:     d.business_phone ?? '',
+          business_phone:     formatPhone(d.business_phone ?? ''),
           business_address:   d.business_address ?? '',
           timezone:           d.timezone ?? 'America/Los_Angeles',
           dealer_website_url: (() => {
@@ -75,6 +76,11 @@ export default function BasicInfoSection() {
     setSaved(false)
   }
 
+  function handlePhoneChange(raw: string) {
+    const digits = normalizePhone(raw)
+    handleChange('business_phone', formatPhone(digits) || digits)
+  }
+
   async function handleSave() {
     setSaving(true)
     setSaved(false)
@@ -83,7 +89,10 @@ export default function BasicInfoSection() {
       await apiFetch('/api/settings/org', {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(form),
+        body:    JSON.stringify({
+          ...form,
+          business_phone: normalizePhone(form.business_phone),
+        }),
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
@@ -108,12 +117,12 @@ export default function BasicInfoSection() {
   return (
     <div className="px-4 py-6 space-y-5">
       <div className="space-y-1.5">
-        <Label htmlFor="org-name" className="text-sm font-medium">Dealership Name</Label>
+        <Label htmlFor="org-name" className="text-sm font-medium">{isRE ? 'Agency Name' : 'Dealership Name'}</Label>
         <Input
           id="org-name" type="text"
           value={form.name}
           onChange={e => handleChange('name', e.target.value)}
-          placeholder="My Auto Group"
+          placeholder={isRE ? 'My Realty Group' : 'My Auto Group'}
         />
       </div>
 
@@ -122,8 +131,9 @@ export default function BasicInfoSection() {
         <Input
           id="org-phone" type="tel"
           value={form.business_phone}
-          onChange={e => handleChange('business_phone', e.target.value)}
+          onChange={e => handlePhoneChange(e.target.value)}
           placeholder="(555) 000-0000"
+          maxLength={14}
         />
       </div>
 
@@ -152,9 +162,11 @@ export default function BasicInfoSection() {
       </div>
 
       <div className="pt-2 border-t space-y-3">
-        <p className="text-sm font-semibold">Inventory page URL</p>
+        <p className="text-sm font-semibold">{isRE ? 'Listings site URL' : 'Inventory page URL'}</p>
         <p className="text-xs text-muted-foreground">
-          Full URL of your dealership&apos;s inventory or cars-for-sale page. Used by inventory sync and email template <code className="bg-muted px-1 rounded">{'{link}'}</code>.
+          {isRE
+            ? <>Full URL of your public listings page. Used in email templates as <code className="bg-muted px-1 rounded">{'{link}'}</code>.</>
+            : <>Full URL of your dealership&apos;s inventory or cars-for-sale page. Used by inventory sync and email template <code className="bg-muted px-1 rounded">{'{link}'}</code>.</>}
         </p>
         <div className="space-y-1.5">
           <Label htmlFor="org-inventory-url" className="text-sm font-medium">URL</Label>
@@ -163,7 +175,7 @@ export default function BasicInfoSection() {
             type="url"
             value={form.dealer_website_url}
             onChange={e => handleChange('dealer_website_url', e.target.value)}
-            placeholder="https://www.yourdealer.com/cars-for-sale"
+            placeholder={isRE ? 'https://www.youragency.com/listings' : 'https://www.yourdealer.com/cars-for-sale'}
           />
         </div>
         {saveError && <p className="text-sm text-destructive">{saveError}</p>}

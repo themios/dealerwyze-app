@@ -145,6 +145,7 @@ interface DealerPublicOrgRow {
   website_google_site_verification: string | null
   website_gtm_id: string | null
   public_inventory_enabled: boolean | null
+  vertical: string | null
 }
 
 const ORG_PUBLIC_SELECT = [
@@ -175,6 +176,7 @@ const ORG_PUBLIC_SELECT = [
   'website_google_site_verification',
   'website_gtm_id',
   'public_inventory_enabled',
+  'vertical',
 ].join(', ')
 
 function dealerRobots(noindex: boolean | null | undefined): Metadata['robots'] {

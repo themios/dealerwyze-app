@@ -148,7 +148,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
           </div>
 
           {assignedOrgs.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No dealerships assigned yet. Go to <Link href="/admin/orgs" className="text-primary hover:underline">Dealerships</Link> to assign.</p>
+            <p className="text-sm text-muted-foreground">No accounts assigned yet. Go to <Link href="/admin/orgs" className="text-primary hover:underline">Accounts</Link> to assign.</p>
           ) : (
             <div className="rounded-xl border bg-card divide-y">
               {assignedOrgs.map(org => (

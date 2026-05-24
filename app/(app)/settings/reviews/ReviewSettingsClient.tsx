@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useVertical } from '@/hooks/useVertical'
 import TopBar from '@/components/layout/TopBar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,6 +24,8 @@ async function patchOrgSettings(payload: Record<string, unknown>) {
 }
 
 export default function ReviewSettingsClient({ googleReviewUrl, reviewRequestEnabled, reviewRequestDelayDays }: Props) {
+  const { vertical } = useVertical()
+  const isRE = vertical === 'real_estate'
   const [reviewUrl, setReviewUrl]       = useState(googleReviewUrl)
   const [enabled, setEnabled]           = useState(reviewRequestEnabled)
   const [delayDays, setDelayDays]       = useState(String(reviewRequestDelayDays))
@@ -130,7 +133,7 @@ export default function ReviewSettingsClient({ googleReviewUrl, reviewRequestEna
                 </p>
               </div>
               <p className="text-xs text-muted-foreground">
-                Day 0 = immediately (customer excitement is highest right after the sale). Day 3-7 = after they have driven the car.
+                {isRE ? 'Day 0 = immediately after closing. Day 3-7 = once the client has settled in.' : 'Day 0 = immediately (customer excitement is highest right after the sale). Day 3-7 = after they have driven the car.'}
               </p>
             </div>
           )}

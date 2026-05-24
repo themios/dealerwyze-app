@@ -21,7 +21,7 @@ export default async function AppearancePage() {
   ])
 
   const plan = (org?.plan ?? 'free').toLowerCase()
-  const isPaid = plan === 'growth' || plan === 'pro'
+  const isPaid = ['growth', 'pro', 'platform', 'lifetime', 'tier1', 'tier2', 'tier3', 'starter'].includes(plan)
 
   return (
     <SettingsPageShell

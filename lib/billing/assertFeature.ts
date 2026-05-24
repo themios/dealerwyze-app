@@ -42,6 +42,7 @@ export type BillableFeature =
   | 'sequences'
   | 'public_website'
   | 'ai_reanalyze'
+  | 'ai_ask'
 
 const FEATURE_PLANS: Record<BillableFeature, Set<string>> = {
   sms:              new Set(['tier1', 'growth', 'pro', 'starter']),
@@ -57,6 +58,7 @@ const FEATURE_PLANS: Record<BillableFeature, Set<string>> = {
   /** Public inventory site is included for all plans (incl. free), not a paid-tier gate; trial still unlocks full product during demo. */
   public_website:   new Set(['free', 'starter', 'tier1', 'tier2', 'tier3', 'growth', 'pro']),
   ai_reanalyze:     new Set(['starter', 'tier1', 'tier2', 'tier3', 'growth', 'pro']),
+  ai_ask:           new Set(['starter', 'tier1', 'tier2', 'tier3', 'growth', 'pro']),
 }
 
 const FEATURE_LABELS: Record<BillableFeature, string> = {
@@ -72,6 +74,7 @@ const FEATURE_LABELS: Record<BillableFeature, string> = {
   sequences:        'Automated Sequences',
   public_website:   'Public Website & Inventory',
   ai_reanalyze:     'AI Vehicle Reanalysis',
+  ai_ask:           'AI Ask',
 }
 
 /**
@@ -112,6 +115,9 @@ export async function assertCanUseFeature(
   }
 
   const plan = (org.plan ?? 'free').toLowerCase()
+
+  // Lifetime / platform plans have unlimited access to every feature.
+  if (plan === 'lifetime' || plan === 'platform') return
   const allowed = FEATURE_PLANS[feature]
 
   if (!allowed.has(plan)) {

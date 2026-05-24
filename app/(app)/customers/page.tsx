@@ -6,12 +6,10 @@ import Link from 'next/link'
 import TopBar from '@/components/layout/TopBar'
 import CustomersListClient from '@/components/customer/CustomersListClient'
 import { Suspense } from 'react'
-import PasteLeadDialog from '@/components/customer/PasteLeadDialog'
-import ImportLeadsDialog from '@/components/leads/ImportLeadsDialog'
-import ScanLeadButton from '@/components/leads/ScanLeadButton'
+import AddLeadMenu from '@/components/leads/AddLeadMenu'
 import PipelineBoard from '@/app/(app)/pipeline/PipelineBoard'
 import { Button } from '@/components/ui/button'
-import { Plus, List, GitBranch, UserX, Archive, Layers } from 'lucide-react'
+import { List, GitBranch, UserX, Archive, Layers } from 'lucide-react'
 import EmptyState from '@/components/ui/EmptyState'
 import { isDealerAdmin } from '@/types/index'
 import { isRepRestricted, canManageUsers, canAssignLeads } from '@/lib/auth/dealerRoles'
@@ -160,16 +158,7 @@ export default async function CustomersPage({
               </Button>
             </Link>
           ) : (
-            <div className="flex items-center gap-0.5">
-              <Link href="/customers/new" title="Add lead">
-                <Button size="sm" variant="ghost" title="Add lead" className="text-white/70 hover:text-white">
-                  <Plus className="h-5 w-5" />
-                </Button>
-              </Link>
-              <ScanLeadButton />
-              <PasteLeadDialog />
-              <ImportLeadsDialog />
-            </div>
+            <AddLeadMenu />
           )
         }
       />

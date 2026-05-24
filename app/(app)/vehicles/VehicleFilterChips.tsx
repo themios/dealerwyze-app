@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { useVertical } from '@/hooks/useVertical'
 
 interface Props {
   current: string
@@ -19,13 +20,15 @@ const SORT_OPTIONS = [
 
 export default function VehicleFilterChips({ current, counts, currentSort }: Props) {
   const router = useRouter()
+  const { vertical } = useVertical()
+  const isRe = vertical === 'real_estate'
 
   const filters = [
     { key: 'all', label: `All (${counts.all})` },
-    { key: 'staging', label: `Staging (${counts.staging})`, activeClass: 'bg-indigo-600 text-white border-indigo-600' },
-    { key: 'available', label: `Available (${counts.available})`, activeClass: 'bg-green-700 text-white border-green-700' },
+    ...(isRe ? [] : [{ key: 'staging', label: `Staging (${counts.staging})`, activeClass: 'bg-indigo-600 text-white border-indigo-600' }]),
+    { key: 'available', label: isRe ? `Active (${counts.available})` : `Available (${counts.available})`, activeClass: 'bg-green-700 text-white border-green-700' },
     { key: 'pending', label: `Pending (${counts.pending})`, activeClass: 'bg-amber-500 text-white border-amber-500' },
-    { key: 'sold', label: `Sold (${counts.sold})` },
+    { key: 'sold', label: isRe ? `Closed (${counts.sold})` : `Sold (${counts.sold})` },
   ]
 
   function buildUrl(status: string, sort: string) {

@@ -63,7 +63,7 @@ interface AlertMeta {
 
 function buildMeta(alert: Alert): AlertMeta {
   const org = alert.organizations
-  const orgName = org?.name ?? 'this dealer'
+  const orgName = org?.name ?? 'this account'
 
   switch (alert.alert_type) {
 
@@ -77,8 +77,8 @@ function buildMeta(alert: Alert): AlertMeta {
         label: 'Trial Expiring',
         detail: `Trial ${daysStr}. No paid subscription on file.`,
         action: `Reach out to ${orgName} personally — offer a 5-min call to address any blockers, or extend their trial by a week if they seem engaged. If no response in 24h, mark this resolved and move on.`,
-        emailSubject: `Quick check-in — your DealerWyze trial`,
-        emailBody: `Hi,\n\nI noticed your DealerWyze trial is wrapping up ${expires}. I wanted to reach out personally — do you have any questions or is there anything I can help set up before it ends?\n\nHappy to jump on a quick call if that's easier.\n\nTim`,
+        emailSubject: `Quick check-in — your trial`,
+        emailBody: `Hi,\n\nI noticed your trial is wrapping up ${expires}. I wanted to reach out personally — do you have any questions or is there anything I can help set up before it ends?\n\nHappy to jump on a quick call if that's easier.\n\nTim`,
         link: `/admin/orgs/${alert.org_id}`,
         linkLabel: 'View org',
       }
@@ -90,9 +90,9 @@ function buildMeta(alert: Alert): AlertMeta {
       return {
         label: 'Payment Failed',
         detail: `Stripe payment failed ${sinceStr}. Subscription is now past due — access may be restricted.`,
-        action: `Open Stripe and find this org's customer record to see the exact failure reason (card declined, insufficient funds, expired card, etc). If the card is declined, email the dealer to update their payment method. If it looks like a bank error or temp decline, wait 1 day — Stripe retries automatically.`,
-        emailSubject: `Action needed — payment issue on your DealerWyze account`,
-        emailBody: `Hi,\n\nWe weren't able to process your most recent DealerWyze payment. Your account may be affected until this is resolved.\n\nPlease update your payment method here: https://app.dealerwyze.com/settings/billing\n\nIf you have any questions, just reply to this email.\n\nTim`,
+        action: `Open Stripe and find this org's customer record to see the exact failure reason (card declined, insufficient funds, expired card, etc). If the card is declined, email the account owner to update their payment method. If it looks like a bank error or temp decline, wait 1 day — Stripe retries automatically.`,
+        emailSubject: `Action needed — payment issue on your account`,
+        emailBody: `Hi,\n\nWe weren't able to process your most recent payment. Your account may be affected until this is resolved.\n\nPlease update your payment method in your account settings under Billing.\n\nIf you have any questions, just reply to this email.\n\nTim`,
         link: `https://dashboard.stripe.com/customers?query=${encodeURIComponent(orgName)}`,
         linkLabel: 'Search in Stripe',
       }
@@ -106,7 +106,7 @@ function buildMeta(alert: Alert): AlertMeta {
         detail: `No one at ${orgName} has logged in for ${lastStr}. They may have quietly stopped using the product.`,
         action: `Send a personal check-in email — not automated, something short and direct. Ask if they ran into a problem or if something changed for them. If you get no reply within a week, consider this a silent churn and resolve the alert.`,
         emailSubject: `Checking in — everything okay?`,
-        emailBody: `Hi,\n\nI noticed you haven't logged into DealerWyze in a little while and wanted to check in. Did you run into any issues, or has something changed on your end?\n\nIf there's anything I can help with or improve, I'd love to hear it. Happy to jump on a call too.\n\nTim`,
+        emailBody: `Hi,\n\nI noticed you haven't logged in in a little while and wanted to check in. Did you run into any issues, or has something changed on your end?\n\nIf there's anything I can help with or improve, I'd love to hear it. Happy to jump on a call too.\n\nTim`,
         link: `/admin/orgs/${alert.org_id}`,
         linkLabel: 'View org',
       }
@@ -115,10 +115,10 @@ function buildMeta(alert: Alert): AlertMeta {
     case 'no_email': {
       return {
         label: 'No Email Connected',
-        detail: `${orgName} has no Gmail account connected. All email automations (follow-ups, reminders, sequences) are silently failing for this dealer.`,
-        action: `Email the dealer directly and tell them to connect Gmail from Settings → Email. Without it, they're missing every automated email the system tries to send on their behalf.`,
-        emailSubject: `Connect your email to DealerWyze — it only takes 2 minutes`,
-        emailBody: `Hi,\n\nYour DealerWyze account doesn't have an email connected yet, which means automated follow-ups and reminders aren't going out to your leads.\n\nYou can fix this in 2 minutes: go to Settings → Email in your account and connect your Gmail.\n\nLet me know if you run into any trouble.\n\nTim`,
+        detail: `${orgName} has no Gmail account connected. All email automations (follow-ups, reminders, sequences) are silently failing for this account.`,
+        action: `Email the account owner directly and tell them to connect Gmail from Settings → Email. Without it, they're missing every automated email the system tries to send on their behalf.`,
+        emailSubject: `Connect your email account — it only takes 2 minutes`,
+        emailBody: `Hi,\n\nYour account doesn't have an email connected yet, which means automated follow-ups and reminders aren't going out to your leads.\n\nYou can fix this in 2 minutes: go to Settings → Email in your account and connect your Gmail.\n\nLet me know if you run into any trouble.\n\nTim`,
         link: `/admin/orgs/${alert.org_id}`,
         linkLabel: 'View org',
       }
@@ -128,9 +128,9 @@ function buildMeta(alert: Alert): AlertMeta {
       return {
         label: 'Gmail Token Expired',
         detail: `${orgName}'s Gmail connection has expired or been revoked. Their email automations have stopped working silently.`,
-        action: `Email the dealer and ask them to reconnect Gmail from Settings → Email. This usually happens when they change their Google password or revoke app access. It's a 30-second fix on their end.`,
-        emailSubject: `Action needed — reconnect your Gmail to DealerWyze`,
-        emailBody: `Hi,\n\nYour Gmail connection to DealerWyze has expired, so automated emails aren't going out right now.\n\nPlease reconnect it here: go to Settings → Email in your DealerWyze account and click "Connect Gmail" again. Takes about 30 seconds.\n\nLet me know if you have any trouble.\n\nTim`,
+        action: `Email the account owner and ask them to reconnect Gmail from Settings → Email. This usually happens when they change their Google password or revoke app access. It's a 30-second fix on their end.`,
+        emailSubject: `Action needed — reconnect your Gmail`,
+        emailBody: `Hi,\n\nYour Gmail connection has expired, so automated emails aren't going out right now.\n\nPlease reconnect it: go to Settings → Email in your account and click "Connect Gmail" again. Takes about 30 seconds.\n\nLet me know if you have any trouble.\n\nTim`,
         link: `/admin/orgs/${alert.org_id}`,
         linkLabel: 'View org',
       }
@@ -142,7 +142,7 @@ function buildMeta(alert: Alert): AlertMeta {
       return {
         label: '80% of SMS Quota Used',
         detail: `${orgName} has used ${used.toLocaleString()} of ${quota.toLocaleString()} messages this month (${Math.round((used / quota) * 100)}%). At this pace they will hit the cap before month end.`,
-        action: `Check if this usage is legitimate (active campaigns, lots of leads) or if something is sending unexpectedly. If they're a legitimate high-volume dealer, consider increasing their quota in the org settings before they hit the wall. If something looks off, investigate first.`,
+        action: `Check if this usage is legitimate (active campaigns, lots of leads) or if something is sending unexpectedly. If this is legitimate high-volume usage, consider increasing their quota in the org settings before they hit the wall. If something looks off, investigate first.`,
         link: `/admin/orgs/${alert.org_id}`,
         linkLabel: 'View org & adjust quota',
       }
@@ -154,8 +154,8 @@ function buildMeta(alert: Alert): AlertMeta {
       return {
         label: 'SMS Quota Exceeded',
         detail: `${orgName} has hit their monthly SMS cap — ${used.toLocaleString()} messages sent vs ${quota.toLocaleString()} allowed. New messages are being blocked right now.`,
-        action: `Go to the org settings and raise their SMS quota if usage looks legitimate. If you need more time to investigate, at minimum notify the dealer so they're not wondering why messages stopped going out.`,
-        emailSubject: `Your DealerWyze SMS limit — what to do`,
+        action: `Go to the org settings and raise their SMS quota if usage looks legitimate. If you need more time to investigate, at minimum notify the account owner so they're not wondering why messages stopped going out.`,
+        emailSubject: `Your SMS limit — what to do`,
         emailBody: `Hi,\n\nYour account has reached its monthly SMS limit, so new messages are currently on hold.\n\nI'm looking into this and will get it sorted for you shortly. If you need this unblocked urgently, just reply here.\n\nTim`,
         link: `/admin/orgs/${alert.org_id}`,
         linkLabel: 'View org & adjust quota',
@@ -178,7 +178,7 @@ function buildMeta(alert: Alert): AlertMeta {
       return {
         label: 'Overage Buffer Running Low',
         detail: `${orgName}'s prepaid overage credit is nearly depleted. If it runs out, messages will start failing.`,
-        action: `Check if the dealer wants to top up their overage buffer, or adjust their base quota so they don't keep hitting overages. Contact them before it runs out if volume is still high.`,
+        action: `Check if the account owner wants to top up their overage buffer, or adjust their base quota so they don't keep hitting overages. Contact them before it runs out if volume is still high.`,
         link: `/admin/orgs/${alert.org_id}`,
         linkLabel: 'View org',
       }

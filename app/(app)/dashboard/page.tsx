@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic'
 
+import { headers } from 'next/headers'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClientForRequest } from '@/lib/supabase/forRequest'
 import { computeDashboardStats } from '@/lib/dashboard/computeStats'
@@ -10,6 +11,8 @@ import { Button } from '@/components/ui/button'
 import DashboardClient from './DashboardClient'
 
 export default async function DashboardPage() {
+  const hdrs = await headers()
+  const isRE = hdrs.get('x-vertical') === 'real_estate'
   const profile = await requireProfile()
   const supabase = await createClientForRequest()
 
@@ -37,7 +40,11 @@ export default async function DashboardPage() {
     <div className="min-h-dvh page-enter">
       <TopBar
         hideSearch
-        left={<span className="text-sm font-semibold tracking-wide">DealerWyze</span>}
+        left={
+          isRE
+            ? <span className="text-sm font-bold tracking-wide">RealtyWyze<span className="text-[#F07018]">.US</span></span>
+            : <span className="text-sm font-semibold tracking-wide">DealerWyze</span>
+        }
         right={
           <>
             <Link href="/leads/web" title="Web Leads">

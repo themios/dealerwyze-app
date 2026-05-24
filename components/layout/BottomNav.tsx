@@ -10,6 +10,7 @@ import {
   ArrowLeft, Settings, Search,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useVertical } from '@/hooks/useVertical'
 
 function AdminTicketsBadge() {
   const [count, setCount] = useState(0)
@@ -77,6 +78,12 @@ export default function BottomNav() {
   const isSettings = pathname.startsWith('/settings')
   const isAdminArea = pathname.startsWith('/admin')
   const urgentCount = useUrgentCount()
+  const { features } = useVertical()
+  const dealerNavItems = DEALER_NAV_ITEMS.filter(item => {
+    if (item.href === '/bhph') return features.bhph
+    if (item.href === '/fax') return features.fax
+    return true
+  })
 
   if (isSettings) {
     return (
@@ -145,7 +152,7 @@ export default function BottomNav() {
   return (
     <nav className="lg:hidden fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md border-t border-[#1B4A8A] bg-[#0D2B55] overflow-visible">
       <div className="flex items-center justify-around h-16 relative">
-        {DEALER_NAV_ITEMS.map(({ href, label, icon: Icon, urgent, center }) => {
+        {dealerNavItems.map(({ href, label, icon: Icon, urgent, center }) => {
           const active = href === '/dashboard'
             ? pathname === '/dashboard' || pathname === '/'
             : href === '/today'

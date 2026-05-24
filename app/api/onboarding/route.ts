@@ -8,7 +8,7 @@ export async function GET() {
   const supabase = await createClient()
 
   const [{ data: org }, { data: settings }] = await Promise.all([
-    supabase.from('organizations').select('name').eq('id', profile.org_id).single(),
+    supabase.from('organizations').select('name, vertical').eq('id', profile.org_id).single(),
     supabase.from('org_settings').select('*').eq('org_id', profile.org_id).maybeSingle(),
   ])
 

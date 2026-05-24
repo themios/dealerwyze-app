@@ -9,7 +9,7 @@ export default async function OnboardingLayout({ children }: { children: React.R
   if (!user) redirect('/login')
 
   return (
-    <div className="flex flex-col min-h-dvh max-w-md mx-auto relative bg-background">
+    <div className="flex flex-col min-h-dvh w-full max-w-md sm:max-w-2xl mx-auto relative bg-background">
       {children}
     </div>
   )

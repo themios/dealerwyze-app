@@ -11,7 +11,7 @@ export default async function ContentPage() {
   const supabase = await createClientForRequest()
   const { data: drafts } = await supabase
     .from('content_drafts')
-    .select('id, status, topic, tagline, slides, cta_text, content_theme, render_id, scheduled_at, created_at')
+    .select('id, status, topic, tagline, slides, cta_text, content_theme, platform_targets, platform_captions, render_id, scheduled_at, created_at')
     .order('created_at', { ascending: false })
     .limit(100)
 

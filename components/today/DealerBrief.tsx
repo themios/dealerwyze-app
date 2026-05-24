@@ -6,6 +6,7 @@ import { ChevronDown, ChevronUp, RefreshCw, TrendingUp, AlertTriangle, XCircle, 
 import { Button } from '@/components/ui/button'
 import type { CommandCenterPayload } from '@/lib/intelligence/commandCenter'
 import { demandSignalShortLabel } from '@/lib/intelligence/demandLabels'
+import { useVertical } from '@/hooks/useVertical'
 
 type Status = 'good' | 'warn' | 'bad' | 'neutral'
 
@@ -47,6 +48,7 @@ function statusBg(s: Status) {
 }
 
 export default function DealerBrief() {
+  const { vertical } = useVertical()
   const [data, setData] = useState<BriefingResponse | null>(null)
   const [commandCenter, setCommandCenter] = useState<CommandCenterPayload | null>(null)
   const [loading, setLoading] = useState(true)
@@ -126,15 +128,16 @@ export default function DealerBrief() {
     ? new Date(data.generated_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
     : ''
 
+  const isRe = vertical === 'real_estate'
   const insights = r ? [
-    { label: 'Sales', text: r.sales_insight },
-    { label: 'BHPH', text: r.bhph_insight },
+    { label: isRe ? 'Closings' : 'Sales', text: r.sales_insight },
+    ...(!isRe && r.bhph_insight && r.bhph_insight !== 'N/A' ? [{ label: 'BHPH', text: r.bhph_insight }] : []),
     { label: 'Performance', text: r.performance_insight },
-    { label: 'Leads', text: r.lead_insight },
-    { label: 'Inventory', text: r.inventory_insight },
-    { label: 'Pricing vs Market', text: r.pricing_insight },
+    { label: isRe ? 'Prospects' : 'Leads', text: r.lead_insight },
+    { label: isRe ? 'Listings' : 'Inventory', text: r.inventory_insight },
+    ...(!isRe ? [{ label: 'Pricing vs Market', text: r.pricing_insight }] : []),
     { label: 'Discipline', text: r.discipline_insight },
-    { label: 'SMS', text: (r as unknown as Record<string, string>).twilio_insight },
+    ...(!isRe ? [{ label: 'SMS', text: (r as unknown as Record<string, string>).twilio_insight }] : []),
   ].filter(x => x.text) : []
 
   return (
@@ -181,7 +184,7 @@ export default function DealerBrief() {
             )}
             {commandCenter.vehicles_to_watch.length > 0 && (
               <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Inventory signals</p>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">{isRe ? 'Listing signals' : 'Inventory signals'}</p>
                 <ul className="space-y-1 text-xs">
                   {commandCenter.vehicles_to_watch.map(v => (
                     <li key={v.vehicle_id} className="flex justify-between gap-2">
@@ -197,13 +200,13 @@ export default function DealerBrief() {
             {(commandCenter.top_buying_sources ?? []).length > 0 && (
               <div>
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
-                  Best lead sources (closed buyers, 90d)
+                  {isRe ? 'Best lead sources (closings, 90d)' : 'Best lead sources (closed deals, 90d)'}
                 </p>
                 <ul className="space-y-1 text-xs">
                   {(commandCenter.top_buying_sources ?? []).map(row => (
                     <li key={row.source} className="flex justify-between gap-2">
                       <span className="truncate font-medium text-foreground">{row.source}</span>
-                      <span className="shrink-0 text-muted-foreground">{row.buyer_count} sale{row.buyer_count === 1 ? '' : 's'}</span>
+                      <span className="shrink-0 text-muted-foreground">{row.buyer_count} {isRe ? `closing${row.buyer_count === 1 ? '' : 's'}` : `sale${row.buyer_count === 1 ? '' : 's'}`}</span>
                     </li>
                   ))}
                 </ul>
@@ -215,10 +218,10 @@ export default function DealerBrief() {
 
       {noBriefYet && !r && (
         <div className="rounded-xl border border-dashed bg-muted/10 p-4 text-sm">
-          <p className="font-medium text-foreground">No AI brief for today yet</p>
-          <p className="text-xs text-muted-foreground mt-1">Generate one from your latest metrics (uses Groq).</p>
+          <p className="font-medium text-foreground">No {isRe ? 'agent' : 'dealer'} brief for today yet</p>
+          <p className="text-xs text-muted-foreground mt-1">Generate one from your latest metrics.</p>
           <Button size="sm" className="mt-2" onClick={regenerate} disabled={regenerating}>
-            {regenerating ? 'Generating…' : 'Generate brief'}
+            {regenerating ? 'Generating…' : `Generate ${isRe ? 'agent' : 'dealer'} brief`}
           </Button>
         </div>
       )}
@@ -233,7 +236,7 @@ export default function DealerBrief() {
         <div className="flex-1 min-w-0 pr-2">
           <div className="flex items-center gap-2 mb-1">
             <TrendingUp className="h-4 w-4 text-primary flex-shrink-0" />
-            <span className="text-xs font-semibold text-primary uppercase tracking-wide">Dealer Brief</span>
+            <span className="text-xs font-semibold text-primary uppercase tracking-wide">{vertical === 'real_estate' ? 'Agent Brief' : 'Dealer Brief'}</span>
             {timeStr ? <span className="text-xs text-muted-foreground" suppressHydrationWarning>· {timeStr}</span> : null}
           </div>
           <p className="text-sm font-semibold leading-snug">{r.headline}</p>

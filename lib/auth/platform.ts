@@ -91,7 +91,7 @@ export async function requireChannelRep(
 // ─── Expanded platform role system ───────────────────────────────────────────
 
 export const PLATFORM_AREAS = [
-  'dealers', 'retention', 'sales', 'analytics',
+  'accounts', 'retention', 'sales', 'analytics',
   'staff', 'tickets', 'alerts', 'audit', 'affiliates', 'commissions', 'billing',
 ] as const
 export type PlatformArea = typeof PLATFORM_AREAS[number]
@@ -113,9 +113,9 @@ export const ROLE_LABELS: Record<string, string> = {
 
 // Default areas per role (for UI display and API access)
 export const ROLE_DEFAULT_AREAS: Record<string, string[]> = {
-  platform_staff_manager: ['dealers', 'retention', 'staff', 'tickets', 'alerts'],
-  platform_sales_manager: ['dealers', 'retention', 'sales', 'analytics', 'affiliates', 'commissions'],
-  platform_staff:         ['tickets', 'dealers'],
+  platform_staff_manager: ['accounts', 'retention', 'staff', 'tickets', 'alerts'],
+  platform_sales_manager: ['accounts', 'retention', 'sales', 'analytics', 'affiliates', 'commissions'],
+  platform_staff:         ['tickets', 'accounts'],
 }
 
 /**
@@ -181,9 +181,9 @@ export async function requirePlatformArea(
 
   const ROLE_AREAS: Record<string, string[]> = {
     platform_admin:          customPerms,
-    platform_staff_manager:  ['dealers', 'retention', 'staff', 'tickets', 'alerts'],
-    platform_sales_manager:  ['dealers', 'retention', 'sales', 'analytics', 'affiliates', 'commissions'],
-    platform_staff:          ['tickets', 'dealers'],
+    platform_staff_manager:  ['accounts', 'retention', 'staff', 'tickets', 'alerts'],
+    platform_sales_manager:  ['accounts', 'retention', 'sales', 'analytics', 'affiliates', 'commissions'],
+    platform_staff:          ['tickets', 'accounts'],
   }
 
   if (!ROLE_AREAS[role]?.includes(area)) {

@@ -39,6 +39,11 @@ export async function checkScanQuota(
     .eq('id', orgId)
     .single()
 
+  // Lifetime / platform plans: skip all scan quota checks
+  const planStr = (org?.plan ?? '').toLowerCase()
+  if (planStr === 'lifetime' || planStr === 'platform') {
+    return { allowed: true, monthly_used: 0, monthly_limit: Infinity, plan: planStr as PlanTier }
+  }
   const plan: PlanTier = (org?.plan as PlanTier) ?? 'tier1'
   const limits = SCAN_QUOTA[plan] ?? SCAN_QUOTA.tier1
   const monthlyUsed = isPdf

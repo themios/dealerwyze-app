@@ -5,6 +5,20 @@ export function getPublicAppBaseUrl(): string {
   return 'https://dealerwyze.com'
 }
 
+/**
+ * Returns the canonical base URL for the current request's domain.
+ * Pass the `host` header (or `x-vertical` header) so sitemap.ts / robots.ts
+ * emit the correct domain instead of always defaulting to dealerwyze.com.
+ *
+ * Used by sitemap.ts and robots.ts which run server-side and have access to headers().
+ */
+export function getBaseUrlForHost(host: string): string {
+  if (host.includes('realtywyze')) {
+    return process.env.NEXT_PUBLIC_APP_URL_REALTY?.trim().replace(/\/$/, '') ?? 'https://realtywyze.us'
+  }
+  return getPublicAppBaseUrl()
+}
+
 export function absoluteUrl(path: string): string {
   const base = getPublicAppBaseUrl()
   if (path.startsWith('http')) return path

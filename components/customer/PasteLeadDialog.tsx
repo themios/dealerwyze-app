@@ -25,9 +25,16 @@ interface SingleResult {
 
 type Result = SingleResult | { multiple: true; results: SingleResult[] }
 
-export default function PasteLeadDialog() {
+interface Props {
+  open?: boolean
+  onOpenChange?: (val: boolean) => void
+}
+
+export default function PasteLeadDialog({ open: controlledOpen, onOpenChange: controlledChange }: Props = {}) {
   const router = useRouter()
-  const [open, setOpen]     = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const isControlled = controlledOpen !== undefined
+  const open = isControlled ? controlledOpen! : internalOpen
   const [text, setText]     = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError]   = useState<string | null>(null)
@@ -59,7 +66,8 @@ export default function PasteLeadDialog() {
   }
 
   function handleOpenChange(val: boolean) {
-    setOpen(val)
+    if (!isControlled) setInternalOpen(val)
+    controlledChange?.(val)
     if (!val) {
       setText('')
       setError(null)
@@ -93,11 +101,13 @@ export default function PasteLeadDialog() {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="ghost" title="Paste lead">
-          <ClipboardPaste className="h-5 w-5" />
-        </Button>
-      </DialogTrigger>
+      {!isControlled && (
+        <DialogTrigger asChild>
+          <Button size="sm" variant="ghost" title="Paste lead">
+            <ClipboardPaste className="h-5 w-5" />
+          </Button>
+        </DialogTrigger>
+      )}
 
       <DialogContent className="max-w-md flex flex-col max-h-[85vh]">
         <DialogHeader className="shrink-0">

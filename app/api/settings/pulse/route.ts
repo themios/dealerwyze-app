@@ -12,7 +12,7 @@ export async function GET() {
     .from('org_settings')
     .select(
       'pulse_enabled, pulse_auto_send_on_sold, pulse_send_day30, pulse_send_day180,' +
-      'google_review_url, review_request_enabled, review_request_delay_days'
+      'google_review_url, review_request_enabled, review_request_delay_days, pulse_sms_template'
     )
     .eq('org_id', profile.org_id)
     .maybeSingle()
@@ -20,6 +20,7 @@ export async function GET() {
     pulse_enabled: false, pulse_auto_send_on_sold: true,
     pulse_send_day30: true, pulse_send_day180: false,
     google_review_url: '', review_request_enabled: false, review_request_delay_days: 0,
+    pulse_sms_template: null,
   })
 }
 
@@ -48,6 +49,12 @@ export async function PUT(req: NextRequest) {
   if (typeof body.review_request_delay_days === 'number') {
     const days = Math.round(body.review_request_delay_days)
     if (days >= 0 && days <= 365) update.review_request_delay_days = days
+  }
+
+  // Custom SMS template (null = use system default)
+  if ('pulse_sms_template' in body) {
+    const t = body.pulse_sms_template
+    update.pulse_sms_template = typeof t === 'string' && t.trim() ? t.trim() : null
   }
 
   if (Object.keys(update).length === 0) {

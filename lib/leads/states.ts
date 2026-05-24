@@ -79,3 +79,27 @@ export const DEFAULT_ORG_STAGES: OrgStage[] = [
   { stage_key: 'custom_4',              label: 'Custom 4',    color: 'bg-rose-100 text-rose-700',    position: 13, is_hot: false, is_active: false },
   { stage_key: 'custom_5',              label: 'Custom 5',    color: 'bg-lime-100 text-lime-700',    position: 14, is_hot: false, is_active: false },
 ]
+
+/** RE-specific default pipeline stages seeded on real_estate org creation */
+export const DEFAULT_RE_ORG_STAGES: OrgStage[] = [
+  { stage_key: 'new_lead',              label: 'New Inquiry',    color: 'bg-blue-100 text-blue-700',    position: 0,  is_hot: false, is_active: true },
+  { stage_key: 'contacted',             label: 'Contacted',      color: 'bg-yellow-100 text-yellow-700',position: 1,  is_hot: false, is_active: true },
+  { stage_key: 'engaged',               label: 'Qualified',      color: 'bg-orange-100 text-orange-700',position: 2,  is_hot: false, is_active: true },
+  { stage_key: 'appointment_set',       label: 'Showing Set',    color: 'bg-purple-100 text-purple-700',position: 3,  is_hot: false, is_active: true },
+  { stage_key: 'appointment_confirmed', label: 'Under Contract', color: 'bg-indigo-100 text-indigo-700',position: 4,  is_hot: true,  is_active: true },
+  { stage_key: 'showed',                label: 'Showed',         color: 'bg-cyan-100 text-cyan-700',    position: 5,  is_hot: false, is_active: true },
+  { stage_key: 'credit_app',            label: 'Offer Made',     color: 'bg-amber-100 text-amber-700',  position: 6,  is_hot: true,  is_active: true },
+  { stage_key: 'sold',                  label: 'Closed',         color: 'bg-green-100 text-green-700',  position: 7,  is_hot: false, is_active: true },
+  { stage_key: 'lost',                  label: 'Lost',           color: 'bg-red-100 text-red-700',      position: 8,  is_hot: false, is_active: true },
+  { stage_key: 'dormant',               label: 'Dormant',        color: 'bg-gray-100 text-gray-500',    position: 9,  is_hot: false, is_active: true },
+  { stage_key: 'custom_1',              label: 'Custom 1',       color: 'bg-pink-100 text-pink-700',    position: 10, is_hot: false, is_active: false },
+  { stage_key: 'custom_2',              label: 'Custom 2',       color: 'bg-teal-100 text-teal-700',    position: 11, is_hot: false, is_active: false },
+  { stage_key: 'custom_3',              label: 'Custom 3',       color: 'bg-violet-100 text-violet-700',position: 12, is_hot: false, is_active: false },
+  { stage_key: 'custom_4',              label: 'Custom 4',       color: 'bg-rose-100 text-rose-700',    position: 13, is_hot: false, is_active: false },
+  { stage_key: 'custom_5',              label: 'Custom 5',       color: 'bg-lime-100 text-lime-700',    position: 14, is_hot: false, is_active: false },
+]
+
+/** Returns the correct default pipeline stages for the given vertical */
+export function defaultStagesForVertical(vertical: 'dealer' | 'real_estate'): OrgStage[] {
+  return vertical === 'real_estate' ? DEFAULT_RE_ORG_STAGES : DEFAULT_ORG_STAGES
+}

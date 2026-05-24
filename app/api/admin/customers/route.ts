@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   const profile = await requireProfile()
-  const denied  = await requirePlatformArea(profile.id, 'dealers')
+  const denied  = await requirePlatformArea(profile.id, 'accounts')
   if (denied) return denied
 
   const service = createServiceClient()

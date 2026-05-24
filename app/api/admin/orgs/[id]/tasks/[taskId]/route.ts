@@ -22,7 +22,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string; taskId: string }> },
 ) {
   const profile = await requireProfile()
-  const denied  = await requirePlatformArea(profile.id, 'dealers')
+  const denied  = await requirePlatformArea(profile.id, 'accounts')
   if (denied) return denied
 
   const { id: orgId, taskId } = await params

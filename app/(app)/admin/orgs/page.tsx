@@ -5,10 +5,12 @@ import Link from 'next/link'
 import TopBar from '@/components/layout/TopBar'
 import { cn } from '@/lib/utils'
 import { Search, Filter, ChevronRight, UserCheck, Check, Mail, Phone, Globe } from 'lucide-react'
+import { useVertical } from '@/hooks/useVertical'
 
 interface OrgRow {
   id: string
   name: string
+  vertical: string | null
   plan: string
   subscription_status: string | null
   trial_ends_at: string | null
@@ -35,6 +37,18 @@ interface StaffOption {
 }
 
 type FilterStatus = 'all' | 'active' | 'trialing' | 'past_due' | 'suspended' | 'unassigned'
+type VerticalFilter = 'all' | 'dealer' | 'real_estate'
+
+function VerticalBadge({ vertical }: { vertical: string | null }) {
+  const isRe = vertical === 'real_estate'
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+      isRe ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-700'
+    }`}>
+      {isRe ? 'RealtyWyze' : 'DealerWyze'}
+    </span>
+  )
+}
 
 function StatusBadge({ status }: { status: string | null }) {
   const s = status ?? 'unknown'
@@ -132,11 +146,17 @@ function formatDate(d: string | null) {
 
 export default function AdminOrgsPage() {
   const [nowMs] = useState(() => Date.now())
+  const { vertical } = useVertical()
+  const isRE = vertical === 'real_estate'
+  const orgNoun = isRE ? 'agency' : 'dealership'
+  const orgNounPlural = isRE ? 'agencies' : 'dealerships'
+  const defaultVerticalFilter: VerticalFilter = vertical === 'real_estate' ? 'real_estate' : 'dealer'
   const [orgs, setOrgs]         = useState<OrgRow[]>([])
   const [staff, setStaff]       = useState<StaffOption[]>([])
   const [loading, setLoading]   = useState(true)
   const [search, setSearch]     = useState('')
   const [filter, setFilter]     = useState<FilterStatus>('all')
+  const [verticalFilter, setVerticalFilter] = useState<VerticalFilter>(defaultVerticalFilter)
 
   // Assignment mode
   const [selecting, setSelecting]     = useState(false)
@@ -191,6 +211,9 @@ export default function AdminOrgsPage() {
     else if (filter === 'suspended')   list = list.filter(o => !!o.suspended_at)
     else if (filter === 'unassigned')  list = list.filter(o => !o.assigned_staff_id)
 
+    if (verticalFilter === 'dealer') list = list.filter(o => (o.vertical ?? 'dealer') === 'dealer')
+    else if (verticalFilter === 'real_estate') list = list.filter(o => o.vertical === 'real_estate')
+
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter(o =>
@@ -200,7 +223,7 @@ export default function AdminOrgsPage() {
       )
     }
     return list
-  }, [orgs, filter, search])
+  }, [orgs, filter, verticalFilter, search])
 
   const counts = useMemo(() => {
     const base = orgs.filter(o => o.id !== '00000000-0000-0000-0000-000000000001')
@@ -211,6 +234,15 @@ export default function AdminOrgsPage() {
       past_due:   base.filter(o => o.subscription_status === 'past_due').length,
       suspended:  base.filter(o => !!o.suspended_at).length,
       unassigned: base.filter(o => !o.assigned_staff_id).length,
+    }
+  }, [orgs])
+
+  const verticalCounts = useMemo(() => {
+    const base = orgs.filter(o => o.id !== '00000000-0000-0000-0000-000000000001')
+    return {
+      all: base.length,
+      dealer: base.filter(o => (o.vertical ?? 'dealer') === 'dealer').length,
+      real_estate: base.filter(o => o.vertical === 'real_estate').length,
     }
   }, [orgs])
 
@@ -243,7 +275,7 @@ export default function AdminOrgsPage() {
     if (!res.ok) {
       setAssignMsg(data.error ?? 'Assignment failed')
     } else {
-      setAssignMsg(`${data.updated} dealership${data.updated !== 1 ? 's' : ''} updated.`)
+      setAssignMsg(`${data.updated} ${data.updated !== 1 ? orgNounPlural : orgNoun} updated.`)
       setSelected(new Set())
       setSelecting(false)
       loadData()
@@ -253,10 +285,26 @@ export default function AdminOrgsPage() {
 
   return (
     <div>
-      <TopBar title="Dealerships" />
+      <TopBar title={isRE ? 'Agencies' : 'Dealerships'} />
       <div className="px-4 py-4 lg:px-6 space-y-4">
 
         {/* Controls */}
+        <div className="flex flex-col gap-3">
+        <div className="flex rounded-lg border bg-card overflow-hidden shrink-0 flex-wrap w-fit">
+            {(['all', 'dealer', 'real_estate'] as const).map(v => (
+              <button
+                key={v}
+                onClick={() => setVerticalFilter(v)}
+                className={`px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                  verticalFilter === v ? 'bg-[#0D2B55] text-white' : 'text-muted-foreground hover:bg-accent'
+                }`}
+              >
+                {v === 'all' ? `All brands (${verticalCounts.all})` :
+                 v === 'dealer' ? `DealerWyze (${verticalCounts.dealer})` :
+                 `RealtyWyze (${verticalCounts.real_estate})`}
+              </button>
+            ))}
+          </div>
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex rounded-lg border bg-card overflow-hidden shrink-0 flex-wrap">
             <Filter className="h-3.5 w-3.5 text-muted-foreground self-center ml-2.5" />
@@ -300,6 +348,7 @@ export default function AdminOrgsPage() {
               </button>
             )}
           </div>
+        </div>
         </div>
 
         {/* Assignment toolbar */}
@@ -354,7 +403,7 @@ export default function AdminOrgsPage() {
         </div>
 
         {loading ? (
-          <p className="text-sm text-muted-foreground text-center py-8">Loading dealerships…</p>
+          <p className="text-sm text-muted-foreground text-center py-8">{`Loading ${orgNounPlural}…`}</p>
         ) : (
           <>
             {/* Desktop table */}
@@ -363,7 +412,7 @@ export default function AdminOrgsPage() {
                 <thead className="sticky top-0 z-10 bg-card">
                   <tr className="border-b bg-muted/30 text-xs text-muted-foreground font-semibold uppercase tracking-wide">
                     {selecting && <th className="py-3 px-3 w-8"></th>}
-                    <th className="py-3 px-4 text-left">Dealership</th>
+                    <th className="py-3 px-4 text-left">{isRE ? 'Agency' : 'Dealership'}</th>
                     <th className="py-3 px-4 text-left">Engagement</th>
                     <th className="py-3 px-4 text-left">Status</th>
                     <th className="py-3 px-4 text-left">Plan</th>
@@ -406,15 +455,16 @@ export default function AdminOrgsPage() {
                           <Link
                             href={`/admin/orgs/${org.id}`}
                             onClick={e => selecting && e.stopPropagation()}
-                            className="font-medium hover:text-primary flex items-center gap-1.5"
+                            className="font-medium hover:text-primary flex items-center gap-1.5 flex-wrap"
                           >
+                            <span>{org.name || 'Unnamed'}</span>
+                            <VerticalBadge vertical={org.vertical} />
                             {org.suspended_at && (
                               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium">Susp.</span>
                             )}
                             {!org.has_active_email && (
                               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-50 border border-yellow-200 text-yellow-700">No Email</span>
                             )}
-                            {org.name || 'Unnamed'}
                           </Link>
                           <div className="mt-0.5 space-y-0.5">
                             {org.signup_email && (
@@ -478,7 +528,7 @@ export default function AdminOrgsPage() {
                   {filtered.length === 0 && (
                     <tr>
                       <td colSpan={selecting ? 11 : 10} className="py-10 text-center text-sm text-muted-foreground">
-                        No dealerships match this filter.
+                        {`No ${orgNounPlural} match this filter.`}
                       </td>
                     </tr>
                   )}
@@ -521,6 +571,7 @@ export default function AdminOrgsPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-medium text-sm truncate">{org.name || 'Unnamed'}</p>
+                          <VerticalBadge vertical={org.vertical} />
                           <EngagementBadge tier={tier} />
                           <StatusBadge status={org.subscription_status} />
                           {org.suspended_at && (
@@ -547,11 +598,11 @@ export default function AdminOrgsPage() {
                 )
               })}
               {filtered.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-8">No dealerships match this filter.</p>
+                <p className="text-sm text-muted-foreground text-center py-8">No {orgNounPlural} match this filter.</p>
               )}
             </div>
 
-            <p className="text-xs text-muted-foreground">{filtered.length} dealership{filtered.length !== 1 ? 's' : ''} shown</p>
+            <p className="text-xs text-muted-foreground">{filtered.length} {filtered.length !== 1 ? orgNounPlural : orgNoun} shown</p>
           </>
         )}
       </div>

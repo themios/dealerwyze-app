@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useVertical } from '@/hooks/useVertical'
 import { Button } from '@/components/ui/button'
 import { CheckCircle, Edit2, Plus, Trash2 } from 'lucide-react'
 import ConfirmActionDialog from '@/components/settings/ConfirmActionDialog'
@@ -27,6 +28,9 @@ const PERIOD_LABELS: Record<Period, string> = {
 const PERIODS: Period[] = ['today', 'weekly', 'monthly', 'annual']
 
 export default function GoalsPage() {
+  const { vertical } = useVertical()
+  const isRE = vertical === 'real_estate'
+  const briefName = isRE ? 'AI daily brief' : 'AI dealer brief'
   const [goals, setGoals] = useState<Goal[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<Goal | null>(null)
@@ -100,7 +104,7 @@ export default function GoalsPage() {
   if (loading) return (
     <SettingsPageShell
       title="Goals"
-      description="Targets used by the AI dealer brief and internal team reporting."
+      description={`Targets used by the ${briefName} and internal team reporting.`}
       type="form"
     >
       <div className="text-sm text-muted-foreground">Loading…</div>
@@ -110,12 +114,12 @@ export default function GoalsPage() {
   return (
     <SettingsPageShell
       title="Goals"
-      description="Targets used by the AI dealer brief and internal team reporting."
+      description={`Targets used by the ${briefName} and internal team reporting.`}
       type="form"
     >
       <div className="space-y-5">
         <p className="text-sm text-muted-foreground">
-          Set your targets here. The AI dealer brief reports against these goals daily.
+          Set your targets here. The {briefName} reports against these goals daily.
         </p>
 
         {PERIODS.map(period => {
@@ -147,7 +151,7 @@ export default function GoalsPage() {
                       </button>
                       <ConfirmActionDialog
                         title="Remove this goal?"
-                        description="This goal will be deleted from the AI dealer brief and team tracking."
+                        description={`This goal will be deleted from the ${briefName} and team tracking.`}
                         confirmLabel="Remove goal"
                         confirmVariant="destructive"
                         onConfirm={() => handleDelete(g.id)}
@@ -188,7 +192,7 @@ export default function GoalsPage() {
                 <label className="text-xs text-muted-foreground">Metric</label>
                 <input
                   className="w-full mt-1 rounded-lg border px-3 py-2 text-sm bg-background"
-                  placeholder="e.g. leads_responded, units_sold"
+                  placeholder={isRE ? 'e.g. leads_responded, closings_mtd' : 'e.g. leads_responded, units_sold'}
                   value={form.metric}
                   onChange={e => setForm(f => ({ ...f, metric: e.target.value }))}
                 />
@@ -198,7 +202,7 @@ export default function GoalsPage() {
                 <label className="text-xs text-muted-foreground">Target</label>
                 <input
                   className="w-full mt-1 rounded-lg border px-3 py-2 text-sm bg-background"
-                  placeholder="e.g. 100%, 15 units, $1,800"
+                  placeholder={isRE ? 'e.g. 100%, 5 closings, $50,000' : 'e.g. 100%, 15 units, $1,800'}
                   value={form.target}
                   onChange={e => setForm(f => ({ ...f, target: e.target.value }))}
                 />

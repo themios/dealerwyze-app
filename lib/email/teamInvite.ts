@@ -1,12 +1,25 @@
-export function buildTeamInviteEmailHtml(recipientName: string, appUrl: string): string {
-  const safeName = recipientName || 'Your sales cockpit is ready'
+export function buildTeamInviteEmailHtml(
+  recipientName: string,
+  appUrl: string,
+  vertical: 'dealer' | 'real_estate' = 'dealer',
+): string {
+  const isRE = vertical === 'real_estate'
+  const brandName = isRE ? 'RealtyWyze' : 'DealerWyze'
+  const orgType = isRE ? 'brokerage' : 'dealership'
+  const roleType = isRE ? 'agent' : 'salesperson'
+  const txType = isRE ? 'transactions' : 'deals'
+  const hubName = isRE ? 'agent hub' : 'sales cockpit'
   const inviteLink = `${appUrl}/login`
+  const safeName = recipientName || `Your ${hubName} is ready`
+  const leadSourceBullet = isRE
+    ? 'See <span style="font-weight:600;">every inquiry from every source</span> (Zillow, Realtor.com, website, email, phone) in one inbox.'
+    : 'See <span style="font-weight:600;">every lead from every source</span> (CarGurus, AutoTrader, website, Facebook, phone, walk-ins) in one inbox.'
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>You've been invited to DealerWyze</title>
+  <title>You've been invited to ${brandName}</title>
 </head>
 <body style="margin:0;padding:0;background:#F8FAFC;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;margin:0 auto;padding:24px 16px">
@@ -14,14 +27,14 @@ export function buildTeamInviteEmailHtml(recipientName: string, appUrl: string):
       <td>
         <div style="background:#0D2B55;border-radius:12px 12px 0 0;padding:24px 28px">
           <p style="margin:0;color:#FBBF24;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em">
-            DealerWyze Invitation
+            ${brandName} Invitation
           </p>
           <h1 style="margin:8px 0 4px;color:#FFFFFF;font-size:20px;font-weight:700;line-height:1.3">
-            Your sales cockpit is ready, ${safeName}.
+            Your ${hubName} is ready, ${safeName}.
           </h1>
           <p style="margin:6px 0 0;color:#E2E8F0;font-size:14px;line-height:1.7;max-width:520px">
-            You&apos;ve been invited to join <span style="font-weight:600;">DealerWyze</span> — the lead and communication hub
-            your dealership is using to keep deals, follow-ups, and conversations under control.
+            You&apos;ve been invited to join <span style="font-weight:600;">${brandName}</span> — the lead and communication hub
+            your ${orgType} is using to keep ${txType}, follow-ups, and conversations under control.
           </p>
         </div>
 
@@ -31,8 +44,8 @@ export function buildTeamInviteEmailHtml(recipientName: string, appUrl: string):
             Why this matters for you
           </p>
           <p style="margin:0 0 16px;font-size:14px;line-height:1.7;color:#374151;">
-            DealerWyze is built to do one thing extremely well:
-            <span style="font-weight:600;color:#0D2B55;"> help you close more deals with less chaos.</span>
+            ${brandName} is built to do one thing extremely well:
+            <span style="font-weight:600;color:#0D2B55;"> help you close more ${txType} with less chaos.</span>
             It pulls every lead and every conversation into one place, so nothing slips and every opportunity gets a clean next step.
           </p>
 
@@ -72,13 +85,13 @@ export function buildTeamInviteEmailHtml(recipientName: string, appUrl: string):
             </tr>
           </table>
 
-          <!-- What they'll do inside DealerWyze -->
+          <!-- What they'll do inside ${brandName} -->
           <p style="margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:0.08em;color:#0F172A;text-transform:uppercase;">
-            What you&apos;ll be able to do inside DealerWyze
+            What you&apos;ll be able to do inside ${brandName}
           </p>
           <ul style="margin:0 0 14px 18px;padding:0;color:#374151;font-size:13px;line-height:1.7;">
             <li style="margin-bottom:4px;">
-              See <span style="font-weight:600;">every lead from every source</span> (CarGurus, AutoTrader, website, Facebook, phone, walk-ins) in one inbox.
+              ${leadSourceBullet}
             </li>
             <li style="margin-bottom:4px;">
               <span style="font-weight:600;">Call, text, and email</span> directly from the same screen — with full history attached to each customer.
@@ -97,8 +110,8 @@ export function buildTeamInviteEmailHtml(recipientName: string, appUrl: string):
           <!-- Emotional hook -->
           <div style="background:#EFF6FF;border-radius:8px;padding:10px 12px;border:1px solid #BFDBFE;margin:0 0 14px;">
             <p style="margin:0;font-size:13px;line-height:1.7;color:#1E3A8A;">
-              Your dealership chose DealerWyze because they want a <span style="font-weight:600;">tighter, more professional follow-up game</span>.
-              When you run your day from DealerWyze, you are not just closing more deals — you are showing up as the kind of salesperson
+              Your ${orgType} chose ${brandName} because they want a <span style="font-weight:600;">tighter, more professional follow-up game</span>.
+              When you run your day from ${brandName}, you are not just closing more ${txType} — you are showing up as the kind of ${roleType}
               <span style="font-weight:600;">owners trust with their best opportunities.</span>
             </p>
           </div>
@@ -108,14 +121,14 @@ export function buildTeamInviteEmailHtml(recipientName: string, appUrl: string):
             Get started
           </p>
           <p style="margin:0 0 14px;font-size:13px;line-height:1.7;color:#374151;">
-            Click the button below to create your password and activate your DealerWyze account. It takes about 60 seconds.
+            Click the button below to create your password and activate your ${brandName} account. It takes about 60 seconds.
           </p>
           <table cellpadding="0" cellspacing="0" border="0" style="margin:0 0 10px;">
             <tr>
               <td>
                 <a href="${inviteLink}" 
                    style="display:inline-block;background:#F07018;color:#FFFFFF;font-weight:700;font-size:14px;line-height:1.2;text-decoration:none;padding:11px 26px;border-radius:999px;border:1px solid #EA580C;">
-                  Activate my DealerWyze login
+                  Activate my ${brandName} login
                 </a>
               </td>
             </tr>
@@ -128,7 +141,7 @@ export function buildTeamInviteEmailHtml(recipientName: string, appUrl: string):
           <!-- Footer -->
           <div style="border-top:1px solid #E5E7EB;padding-top:10px;margin-top:14px">
             <p style="margin:0 0 4px;font-size:12px;font-weight:600;color:#0F172A;">
-              DealerWyze
+              ${brandName}
             </p>
             <p style="margin:0 0 4px;font-size:11px;color:#6B7280;line-height:1.6;">
               One place for your leads, follow-ups, and customer conversations — so your team can sell more without burning out.
@@ -144,4 +157,3 @@ export function buildTeamInviteEmailHtml(recipientName: string, appUrl: string):
 </body>
 </html>`
 }
-

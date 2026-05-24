@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Loader2, Download } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Loader2, Download, Sparkles, Send } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import ReportsClient from './ReportsClient'
 
@@ -296,6 +296,165 @@ function SectionHead({ title }: { title: string }) {
   )
 }
 
+// ── Ask Box ────────────────────────────────────────────────────────────────
+
+const SUGGESTIONS = [
+  'Which leads have gone cold this week?',
+  'What is my best lead source right now?',
+  'How many appointments are set?',
+  'What should I focus on today?',
+]
+
+const ASK_STORAGE_KEY = `dw_ask_remaining_${new Date().toDateString()}`
+
+function AskBox() {
+  const [question, setQuestion]   = useState('')
+  const [answer, setAnswer]       = useState('')
+  const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState<string | null>(null)
+  const [remaining, setRemaining] = useState(10)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    fetch('/api/ask')
+      .then(r => r.ok ? r.json() : null)
+      .then((data: { remaining: number | null } | null) => {
+        if (data?.remaining === 999) {
+          persistRemaining(999)
+        } else {
+          const stored = localStorage.getItem(ASK_STORAGE_KEY)
+          if (stored !== null) setRemaining(Number(stored))
+        }
+      })
+      .catch(() => {
+        const stored = localStorage.getItem(ASK_STORAGE_KEY)
+        if (stored !== null) setRemaining(Number(stored))
+      })
+  }, [])
+
+  function persistRemaining(n: number) {
+    setRemaining(n)
+    localStorage.setItem(ASK_STORAGE_KEY, String(n))
+  }
+
+  async function submit(q: string) {
+    const trimmed = q.trim()
+    if (!trimmed || loading) return
+    setLoading(true)
+    setAnswer('')
+    setError(null)
+
+    try {
+      const res = await fetch('/api/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: trimmed }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: 'Request failed.' }))
+        setError(data.error ?? 'Request failed.')
+        return
+      }
+
+      const reader = res.body?.getReader()
+      if (!reader) { setError('No response.'); return }
+
+      const decoder = new TextDecoder()
+      let full = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        full += decoder.decode(value, { stream: true })
+        // Strip the trailing __REMAINING__ token before displaying
+        const display = full.replace(/\n\n__REMAINING__:\d+$/, '')
+        setAnswer(display)
+      }
+
+      const match = full.match(/__REMAINING__:(\d+)$/)
+      if (match) persistRemaining(Number(match[1]))
+    } catch {
+      setError('Could not reach the server.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function handleKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      submit(question)
+    }
+  }
+
+  return (
+    <section>
+      <div className="flex items-center gap-2 mb-3">
+        <Sparkles className="h-3.5 w-3.5 text-[#F07018]" />
+        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Ask your data</p>
+        <span className="ml-auto text-[10px] text-muted-foreground">
+          {remaining >= 999 ? 'Unlimited' : `${remaining} question${remaining !== 1 ? 's' : ''} left today`}
+        </span>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+        {/* Suggestions */}
+        {!answer && !loading && (
+          <div className="flex flex-wrap gap-2">
+            {SUGGESTIONS.map(s => (
+              <button
+                key={s}
+                onClick={() => { setQuestion(s); submit(s) }}
+                className="px-2.5 py-1 rounded-full text-xs bg-muted text-muted-foreground hover:bg-muted/70 transition-colors"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Input row */}
+        <div className="flex gap-2 items-end">
+          <textarea
+            ref={textareaRef}
+            rows={1}
+            value={question}
+            onChange={e => setQuestion(e.target.value)}
+            onKeyDown={handleKey}
+            placeholder="Ask anything about your leads, pipeline, or activity…"
+            className="flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#F07018] min-h-[38px] max-h-[120px]"
+          />
+          <button
+            onClick={() => submit(question)}
+            disabled={loading || !question.trim()}
+            className="flex-shrink-0 rounded-lg bg-[#F07018] text-white px-3 py-2 disabled:opacity-40 hover:bg-[#d9631a] transition-colors"
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          </button>
+        </div>
+
+        {/* Answer */}
+        {(answer || error) && (
+          <div className={`rounded-lg p-3 text-sm whitespace-pre-wrap leading-relaxed ${
+            error
+              ? 'bg-destructive/10 text-destructive border border-destructive/20'
+              : 'bg-muted/40 text-foreground'
+          }`}>
+            {error ?? answer}
+          </div>
+        )}
+
+        {loading && !answer && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Analyzing your data…
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 export default function AnalyticsDashboard() {
@@ -362,6 +521,9 @@ export default function AnalyticsDashboard() {
 
       {activeTab === 'overview' && (
         <div className="px-4 py-4 space-y-8 lg:px-6">
+
+          {/* Ask box — always visible at top */}
+          <AskBox />
 
           {/* Date range pills + CSV */}
           <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 lg:mx-0 lg:px-0 no-scrollbar">

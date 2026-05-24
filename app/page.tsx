@@ -1,56 +1,90 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import LandingPage from '@/components/landing/LandingPage'
+import RealtyWyzeLandingPage from '@/components/landing/RealtyWyzeLandingPage'
 import type { Metadata } from 'next'
+import type { Vertical } from '@/lib/vertical'
 
-export const metadata: Metadata = {
-  title: 'DealerWyze - CRM for Independent & Used Car Dealers | Starting $150/mo',
-  description:
-    'DealerWyze is an all-in-one CRM built for independent and used car dealers. Text, email, and call leads from one inbox. Manage inventory, BHPH payments, and receipts — plus a public SEO-ready dealer website for your inventory. Starting at $150/mo - half the cost of VinSolutions or AutoRaptor.',
-  keywords: [
-    'used car dealer CRM',
-    'independent dealer CRM',
-    'AutoRaptor alternative',
-    'VinSolutions alternative',
-    'DealerCenter alternative',
-    'dealership CRM software',
-    'BHPH software',
-    'buy here pay here CRM',
-    'car dealer lead management',
-    'auto dealer texting software',
-    'dealership inventory management',
-    'used car dealer software',
-    'dealer inventory website',
-    'car dealer SEO inventory',
-    'used car dealer public website',
-  ],
-  openGraph: {
-    title: 'DealerWyze - CRM for Independent & Used Car Dealers',
+export async function generateMetadata(): Promise<Metadata> {
+  const h = await headers()
+  const vertical = (h.get('x-vertical') ?? 'dealer') as Vertical
+
+  if (vertical === 'real_estate') {
+    return {
+      title: 'RealtyWyze - CRM for Independent Real Estate Agents',
+      description:
+        'RealtyWyze puts every inquiry, listing, and client conversation in one place. Built for independent agents and small brokerages. Start free.',
+      keywords: [
+        'real estate CRM',
+        'real estate agent software',
+        'listing management',
+        'real estate lead management',
+        'agent CRM',
+        'brokerage CRM',
+      ],
+      openGraph: {
+        title: 'RealtyWyze - CRM for Independent Real Estate Agents',
+        description:
+          'One inbox for every inquiry. Listing management, AI voice, and client follow-up sequences built for independent agents.',
+        url: 'https://realtywyze.us',
+        siteName: 'RealtyWyze',
+        type: 'website',
+      },
+      alternates: { canonical: 'https://realtywyze.us' },
+      robots: { index: true, follow: true },
+    }
+  }
+
+  return {
+    title: 'DealerWyze - CRM for Independent & Used Car Dealers | Starting $150/mo',
     description:
-      'All-in-one CRM for used car dealers. Lead inbox, texting, inventory, public SEO website, BHPH, and receipts - starting at $150/mo.',
-    url: 'https://dealerwyze.com',
-    siteName: 'DealerWyze',
-    type: 'website',
-    images: [{ url: 'https://dealerwyze.com/og.png', width: 1200, height: 630, alt: 'DealerWyze - CRM for independent and used car dealers' }],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'DealerWyze - CRM for Independent & Used Car Dealers',
-    description:
-      'All-in-one CRM for used car dealers. Lead inbox, texting, inventory, public SEO website, BHPH, and receipts - starting at $150/mo.',
-    images: ['https://dealerwyze.com/og.png'],
-  },
-  alternates: {
-    canonical: 'https://dealerwyze.com',
-  },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: {
+      'DealerWyze is an all-in-one CRM built for independent and used car dealers. Text, email, and call leads from one inbox. Manage inventory, BHPH payments, and receipts — plus a public SEO-ready dealer website for your inventory. Starting at $150/mo - half the cost of VinSolutions or AutoRaptor.',
+    keywords: [
+      'used car dealer CRM',
+      'independent dealer CRM',
+      'AutoRaptor alternative',
+      'VinSolutions alternative',
+      'DealerCenter alternative',
+      'dealership CRM software',
+      'BHPH software',
+      'buy here pay here CRM',
+      'car dealer lead management',
+      'auto dealer texting software',
+      'dealership inventory management',
+      'used car dealer software',
+      'dealer inventory website',
+      'car dealer SEO inventory',
+      'used car dealer public website',
+    ],
+    openGraph: {
+      title: 'DealerWyze - CRM for Independent & Used Car Dealers',
+      description:
+        'All-in-one CRM for used car dealers. Lead inbox, texting, inventory, public SEO website, BHPH, and receipts - starting at $150/mo.',
+      url: 'https://dealerwyze.com',
+      siteName: 'DealerWyze',
+      type: 'website',
+      images: [{ url: 'https://dealerwyze.com/og.png', width: 1200, height: 630, alt: 'DealerWyze - CRM for independent and used car dealers' }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: 'DealerWyze - CRM for Independent & Used Car Dealers',
+      description:
+        'All-in-one CRM for used car dealers. Lead inbox, texting, inventory, public SEO website, BHPH, and receipts - starting at $150/mo.',
+      images: ['https://dealerwyze.com/og.png'],
+    },
+    alternates: {
+      canonical: 'https://dealerwyze.com',
+    },
+    robots: {
       index: true,
       follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+      },
     },
-  },
+  }
 }
 
 const jsonLd = {
@@ -162,9 +196,17 @@ const jsonLd = {
 }
 
 export default async function RootPage() {
+  const h = await headers()
+  const vertical = (h.get('x-vertical') ?? 'dealer') as Vertical
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (user) redirect('/dashboard')
+  if (user) redirect('/today')
+
+  if (vertical === 'real_estate') {
+    return <RealtyWyzeLandingPage />
+  }
+
   return (
     <>
       <script

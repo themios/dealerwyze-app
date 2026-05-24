@@ -20,6 +20,8 @@ import { getStaffSessionInfo } from '@/lib/auth/staffSession'
 import { getOrgTheme, buildThemeStyleTag } from '@/lib/theme/getOrgTheme'
 import { isPlatformSuperAdmin } from '@/lib/auth/platform'
 import { setSentryUserContext } from '@/lib/sentry/setUserContext'
+import { VerticalProvider } from '@/components/providers/VerticalProvider'
+import type { Vertical } from '@/lib/vertical'
 
 export const dynamic = 'force-dynamic'
 
@@ -108,16 +110,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   let impersonationOrgName: string | null = null
   let impersonationWriteMode = false
   let orgName: string | null = null
+  let orgVertical: Vertical = 'dealer'
 
   // Fetch org name for desktop sidebar
   if (profile.org_id) {
     const service = createServiceClient()
     const { data: orgRow } = await service
       .from('organizations')
-      .select('name')
+      .select('name, vertical')
       .eq('id', profile.org_id)
       .maybeSingle()
     orgName = orgRow?.name ?? null
+    orgVertical = (orgRow?.vertical ?? 'dealer') as Vertical
   }
 
   if (isPlatformUser) {
@@ -137,8 +141,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    // Mobile: single-column, max-w-md centered
-    // Desktop (lg+): full-width flex row — sidebar + content
+    <VerticalProvider vertical={orgVertical}>
+    {/* Mobile: single-column, max-w-md centered */}
+    {/* Desktop (lg+): full-width flex row — sidebar + content */}
     <>
       {orgFontLinks}
       {themeStyle && (
@@ -179,5 +184,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </div>
     </div>
     </>
+    </VerticalProvider>
   )
 }

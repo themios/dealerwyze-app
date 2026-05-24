@@ -18,6 +18,7 @@ export interface SettingsGroupConfig {
   id: GroupId
   title: string
   description: string
+  verticalTitle?: Partial<Record<'dealer' | 'real_estate', string>>
 }
 
 export interface SettingsItemConfig {
@@ -30,6 +31,8 @@ export interface SettingsItemConfig {
   audience: SettingsAudience
   accessBadge?: string
   icon: typeof Building2
+  verticalHide?: Array<'dealer' | 'real_estate'>
+  verticalTitle?: Partial<Record<'dealer' | 'real_estate', string>>
 }
 
 export const SETTINGS_STORAGE_KEY = 'settings-control-center-v1'
@@ -37,7 +40,7 @@ export const SETTINGS_STORAGE_KEY = 'settings-control-center-v1'
 export const GROUPS: SettingsGroupConfig[] = [
   { id: 'business',                title: 'Business',                  description: 'Organization identity, team access, pipeline, and website controls.' },
   { id: 'sales-communication',     title: 'Sales & Communication',     description: 'Automation, sequences, outbound messaging, and sales targets.' },
-  { id: 'inventory-merchandising', title: 'Inventory & Merchandising', description: 'Recon defaults plus video and social merchandising controls.' },
+  { id: 'inventory-merchandising', title: 'Inventory & Merchandising', description: 'Recon defaults plus video and social merchandising controls.', verticalTitle: { real_estate: 'Listings & Merchandising' } },
   { id: 'customer-experience',     title: 'Customer Experience',       description: 'Booking, payments, reviews, post-sale outreach, and retention settings.' },
   { id: 'compliance-finance',      title: 'Compliance & Finance',      description: 'Billing, bookkeeping, audit history, and ownership transfer workflows.' },
   { id: 'personal-support',        title: 'Personal & Support',        description: 'Personal preferences, account security, support, and legal resources.' },
@@ -48,14 +51,14 @@ export const SETTINGS_ITEMS: SettingsItemConfig[] = [
   { id: 'locations',       group: 'business',                href: '/settings/locations',       title: 'Locations',               description: 'Store locations, staff assignments, and per-location phone and inventory URLs.', keywords: ['location', 'store', 'lot', 'multi-location', 'branch'],              audience: 'dealer_admin', accessBadge: describeSettingsAudience('dealer_admin'), icon: MapPin },
   { id: 'users',           group: 'business',                href: '/settings/users',           title: 'Users',                   description: 'Invite staff, assign roles, and manage lead routing.',                          keywords: ['team', 'staff', 'roles', 'invite', 'permissions'],                      audience: 'dealer_admin', accessBadge: describeSettingsAudience('dealer_admin'), icon: Users },
   { id: 'pipeline',        group: 'business',                href: '/settings/pipeline',        title: 'Pipeline',                description: 'Rename, reorder, and tune pipeline stages to match your sales process.',        keywords: ['stages', 'board', 'lead status'],                                        audience: 'dealer_admin', accessBadge: describeSettingsAudience('dealer_admin'), icon: GitBranch },
-  { id: 'website',         group: 'business',                href: '/settings/website',         title: 'Website',                 description: 'Public inventory page, custom domain details, and customer-facing website settings.', keywords: ['public site', 'inventory site', 'domain', 'website'],                  audience: 'dealer_admin', accessBadge: describeSettingsAudience('dealer_admin'), icon: Globe },
+  { id: 'website',         group: 'business',                href: '/settings/website',         title: 'Website',                 description: 'Public inventory page, custom domain details, and customer-facing website settings.', keywords: ['public site', 'inventory site', 'domain', 'website'],                  audience: 'dealer_admin', accessBadge: describeSettingsAudience('dealer_admin'), icon: Globe, verticalTitle: { real_estate: 'Listing Site' } },
 
   { id: 'automation',      group: 'sales-communication',     href: '/settings/automation',      title: 'Automation',              description: 'Lead response timing, auto-response behavior, and message templates.',           keywords: ['autoresponder', 'sla', 'sms', 'email', 'template'],                     audience: 'dealer_admin', accessBadge: describeSettingsAudience('dealer_admin'), icon: Zap },
   { id: 'sequences',       group: 'sales-communication',     href: '/settings/sequences',       title: 'Sequences',               description: 'Build and manage email and SMS follow-up cadences.',                            keywords: ['sequence', 'drip', 'cadence', 'follow-up'],                             audience: 'all',          icon: ListOrdered },
   { id: 'webhooks',        group: 'sales-communication',     href: '/settings/webhooks',        title: 'Webhooks',                description: 'Send lead and appointment events to external systems in real time.',            keywords: ['integration', 'api', 'zapier', 'hooks'],                                audience: 'dealer_admin', accessBadge: describeSettingsAudience('dealer_admin'), icon: Webhook },
   { id: 'goals',           group: 'sales-communication',     href: '/settings/goals',           title: 'Goals',                   description: 'Set the sales targets that feed the AI dealer brief.',                         keywords: ['targets', 'forecast', 'ai dealer brief'],                               audience: 'dealer_admin', accessBadge: describeSettingsAudience('dealer_admin'), icon: Target },
 
-  { id: 'recon-template',  group: 'inventory-merchandising', href: '/settings/recon-template',  title: 'Recon Checklist Template', description: 'Set the default staging checklist for new inventory.',                        keywords: ['checklist', 'reconditioning', 'staging'],                               audience: 'dealer_admin', accessBadge: describeSettingsAudience('dealer_admin'), icon: ClipboardList },
+  { id: 'recon-template',  group: 'inventory-merchandising', href: '/settings/recon-template',  title: 'Recon Checklist Template', description: 'Set the default staging checklist for new inventory.',                        keywords: ['checklist', 'reconditioning', 'staging'],                               audience: 'dealer_admin', accessBadge: describeSettingsAudience('dealer_admin'), icon: ClipboardList, verticalHide: ['real_estate'] },
   { id: 'video',           group: 'inventory-merchandising', href: '/settings/video',           title: 'Video Settings',          description: 'Control templates, voice, and autopost defaults for inventory videos.',        keywords: ['remotion', 'voice', 'video'],                                           audience: 'dealer_admin', accessBadge: describeSettingsAudience('dealer_admin'), icon: Video },
   { id: 'social',          group: 'inventory-merchandising', href: '/settings/social',          title: 'Social Accounts',         description: 'Connect channels for automated merchandising posts.',                          keywords: ['facebook', 'instagram', 'tiktok', 'youtube', 'social'],                audience: 'dealer_admin', accessBadge: describeSettingsAudience('dealer_admin'), icon: Share2 },
 
@@ -65,7 +68,7 @@ export const SETTINGS_ITEMS: SettingsItemConfig[] = [
   { id: 'retention',       group: 'customer-experience',     href: '/settings/retention',       title: 'Retention',               description: 'Campaign cadence, postcard automation, and customer retention timing.',        keywords: ['postcards', 'birthday', 'retention', 'campaign'],                       audience: 'dealer_admin', accessBadge: describeSettingsAudience('dealer_admin'), icon: Users },
 
   { id: 'billing',         group: 'compliance-finance',      href: '/settings/billing',         title: 'Billing',                 description: 'Manage the subscription, payment method, and plan details.',                   keywords: ['plan', 'subscription', 'invoice'],                                      audience: 'dealer_admin', accessBadge: describeSettingsAudience('dealer_admin'), icon: CreditCard },
-  { id: 'bookkeeping',     group: 'compliance-finance',      href: '/settings/bookkeeping',     title: 'Bookkeeping',             description: 'Receipt categories and QuickBooks mapping for the ledger.',                    keywords: ['ledger', 'quickbooks', 'expenses', 'receipts'],                         audience: 'all',          icon: BookOpen },
+  { id: 'bookkeeping',     group: 'compliance-finance',      href: '/settings/bookkeeping',     title: 'Bookkeeping',             description: 'Receipt categories and QuickBooks mapping for the ledger.',                    keywords: ['ledger', 'quickbooks', 'expenses', 'receipts'],                         audience: 'all',          icon: BookOpen, verticalHide: ['real_estate'] },
   { id: 'audit',           group: 'compliance-finance',      href: '/settings/audit',           title: 'Audit Log',               description: 'Review security, export, billing, and settings-change history.',               keywords: ['security', 'events', 'history', 'audit'],                               audience: 'dealer_admin', accessBadge: describeSettingsAudience('dealer_admin'), icon: Shield },
   { id: 'transfer',        group: 'compliance-finance',      href: '/settings/transfer',        title: 'Business Transfer',       description: 'Controlled, high-risk ownership transfer workflow.',                          keywords: ['ownership', 'sell business', 'transfer'],                               audience: 'dealer_admin', accessBadge: describeSettingsAudience('dealer_admin'), icon: ArrowRightLeft },
 
@@ -91,4 +94,12 @@ export function matchesSearch(item: SettingsItemConfig, query: string): boolean 
   if (!query) return true
   const haystack = [item.title, item.description, ...item.keywords].join(' ').toLowerCase()
   return haystack.includes(query.toLowerCase().trim())
+}
+
+export function resolveItemTitle(item: SettingsItemConfig, vertical: 'dealer' | 'real_estate'): string {
+  return item.verticalTitle?.[vertical] ?? item.title
+}
+
+export function resolveGroupTitle(group: SettingsGroupConfig, vertical: 'dealer' | 'real_estate'): string {
+  return group.verticalTitle?.[vertical] ?? group.title
 }

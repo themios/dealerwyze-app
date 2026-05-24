@@ -59,7 +59,7 @@ function formatLastPolled(ts: string | null) {
   return `${Math.floor(hrs / 24)}d ago`
 }
 
-export default function EmailLeadSyncSection() {
+export default function EmailLeadSyncSection({ isRE = false }: { isRE?: boolean }) {
   const [emailAccounts, setEmailAccounts]         = useState<EmailAccount[]>([])
   const [emailBanner, setEmailBanner]             = useState<'connected' | 'error' | null>(null)
   const [removingId, setRemovingId]               = useState<string | null>(null)
@@ -439,7 +439,7 @@ export default function EmailLeadSyncSection() {
           <Label className="text-xs">Add a sender match</Label>
           <div className="flex gap-2">
             <Input
-              placeholder="cargurus, carsforsale.com, or dealer-leads@messages.cargurus.com"
+              placeholder={isRE ? 'zillow.com, realtor.com, or leads@zillow.com' : 'cargurus, carsforsale.com, or dealer-leads@messages.cargurus.com'}
               value={leadMatcherDraft}
               onChange={e => {
                 setLeadMatcherDraft(e.target.value)
@@ -491,7 +491,9 @@ export default function EmailLeadSyncSection() {
           <Label className="text-xs">Examples</Label>
           <Textarea
             readOnly
-            value={'dealer-leads@messages.cargurus.com\ncarsforsale.com\nautotrader\ncargurus'}
+            value={isRE
+              ? 'leads@zillow.com\nrealtor.com\nhomes.com\nredfin.com'
+              : 'dealer-leads@messages.cargurus.com\ncarsforsale.com\nautotrader\ncargurus'}
             className="min-h-20 resize-none text-xs"
           />
         </div>

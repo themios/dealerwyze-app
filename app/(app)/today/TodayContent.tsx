@@ -35,6 +35,7 @@ import TodayBulkBar from '@/components/today/TodayBulkBar'
 import FocusSession from '@/components/today/FocusSession'
 import type { TakeoverSignal } from '@/lib/today/takeoverDetector'
 import { IntelligenceAlerts } from '@/components/intelligence/IntelligenceAlerts'
+import WantListSection from '@/components/today/WantListSection'
 
 const MOTIVATIONAL_MESSAGES = [
   'Every call could be your next deal.',
@@ -1109,6 +1110,8 @@ export default function TodayContent({
             </ul>
           </section>
         )}
+
+        <WantListSection />
 
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3">

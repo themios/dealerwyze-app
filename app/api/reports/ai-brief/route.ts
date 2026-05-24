@@ -3,6 +3,7 @@ import { requireProfile } from '@/lib/auth/profile'
 import { canAccessReports } from '@/lib/auth/dealerRoles'
 import { assertCanUseFeature, BillingError } from '@/lib/billing/assertFeature'
 import { orgAiBriefLimiter } from '@/lib/rateLimit/upstash'
+import { createClientForRequest } from '@/lib/supabase/forRequest'
 import Groq from 'groq-sdk'
 
 export const dynamic = 'force-dynamic'
@@ -36,6 +37,15 @@ export async function POST(req: Request) {
 
     const apiKey = process.env.GROQ_API_KEY
     if (!apiKey) return NextResponse.json({ error: 'AI not configured' }, { status: 503 })
+
+    // Determine vertical for prompt context
+    const supabase = await createClientForRequest()
+    const { data: orgRow } = await supabase
+      .from('organizations')
+      .select('vertical')
+      .eq('id', profile.org_id)
+      .single()
+    const isRe = (orgRow?.vertical as string | null) === 'real_estate'
 
     const body = await req.json() as {
       stats: {
@@ -75,7 +85,7 @@ export async function POST(req: Request) {
       .map(([s, n]) => `  ${s}: ${n}`)
       .join('\n')
 
-    const prompt = `You are a dealership performance coach reviewing CRM data for a used-car dealership. Be direct, specific, and actionable. No generic advice.
+    const prompt = `You are a ${isRe ? 'real estate agency performance coach reviewing CRM data for a real estate agency' : 'dealership performance coach reviewing CRM data for a used-car dealership'}. Be direct, specific, and actionable. No generic advice.
 
 PERIOD: ${fromLabel} - ${toLabel}
 
@@ -90,7 +100,7 @@ ACTIVITY SUMMARY:
 - Response rate: ${fmtPct(stats.responseRate)} (industry target: >80%)
 - Avg response time: ${fmtTime(stats.avgResponseTimeSeconds)} (industry target: <15 minutes)
 - Hot leads: ${stats.hotLeads}
-- New customers: ${stats.totals.newCustomers}
+- New ${isRe ? 'clients' : 'customers'}: ${stats.totals.newCustomers}
 
 CALL OUTCOMES:
 ${Object.entries(stats.callOutcomes).map(([o, n]) => `  ${o}: ${n}`).join('\n')}

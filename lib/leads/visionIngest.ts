@@ -6,7 +6,7 @@ export type { Confidence, ScanField, LeadScanResult } from './visionIngestTypes'
 
 // ── Prompts ───────────────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `You are a lead data extraction engine for a car dealership CRM.
+const SYSTEM_PROMPT = `You are a lead data extraction engine for a CRM (auto dealership or real estate brokerage).
 CRITICAL: Output ONLY a single raw JSON object. No markdown, no code fences, no explanation.`
 
 const USER_PROMPT = `Extract all car buyer lead information from this input.
@@ -38,7 +38,7 @@ Return ONLY this JSON (no extra text):
 }
 
 RULES:
-- lead_source: detect from visual cues (Facebook Marketplace, CarGurus, AutoTrader, iMessage, handwritten form, etc.)
+- lead_source: detect from visual cues (Facebook Marketplace, CarGurus, AutoTrader, Zillow, Realtor.com, Homes.com, iMessage, handwritten form, etc.)
 - urgency: "high" if buyer says "today", "ASAP", "urgent"; "low" if just browsing
 - trade_in: if buyer mentions a trade, describe it briefly ("2018 Honda Civic, ~80k miles")
 - notes: any buyer comments, questions, or additional info not captured in other fields
@@ -50,7 +50,7 @@ const TEXT_LEAD_PROMPT = `You are a universal lead data extractor for a used-car
 Extract buyer information from ANY text input — regardless of format or completeness.
 
 INPUT TYPES you may receive (handle all of them):
-- Lead form pastes: CarGurus, AutoTrader, OfferUp, Facebook, KBB, Craigslist, Autolist
+- Lead form pastes: CarGurus, AutoTrader, OfferUp, Facebook, KBB, Craigslist, Autolist, Zillow, Realtor.com, Homes.com
 - Text/iMessage/WhatsApp conversations (identify the BUYER, not the dealer)
 - Verbal referrals typed by staff: "my cousin Maria wants a Camry, 714-555-0000"
 - Reply messages: "Is the 2019 Accord still available? — John 818-555-1234"
@@ -65,7 +65,7 @@ EXTRACTION RULES:
 - phone: digits only, 10 digits, strip country code (+1). Example: "(951) 427-9675" → "9514279675"
 - vehicle_*: the vehicle the buyer is INTERESTED IN BUYING (not their trade-in)
 - trade_in: brief description of vehicle they want to trade ("2018 Civic EX ~80k miles"), or null
-- lead_source: infer from context → "CarGurus" | "AutoTrader" | "OfferUp" | "Facebook" | "KBB" | "Autolist" | "Carsforsale" | "text" | "email" | "referral" | "other"
+- lead_source: infer from context → "CarGurus" | "AutoTrader" | "OfferUp" | "Facebook" | "KBB" | "Autolist" | "Carsforsale" | "Zillow" | "Realtor.com" | "Homes.com" | "open_house" | "text" | "email" | "referral" | "other"
 - urgency: "high" if buyer says "today", "ASAP", "right now", "urgent"; "low" if just browsing
 - notes: capture buyer's comments, questions, budget hints, special requests — anything not in other fields
 - overall_confidence: "high" = extracted name + (phone or email); "medium" = partial contact info; "low" = mostly guessing

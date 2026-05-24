@@ -18,7 +18,7 @@ export async function GET() {
 
   const { data: org, error: orgErr } = await supabase
     .from('organizations')
-    .select('name, plan, subscription_status')
+    .select('name, plan, subscription_status, vertical')
     .eq('id', profile.org_id)
     .single()
 
@@ -48,6 +48,7 @@ export async function GET() {
     name: org.name,
     plan: org.plan,
     subscription_status: org.subscription_status,
+    vertical: (org.vertical ?? 'dealer') as 'dealer' | 'real_estate',
     business_name: settings?.business_name ?? null,
     business_phone: settings?.business_phone ?? null,
     business_address: settings?.business_address ?? null,

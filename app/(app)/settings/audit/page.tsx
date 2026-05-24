@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useVertical } from '@/hooks/useVertical'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Shield, RefreshCw } from 'lucide-react'
@@ -68,6 +69,9 @@ async function fetchAuditEntries(action: string, beforeId?: string): Promise<Aud
 }
 
 export default function AuditLogPage() {
+  const { vertical } = useVertical()
+  const isRE = vertical === 'real_estate'
+  const orgLabel = isRE ? 'agency' : 'dealership'
   const [entries, setEntries] = useState<AuditEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -131,14 +135,14 @@ export default function AuditLogPage() {
   return (
     <SettingsPageShell
       title="Audit Log"
-      description="Security, billing, export, and settings-change history for this dealership."
+      description={`Security, billing, export, and settings-change history for this ${orgLabel}.`}
       type="ops"
     >
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Shield className="h-4 w-4" />
-            <span className="text-sm">Security event history for your dealership</span>
+            <span className="text-sm">Security event history for your {orgLabel}</span>
           </div>
         </div>
 

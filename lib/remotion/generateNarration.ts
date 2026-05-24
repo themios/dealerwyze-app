@@ -66,6 +66,69 @@ export function buildNarrationScript(props: VehicleVideoProps): string {
     .trim()
 }
 
+export interface ListingVideoProps {
+  agencyName: string
+  agencyCity?: string
+  agencyState?: string
+  agencyPhone?: string
+  agencyWebsite?: string
+  address: string
+  price?: number
+  bedrooms?: number
+  bathrooms?: number
+  sqft?: number
+  propertyType?: string
+  features?: string[]
+  notes?: string
+}
+
+/**
+ * Build a narration script for a real estate listing (RE vertical).
+ */
+export function buildListingNarrationScript(props: ListingVideoProps): string {
+  const locationStr = props.agencyCity && props.agencyState
+    ? ` in ${props.agencyCity}, ${props.agencyState}`
+    : ''
+  const opener = props.address
+    ? `Just listed${locationStr}: ${props.address}.`
+    : `New listing available${locationStr}.`
+
+  const specs: string[] = []
+  if (props.bedrooms) specs.push(`${props.bedrooms} bedroom${props.bedrooms !== 1 ? 's' : ''}`)
+  if (props.bathrooms) specs.push(`${props.bathrooms} bath${props.bathrooms !== 1 ? 's' : ''}`)
+  if (props.sqft) specs.push(`${props.sqft.toLocaleString()} sq ft`)
+  if (props.propertyType) specs.push(props.propertyType)
+  const specsStr = specs.length > 0 ? specs.join(', ') + '.' : ''
+
+  const feats = (props.features ?? []).filter(Boolean).slice(0, 4)
+  let featuresStr = ''
+  if (feats.length === 1) {
+    featuresStr = `Features ${feats[0]}.`
+  } else if (feats.length === 2) {
+    featuresStr = `Features ${feats[0]} and ${feats[1]}.`
+  } else if (feats.length >= 3) {
+    const last = feats[feats.length - 1]
+    const rest = feats.slice(0, -1).join(', ')
+    featuresStr = `Features ${rest}, and ${last}.`
+  }
+
+  const priceStr = props.price && props.price > 0
+    ? `Listed at $${props.price.toLocaleString()}.`
+    : ''
+
+  const ctaParts: string[] = [`Contact ${props.agencyName}`]
+  if (props.agencyCity && props.agencyState) ctaParts[0] += ` in ${props.agencyCity}, ${props.agencyState}`
+  if (props.agencyPhone) ctaParts.push(`or call ${props.agencyPhone}`)
+  const ctaStr = ctaParts.join(' ') + '.'
+  const websiteStr = props.agencyWebsite ? `More listings at ${props.agencyWebsite}.` : ''
+
+  return [opener, specsStr, featuresStr, priceStr, ctaStr, websiteStr]
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function r2ObjectKey(orgId: string, vehicleId: string): string {
   return `videos/${orgId}/${vehicleId}/narration.mp3`
 }

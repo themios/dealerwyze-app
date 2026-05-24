@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import { requireProfile } from '@/lib/auth/profile'
 import { canManageUsers } from '@/lib/auth/dealerRoles'
 import type { UserRole } from '@/types/index'
@@ -9,6 +10,8 @@ import TransferPageClient from './TransferPageClient'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://dealerwyze.com'
 
 export default async function TransferPage() {
+  const hdrs = await headers()
+  const isRE = hdrs.get('x-vertical') === 'real_estate'
   const profile = await requireProfile()
   if (!canManageUsers(profile.role as UserRole)) redirect('/settings')
 
@@ -30,7 +33,7 @@ export default async function TransferPage() {
   return (
     <SettingsPageShell
       title="Transfer Business Ownership"
-      description="Transfer this dealership to a new owner through a controlled approval workflow."
+      description={isRE ? 'Transfer this agency to a new owner through a controlled approval workflow.' : 'Transfer this dealership to a new owner through a controlled approval workflow.'}
       type="critical"
     >
       <TransferPageClient initialTransfer={initialTransfer} />

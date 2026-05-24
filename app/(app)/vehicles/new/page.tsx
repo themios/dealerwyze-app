@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
+import { useVertical } from '@/hooks/useVertical'
 
 function deriveStockNo(vin: string): string {
   const clean = vin.replace(/[^A-HJ-NPR-Z0-9]/gi, '').toUpperCase()
@@ -378,10 +379,292 @@ function NewVehicleForm() {
   )
 }
 
+// ── RE Listing Form ────────────────────────────────────────────────────────────
+
+function NewListingForm() {
+  const router = useRouter()
+  const supabase = createClient()
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({
+    property_type: '',
+    address_line1: '',
+    city:          '',
+    state:         '',
+    zip:           '',
+    bedrooms:      '',
+    bathrooms:     '',
+    sqft:          '',
+    price:         '',
+    listing_type:  'sale',
+    mls_number:    '',
+    year_built:    '',
+    hoa_monthly:   '',
+    notes:         '',
+    status:        'available',
+  })
+
+  function update(field: string, value: string) {
+    setForm(prev => ({ ...prev, [field]: value }))
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.property_type || !form.address_line1) return
+    setSaving(true)
+
+    const mlsNo = form.mls_number.trim()
+    const stockNo = mlsNo || `LST-${Date.now().toString().slice(-6)}`
+
+    const { data, error } = await supabase
+      .from('vehicles')
+      .insert({
+        stock_no:      stockNo,
+        // RE listings use address as the "model" equivalent for display fallbacks
+        year:          form.year_built ? parseInt(form.year_built) : new Date().getFullYear(),
+        make:          form.property_type || 'Property',
+        model:         form.address_line1 || 'Listing',
+        price:         form.price ? parseFloat(form.price) : null,
+        status:        form.status,
+        notes:         form.notes || null,
+        property_type: form.property_type || null,
+        address_line1: form.address_line1 || null,
+        city:          form.city || null,
+        state:         form.state || null,
+        zip:           form.zip || null,
+        bedrooms:      form.bedrooms ? parseInt(form.bedrooms) : null,
+        bathrooms:     form.bathrooms ? parseFloat(form.bathrooms) : null,
+        sqft:          form.sqft ? parseInt(form.sqft) : null,
+        listing_type:  form.listing_type || 'sale',
+        mls_number:    mlsNo || null,
+        year_built:    form.year_built ? parseInt(form.year_built) : null,
+        hoa_monthly:   form.hoa_monthly ? parseFloat(form.hoa_monthly) : null,
+      })
+      .select('id')
+      .single()
+
+    if (data) {
+      router.push(`/vehicles/${data.id}`)
+    } else {
+      setSaving(false)
+      console.error(error)
+    }
+  }
+
+  return (
+    <div>
+      <TopBar
+        title="Add Listing"
+        right={
+          <Link href="/vehicles">
+            <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4" /></Button>
+          </Link>
+        }
+      />
+
+      <form onSubmit={handleSubmit} className="px-4 py-4 space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label>Property Type *</Label>
+            <Select value={form.property_type} onValueChange={(v) => update('property_type', v)}>
+              <SelectTrigger className="h-12">
+                <SelectValue placeholder="Select type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="single_family">Single Family</SelectItem>
+                <SelectItem value="condo">Condo</SelectItem>
+                <SelectItem value="townhouse">Townhouse</SelectItem>
+                <SelectItem value="multi_family">Multi-Family</SelectItem>
+                <SelectItem value="land">Land</SelectItem>
+                <SelectItem value="commercial">Commercial</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Listing Type</Label>
+            <Select value={form.listing_type} onValueChange={(v) => update('listing_type', v)}>
+              <SelectTrigger className="h-12">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="sale">For Sale</SelectItem>
+                <SelectItem value="rental">For Rent</SelectItem>
+                <SelectItem value="lease">Lease</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Address *</Label>
+          <Input
+            placeholder="123 Main St"
+            value={form.address_line1}
+            onChange={(e) => update('address_line1', e.target.value)}
+            required
+            className="h-12 text-base"
+          />
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div className="space-y-1.5 col-span-1">
+            <Label>City</Label>
+            <Input
+              placeholder="Austin"
+              value={form.city}
+              onChange={(e) => update('city', e.target.value)}
+              className="h-12 text-base"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>State</Label>
+            <Input
+              placeholder="TX"
+              value={form.state}
+              onChange={(e) => update('state', e.target.value)}
+              maxLength={2}
+              className="h-12 text-base uppercase"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Zip</Label>
+            <Input
+              placeholder="78701"
+              value={form.zip}
+              onChange={(e) => update('zip', e.target.value)}
+              maxLength={10}
+              className="h-12 text-base"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div className="space-y-1.5">
+            <Label>Beds</Label>
+            <Input
+              type="number"
+              placeholder="3"
+              value={form.bedrooms}
+              onChange={(e) => update('bedrooms', e.target.value)}
+              className="h-12 text-base"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Baths</Label>
+            <Input
+              type="number"
+              step="0.5"
+              placeholder="2"
+              value={form.bathrooms}
+              onChange={(e) => update('bathrooms', e.target.value)}
+              className="h-12 text-base"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Sq Ft</Label>
+            <Input
+              type="number"
+              placeholder="1800"
+              value={form.sqft}
+              onChange={(e) => update('sqft', e.target.value)}
+              className="h-12 text-base"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label>List Price</Label>
+            <Input
+              type="number"
+              placeholder="450000"
+              value={form.price}
+              onChange={(e) => update('price', e.target.value)}
+              className="h-12 text-base"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Status</Label>
+            <Select value={form.status} onValueChange={(v) => update('status', v)}>
+              <SelectTrigger className="h-12">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="available">Active</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="sold">Sold / Closed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label>MLS #</Label>
+            <Input
+              placeholder="1234567"
+              value={form.mls_number}
+              onChange={(e) => update('mls_number', e.target.value)}
+              className="h-12 text-base font-mono"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Year Built</Label>
+            <Input
+              type="number"
+              placeholder="1998"
+              value={form.year_built}
+              onChange={(e) => update('year_built', e.target.value)}
+              className="h-12 text-base"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>HOA (monthly)</Label>
+          <Input
+            type="number"
+            placeholder="250"
+            value={form.hoa_monthly}
+            onChange={(e) => update('hoa_monthly', e.target.value)}
+            className="h-12 text-base"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Notes</Label>
+          <Textarea
+            placeholder="Property highlights, showing instructions, disclosures..."
+            value={form.notes}
+            onChange={(e) => update('notes', e.target.value)}
+            rows={3}
+            className="resize-none"
+          />
+        </div>
+
+        <Button
+          type="submit"
+          className="w-full h-12 text-base"
+          disabled={saving || !form.property_type || !form.address_line1}
+        >
+          {saving ? 'Saving...' : 'Add Listing'}
+        </Button>
+      </form>
+    </div>
+  )
+}
+
+function NewPageInner() {
+  const { vertical } = useVertical()
+  if (vertical === 'real_estate') {
+    return <NewListingForm />
+  }
+  return <NewVehicleForm />
+}
+
 export default function NewVehiclePage() {
   return (
     <Suspense fallback={<div className="p-8 text-center text-muted-foreground text-sm">Loading...</div>}>
-      <NewVehicleForm />
+      <NewPageInner />
     </Suspense>
   )
 }

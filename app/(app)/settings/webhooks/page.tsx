@@ -1,3 +1,4 @@
+import { headers } from 'next/headers'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 import { isDealerAdmin } from '@/types/index'
@@ -6,6 +7,8 @@ import WebhooksClient from './WebhooksClient'
 import SettingsPageShell from '@/components/settings/SettingsPageShell'
 
 export default async function WebhooksPage() {
+  const hdrs = await headers()
+  const isRe = hdrs.get('x-vertical') === 'real_estate'
   const profile = await requireProfile()
   if (!isDealerAdmin(profile.role)) redirect('/settings')
 
@@ -23,7 +26,7 @@ export default async function WebhooksPage() {
       type="ops"
     >
       <div>
-        <WebhooksClient initialWebhooks={webhooks ?? []} />
+        <WebhooksClient initialWebhooks={webhooks ?? []} isRe={isRe} />
       </div>
     </SettingsPageShell>
   )

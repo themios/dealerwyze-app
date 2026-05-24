@@ -36,7 +36,7 @@ interface SocialPostingDto {
   last_daily_post_at: string | null
 }
 
-export default function SocialPostingSection() {
+export default function SocialPostingSection({ isRE = false }: { isRE?: boolean }) {
   const [form, setForm] = useState<SocialPostingState>({
     meta_page_id:                    '',
     instagram_business_account_id:   '',
@@ -243,7 +243,7 @@ export default function SocialPostingSection() {
           <div>
             <p className="text-sm font-medium">Daily AI spotlight</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Once per day (min. ~20h apart), auto-pick one in-stock unit with photos,{' '}
+              Once per day (min. ~20h apart), auto-pick one {isRE ? 'active listing' : 'in-stock unit'} with photos,{' '}
               write a caption with Groq when configured, and post to enabled feed destinations.
               Schedule the <code className="text-[11px]">/api/cron/daily-social</code> cron in production.
             </p>

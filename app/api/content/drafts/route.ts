@@ -13,6 +13,25 @@ const GenerateSchema = z.object({
   themes:         z.array(z.string()).optional(),
 })
 
+const SlideSchema = z.object({
+  headline: z.string().min(1).max(120),
+  body:     z.string().max(280).optional(),
+  emoji:    z.string().max(8).optional(),
+})
+
+// Manual save: agent-written draft with slide structure + platform captions
+const SaveDraftSchema = z.object({
+  action:            z.literal('save'),
+  topic:             z.string().min(1).max(120),
+  tagline:           z.string().max(120).optional(),
+  slides:            z.array(SlideSchema).min(1).max(6),
+  cta_text:          z.string().min(1).max(120),
+  platform_targets:  z.array(z.string()).max(6).default([]),
+  background_tags:   z.array(z.string()).max(10).default([]),
+  content_theme:     z.string().max(60).optional(),
+  platform_captions: z.record(z.string(), z.string()).default({}),
+})
+
 // GET /api/content/drafts — list drafts, optionally filtered by status
 export async function GET(req: NextRequest) {
   const mcpOrgId = validateMcpToken(req.headers.get('authorization'))
@@ -45,7 +64,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ drafts })
 }
 
-// POST /api/content/drafts — generate a batch of AI-written scripts
+// POST /api/content/drafts — save a single agent-written draft OR generate a batch
 export async function POST(req: NextRequest) {
   const mcpOrgId = validateMcpToken(req.headers.get('authorization'))
   let orgId: string
@@ -62,13 +81,43 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
+  const supabase = mcpOrgId ? createServiceClient() : await createClientForRequest()
+
+  // Manual save path: agent-written draft with slides + platform captions
+  if (raw && typeof raw === 'object' && (raw as Record<string, unknown>).action === 'save') {
+    const parsed = SaveDraftSchema.safeParse(raw)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 })
+    }
+
+    const { data: draft, error } = await supabase
+      .from('content_drafts')
+      .insert({
+        org_id:            orgId,
+        status:            'pending',
+        topic:             parsed.data.topic,
+        tagline:           parsed.data.tagline ?? null,
+        slides:            parsed.data.slides,
+        cta_text:          parsed.data.cta_text,
+        platform_targets:  parsed.data.platform_targets,
+        background_tags:   parsed.data.background_tags,
+        content_theme:     parsed.data.content_theme ?? null,
+        platform_captions: parsed.data.platform_captions,
+      })
+      .select('id, topic, status')
+      .single()
+
+    if (error) return NextResponse.json({ error: 'Failed to save draft' }, { status: 500 })
+    return NextResponse.json({ draft }, { status: 201 })
+  }
+
+  // Batch generation path
   const parsed = GenerateSchema.safeParse(raw)
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 })
   }
 
-  const supabase = mcpOrgId ? createServiceClient() : await createClientForRequest()
-  const config   = await getOrgBrandConfig(supabase, orgId)
+  const config = await getOrgBrandConfig(supabase, orgId)
 
   if (!config) {
     return NextResponse.json(

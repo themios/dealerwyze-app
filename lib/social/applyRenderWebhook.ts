@@ -184,6 +184,12 @@ async function applyContentRenderWebhook(
       .update({ status: 'complete', output_url: body.outputUrl, completed_at: completedAt, error_message: null })
       .eq('id', row.id)
 
+    // Advance the draft to 'rendered' so it moves to "Ready to Post" tab
+    await supabase
+      .from('content_drafts')
+      .update({ status: 'rendered', updated_at: completedAt })
+      .eq('render_id', row.id)
+
     let autoPosted = false
     if (row.auto_post && Array.isArray(row.auto_post_platforms) && row.auto_post_platforms.length > 0) {
       const results = await autoPostContentRender(row.id)
