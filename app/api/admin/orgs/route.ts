@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
 import { requirePlatformArea } from '@/lib/auth/platform'
+import { getAdminVerticalScope } from '@/lib/admin/verticalScope'
 
 function computeHealthScore(org: {
   subscription_status: string | null
@@ -24,12 +25,13 @@ function computeHealthScore(org: {
   return Math.max(0, Math.min(100, score))
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const profile = await requireProfile()
   const denied = await requirePlatformArea(profile.id, 'accounts')
   if (denied) return denied
 
   const service = createServiceClient()
+  const scope = await getAdminVerticalScope(req)
 
   const [
     { data: orgs, error: orgsError },
@@ -40,6 +42,7 @@ export async function GET() {
     service
       .from('organizations')
       .select('id, name, plan, subscription_status, trial_ends_at, current_period_end, approved_at, created_at, stripe_customer_id, suspended_at, sms_plan, sms_quota, monthly_message_count, last_active_at, vertical')
+      .in('id', scope.orgIds)
       .order('created_at', { ascending: false }),
 
     service

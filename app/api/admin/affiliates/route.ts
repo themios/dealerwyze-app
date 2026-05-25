@@ -6,15 +6,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
 import { requirePlatformArea } from '@/lib/auth/platform'
+import { getAdminVerticalScope } from '@/lib/admin/verticalScope'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const profile = await requireProfile()
   const denied  = await requirePlatformArea(profile.id, 'affiliates')
   if (denied) return denied
 
   const supabase = createServiceClient()
+  const scope = await getAdminVerticalScope(req)
 
-  // Get affiliate codes with dealer count per code
+  // Get affiliate codes with org count scoped to current vertical
   const { data: codes, error } = await supabase
     .from('affiliate_codes')
     .select('*')
@@ -22,13 +24,17 @@ export async function GET() {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Enrich with dealer counts and MRR attribution
+  // Enrich with counts scoped to the current vertical
   const enriched = await Promise.all((codes ?? []).map(async (code) => {
-    const { count: dealerCount } = await supabase
+    let query = supabase
       .from('organizations')
       .select('id', { count: 'exact', head: true })
       .eq('affiliate_code', code.code)
       .eq('subscription_status', 'active')
+    if (scope.orgIds.length > 0) {
+      query = query.in('id', scope.orgIds)
+    }
+    const { count: dealerCount } = await query
 
     return { ...code, active_dealer_count: dealerCount ?? 0 }
   }))

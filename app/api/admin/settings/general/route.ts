@@ -6,6 +6,11 @@ import { writeAuditLog } from '@/lib/audit/log'
 
 export const dynamic = 'force-dynamic'
 
+function getVerticalFromReq(req: NextRequest): string {
+  const v = req.headers.get('x-vertical')
+  return v === 'real_estate' ? 'real_estate' : 'dealer'
+}
+
 type EditableGeneralSettings = {
   platform_name: string
   support_email: string
@@ -141,22 +146,35 @@ function validateEditableFields(payload: unknown): EditableGeneralSettings | Val
   }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const profile = await requireProfile()
   const isSuperAdmin = await isPlatformSuperAdmin(profile.id)
   if (!isSuperAdmin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  const vertical = getVerticalFromReq(req)
   const supabase = createServiceClient()
   const { data: row, error } = await supabase
     .from('platform_settings')
     .select('*')
+    .eq('vertical', vertical)
     .limit(1)
-    .single()
+    .maybeSingle()
 
   if (error) {
     return NextResponse.json({ error: 'Failed to load platform settings' }, { status: 500 })
+  }
+
+  // Fall back to dealer row if no vertical-specific row yet (pre-migration)
+  if (!row) {
+    const { data: fallback } = await supabase
+      .from('platform_settings')
+      .select('*')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    return NextResponse.json({ data: fallback ?? {} })
   }
 
   return NextResponse.json({ data: row })
@@ -169,6 +187,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  const vertical = getVerticalFromReq(req)
   const json = await req.json().catch(() => null)
   const validated = validateEditableFields(json)
   if ('error' in validated) {
@@ -184,7 +203,7 @@ export async function PATCH(req: NextRequest) {
       updated_at: new Date().toISOString(),
       updated_by: profile.id,
     })
-    .not('id', 'is', null)
+    .eq('vertical', vertical)
     .select('*')
     .single()
 

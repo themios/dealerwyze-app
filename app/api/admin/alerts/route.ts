@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
 import { requirePlatformArea } from '@/lib/auth/platform'
+import { getAdminVerticalScope } from '@/lib/admin/verticalScope'
 
 // These are cron dedup markers, not actionable alerts — never show in UI.
 const DEDUP_PREFIXES = ['dealer_followup_', 'onboarding_nudge', 'owner_digest_sent']
@@ -16,6 +17,8 @@ export async function GET(req: NextRequest) {
   if (denied) return denied
 
   const supabase = createServiceClient()
+  const scope = await getAdminVerticalScope(req)
+  if (scope.orgIds.length === 0) return NextResponse.json([])
 
   // ?count=1 → lightweight count-only response for badge use
   if (req.nextUrl.searchParams.get('count') === '1') {
@@ -23,6 +26,7 @@ export async function GET(req: NextRequest) {
       .from('admin_alerts')
       .select('id', { count: 'exact', head: true })
       .is('resolved_at', null)
+      .in('org_id', scope.orgIds)
     if (error) {
       console.error('[admin/alerts]', error)
       return NextResponse.json({ error: 'Failed to fetch alerts' }, { status: 500 })
@@ -40,6 +44,7 @@ export async function GET(req: NextRequest) {
         monthly_message_count, sms_quota
       )
     `)
+    .in('org_id', scope.orgIds)
     .is('resolved_at', null)
     .order('created_at', { ascending: false })
     .limit(200)
@@ -58,7 +63,7 @@ export async function GET(req: NextRequest) {
     .from('profiles')
     .select('org_id, user_id')
     .in('org_id', orgIds)
-    .eq('role', 'dealer_admin')
+    .in('role', ['dealer_admin', 'admin'])
 
   // Resolve auth emails (auth.users) for each profile
   const emailByOrg: Record<string, string> = {}

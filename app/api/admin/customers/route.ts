@@ -8,6 +8,7 @@ import { requireProfile } from '@/lib/auth/profile'
 import { requirePlatformArea } from '@/lib/auth/platform'
 import { createServiceClient } from '@/lib/supabase/service'
 import { computeAttritionScore } from '@/lib/admin/attrition'
+import { getAdminVerticalScope } from '@/lib/admin/verticalScope'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,11 +18,14 @@ export async function GET(req: NextRequest) {
   if (denied) return denied
 
   const service = createServiceClient()
+  const scope = await getAdminVerticalScope(req)
+  if (scope.orgIds.length === 0) return NextResponse.json([])
 
   const [orgsRes, codesRes, emailRes, ticketRes, profileRes] = await Promise.allSettled([
     service.from('organizations')
       .select('id, name, plan, subscription_status, trial_ends_at, current_period_end, created_at, approved_at, suspended_at, affiliate_code, org_settings(monthly_message_count, sms_quota, onboarding_completed_at)')
       .not('id', 'eq', '00000000-0000-0000-0000-000000000001')
+      .in('id', scope.orgIds)
       .not('approved_at', 'is', null)
       .order('created_at', { ascending: false }),
     service.from('affiliate_codes').select('code, owner_name, owner_email, type'),

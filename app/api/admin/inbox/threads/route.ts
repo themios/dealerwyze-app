@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { requirePlatformArea } from '@/lib/auth/platform'
 import { createServiceClient } from '@/lib/supabase/service'
+import { getAdminVerticalScope } from '@/lib/admin/verticalScope'
 
 const SENTINEL_ORG_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -18,6 +19,7 @@ export async function GET(req: NextRequest) {
   const countOnly    = searchParams.get('count_only') === 'unread'
 
   const supabase = createServiceClient()
+  const scope = await getAdminVerticalScope(req)
 
   if (countOnly) {
     const { data: openThreads } = await supabase
@@ -25,6 +27,7 @@ export async function GET(req: NextRequest) {
       .select('id')
       .eq('status', 'open')
       .neq('org_id', SENTINEL_ORG_ID)
+      .in('org_id', scope.orgIds)
 
     const threadIds = (openThreads ?? []).map(t => t.id)
     if (!threadIds.length) return NextResponse.json({ count: 0 })
@@ -45,6 +48,7 @@ export async function GET(req: NextRequest) {
     .select('id, org_id, subject, thread_type, status, assigned_to, created_at, updated_at, organizations(name)')
     .eq('status', status)
     .neq('org_id', SENTINEL_ORG_ID)
+    .in('org_id', scope.orgIds)
     .order('updated_at', { ascending: false })
     .limit(200)
 

@@ -3,6 +3,7 @@ import { requireProfile } from '@/lib/auth/profile'
 import { requirePlatformArea } from '@/lib/auth/platform'
 import { createServiceClient } from '@/lib/supabase/service'
 import { computeAttritionScore } from '@/lib/admin/attrition'
+import { getAdminVerticalScope } from '@/lib/admin/verticalScope'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,6 +19,7 @@ export async function GET(req: NextRequest) {
   if (denied) return denied
 
   const service = createServiceClient()
+  const scope = await getAdminVerticalScope(req)
 
   // Fetch orgs with key fields
   const [{ data: orgs }, { data: emailAccounts }, { data: ticketCounts }] = await Promise.all([
@@ -34,6 +36,7 @@ export async function GET(req: NextRequest) {
         )
       `)
       .not('id', 'eq', '00000000-0000-0000-0000-000000000001')
+      .in('id', scope.orgIds)
       .not('approved_at', 'is', null)
       .order('created_at', { ascending: false }),
 

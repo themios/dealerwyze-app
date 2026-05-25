@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
 import { requirePlatformArea } from '@/lib/auth/platform'
+import { getAdminVerticalScope } from '@/lib/admin/verticalScope'
 
 // Base plan pricing (CRM subscription, active orgs only)
 const BASE_PLAN_MRR: Record<string, number> = {
@@ -17,12 +18,25 @@ const SMS_ADDON_MRR: Record<string, number> = {
   smsTier3: 59.99,
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const profile = await requireProfile()
   const denied = await requirePlatformArea(profile.id, 'analytics')
   if (denied) return denied
 
   const supabase = createServiceClient()
+  const scope = await getAdminVerticalScope(req)
+  if (scope.orgIds.length === 0) {
+    return NextResponse.json({
+      summary: { total: 0, active: 0, trialing: 0, past_due: 0, canceled: 0 },
+      mrr: 0, arr: 0, net_new_mrr_30d: 0,
+      new_orgs_30d: 0, new_orgs_7d: 0,
+      platform_sms_30d: 0, platform_voice_minutes_30d: 0,
+      feature_adoption: { gmail_pct: 0, voice_pct: 0 },
+      trial_conversion_rate: 0,
+      top_orgs: [],
+    })
+  }
+
   const now = Date.now()
   const since30d = new Date(now - 30 * 86400000).toISOString()
   const since7d  = new Date(now - 7  * 86400000).toISOString()
@@ -35,7 +49,8 @@ export async function GET() {
   ] = await Promise.all([
     supabase
       .from('organizations')
-      .select('id, name, plan, sms_plan, subscription_status, monthly_message_count, monthly_voice_seconds, created_at'),
+      .select('id, name, plan, sms_plan, subscription_status, monthly_message_count, monthly_voice_seconds, created_at')
+      .in('id', scope.orgIds),
     supabase
       .from('voice_calls')
       .select('duration_seconds')
