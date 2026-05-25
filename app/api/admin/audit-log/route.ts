@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
 import { requirePlatformArea } from '@/lib/auth/platform'
+import { getAdminVerticalScope } from '@/lib/admin/verticalScope'
 
 export async function GET(req: NextRequest) {
   const profile = await requireProfile()
@@ -18,6 +19,7 @@ export async function GET(req: NextRequest) {
   const limit   = Math.min(Number(searchParams.get('limit') ?? '100'), 500)
 
   const supabase = createServiceClient()
+  const scope = await getAdminVerticalScope(req)
 
   let query = supabase
     .from('admin_audit_log')
@@ -32,6 +34,22 @@ export async function GET(req: NextRequest) {
     `)
     .order('created_at', { ascending: false })
     .limit(limit)
+
+  // Scope to current vertical's orgs. On the dealer side also include entries with
+  // no target_org (platform-level actions like staff creation). On the RE side,
+  // only show RE org entries — platform entries are DW-context and not relevant.
+  if (scope.isRE) {
+    if (scope.orgIds.length > 0) {
+      query = query.in('target_org_id', scope.orgIds)
+    } else {
+      return NextResponse.json([])
+    }
+  } else {
+    // dealer: include null-org platform entries
+    if (scope.orgIds.length > 0) {
+      query = query.or(`target_org_id.in.(${scope.orgIds.join(',')}),target_org_id.is.null`)
+    }
+  }
 
   if (search)  query = query.ilike('action', `%${search}%`)
   if (orgId)   query = query.eq('target_org_id', orgId)

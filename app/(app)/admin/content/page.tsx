@@ -14,10 +14,14 @@ export default async function AdminContentPage() {
   if (!superAdmin) redirect('/admin')
 
   const hdrs = await headers()
-  const isRE = hdrs.get('x-vertical') === 'real_estate'
+  const host = hdrs.get('host') ?? ''
+  const isRE = host.includes('realtywyze')
   const contentTitle = isRE ? 'RealtyWyze Content' : 'DealerWyze Content'
 
-  const marketingOrgId = process.env.CONTENT_MCP_ORG_ID
+  // Each vertical has its own content marketing org
+  const marketingOrgId = isRE
+    ? process.env.RE_CONTENT_MCP_ORG_ID
+    : process.env.CONTENT_MCP_ORG_ID
   if (!marketingOrgId) {
     return (
       <div className="flex flex-col h-screen">

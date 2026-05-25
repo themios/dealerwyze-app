@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/admin/staff
- * Returns enriched platform staff list: tickets handled, last login, assigned orgs count.
+ * Returns enriched platform staff list. Platform staff are global — they serve all verticals.
  * Superadmin only.
  */
 export async function GET() {

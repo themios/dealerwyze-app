@@ -1,5 +1,5 @@
 /**
- * GET  /api/admin/affiliates  — list all affiliate codes + dealer counts
+ * GET  /api/admin/affiliates  — list affiliate codes for the current vertical
  * POST /api/admin/affiliates  — create affiliate code (superadmin only)
  */
 import { NextRequest, NextResponse } from 'next/server'
@@ -15,16 +15,18 @@ export async function GET(req: NextRequest) {
 
   const supabase = createServiceClient()
   const scope = await getAdminVerticalScope(req)
+  const vertical = scope.isRE ? 'real_estate' : 'dealer'
 
-  // Get affiliate codes with org count scoped to current vertical
+  // Codes scoped to current vertical only
   const { data: codes, error } = await supabase
     .from('affiliate_codes')
     .select('*')
+    .eq('vertical', vertical)
     .order('created_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Enrich with counts scoped to the current vertical
+  // Enrich with org counts scoped to the current vertical
   const enriched = await Promise.all((codes ?? []).map(async (code) => {
     let query = supabase
       .from('organizations')
@@ -34,9 +36,9 @@ export async function GET(req: NextRequest) {
     if (scope.orgIds.length > 0) {
       query = query.in('id', scope.orgIds)
     }
-    const { count: dealerCount } = await query
+    const { count } = await query
 
-    return { ...code, active_dealer_count: dealerCount ?? 0 }
+    return { ...code, active_dealer_count: count ?? 0 }
   }))
 
   return NextResponse.json({ affiliates: enriched })
@@ -46,6 +48,9 @@ export async function POST(req: NextRequest) {
   const profile = await requireProfile()
   const denied  = await requirePlatformArea(profile.id, 'affiliates')
   if (denied) return denied
+
+  const scope = await getAdminVerticalScope(req)
+  const vertical = scope.isRE ? 'real_estate' : 'dealer'
 
   const body = await req.json()
   const {
@@ -98,6 +103,7 @@ export async function POST(req: NextRequest) {
       notes:                    notes ?? null,
       commission_first_pct,
       commission_recurring_pct: recurringPct,
+      vertical,
     })
     .select()
     .single()

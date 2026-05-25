@@ -1,18 +1,25 @@
 /**
  * verticalScope — resolves org IDs for the current admin vertical.
  *
- * The x-vertical request header (set by proxy.ts on every request) tells us
- * which brand the admin is operating from. Every admin API that lists orgs,
- * alerts, retention data, etc. must scope its queries to the correct vertical
- * so dealer data never bleeds into the RealtyWyze admin and vice versa.
+ * Detects the active vertical from the request host header directly, since
+ * the proxy.ts middleware matcher excludes /api/* routes (they bypass the
+ * middleware entirely). The host header is always present and reliable.
  *
  * Usage in an API route:
- *   const { isRE, orgIdFilter } = await getAdminVerticalScope(req)
- *   query.in('org_id', orgIdFilter)   // scope to current vertical
+ *   const scope = await getAdminVerticalScope(req)
+ *   query.in('org_id', scope.orgIds)   // scope to current vertical
  */
 
 import { type NextRequest } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
+
+// Hostnames that belong to the RealtyWyze vertical
+const REALTY_HOSTS = ['realtywyze.us', 'realtywyze.localhost']
+
+function isRealtyHost(req: NextRequest): boolean {
+  const host = req.headers.get('host') ?? ''
+  return REALTY_HOSTS.some(h => host.includes(h))
+}
 
 export interface AdminVerticalScope {
   isRE: boolean
@@ -29,8 +36,7 @@ export interface AdminVerticalScope {
 const SENTINEL = '00000000-0000-0000-0000-000000000001'
 
 export async function getAdminVerticalScope(req: NextRequest): Promise<AdminVerticalScope> {
-  const vertical = req.headers.get('x-vertical')
-  const isRE = vertical === 'real_estate'
+  const isRE = isRealtyHost(req)
 
   const service = createServiceClient()
 

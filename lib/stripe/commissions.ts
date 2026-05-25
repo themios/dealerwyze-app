@@ -58,13 +58,14 @@ export interface CommissionSummary {
 
 export const MIN_PAYOUT = 25  // $25 minimum payout threshold
 
-export async function getCommissionSummaries(): Promise<CommissionSummary[]> {
+export async function getCommissionSummaries(vertical: 'dealer' | 'real_estate' = 'dealer'): Promise<CommissionSummary[]> {
   const service = createServiceClient()
 
-  // Get all active affiliate codes
+  // Get affiliate codes scoped to the current vertical
   const { data: codes } = await service
     .from('affiliate_codes')
     .select('code, type, owner_name, owner_email, is_active')
+    .eq('vertical', vertical)
     .order('created_at', { ascending: false })
 
   if (!codes || codes.length === 0) return []

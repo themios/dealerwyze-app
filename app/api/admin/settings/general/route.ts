@@ -6,9 +6,11 @@ import { writeAuditLog } from '@/lib/audit/log'
 
 export const dynamic = 'force-dynamic'
 
+const REALTY_HOSTS = ['realtywyze.us', 'realtywyze.localhost']
+
 function getVerticalFromReq(req: NextRequest): string {
-  const v = req.headers.get('x-vertical')
-  return v === 'real_estate' ? 'real_estate' : 'dealer'
+  const host = req.headers.get('host') ?? ''
+  return REALTY_HOSTS.some(h => host.includes(h)) ? 'real_estate' : 'dealer'
 }
 
 type EditableGeneralSettings = {

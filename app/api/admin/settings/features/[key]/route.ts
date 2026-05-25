@@ -79,6 +79,14 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   }
 
   const supabase = createServiceClient()
+
+  // Scope the update to the correct vertical so a flag_key shared across verticals
+  // only updates the row belonging to the current admin's vertical.
+  const host = req.headers.get('host') ?? ''
+  const vertical = ['realtywyze.us', 'realtywyze.localhost'].some(h => host.includes(h))
+    ? 'real_estate'
+    : 'dealer'
+
   const { data: row, error } = await supabase
     .from('platform_feature_flags')
     .update({
@@ -87,6 +95,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       updated_by: profile.id,
     })
     .eq('flag_key', key)
+    .eq('vertical', vertical)
     .select('id, flag_key, display_name, description, enabled_globally, enabled_for_plans, kill_switch, updated_at')
     .single()
 

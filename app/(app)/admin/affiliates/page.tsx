@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import TopBar from '@/components/layout/TopBar'
 import Link from 'next/link'
 import { Plus, DollarSign, Users, CheckCircle2, Clock, Loader2, X, Pencil, Check, ToggleLeft, ToggleRight, UserPlus, ArrowRightLeft, ChevronRight } from 'lucide-react'
+import { useVertical } from '@/hooks/useVertical'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -76,6 +77,10 @@ interface EditForm {
 }
 
 function CodesTab() {
+  const { vertical } = useVertical()
+  const isRE = vertical === 'real_estate'
+  const orgNoun = isRE ? 'agency' : 'dealer'
+  const orgNounPlural = isRE ? 'agencies' : 'dealers'
   const [codes, setCodes]       = useState<AffiliateCode[]>([])
   const [loading, setLoading]   = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -188,7 +193,7 @@ function CodesTab() {
     })
     const data = await res.json()
     if (!res.ok) { setTransferMsg(`Error: ${data.error}`); setTransferSaving(false); return }
-    setTransferMsg(`Transferred ${data.orgs_transferred} dealers to ${data.to_code}`)
+    setTransferMsg(`Transferred ${data.orgs_transferred} ${orgNounPlural} to ${data.to_code}`)
     setTransferring(null)
     setTransferTo('')
     await load()
@@ -331,7 +336,7 @@ function CodesTab() {
                     <div className="text-right text-xs text-gray-500 space-y-1">
                       <div className="flex items-center gap-1 justify-end">
                         <Users className="w-3 h-3" />
-                        <span>{c.active_dealer_count} active dealer{c.active_dealer_count !== 1 ? 's' : ''}</span>
+                        <span>{c.active_dealer_count} active {c.active_dealer_count !== 1 ? orgNounPlural : orgNoun}</span>
                       </div>
                       <div>{c.commission_first_pct}% first · {c.commission_recurring_pct}% recurring</div>
                     </div>
@@ -345,7 +350,7 @@ function CodesTab() {
                     <Link
                       href={`/admin/affiliates/${c.code}`}
                       className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
-                      title="View affiliate details — dealers, portal account, commissions"
+                      title={`View affiliate details — ${orgNounPlural}, portal account, commissions`}
                     >
                       <ChevronRight className="w-4 h-4" />
                     </Link>
@@ -369,10 +374,10 @@ function CodesTab() {
                   </button>
                   <button
                     onClick={() => { setTransferring(c.code); setTransferMsg('') }}
-                    title="Move all dealers attributed to this code to a different rep — use when a salesperson leaves"
+                    title={`Move all ${orgNounPlural} attributed to this code to a different rep — use when a salesperson leaves`}
                     className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border hover:bg-orange-50 hover:border-orange-300 text-gray-600 transition-colors"
                   >
-                    <ArrowRightLeft className="w-3.5 h-3.5" /> Transfer dealers
+                    <ArrowRightLeft className="w-3.5 h-3.5" /> Transfer {orgNounPlural}
                   </button>
                 </div>
 
@@ -420,7 +425,7 @@ function CodesTab() {
                 {transferring === c.code && (
                   <div className="mt-3 pt-3 border-t space-y-3 bg-orange-50 rounded-lg p-3">
                     <div className="flex justify-between items-center">
-                      <span className="text-xs font-semibold text-orange-800">Transfer all dealers to another rep</span>
+                      <span className="text-xs font-semibold text-orange-800">Transfer all {orgNounPlural} to another rep</span>
                       <button onClick={() => setTransferring(null)} title="Cancel — close transfer form"><X className="w-4 h-4 text-gray-400" /></button>
                     </div>
                     <p className="text-xs text-orange-700">
@@ -437,7 +442,7 @@ function CodesTab() {
                       <button onClick={() => setTransferring(null)} title="Cancel — no changes made"
                         className="flex-1 py-2 rounded-lg text-sm border font-medium hover:bg-white">Cancel</button>
                       <button onClick={() => handleTransfer(c.code)} disabled={transferSaving || !transferTo.trim()}
-                        title="Transfer all dealers and pending commissions to the destination code, then deactivate this code"
+                        title={`Transfer all ${orgNounPlural} and pending commissions to the destination code, then deactivate this code`}
                         className="flex-1 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
                         style={{ backgroundColor: '#d97706' }}>
                         {transferSaving ? 'Transferring…' : 'Transfer & deactivate'}
