@@ -186,8 +186,13 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Pass through all other API routes without auth check
-  if (pathname.startsWith('/api/')) return NextResponse.next()
+  // Pass through all other API routes without auth check, but inject x-vertical
+  // so admin API routes can scope queries to the correct product vertical.
+  if (pathname.startsWith('/api/')) {
+    const apiHeaders = new Headers(request.headers)
+    apiHeaders.set('x-vertical', vertical)
+    return NextResponse.next({ request: { headers: apiHeaders } })
+  }
 
   // Pass through public paths — still inject x-vertical so landing/signup pages can read it
   if (isPublic(pathname)) {
