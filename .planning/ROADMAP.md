@@ -78,6 +78,14 @@ These are not phase tasks — they are vendor approvals and API keys that must b
 4. Agent opens a listing detail page and sees days on market, price change history, and showing count without navigating away.
 5. Agent clicks "Generate CMA" on a listing and receives a formatted comparable analysis report within 15 seconds.
 
+**Plans:** 4 plans in 3 waves
+
+Plans:
+- [ ] 07-01-PLAN.md — Migrations 189/190/191 + apify-client install + env vars
+- [ ] 07-02-PLAN.md — URL import (LIST-01) + photo scan (LIST-02) API routes and lib
+- [ ] 07-03-PLAN.md — MLS# import (LIST-03), metrics API (LIST-04), CMA API (LIST-05)
+- [ ] 07-04-PLAN.md — UI: import buttons + confirmation form, metrics panel, CMA display, price tracking
+
 ---
 
 ### Phase 8 — Showings
