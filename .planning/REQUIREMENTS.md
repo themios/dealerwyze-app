@@ -7,7 +7,7 @@
 
 ## v1 Requirements
 
-### Phase 2 — Listing Intelligence
+### Phase 7 — Listing Intelligence
 
 - [ ] **LIST-01**: Agent can import a listing by pasting a Zillow, Redfin, or Realtor.com URL (Apify-backed scrape → auto-fills address, beds, baths, sq ft, price, photos)
 - [ ] **LIST-02**: Agent can scan a listing photo or flyer and have AI extract address, beds, baths, price, and square footage (Claude Vision, reuses scan-image pattern)
@@ -17,7 +17,7 @@
 - [ ] **LIST-06**: Listing import respects org scoping — imported listings belong to the authenticated agent's org only
 - [ ] **LIST-07**: URL and photo import show a confirmation preview before saving, allowing agent to correct AI-extracted fields
 
-### Phase 3 — Showings
+### Phase 8 — Showings
 
 - [ ] **SHOW-01**: Agent can schedule a showing on a listing with date, time, buyer contact, and notes
 - [ ] **SHOW-02**: Agent receives a showing reminder via SMS/email before the scheduled time
@@ -28,7 +28,7 @@
 - [ ] **SHOW-07**: Cal.com webhook creates a showing record in CRM when a buyer books (no manual entry required)
 - [ ] **SHOW-08**: Google Calendar sync: showing created/updated/cancelled in CRM syncs to agent's connected Google Calendar
 
-### Phase 4 — Transactions & Commissions
+### Phase 9 — Transactions & Commissions
 
 - [ ] **TXN-01**: Agent can create a transaction for a listing when an offer is received (buyer, amount, date, contingencies, expiry)
 - [ ] **TXN-02**: Agent can update transaction status through stages: Offer → Under Contract → Inspection → Appraisal → Closing → Closed
@@ -39,13 +39,13 @@
 - [ ] **TXN-07**: Agent can view their commission summary (YTD earnings, per-transaction breakdown)
 - [ ] **TXN-08**: Broker can view commission summary across all agents in the org
 
-### Phase 5 — Listing Video (Remotion)
+### Phase 10 — Listing Video (Remotion)
 
 - [ ] **VID-01**: Agent can generate a listing showcase video from a listing record (address, photos, price, beds/baths on branded RE template)
 - [ ] **VID-02**: RE listing video uses a dedicated Remotion composition ("REListingShowcase") separate from dealer templates
 - [ ] **VID-03**: Generated video can be downloaded or posted to connected social accounts
 
-### Phase 6 — AI Voice (Retell RE Agent)
+### Phase 11 — AI Voice (Retell RE Agent)
 
 - [ ] **VOICE-01**: RE org can enable an AI phone agent (separate Retell agent, dedicated RE persona)
 - [ ] **VOICE-02**: Retell RE agent qualifies inbound callers: timeline, budget, pre-approval status, target neighborhoods, current agent status
@@ -53,7 +53,7 @@
 - [ ] **VOICE-04**: Hot lead escalation: if caller meets qualification threshold, agent is notified via SMS immediately
 - [ ] **VOICE-05**: RE org can configure their Retell phone number and agent greeting from org settings
 
-### Phase 7 — Public Listing Site
+### Phase 12 — Public Listing Site
 
 - [ ] **PUB-01**: Each RE agency gets a public listing site at [slug].realtywyze.us (wildcard subdomain, auto-SSL via Vercel)
 - [ ] **PUB-02**: Broker/admin can set their agency's slug from org settings (unique across platform)
@@ -64,7 +64,7 @@
 - [ ] **PUB-07**: Subdomain-to-org lookup is secure — no cross-tenant data possible (slug → org_id lookup table, no session assumed)
 - [ ] **PUB-08**: Agency can customize public site: logo, primary color, contact info, bio
 
-### Phase 8 — Integrations
+### Phase 13 — Integrations
 
 - [ ] **INT-01**: Agent can connect DocuSign from org settings (OAuth flow, follows Gmail integration pattern)
 - [ ] **INT-02**: Agent can send a DocuSign envelope from a transaction record (select template, add signers, send)
@@ -118,7 +118,7 @@
 
 ---
 
-## Pre-Build Actions Required (Parallel to Phase 2)
+## Pre-Build Actions Required (Parallel to Phase 7)
 
 - [ ] **IDX-GATE**: Submit MLS board approval application to iHomeFinder. 30–90 day process — start immediately.
 - [ ] **BROKER-INTERVIEW**: Interview 2 brokers about commission split structures before building TXN-05/06.
@@ -134,22 +134,60 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| LIST-01–07 | Phase 2 — Listing Intelligence | Pending |
-| SHOW-01–08 | Phase 3 — Showings | Pending |
-| TXN-01–08 | Phase 4 — Transactions & Commissions | Pending |
-| VID-01–03 | Phase 5 — Listing Video | Pending |
-| VOICE-01–05 | Phase 6 — AI Voice | Pending |
-| PUB-01–08 | Phase 7 — Public Listing Site | Pending |
-| INT-01–06 | Phase 8 — Integrations | Pending |
+| LIST-01 | Phase 7 — Listing Intelligence | Pending |
+| LIST-02 | Phase 7 — Listing Intelligence | Pending |
+| LIST-03 | Phase 7 — Listing Intelligence | Pending |
+| LIST-04 | Phase 7 — Listing Intelligence | Pending |
+| LIST-05 | Phase 7 — Listing Intelligence | Pending |
+| LIST-06 | Phase 7 — Listing Intelligence | Pending |
+| LIST-07 | Phase 7 — Listing Intelligence | Pending |
+| SHOW-01 | Phase 8 — Showings | Pending |
+| SHOW-02 | Phase 8 — Showings | Pending |
+| SHOW-03 | Phase 8 — Showings | Pending |
+| SHOW-04 | Phase 8 — Showings | Pending |
+| SHOW-05 | Phase 8 — Showings | Pending |
+| SHOW-06 | Phase 8 — Showings | Pending |
+| SHOW-07 | Phase 8 — Showings | Pending |
+| SHOW-08 | Phase 8 — Showings | Pending |
+| TXN-01 | Phase 9 — Transactions & Commissions | Pending |
+| TXN-02 | Phase 9 — Transactions & Commissions | Pending |
+| TXN-03 | Phase 9 — Transactions & Commissions | Pending |
+| TXN-04 | Phase 9 — Transactions & Commissions | Pending |
+| TXN-05 | Phase 9 — Transactions & Commissions | Pending |
+| TXN-06 | Phase 9 — Transactions & Commissions | Pending |
+| TXN-07 | Phase 9 — Transactions & Commissions | Pending |
+| TXN-08 | Phase 9 — Transactions & Commissions | Pending |
+| VID-01 | Phase 10 — Listing Video | Pending |
+| VID-02 | Phase 10 — Listing Video | Pending |
+| VID-03 | Phase 10 — Listing Video | Pending |
+| VOICE-01 | Phase 11 — AI Voice | Pending |
+| VOICE-02 | Phase 11 — AI Voice | Pending |
+| VOICE-03 | Phase 11 — AI Voice | Pending |
+| VOICE-04 | Phase 11 — AI Voice | Pending |
+| VOICE-05 | Phase 11 — AI Voice | Pending |
+| PUB-01 | Phase 12 — Public Listing Site | Pending |
+| PUB-02 | Phase 12 — Public Listing Site | Pending |
+| PUB-03 | Phase 12 — Public Listing Site | Pending |
+| PUB-04 | Phase 12 — Public Listing Site | Pending |
+| PUB-05 | Phase 12 — Public Listing Site | Pending |
+| PUB-06 | Phase 12 — Public Listing Site | Pending |
+| PUB-07 | Phase 12 — Public Listing Site | Pending |
+| PUB-08 | Phase 12 — Public Listing Site | Pending |
+| INT-01 | Phase 13 — Integrations | Pending |
+| INT-02 | Phase 13 — Integrations | Pending |
+| INT-03 | Phase 13 — Integrations | Pending |
+| INT-04 | Phase 13 — Integrations | Pending |
+| INT-05 | Phase 13 — Integrations | Pending |
+| INT-06 | Phase 13 — Integrations | Pending |
 
 **Coverage:**
-- v1 requirements: 47 total across 8 phases
+- v1 requirements: 47 total across 7 phases
 - Mapped to phases: 47
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-05-28*
-*Last updated: 2026-05-28 — initial v2.0 definition*
+*Last updated: 2026-05-28 — traceability updated to correct phase numbers (7–13)*
 
 ---
 
