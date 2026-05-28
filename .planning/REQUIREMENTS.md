@@ -1,7 +1,155 @@
-# Requirements: DealerWyze v1.1 Enterprise Hardening
+# Requirements: RealtyWyze v2.0 — Full Feature Build
 
-**Defined:** 2026-04-29
-**Core Value:** Every dealership's data stays completely isolated from every other dealership's data — a breach of tenant isolation is an existential failure.
+**Defined:** 2026-05-28
+**Core Value:** Every RE agent has a complete deal pipeline — from listing import through closed transaction — without leaving RealtyWyze.
+
+---
+
+## v1 Requirements
+
+### Phase 2 — Listing Intelligence
+
+- [ ] **LIST-01**: Agent can import a listing by pasting a Zillow, Redfin, or Realtor.com URL (Apify-backed scrape → auto-fills address, beds, baths, sq ft, price, photos)
+- [ ] **LIST-02**: Agent can scan a listing photo or flyer and have AI extract address, beds, baths, price, and square footage (Claude Vision, reuses scan-image pattern)
+- [ ] **LIST-03**: Agent can import a listing by entering an MLS# (RentCast API → writes to vehicles table with RE fields)
+- [ ] **LIST-04**: Agent can view listing performance metrics: days on market, price history, showing count
+- [ ] **LIST-05**: Agent can generate a CMA for a listing using RentCast AVM + comps, displayed as a formatted report
+- [ ] **LIST-06**: Listing import respects org scoping — imported listings belong to the authenticated agent's org only
+- [ ] **LIST-07**: URL and photo import show a confirmation preview before saving, allowing agent to correct AI-extracted fields
+
+### Phase 3 — Showings
+
+- [ ] **SHOW-01**: Agent can schedule a showing on a listing with date, time, buyer contact, and notes
+- [ ] **SHOW-02**: Agent receives a showing reminder via SMS/email before the scheduled time
+- [ ] **SHOW-03**: Agent can mark a showing as completed, cancelled, or no-show
+- [ ] **SHOW-04**: Agent can view all showings for a listing in chronological order on the listing detail page
+- [ ] **SHOW-05**: Agent can view all their upcoming showings across all listings in a calendar/list view
+- [ ] **SHOW-06**: Agent can embed a Cal.com booking link on a listing for self-serve showing requests from buyers
+- [ ] **SHOW-07**: Cal.com webhook creates a showing record in CRM when a buyer books (no manual entry required)
+- [ ] **SHOW-08**: Google Calendar sync: showing created/updated/cancelled in CRM syncs to agent's connected Google Calendar
+
+### Phase 4 — Transactions & Commissions
+
+- [ ] **TXN-01**: Agent can create a transaction for a listing when an offer is received (buyer, amount, date, contingencies, expiry)
+- [ ] **TXN-02**: Agent can update transaction status through stages: Offer → Under Contract → Inspection → Appraisal → Closing → Closed
+- [ ] **TXN-03**: Agent can record the closing date and final sale price on a transaction
+- [ ] **TXN-04**: Agent can log all parties on a transaction (buyer agent, seller agent, title company, lender)
+- [ ] **TXN-05**: Broker can configure commission split plans for the org (supports: flat %, tiered/graduated, capped, referral deduction)
+- [ ] **TXN-06**: Transaction automatically calculates gross commission and agent split based on active plan
+- [ ] **TXN-07**: Agent can view their commission summary (YTD earnings, per-transaction breakdown)
+- [ ] **TXN-08**: Broker can view commission summary across all agents in the org
+
+### Phase 5 — Listing Video (Remotion)
+
+- [ ] **VID-01**: Agent can generate a listing showcase video from a listing record (address, photos, price, beds/baths on branded RE template)
+- [ ] **VID-02**: RE listing video uses a dedicated Remotion composition ("REListingShowcase") separate from dealer templates
+- [ ] **VID-03**: Generated video can be downloaded or posted to connected social accounts
+
+### Phase 6 — AI Voice (Retell RE Agent)
+
+- [ ] **VOICE-01**: RE org can enable an AI phone agent (separate Retell agent, dedicated RE persona)
+- [ ] **VOICE-02**: Retell RE agent qualifies inbound callers: timeline, budget, pre-approval status, target neighborhoods, current agent status
+- [ ] **VOICE-03**: Qualified lead from a call is automatically created or matched in CRM with call summary and qualification data
+- [ ] **VOICE-04**: Hot lead escalation: if caller meets qualification threshold, agent is notified via SMS immediately
+- [ ] **VOICE-05**: RE org can configure their Retell phone number and agent greeting from org settings
+
+### Phase 7 — Public Listing Site
+
+- [ ] **PUB-01**: Each RE agency gets a public listing site at [slug].realtywyze.us (wildcard subdomain, auto-SSL via Vercel)
+- [ ] **PUB-02**: Broker/admin can set their agency's slug from org settings (unique across platform)
+- [ ] **PUB-03**: Public listing site shows all active listings for the agency with search/filter by beds, baths, price range
+- [ ] **PUB-04**: Each listing has a public detail page with photos, description, agent contact, and inquiry form
+- [ ] **PUB-05**: Inquiry form submission creates a lead in CRM and sends agent a notification
+- [ ] **PUB-06**: Public listing pages have proper SEO metadata (title, description, Open Graph, JSON-LD structured data)
+- [ ] **PUB-07**: Subdomain-to-org lookup is secure — no cross-tenant data possible (slug → org_id lookup table, no session assumed)
+- [ ] **PUB-08**: Agency can customize public site: logo, primary color, contact info, bio
+
+### Phase 8 — Integrations
+
+- [ ] **INT-01**: Agent can connect DocuSign from org settings (OAuth flow, follows Gmail integration pattern)
+- [ ] **INT-02**: Agent can send a DocuSign envelope from a transaction record (select template, add signers, send)
+- [ ] **INT-03**: DocuSign envelope status (sent, viewed, completed, declined) is visible on the transaction record
+- [ ] **INT-04**: Platform exposes webhooks for key RE events: listing_created, showing_scheduled, offer_received, transaction_closed
+- [ ] **INT-05**: Agent can export commission data as CSV in QuickBooks-compatible format
+- [ ] **INT-06**: Webhooks are authenticated with HMAC signatures and support retry on failure
+
+---
+
+## v2 Requirements (Deferred)
+
+### IDX / MLS Feed
+- **IDX-01**: Live IDX feed integration for auto-importing agency listings
+- **IDX-02**: Public listing site sourced from IDX feed (not manual entry)
+- **IDX-03**: MLS board compliance layer (listing display rules, required disclosures)
+
+### Advanced Commissions
+- **COM-01**: Full 1099 generation for agents at year-end
+- **COM-02**: Bi-directional QuickBooks sync (not just CSV export)
+- **COM-03**: Team split structures (team lead + buyer agent sub-splits)
+
+### Showings Advanced
+- **SHOW-09**: ShowingTime webhook integration for syncing existing showing schedules
+- **SHOW-10**: Automated showing feedback requests sent to buyer agents post-showing
+
+### Public Site Advanced
+- **PUB-09**: Custom domain per agency (yourbrokerage.com)
+- **PUB-10**: Neighborhood/city landing pages for SEO
+- **PUB-11**: Mortgage calculator on listing detail pages
+
+### Integrations Advanced
+- **INT-07**: Dotloop integration (alternative to DocuSign)
+- **INT-08**: Full Zapier connector
+
+---
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| DIY Zillow/Redfin scraping | Legally prohibited — ToS + CFAA exposure. Use Apify (authorized) only |
+| Native showing scheduler (competing with ShowingTime) | Anti-feature — agents use ShowingTime; integrate don't replace |
+| Native e-signature (build our own) | DocuSign has MLS form libraries that take years to assemble |
+| Full 1099 / accounting (v1) | CSV export sufficient for launch; full accounting is v2 |
+| Custom domain per agency (v1) | Subdomain-first; custom domain deferred post-revenue |
+| IDX live feed (v1) | 30–90 day MLS board approval; manual import covers launch |
+| GPS / field crew tracking | Not relevant to RE CRM |
+| Real-time collaborative editing | No use case |
+| Mobile native app | Web-first |
+
+---
+
+## Pre-Build Actions Required (Parallel to Phase 2)
+
+- [ ] **IDX-GATE**: Submit MLS board approval application to iHomeFinder. 30–90 day process — start immediately.
+- [ ] **BROKER-INTERVIEW**: Interview 2 brokers about commission split structures before building TXN-05/06.
+- [ ] **RENTCAST-KEY**: Obtain RentCast API key ($74/mo). Verify coverage for target markets.
+- [ ] **APIFY-KEY**: Obtain Apify API key. Test Zillow actor against a sample listing.
+- [ ] **RETELL-RE-AGENT**: Create RE agent in Retell dashboard. Set RETELL_RE_AGENT_ID env var.
+- [ ] **DOCUSIGN-SANDBOX**: Create DocuSign developer sandbox. Obtain CLIENT_ID and CLIENT_SECRET.
+- [ ] **CALCOM-ACCOUNT**: Verify Cal.com Platform API tier for multi-org programmatic booking.
+
+---
+
+## Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| LIST-01–07 | Phase 2 — Listing Intelligence | Pending |
+| SHOW-01–08 | Phase 3 — Showings | Pending |
+| TXN-01–08 | Phase 4 — Transactions & Commissions | Pending |
+| VID-01–03 | Phase 5 — Listing Video | Pending |
+| VOICE-01–05 | Phase 6 — AI Voice | Pending |
+| PUB-01–08 | Phase 7 — Public Listing Site | Pending |
+| INT-01–06 | Phase 8 — Integrations | Pending |
+
+**Coverage:**
+- v1 requirements: 47 total across 8 phases
+- Mapped to phases: 47
+- Unmapped: 0 ✓
+
+---
+*Requirements defined: 2026-05-28*
+*Last updated: 2026-05-28 — initial v2.0 definition*
 
 ---
 
