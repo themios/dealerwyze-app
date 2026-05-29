@@ -52,7 +52,7 @@ export default function AddLeadMenu() {
           {items.map(({ key, icon: Icon, label }) => (
             <button
               key={key}
-              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm hover:bg-accent text-left"
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm hover:bg-accent text-popover-foreground hover:text-accent-foreground text-left"
               onClick={() => {
                 setMenuOpen(false)
                 if (key === 'manual') {

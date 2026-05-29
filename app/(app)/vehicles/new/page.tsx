@@ -26,6 +26,10 @@ function NewVehicleForm() {
   const [saving, setSaving] = useState(false)
   const [vinDecoding, setVinDecoding] = useState(false)
   const [vinDecoded, setVinDecoded] = useState(false)
+  const [scanOpen, setScanOpen] = useState(false)
+  const [scanning, setScanning] = useState(false)
+  const [scanMessage, setScanMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null)
+  const scanInputRef = useRef<HTMLInputElement>(null)
   const [form, setForm] = useState({
     stock_no: deriveStockNo(searchParams.get('vin') || ''),
     year: searchParams.get('year') || new Date().getFullYear().toString(),
@@ -79,6 +83,50 @@ function NewVehicleForm() {
       // best-effort — leave fields as-is
     } finally {
       setVinDecoding(false)
+    }
+  }
+
+  async function handleScan(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setScanMessage({ type: 'error', text: 'Select an image file (JPG, PNG, HEIC, etc.).' })
+      return
+    }
+    setScanning(true)
+    setScanMessage(null)
+    try {
+      const reader = new FileReader()
+      const base64 = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve((reader.result as string).split(',')[1])
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+      const res = await fetch('/api/vehicles/intake/scan-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64, mimeType: file.type }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setScanMessage({ type: 'error', text: data.error || 'Scan failed. Try a clearer photo.' })
+        return
+      }
+      setForm(prev => ({
+        ...prev,
+        vin:     data.vin    || prev.vin,
+        year:    data.year   ? String(data.year)    : prev.year,
+        make:    data.make   || prev.make,
+        model:   data.model  || prev.model,
+        trim:    data.trim   || prev.trim,
+        mileage: data.mileage ? String(data.mileage) : prev.mileage,
+      }))
+      setScanMessage({ type: 'success', text: 'Vehicle info extracted. Review the fields below before saving.' })
+    } catch {
+      setScanMessage({ type: 'error', text: 'Could not read the image. Try a different file.' })
+    } finally {
+      setScanning(false)
+      if (scanInputRef.current) scanInputRef.current.value = ''
     }
   }
 
@@ -148,6 +196,45 @@ function NewVehicleForm() {
       />
 
       <form onSubmit={handleSubmit} className="px-4 py-4 space-y-4">
+
+        {/* Scan Vehicle panel */}
+        <div className="border rounded-lg overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setScanOpen(o => !o)}
+            className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium bg-muted/40 hover:bg-muted/60 transition-colors"
+          >
+            <span>Scan Vehicle Photo</span>
+            {scanOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          </button>
+          {scanOpen && (
+            <div className="px-4 py-3 space-y-3">
+              <p className="text-xs text-muted-foreground">Upload a photo of the vehicle, window sticker, or title to auto-fill fields.</p>
+              <input
+                ref={scanInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleScan}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                disabled={scanning}
+                onClick={() => scanInputRef.current?.click()}
+              >
+                {scanning ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Scanning...</> : 'Upload Photo or Image'}
+              </Button>
+              {scanMessage && (
+                <p className={`text-xs ${scanMessage.type === 'error' ? 'text-destructive' : 'text-green-600'}`}>
+                  {scanMessage.text}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label>Stock # *</Label>
