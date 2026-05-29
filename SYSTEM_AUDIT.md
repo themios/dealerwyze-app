@@ -325,7 +325,113 @@
 
 ### 9. TODAY PAGE (`/today`)
 
-**Status:** ⏳ NEEDS VERIFICATION
+**Page Title:** "Today"
+
+**Layout:** Desktop 3-column + KPI strip + top bar
+
+**Top Bar:**
+- Left: SyncGmailButton (compact mode)
+- Right: Calendar link (`/calendar`), Receipts link (`/receipts`)
+
+**KPI Strip (5 metric cards):**
+- New Leads count
+- Appointments count
+- Voice Calls count
+- Waiting count
+- Overdue Tasks count
+
+**Left Column (Intelligence):**
+- DealerBriefClient: dealer score card
+- ReviewsSection: GBP reviews (last 30 days, up to 10)
+- OnboardingChecklist: 5 progress items
+- PulseScoreWidget: org pulse score
+
+**Center Column (Activity Feed - TodayContent):**
+1. **Filter Chips (7 filters):** Hot, Warm, Repeat, Appointment, Phone, Silent7, No Automation
+2. **Bulk Action Bar (when selected):** Park, Work Now, Low ROI, Archive
+3. **Activity Queue (multiple card types):**
+   - NewLeadCard: inbound email activities
+     - Call (tel: link)
+     - Text (sms: link)
+     - Schedule Appointment (POST `/api/activities`)
+     - Done (PATCH `addressed_at`)
+     - Follow up dropdown (Tomorrow/3d/1w/2w + calendar checkbox)
+     - Dismiss (PATCH `completed_at`, outcome=no_response)
+     - Sequence controls (Pause/Resume/Stop)
+   - TaskItem: open tasks due today
+   - WaitingItem: outbound awaiting response
+   - VoiceLeadCard: completed voice calls today
+   - VehicleMatchCard: want-list matches
+   - AppointmentRequestCard: inbound appointment requests
+   - EmailFollowUpItem: pending email follow-ups
+   - IntelligenceAlerts: takeover signals, at-risk leads
+
+**Right Column (Tasks & To-Dos - TodoSection):**
+- Task list (open tasks, max 50, sorted by priority DESC, due_at ASC)
+- Snooze dropdown (pre-defined intervals)
+- Complete button
+
+**Focus Mode (overlay):**
+- FocusSession (when ?focus=N in URL)
+
+**Data Scope:**
+- New leads: inbound email, pending, not addressed, not snoozed (DESC by created_at)
+- Tasks: open tasks due today or earlier (priority DESC, due_at ASC)
+- Waiting: outbound calls/SMS/email >24h old, not completed
+- Appointments: next 30 hours, up to 12
+- GBP reviews: last 30 days, up to 10
+- Voice leads: completed calls from today
+- At-risk: detected via lead score algorithms
+
+**Activity Queue Logic:**
+- Sorting: lead intent tier (HOT/WARM), urgency, sequence status, takeover signals
+- Deduplication: one card per customer (most recent activity)
+- Auto-hiding: addressed items hidden until next day or follow-up due
+
+**Verified:** ✅ Code: `/today/page.tsx` + `/today/TodayContent.tsx` + `NewLeadCard.tsx`
+
+---
+
+### 9.5. LEASES PAGE (`/leases`) - DEALER ONLY (Optional Feature)
+
+**Page Title:** "Leases"
+
+**Status Filter Buttons (6 filters):**
+- All (all leases)
+- Application (application status)
+- Approved (approved status)
+- Lease Signed (lease_signed status)
+- Active (active status)
+- Expired (expired status)
+
+**Each Lease Card displays:**
+1. **Header:** Property address (address_line1, city)
+2. **Transaction ID:** Transaction number or first 8 chars of ID
+3. **Status badge** (color-coded):
+   - Application: yellow
+   - Approved: blue
+   - Lease Signed: purple
+   - Active: green
+   - Expired: gray
+   - Cancelled: red
+4. **Details row:**
+   - Monthly rent amount (if set)
+   - Lease term in months (if set)
+   - Move-in date (if set)
+   - Tenant/Buyer name (if set)
+5. **Card action:** Click → /vehicles/{vehicle_id}#vehicle-detail-transactions
+
+**Empty State:** "No leases found" + helper text
+
+**Loading State:** 3 skeleton cards
+
+**Error State:** Error message + network error fallback
+
+**Data Source:** GET `/api/transactions?transaction_type=lease`
+
+**Data Scope:** All lease transactions for org, fetched client-side, filtered in-browser
+
+**Verified:** ✅ Code: `/leases/page.tsx`
 
 ---
 

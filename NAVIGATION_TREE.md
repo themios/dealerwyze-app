@@ -588,6 +588,163 @@ Data scope: Active accounts only, ordered by next_due_date ascending
 
 ---
 
+### TODAY PAGE (/today)
+
+**Page Title:** "Today"
+
+```
+Top Bar (3 areas):
+├─ Left: SyncGmailButton (compact Gmail sync button)
+├─ Center: [blank]
+└─ Right: 
+   ├─ Calendar icon link → /calendar
+   └─ Receipt icon link → /receipts (Scan receipts)
+
+KPI Strip (5 clickable metric cards):
+├─ New Leads count
+├─ Appointments count
+├─ Voice Calls count
+├─ Waiting count
+└─ Overdue Tasks count
+
+Desktop 3-Column Layout (mobile: single column, stacked):
+
+LEFT COLUMN (Intelligence):
+├─ DealerBriefClient (dealer score card)
+├─ ReviewsSection (GBP reviews - last 30 days)
+├─ OnboardingChecklist (5 items):
+│  ├─ Add first customer
+│  ├─ Connect email
+│  ├─ Create SMS template
+│  ├─ Invite team member
+│  └─ Subscribe to plan
+└─ PulseScoreWidget (org pulse score)
+
+CENTER COLUMN (Activity Feed - TodayContent):
+├─ Filter Chips (7 filters):
+│  ├─ Hot (high intent leads)
+│  ├─ Warm (medium intent leads)
+│  ├─ Repeat (previous customers)
+│  ├─ Appointment (appointment requests)
+│  ├─ Phone (voice/call activities)
+│  ├─ Silent 7d (no activity 7+ days)
+│  └─ No Automation (not in sequence)
+├─ Bulk Action Bar (when items selected):
+│  ├─ Park button
+│  ├─ Work Now button
+│  ├─ Low ROI button
+│  └─ Archive button
+└─ Activity Queue (multiple card types):
+   ├─ NewLeadCard (inbound emails):
+   │  ├─ Call button (tel: link)
+   │  ├─ Text button (sms: link)
+   │  ├─ Schedule Appointment button
+   │  │  └─ Opens date/time picker, confirms to /api/activities POST
+   │  ├─ Done button (marks addressed_at)
+   │  ├─ Follow up dropdown menu:
+   │  │  ├─ Tomorrow
+   │  │  ├─ In 3 days
+   │  │  ├─ In 1 week
+   │  │  ├─ In 2 weeks
+   │  │  └─ [Checkbox] Also add to Google Calendar
+   │  ├─ Dismiss button (archives as no_response)
+   │  └─ Sequence controls (if active):
+   │     ├─ Pause button
+   │     ├─ Resume button (if paused)
+   │     └─ Stop button
+   ├─ TaskItem (open tasks due today or overdue)
+   ├─ WaitingItem (outbound awaiting response)
+   ├─ VoiceLeadCard (completed voice calls today)
+   ├─ VehicleMatchCard (want-list matches)
+   ├─ AppointmentRequestCard (inbound appointment requests)
+   ├─ EmailFollowUpItem (pending email follow-ups)
+   └─ IntelligenceAlerts (takeover signals, at-risk leads)
+
+RIGHT COLUMN (Tasks & To-Dos - TodoSection):
+└─ Task List (open tasks, max 50, sorted by priority then due_at):
+   ├─ Task cards with:
+   │  ├─ Linked customer/vehicle/receipt
+   │  ├─ Due date
+   │  ├─ Priority indicator
+   │  ├─ Snooze dropdown (pre-defined intervals)
+   │  └─ Complete button
+
+Focus Mode (overlay when ?focus=N in URL):
+└─ FocusSession (single focused activity card with controls)
+
+Motivational Banner:
+└─ Rotating daily message (30 possible messages)
+```
+
+**Activity Queue Logic:**
+- Real-time sorting by: lead intent tier (HOT/WARM), urgency, sequence status, takeover signals
+- Deduplication: shows only most recent activity per customer
+- Pending items: email (inbound), tasks, appointments, calls, vehicle matches
+- Auto-hiding: addressed items hidden until next day or follow-up due date
+
+**Data Scope:**
+- New leads: inbound email, pending, not addressed, not snoozed (DESC by created_at)
+- Tasks: open tasks due today or earlier (sorted by priority DESC, due_at ASC)
+- Waiting: outbound calls/SMS/email created >24h ago, not completed
+- Appointments: next 30 hours from now, up to 12
+- GBP reviews: last 30 days, most recent first, up to 10
+- Voice leads: completed calls from today
+- Vehicle matches: inbound, pending, not addressed
+- At-risk leads: detected via lead score algorithms
+
+**Verified:** ✅ Code: `/today/page.tsx` + `/today/TodayContent.tsx` + `NewLeadCard.tsx`
+
+---
+
+### LEASES PAGE (/leases) - DEALER ONLY (Optional Feature)
+
+**Page Title:** "Leases"
+
+```
+Status Filter Buttons (6 filters):
+├─ All (all leases)
+├─ Application (application status)
+├─ Approved (approved status)
+├─ Lease Signed (lease_signed status)
+├─ Active (active status)
+└─ Expired (expired status)
+
+List View (each lease is a clickable card):
+└─ Link destination: /vehicles/{id}#vehicle-detail-transactions
+   ├─ Property address (address_line1, city)
+   ├─ Transaction number (or first 8 chars of ID)
+   ├─ Status badge (color-coded):
+   │  ├─ Application: yellow
+   │  ├─ Approved: blue
+   │  ├─ Lease Signed: purple
+   │  ├─ Active: green
+   │  ├─ Expired: gray
+   │  └─ Cancelled: red
+   ├─ Monthly rent amount (if set)
+   ├─ Lease term in months (if set)
+   ├─ Move-in date (if set)
+   └─ Tenant name / Buyer name (if set)
+
+Empty State:
+├─ Icon: 💳
+├─ Message: "No leases found"
+└─ Helper: "Open a listing and create a Lease / Rental transaction to get started"
+
+Loading State:
+└─ 3 skeleton placeholder cards
+
+Error State:
+├─ Error message: "Unable to load leases. Please refresh."
+└─ Alt message: "Network error. Please check your connection."
+
+Data Source:** GET `/api/transactions?transaction_type=lease`
+Scope:** All lease transactions for org, fetched client-side, filtered in-browser
+```
+
+**Verified:** ✅ Code: `/leases/page.tsx`
+
+---
+
 ## TO BE VERIFIED
 
 The following sections still need code verification. Pending details:
