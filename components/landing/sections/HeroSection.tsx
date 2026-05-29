@@ -88,17 +88,17 @@ export default function HeroSection() {
               without adding staff.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 mb-6">
-              <a href="#how-it-works"
+              <Link href="/signup"
                 className="inline-flex items-center justify-center gap-2 px-7 py-4 rounded-xl font-bold text-base text-white transition-all hover:opacity-90 active:scale-95 shadow-lg"
                 style={{ backgroundColor: ORANGE, boxShadow: '0 4px 20px rgba(240,112,24,0.4)' }}>
-                See How It Works
+                Start Free, No Card
                 <ChevronRight className="w-4 h-4" />
-              </a>
-              <Link href="/signup"
+              </Link>
+              <a href="#how-it-works"
                 className="inline-flex items-center justify-center gap-2 px-7 py-4 rounded-xl font-semibold text-base transition-all hover:bg-white/10 border"
                 style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.35)' }}>
-                Get Beta Access
-              </Link>
+                See How It Works
+              </a>
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>
               <span>Built for independent dealers</span>
