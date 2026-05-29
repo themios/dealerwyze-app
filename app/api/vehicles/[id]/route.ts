@@ -74,6 +74,36 @@ export async function PATCH(
 
   const supabase = await createClient()
 
+  // Price change tracking for RE listings only.
+  // Fetch current vehicle if price is being updated so we can compare values.
+  if ('price' in patch) {
+    const { data: currentVehicle } = await supabase
+      .from('vehicles')
+      .select('make, price, price_change_log, price_change_count')
+      .eq('id', id)
+      .eq('user_id', profile.org_id)
+      .single()
+
+    if (
+      currentVehicle &&
+      currentVehicle.make === 'RE' &&
+      patch.price !== undefined &&
+      patch.price !== currentVehicle.price
+    ) {
+      const changeEntry = {
+        from: currentVehicle.price,
+        to: patch.price,
+        changed_at: new Date().toISOString(),
+      }
+      // Append to existing log array; initialise to [] if null
+      const existingLog = Array.isArray(currentVehicle.price_change_log)
+        ? currentVehicle.price_change_log
+        : []
+      patch.price_change_log = [...existingLog, changeEntry]
+      patch.price_change_count = ((currentVehicle.price_change_count as number | null) ?? 0) + 1
+    }
+  }
+
   const { data: vehicle, error } = await supabase
     .from('vehicles')
     .update(patch)
