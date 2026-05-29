@@ -9,8 +9,9 @@ interface HelpButtonProps {
 }
 
 /**
- * HelpButton - Floating "?" button in bottom-right corner.
- * Click opens the help panel. Always visible.
+ * HelpButton - Help access point
+ * Mobile: Small icon in top bar right section
+ * Desktop: Floating "?" button in bottom-right corner
  */
 export default function HelpButton({ onOpenPanel }: HelpButtonProps) {
   const [mounted, setMounted] = useState(false)
@@ -22,13 +23,26 @@ export default function HelpButton({ onOpenPanel }: HelpButtonProps) {
   if (!mounted) return null
 
   return (
-    <Button
-      onClick={onOpenPanel}
-      className="fixed bottom-6 right-6 lg:bottom-8 lg:right-8 w-12 h-12 rounded-full p-0 shadow-lg hover:shadow-xl transition-shadow z-40"
-      title="Help"
-      aria-label="Open help"
-    >
-      <HelpCircle className="w-6 h-6" />
-    </Button>
+    <>
+      {/* Mobile: Fixed top-right button in header area */}
+      <Button
+        onClick={onOpenPanel}
+        className="lg:hidden fixed top-3 right-3 w-9 h-9 rounded-full p-0 shadow-md hover:shadow-lg transition-shadow z-30 bg-[#0D2B55] hover:bg-[#1B4A8A] text-white"
+        title="Help"
+        aria-label="Open help"
+      >
+        <HelpCircle className="w-5 h-5" />
+      </Button>
+
+      {/* Desktop: Floating button */}
+      <Button
+        onClick={onOpenPanel}
+        className="hidden lg:flex fixed bottom-8 right-8 w-12 h-12 rounded-full p-0 shadow-lg hover:shadow-xl transition-shadow z-40"
+        title="Help"
+        aria-label="Open help"
+      >
+        <HelpCircle className="w-6 h-6" />
+      </Button>
+    </>
   )
 }
