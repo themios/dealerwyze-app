@@ -35,12 +35,16 @@ export async function GET(req: NextRequest) {
     const contextPage = searchParams.get('context_page') || ''
     const vertical = (searchParams.get('vertical') as Vertical) || orgVertical
 
-    // Get all articles for this vertical, filter context_pages on client
-    const { data: articles, error } = await supabase
+    // Get all articles for this vertical and 'both', filter context_pages on client
+    console.log('[articles] Fetching articles for vertical:', vertical)
+
+    // Fetch articles for specific vertical and 'both' using IN operator
+    const { data: articles, error, status } = await supabase
       .from('help_articles')
       .select('id, slug, question, answer, vertical, context_pages, keywords, related_links')
-      .or(`vertical.eq.${vertical},vertical.eq.both`)
+      .in('vertical', [vertical, 'both'])
 
+    console.log('[articles] Query status:', status, 'Got', articles?.length || 0, 'articles, error:', error?.message)
     if (error) {
       console.error('Help articles query error:', error.message, error.details, error.hint)
       // Dev mode: return actual error
@@ -48,6 +52,11 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: error.message, details: error.details }, { status: 500 })
       }
       return NextResponse.json({ error: 'Failed to fetch articles' }, { status: 500 })
+    }
+
+    if (!articles || articles.length === 0) {
+      console.log('[articles] No articles returned from query for vertical:', vertical)
+      return NextResponse.json({ articles: [], count: 0 })
     }
 
     // Filter by context_page if provided, but fall back to all articles if nothing matches
@@ -62,15 +71,24 @@ export async function GET(req: NextRequest) {
 
     // Client-side keyword matching and ranking
     if (query) {
+      const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2)
       results = results
         .map((article) => {
-          const questionMatch = article.question.toLowerCase().includes(query)
-          const answerMatch = article.answer.toLowerCase().includes(query)
-          const keywordMatches = (article.keywords ?? []).filter((kw: string) =>
-            kw.toLowerCase().includes(query)
-          ).length
+          const questionLower = article.question.toLowerCase()
+          const answerLower = article.answer.toLowerCase()
+          const keywordsLower = (article.keywords ?? []).map(k => k.toLowerCase())
 
-          const score = (questionMatch ? 3 : 0) + (answerMatch ? 1 : 0) + keywordMatches * 2
+          // Match on individual words, not the whole query string
+          const matchedWords = queryWords.filter(word =>
+            questionLower.includes(word) ||
+            answerLower.includes(word) ||
+            keywordsLower.some(kw => kw.includes(word))
+          )
+
+          const questionMatch = questionLower.split(/\s+/).filter(w => queryWords.includes(w)).length
+          const answerMatch = answerLower.split(/\s+/).filter(w => queryWords.includes(w)).length
+
+          const score = (questionMatch * 3) + (answerMatch * 1) + matchedWords.length * 2
 
           return { article, score }
         })

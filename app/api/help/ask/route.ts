@@ -68,12 +68,36 @@ export async function POST(req: NextRequest) {
     const { data: relatedArticles } = await supabase
       .from('help_articles')
       .select('question, answer, keywords')
-      .or(`vertical.eq.${effectiveVertical},vertical.eq.both`)
+      .in('vertical', [effectiveVertical, 'both'])
       .limit(3)
-    const articleContext = relatedArticles && relatedArticles.length > 0
-      ? `\n\nRelevant help articles:\n${relatedArticles.map((a) => `- "${a.question}": ${a.answer}`).join('\n')}`
-      : ''
+
     console.log('[help/ask] found', relatedArticles?.length || 0, 'related articles')
+
+    // If we found highly relevant articles, return them directly instead of generating
+    if (relatedArticles && relatedArticles.length > 0) {
+      const bestMatch = relatedArticles[0]
+      // Check if any article question closely matches the user's question
+      const matchScore = relatedArticles.map((a) => {
+        const q = a.question.toLowerCase()
+        const userQ = question.toLowerCase()
+        const matchCount = userQ.split(/\s+/).filter(word => q.includes(word)).length
+        return { article: a, matchCount }
+      }).sort((a, b) => b.matchCount - a.matchCount)[0]
+
+      if (matchScore && matchScore.matchCount >= 2) {
+        console.log('[help/ask] returning matching article directly')
+        return NextResponse.json({
+          answer: matchScore.article.answer,
+          responseTime: Date.now() - Date.now(),
+          model: 'help-articles',
+          source: 'article'
+        })
+      }
+    }
+
+    const articleContext = relatedArticles && relatedArticles.length > 0
+      ? `\n\nRelevant help articles for reference:\n${relatedArticles.map((a) => `Q: "${a.question}"\nA: ${a.answer}`).join('\n\n')}`
+      : ''
 
     // Check if Groq API key is available
     const groqApiKey = process.env.GROQ_API_KEY

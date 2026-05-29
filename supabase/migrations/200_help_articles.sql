@@ -15,6 +15,13 @@ create table if not exists public.help_articles (
 create index if not exists idx_help_articles_vertical on public.help_articles(vertical);
 create index if not exists idx_help_articles_keywords on public.help_articles using gin(keywords);
 
+-- Enable RLS and add policy for authenticated users to read all articles
+alter table public.help_articles enable row level security;
+create policy "Allow authenticated users to read help articles"
+  on public.help_articles for select
+  to authenticated
+  using (true);
+
 -- Seed core help articles
 insert into public.help_articles (slug, question, answer, vertical, context_pages, keywords, related_links) values
 ('add-lead-dealer', 'How do I add a new customer?',
