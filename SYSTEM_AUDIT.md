@@ -229,15 +229,97 @@
 
 ---
 
-### 7. SHOWINGS PAGE (`/showings`) - RE Only
+### 7. SHOWINGS PAGE (`/showings`) - REALTYWYZE ONLY
 
-**Status:** ⏳ NEEDS VERIFICATION
+**Vertical Gate:** Real Estate only. Dealer orgs receive 404.
+
+**Page Title:** "Upcoming Showings"
+
+**Status Filter Tabs (5 buttons):**
+- "All" tab → shows all showings
+- "Scheduled" tab → shows scheduled showings
+- "Completed" tab → shows completed showings
+- "Cancelled" tab → shows cancelled showings
+- "No-show" tab → shows no-show showings
+- Each tab shows count of showings in that status
+
+**Each Showing Card displays:**
+1. **Header:** Scheduled date/time + Listing address (link to `/listings/{id}`) + Status badge
+2. **Info:** Contact name + Agent name
+3. **Status badge** (color-coded):
+   - Scheduled: blue
+   - Completed: green
+   - Cancelled: gray
+   - No-show: red
+4. **Action buttons:** For each status != current status, "Mark [Status]" button
+   - Click → PATCH `/api/showings/{id}` with new status
+5. **View link:** "View listing →" link to `/listings/{id}`
+
+**Scope:** Next 30 days, up to 500 showings, ordered by soonest first
+
+**Verified:** ✅ Code confirmed in `/showings/page.tsx` + `/showings/ShowingsDashboard.tsx`
 
 ---
 
-### 8. COMMISSIONS PAGE (`/commissions`) - RE Only
+### 8. COMMISSIONS PAGE (`/commissions`) - REALTYWYZE ONLY
 
-**Status:** ⏳ NEEDS VERIFICATION
+**Vertical Gate:** Real Estate only. Dealer orgs redirected to `/today`.
+
+**Page Title:** "Commissions"
+
+**Header Section:**
+- Title: "Commissions"
+- Subtitle: "All agents — closed deal commission summary." (if admin) OR "Your closed deal commission summary." (if agent)
+- Year selector dropdown: current year, -1 year, -2 year
+
+**Content (role-aware):**
+- YTD Summary Card: shows YTD total amount, year, total deal count
+- Admin Only: "Agent Breakdown" section with per-agent YTD totals + deal counts
+- "Closed Transactions" section: table of all closed deals with commission details
+
+**Loading state:** Skeleton placeholders
+**Error state:** Error message + retry
+
+**API:** GET `/api/transactions/summary?year={year}`
+
+**Access Control:**
+- dealer_admin: sees all agents summary + org-wide transaction table
+- agent: sees only own deals and YTD total
+
+**Verified:** ✅ Code confirmed in `/commissions/page.tsx`
+
+---
+
+### 8.5. BHPH PAGE (`/bhph`) - DEALER ONLY (Optional Feature)
+
+**Visibility:** Dealer only. Hidden if feature disabled or role is dealer_rep. RealtyWyze shows as "Lease Accounts".
+
+**Page Title:** "BHPH Accounts" (dealer) or "Lease Accounts" (RE)
+
+**Summary Statistics (3 cards, when accounts exist):**
+- Active count (primary color card)
+- Overdue count (red card)
+- Due Soon (next 3 days) count (amber card)
+
+**Each BHPH Account Card displays:**
+1. **Header row:** Customer name (link to `/bhph/{account_id}`) + Payment frequency (Weekly/Bi-weekly/Monthly) + Status badge (red=overdue, amber=due today, green=upcoming)
+2. **Vehicle info:** Year Make Model Stock#
+3. **Loan summary (3 columns):** Total loan amount | Amount paid (green) | Balance remaining (orange)
+4. **Payment progress bar:** % of loan paid
+5. **Next due date** + Call button (tel: link if customer has phone)
+6. **Reminder consent badges:**
+   - SMS status (on/off/opted out) - MessageSquare icon
+   - Email status (on/off) - Mail icon
+   - Last reminder type (if any)
+7. **"Record Payment" action (BhphRecordPayment component):**
+   - Input field for payment amount (default: monthly payment)
+   - "Record Payment" button → PATCH updates total_paid, next_due_date, status
+
+**Empty state:** Emoji + message: "No active BHPH accounts" with explanation
+
+**Data scope:** Active accounts only, ordered by next_due_date ascending
+
+**Verified:** ✅ Code confirmed in `/bhph/page.tsx` + `/bhph/BhphRecordPayment.tsx`
 
 ---
 

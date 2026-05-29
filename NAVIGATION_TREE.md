@@ -466,18 +466,137 @@ No top-right buttons for Web Leads page itself.
 
 ---
 
+### SHOWINGS PAGE (/showings) - REALTYWYZE ONLY
+
+**Visibility:** Real Estate vertical only. Dealer orgs see 404.
+
+**Page Title:** "Upcoming Showings"
+
+```
+Status Filter Tabs (5 buttons):
+├─ "All" tab → shows all showings
+├─ "Scheduled" tab → shows scheduled showings
+├─ "Completed" tab → shows completed showings
+├─ "Cancelled" tab → shows cancelled showings
+└─ "No-show" tab → shows no-show showings
+Each tab shows count of showings in that status
+
+List View (each showing is a card with):
+├─ Scheduled date/time (formatted day, month, date, year, time)
+├─ Listing address (clickable link to /listings/{id})
+├─ Contact name + Agent name
+├─ Status badge (color-coded: blue=scheduled, green=completed, gray=cancelled, red=no-show)
+└─ Action buttons:
+   └─ For each status NOT current: "Mark [Status]" button
+      └─ Click → PATCH `/api/showings/{id}` status=new_status
+   └─ "View listing →" link → /listings/{id}
+
+Empty state:
+└─ Message varies by filter: "No upcoming showings in the next 30 days" or "No [status] showings"
+└─ Link to /vehicles to schedule from listing page
+
+Scope: 30-day window, up to 500 showings, ordered by soonest first
+```
+
+**Verified:** ✅ Code: `/showings/page.tsx` + `/showings/ShowingsDashboard.tsx`
+
+---
+
+### COMMISSIONS PAGE (/commissions) - REALTYWYZE ONLY
+
+**Visibility:** Real Estate vertical only. Dealer orgs redirected to /today.
+
+**Page Title:** "Commissions"
+
+```
+Header Section:
+├─ Title: "Commissions"
+├─ Subtitle: "All agents — closed deal commission summary." (admin) or "Your closed deal commission summary." (agent)
+└─ Year Selector (dropdown):
+   └─ Options: current year, -1 year, -2 year
+   └─ Change → re-fetches data for selected year
+
+Content (role-aware):
+├─ YTD Summary Card:
+│  └─ Shows: YTD total amount, year, total deal count
+│
+├─ Admin Only: "Agent Breakdown" section:
+│  └─ List of all agents with:
+│     ├─ Agent name
+│     ├─ Deal count
+│     └─ Agent YTD total amount
+│
+└─ "Closed Transactions" section:
+   └─ Table of all closed deals with commission details
+
+Loading state: Skeleton placeholders
+Error state: Error message + "Try again" button
+
+API: GET `/api/transactions/summary?year={year}`
+Access: admin (all agents) or agent (own deals only)
+```
+
+**Verified:** ✅ Code: `/commissions/page.tsx`
+
+---
+
+### BHPH PAGE (/bhph) - DEALER ONLY (Optional Feature)
+
+**Visibility:** Dealer only. Hidden if feature disabled or role is dealer_rep. RealtyWyze shows as "Lease Accounts".
+
+**Page Title:** "BHPH Accounts" (dealer) or "Lease Accounts" (RE)
+
+```
+Summary Statistics (3 cards, when accounts exist):
+├─ Active count (primary color)
+├─ Overdue count (red)
+└─ Due Soon (next 3 days) count (amber)
+
+List View (each BHPH account is a card with):
+├─ Customer name (clickable link to /bhph/{account_id})
+├─ Vehicle year/make/model/stock#
+├─ Payment frequency (Weekly / Bi-weekly / Monthly)
+├─ Status badge: 
+│  └─ "X days overdue" (red) if past due
+│  └─ "Due today" (amber, bold) if due today
+│  └─ "Due in X days" (green) if upcoming
+│
+├─ Loan summary (3 columns):
+│  ├─ Total loan amount
+│  ├─ Amount paid (green)
+│  └─ Balance remaining (orange)
+│
+├─ Payment progress bar (% of loan paid)
+├─ Next due date (formatted)
+├─ Call button (tel: link if customer has phone)
+├─ Reminder consent badges:
+│  └─ SMS status (on/off/opted out)
+│  └─ Email status (on/off)
+│  └─ Last reminder type (if any)
+│
+└─ "Record Payment" action (BhphRecordPayment component):
+   └─ Input field for payment amount (default: monthly payment)
+   └─ "Record Payment" button → PATCH updates total_paid, next_due_date, status
+
+Empty state:
+└─ Emoji + message: "No active BHPH accounts" with explanation
+
+Data scope: Active accounts only, ordered by next_due_date ascending
+```
+
+**Verified:** ✅ Code: `/bhph/page.tsx` + `/bhph/BhphRecordPayment.tsx`
+
+---
+
 ## TO BE VERIFIED
 
 The following sections still need code verification. Pending details:
 
 ```
-- [ ] Today (/today) - content and action buttons (complex dashboard)
-- [ ] Showings (/showings) - [RealtyWyze only]
-- [ ] Commissions (/commissions) - [RealtyWyze only]
-- [ ] BHPH (/bhph) - if applicable
-- [ ] Leases (/leases) - if applicable
+- [ ] Today (/today) - content and action buttons (complex activity queue)
+- [ ] Leases (/leases) - if applicable [Dealer only]
 - [ ] Fax (/fax) - if applicable
-- [ ] Admin Panel (/admin) - all sections
+- [ ] Admin Panel (/admin) - all sections [Platform staff only]
 - [ ] Individual Settings pages - detail buttons/forms within each subsection
 ```
 
