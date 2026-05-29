@@ -22,6 +22,7 @@ import { runDealerFollowUps } from '@/lib/cron/jobs/dealerFollowUps'
 import { runReFollowUps } from '@/lib/cron/jobs/reFollowUps'
 import { runDealerInboxAutomations } from '@/lib/cron/jobs/dealerInboxAutomations'
 import { runPlatformOwnerDigest } from '@/lib/cron/jobs/platformOwnerDigest'
+import { runShowingReminders } from '@/lib/cron/jobs/showingReminders'
 
 export const runtime = 'nodejs'
 export const maxDuration = 55
@@ -65,6 +66,7 @@ export async function GET(req: NextRequest) {
   let followUps:     Awaited<ReturnType<typeof runDealerFollowUps>>         | undefined
   let reFollowUps:   Awaited<ReturnType<typeof runReFollowUps>>             | undefined
   let ownerDigest:   Awaited<ReturnType<typeof runPlatformOwnerDigest>>     | undefined
+  let showingRems:   Awaited<ReturnType<typeof runShowingReminders>>        | undefined
 
   try {
     receipts    = await runJob('receiptTasks',            () => runReceiptTasks(supabase))
@@ -89,6 +91,7 @@ export async function GET(req: NextRequest) {
       runDealerInboxAutomations().then(r => `triggered=${r.triggered} skipped=${r.skipped}`)
     )
     ownerDigest = await runJob('platformOwnerDigest',      () => runPlatformOwnerDigest(supabase))
+    showingRems = await runJob('showingReminders',          () => runShowingReminders(supabase))
   } finally {
     const anyFailed = Object.values(jobResults).some(v => v !== 'ok')
     await finishCronRun(runId, anyFailed ? 'partial_failure' : 'success', adminResult?.allOrgsCount)
@@ -113,6 +116,7 @@ export async function GET(req: NextRequest) {
     dealer_followups_sent:       followUps?.dealerFollowUpsSent,
     re_followups_sent:           reFollowUps?.reFollowUpsSent,
     platform_digest_sent:        ownerDigest?.platformDigestSent,
+    showing_reminders_queued:    showingRems?.remindersQueued,
     job_results:                 jobResults,
   })
 }
