@@ -19,3 +19,8 @@ update public.help_articles
 set keywords = array['add', 'client', 'new', 'create', 'prospect', 'lead', 'leads'],
     context_pages = array['leads']
 where slug = 'add-client-re';
+
+-- Fix RealtyWyze listing creation workflow
+update public.help_articles
+set answer = 'Click **Listings** in the left sidebar, then click the **Add Listing** button in the top right. Enter the address, add bedrooms, bathrooms, sqft, price, and MLS number if available. Upload photos and your listing goes live. You can edit anytime before or after marketing.'
+where slug = 'add-listing-re';
