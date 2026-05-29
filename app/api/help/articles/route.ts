@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
           const matchedWords = queryWords.filter(word =>
             questionLower.includes(word) ||
             answerLower.includes(word) ||
-            keywordsLower.some(kw => kw.includes(word))
+            keywordsLower.some((kw: string) => kw.includes(word))
           )
 
           const questionMatch = questionLower.split(/\s+/).filter(w => queryWords.includes(w)).length
