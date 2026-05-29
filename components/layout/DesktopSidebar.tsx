@@ -16,7 +16,7 @@ import {
   LogOut, Briefcase, Contact, Heart, Inbox,
   Activity, BarChart3, DatabaseBackup, ArchiveRestore,
   Clapperboard, MessageCircle, SlidersHorizontal, FileSignature,
-  CalendarDays,
+  CalendarDays, DollarSign,
 } from 'lucide-react'
 
 interface MeResponse {
@@ -371,7 +371,10 @@ function DealerSidebar({ orgName, role, isPlatformAdmin }: { orgName?: string | 
 
   // RE-only nav items — only added when vertical === 'real_estate'
   const reNav: DealerNavItem[] = vertical === 'real_estate'
-    ? [{ href: '/showings', label: 'Showings', icon: CalendarDays }]
+    ? [
+        { href: '/showings',    label: 'Showings',    icon: CalendarDays },
+        { href: '/commissions', label: 'Commissions', icon: DollarSign },
+      ]
     : []
 
   const allNav: DealerNavItem[] = [
