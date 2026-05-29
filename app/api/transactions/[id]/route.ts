@@ -99,8 +99,7 @@ export async function PATCH(
 
   if (body.pipeline_status     !== undefined) {
     updatePayload.pipeline_status = body.pipeline_status
-    // Keep legacy status column in sync for any existing dealer code paths
-    updatePayload.status = body.pipeline_status
+    // Legacy status column has sale-only CHECK constraint — do not sync
   }
   if (body.offer_amount        !== undefined) updatePayload.offer_amount        = body.offer_amount
   if (body.offer_date          !== undefined) updatePayload.offer_date          = body.offer_date
