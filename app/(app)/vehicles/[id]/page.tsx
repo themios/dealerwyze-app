@@ -26,6 +26,7 @@ import VehicleListingDescriptionCard from '@/components/vehicle/VehicleListingDe
 import InlinePriceEdit from '@/components/vehicle/InlinePriceEdit'
 import { demandSignalShortLabel } from '@/lib/intelligence/demandLabels'
 import VehicleDetailSectionPicker from '@/components/vehicle/VehicleDetailSectionPicker'
+import ListingPerformanceCard from '@/components/vehicle/ListingPerformanceCard'
 import {
   VEHICLE_DETAIL_SECTION_IDS,
   uniqueNavSections,
@@ -281,10 +282,15 @@ export default async function VehicleDetailPage({ params }: PageProps) {
 
         {vehicle.notes ? (
           <div className="rounded-lg border bg-card p-3">
-            <p className="text-xs text-muted-foreground mb-1">Dealer notes</p>
+            <p className="text-xs text-muted-foreground mb-1">{isRe ? 'Agent notes' : 'Dealer notes'}</p>
             <p className="text-sm leading-relaxed">{vehicle.notes}</p>
           </div>
         ) : null}
+
+        {/* RE only: listing performance metrics + CMA */}
+        {isRe && (
+          <ListingPerformanceCard vehicleId={id} />
+        )}
 
         {!showWebsiteOverviewPanel ? (
           <div className="space-y-2 pt-2">

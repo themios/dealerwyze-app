@@ -51,7 +51,11 @@ export async function GET(_req: NextRequest, { params }: Params) {
     if (vehicle.market_checked_at && vehicle.market_data_json) {
       const ageHours = (Date.now() - new Date(vehicle.market_checked_at as string).getTime()) / 3_600_000
       if (ageHours < CACHE_TTL_HOURS) {
-        return NextResponse.json({ data: vehicle.market_data_json, cached: true })
+        return NextResponse.json({
+          data: vehicle.market_data_json,
+          cached: true,
+          market_checked_at: vehicle.market_checked_at,
+        })
       }
     }
 
@@ -107,16 +111,17 @@ export async function GET(_req: NextRequest, { params }: Params) {
     }
 
     // Cache result on the vehicles row
+    const checkedAt = new Date().toISOString()
     await supabase
       .from('vehicles')
       .update({
         market_data_json:  cmaData,
-        market_checked_at: new Date().toISOString(),
+        market_checked_at: checkedAt,
       })
       .eq('id', id)
       .eq('user_id', profile.org_id)
 
-    return NextResponse.json({ data: cmaData, cached: false })
+    return NextResponse.json({ data: cmaData, cached: false, market_checked_at: checkedAt })
   } catch (_err) {
     console.error('[listings/cma] error:', _err instanceof Error ? _err.message : _err)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
