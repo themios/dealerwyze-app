@@ -50,12 +50,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch articles' }, { status: 500 })
     }
 
-    // Filter by context_page if provided
+    // Filter by context_page if provided, but fall back to all articles if nothing matches
     let results = articles ?? []
     if (contextPage) {
-      results = results.filter((article) =>
+      const contextFiltered = results.filter((article) =>
         (article.context_pages ?? []).includes(contextPage)
       )
+      // If context-specific articles exist, use them; otherwise use all articles
+      results = contextFiltered.length > 0 ? contextFiltered : results
     }
 
     // Client-side keyword matching and ranking

@@ -63,6 +63,18 @@ export async function POST(req: NextRequest) {
     const effectiveVertical = vertical || orgVertical
     console.log('[help/ask] question:', question, 'vertical:', effectiveVertical)
 
+    // Search for relevant articles to ground the response
+    console.log('[help/ask] searching for related articles...')
+    const { data: relatedArticles } = await supabase
+      .from('help_articles')
+      .select('question, answer, keywords')
+      .or(`vertical.eq.${effectiveVertical},vertical.eq.both`)
+      .limit(3)
+    const articleContext = relatedArticles && relatedArticles.length > 0
+      ? `\n\nRelevant help articles:\n${relatedArticles.map((a) => `- "${a.question}": ${a.answer}`).join('\n')}`
+      : ''
+    console.log('[help/ask] found', relatedArticles?.length || 0, 'related articles')
+
     // Check if Groq API key is available
     const groqApiKey = process.env.GROQ_API_KEY
     if (!groqApiKey) {
@@ -73,9 +85,12 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Get system prompt
-    const systemPrompt = getHelpSystemPrompt(effectiveVertical, currentPage)
-    console.log('[help/ask] system prompt ready')
+    // Get system prompt and add article context
+    let systemPrompt = getHelpSystemPrompt(effectiveVertical, currentPage)
+    if (articleContext) {
+      systemPrompt += articleContext
+    }
+    console.log('[help/ask] system prompt ready with', relatedArticles?.length || 0, 'articles')
 
     // Call Groq API
     const groq = new Groq({ apiKey: groqApiKey })
