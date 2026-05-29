@@ -1,7 +1,7 @@
 import {
   Building2, Users, GitBranch, Globe, MapPin, Zap, ListOrdered, Webhook, Target,
   ClipboardList, Video, Share2, DollarSign, Heart, CreditCard, BookOpen,
-  Shield, ArrowRightLeft, Palette, MessageSquare,
+  Shield, ArrowRightLeft, Palette, MessageSquare, Percent,
 } from 'lucide-react'
 import { describeSettingsAudience, canViewSettingsAudience, type SettingsAudience } from '@/lib/settings/access'
 import type { UserRole } from '@/types/index'
@@ -67,6 +67,7 @@ export const SETTINGS_ITEMS: SettingsItemConfig[] = [
   { id: 'reviews',         group: 'customer-experience',     href: '/settings/reviews',         title: 'Reviews',                 description: 'Manage review prompts, destinations, and customer feedback routing.',          keywords: ['google review', 'ratings', 'reputation'],                               audience: 'dealer_admin', accessBadge: describeSettingsAudience('dealer_admin'), icon: MessageSquare },
   { id: 'retention',       group: 'customer-experience',     href: '/settings/retention',       title: 'Retention',               description: 'Campaign cadence, postcard automation, and customer retention timing.',        keywords: ['postcards', 'birthday', 'retention', 'campaign'],                       audience: 'dealer_admin', accessBadge: describeSettingsAudience('dealer_admin'), icon: Users },
 
+  { id: 'commission-plans', group: 'compliance-finance',     href: '/settings/commission-plans', title: 'Commission Plans',         description: 'Configure how commissions are split between agents and the brokerage.',       keywords: ['commission', 'split', 'co-broke', 'referral', 'agent', 'broker'],       audience: 'dealer_admin', accessBadge: describeSettingsAudience('dealer_admin'), icon: Percent, verticalHide: ['dealer'] },
   { id: 'billing',         group: 'compliance-finance',      href: '/settings/billing',         title: 'Billing',                 description: 'Manage the subscription, payment method, and plan details.',                   keywords: ['plan', 'subscription', 'invoice'],                                      audience: 'dealer_admin', accessBadge: describeSettingsAudience('dealer_admin'), icon: CreditCard },
   { id: 'bookkeeping',     group: 'compliance-finance',      href: '/settings/bookkeeping',     title: 'Bookkeeping',             description: 'Receipt categories and QuickBooks mapping for the ledger.',                    keywords: ['ledger', 'quickbooks', 'expenses', 'receipts'],                         audience: 'all',          icon: BookOpen, verticalHide: ['real_estate'] },
   { id: 'audit',           group: 'compliance-finance',      href: '/settings/audit',           title: 'Audit Log',               description: 'Review security, export, billing, and settings-change history.',               keywords: ['security', 'events', 'history', 'audit'],                               audience: 'dealer_admin', accessBadge: describeSettingsAudience('dealer_admin'), icon: Shield },
