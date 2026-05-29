@@ -16,3 +16,10 @@ CREATE INDEX IF NOT EXISTS showings_gcal_event_id_idx
 ALTER TABLE org_settings
   ADD COLUMN IF NOT EXISTS calcom_username   TEXT,
   ADD COLUMN IF NOT EXISTS calcom_event_slug TEXT;
+
+-- Showing reminder dedup — cron job stamps this after sending to prevent double-fire
+ALTER TABLE showings
+  ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS showings_reminder_sent_at_idx
+  ON showings(scheduled_at) WHERE reminder_sent_at IS NULL AND status = 'scheduled';
