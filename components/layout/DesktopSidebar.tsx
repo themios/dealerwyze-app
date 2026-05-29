@@ -16,6 +16,7 @@ import {
   LogOut, Briefcase, Contact, Heart, Inbox,
   Activity, BarChart3, DatabaseBackup, ArchiveRestore,
   Clapperboard, MessageCircle, SlidersHorizontal, FileSignature,
+  CalendarDays,
 } from 'lucide-react'
 
 interface MeResponse {
@@ -367,8 +368,15 @@ function DealerSidebar({ orgName, role, isPlatformAdmin }: { orgName?: string | 
   const visibleRoleNav = ROLE_NAV.filter(
     item => item.requiresRole(role) && (!item.feature || features[item.feature]),
   )
+
+  // RE-only nav items — only added when vertical === 'real_estate'
+  const reNav: DealerNavItem[] = vertical === 'real_estate'
+    ? [{ href: '/showings', label: 'Showings', icon: CalendarDays }]
+    : []
+
   const allNav: DealerNavItem[] = [
     ...BASE_NAV,
+    ...reNav,
     ...visibleRoleNav,
     ...(isPlatformAdmin ? [ADMIN_NAV] : []),
   ]
@@ -385,7 +393,7 @@ function DealerSidebar({ orgName, role, isPlatformAdmin }: { orgName?: string | 
       {/* Logo / org name */}
       <div className="px-4 py-4 border-b border-[#1B4A8A]">
         {vertical === 'real_estate' ? (
-          <Image src="/rw-logo.png" alt="RealtyWyze" width={148} height={80} priority style={{ height: 'auto' }} className="object-contain" />
+          <Image src="/rw-logo.png" alt="RealtyWyze" width={148} height={80} priority style={{ height: 'auto', width: 'auto' }} className="object-contain" />
         ) : (
           <Image src="/logo.png" alt={brandName} width={160} height={107} priority style={{ height: 'auto' }} className="object-contain rounded-sm" />
         )}
