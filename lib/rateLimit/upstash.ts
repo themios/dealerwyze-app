@@ -120,3 +120,9 @@ const _orgTempUploadLimiter = makeLimiter(redis, { requests: 20, windowSeconds: 
 
 /** 20 temp media uploads per org per hour (MMS attachments from device). */
 export const orgTempUploadLimiter = (orgId: string) => check(_orgTempUploadLimiter, `org:${orgId}:tmpupload`)
+
+// Cal.com webhook — 100 events/min per source IP (legitimate Cal.com retries are rare)
+const _calWebhookLimiter = makeLimiter(redis, { requests: 100, windowSeconds: 60 })
+
+/** 100 Cal.com webhook deliveries per minute per source IP. */
+export const calWebhookLimiter = (ip: string) => check(_calWebhookLimiter, `calwh:${ip}`)

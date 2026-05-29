@@ -166,3 +166,60 @@ export async function getCalendarEvents(
     return []
   }
 }
+
+/**
+ * Updates or cancels an existing Google Calendar event on the org's primary calendar.
+ * If patch.cancelled is true, the event is deleted (avoids confusing the showing_count trigger).
+ * Best-effort — never throws. Returns { ok: false } on any failure or missing token.
+ */
+export async function updateCalendarEvent(
+  orgId: string,
+  gcalEventId: string,
+  patch: Partial<Pick<CalendarEventInput, 'summary' | 'description'>> & {
+    startDateTimeIso?: string
+    durationMin?: number
+    cancelled?: boolean
+  },
+): Promise<{ ok: boolean }> {
+  const supabase = createServiceClient()
+  const { data: tokens } = await supabase
+    .from('org_google_tokens')
+    .select('calendar_refresh_token')
+    .eq('org_id', orgId)
+    .maybeSingle()
+
+  if (!tokens?.calendar_refresh_token) {
+    console.warn('[calendar] updateCalendarEvent: no refresh token for org', orgId)
+    return { ok: false }
+  }
+
+  try {
+    const calendar = makeCalendarClient(tokens.calendar_refresh_token)
+
+    if (patch.cancelled) {
+      await calendar.events.delete({ calendarId: 'primary', eventId: gcalEventId })
+      return { ok: true }
+    }
+
+    const requestBody: Record<string, unknown> = {}
+    if (patch.summary)     requestBody.summary     = patch.summary
+    if (patch.description) requestBody.description = patch.description
+
+    if (patch.startDateTimeIso) {
+      const start = new Date(patch.startDateTimeIso)
+      const end   = new Date(start.getTime() + (patch.durationMin ?? 60) * 60_000)
+      requestBody.start = { dateTime: start.toISOString(), timeZone: 'America/Los_Angeles' }
+      requestBody.end   = { dateTime: end.toISOString(),   timeZone: 'America/Los_Angeles' }
+    }
+
+    await calendar.events.patch({
+      calendarId: 'primary',
+      eventId:    gcalEventId,
+      requestBody,
+    })
+    return { ok: true }
+  } catch (err) {
+    console.error('[calendar] updateCalendarEvent failed:', err)
+    return { ok: false }
+  }
+}
