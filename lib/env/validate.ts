@@ -35,6 +35,17 @@ export const OPTIONAL_PUSH: string[] = [
   'NEXT_PUBLIC_VAPID_PUBLIC_KEY',
 ]
 
+/** Optional — RE listing intelligence degrades gracefully when unset */
+export const OPTIONAL_RE_LISTING: string[] = [
+  'APIFY_API_TOKEN',    // Zillow/Redfin URL scraping via Apify actors (~$0.002/import)
+  'RENTCAST_API_KEY',   // Property AVM and CMA via RentCast API ($74/mo plan)
+]
+
+/** Optional — Cal.com webhook degrades gracefully when unset (bookings won't auto-create showings) */
+export const OPTIONAL_RE_SHOWINGS: string[] = [
+  'CALCOM_WEBHOOK_SECRET',  // HMAC-SHA256 secret from Cal.com webhook settings
+]
+
 const REQUIRED_IN_PROD_ONLY: string[] = [
   // BHPH ACH: signed customer setup links + Stripe ACH webhook (dealer Connect account)
   'BHPH_ACH_SECRET',
