@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
-import Groq from 'groq-sdk'
-import { getHelpSystemPrompt } from '@/lib/help/prompts'
 import { z } from 'zod'
 import type { Vertical } from '@/lib/vertical'
 
@@ -63,43 +61,63 @@ export async function POST(req: NextRequest) {
     const effectiveVertical = vertical || orgVertical
     console.log('[help/ask] question:', question, 'vertical:', effectiveVertical)
 
-    // Search for relevant articles to ground the response
-    console.log('[help/ask] searching for related articles...')
-    const { data: relatedArticles } = await supabase
+    // Step 1: Search for matching help articles
+    console.log('[help/ask] searching for matching articles...')
+    const { data: allArticles } = await supabase
       .from('help_articles')
       .select('question, answer, keywords')
       .in('vertical', [effectiveVertical, 'both'])
-      .limit(3)
 
-    console.log('[help/ask] found', relatedArticles?.length || 0, 'related articles')
+    console.log('[help/ask] found', allArticles?.length || 0, 'total articles for vertical:', effectiveVertical)
 
-    // If we found highly relevant articles, return them directly instead of generating
-    if (relatedArticles && relatedArticles.length > 0) {
-      const bestMatch = relatedArticles[0]
-      // Check if any article question closely matches the user's question
-      const matchScore = relatedArticles.map((a) => {
-        const q = a.question.toLowerCase()
-        const userQ = question.toLowerCase()
-        const matchCount = userQ.split(/\s+/).filter(word => q.includes(word)).length
-        return { article: a, matchCount }
-      }).sort((a, b) => b.matchCount - a.matchCount)[0]
+    if (allArticles && allArticles.length > 0) {
+      // Find articles matching the user's question by word matching
+      const queryWords = question.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2)
+      console.log('[help/ask] query words:', queryWords)
 
-      if (matchScore && matchScore.matchCount >= 2) {
-        console.log('[help/ask] returning matching article directly')
+      const scored = allArticles.map((a) => {
+        const qLower = a.question.toLowerCase()
+        const aLower = a.answer.toLowerCase()
+        const kLower = (a.keywords ?? []).map((k: string) => k.toLowerCase())
+
+        const matchedWords = queryWords.filter(word =>
+          qLower.includes(word) ||
+          aLower.includes(word) ||
+          kLower.some((k: string) => k.includes(word))
+        ).length
+
+        return { article: a, score: matchedWords }
+      })
+
+      const bestMatch = scored.sort((a, b) => b.score - a.score)[0]
+      console.log('[help/ask] best match score:', bestMatch?.score)
+
+      if (bestMatch && bestMatch.score > 0) {
+        console.log('[help/ask] returning matching article:', bestMatch.article.question)
         return NextResponse.json({
-          answer: matchScore.article.answer,
-          responseTime: Date.now() - Date.now(),
+          answer: bestMatch.article.answer,
+          responseTime: 0,
           model: 'help-articles',
           source: 'article'
         })
       }
     }
 
-    const articleContext = relatedArticles && relatedArticles.length > 0
-      ? `\n\nRelevant help articles for reference:\n${relatedArticles.map((a) => `Q: "${a.question}"\nA: ${a.answer}`).join('\n\n')}`
-      : ''
+    // Step 2: If no article match, use system knowledge as RAG context
+    // Read SYSTEM_KNOWLEDGE.md to ground AI responses in reality
+    console.log('[help/ask] no article match, using system knowledge RAG')
+    const systemKnowledgePath = process.cwd() + '/SYSTEM_KNOWLEDGE.md'
+    let systemKnowledge = ''
+    try {
+      const fs = await import('fs')
+      systemKnowledge = fs.readFileSync(systemKnowledgePath, 'utf-8')
+      console.log('[help/ask] loaded system knowledge, length:', systemKnowledge.length)
+    } catch (e) {
+      console.warn('[help/ask] could not load SYSTEM_KNOWLEDGE.md:', e instanceof Error ? e.message : String(e))
+      systemKnowledge = `(System knowledge unavailable - help based on general knowledge only)`
+    }
 
-    // Check if Groq API key is available
+    // Use Groq API with system knowledge grounding
     const groqApiKey = process.env.GROQ_API_KEY
     if (!groqApiKey) {
       console.error('[help/ask] GROQ_API_KEY not configured')
@@ -109,19 +127,29 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Get system prompt and add article context
-    let systemPrompt = getHelpSystemPrompt(effectiveVertical, currentPage)
-    if (articleContext) {
-      systemPrompt += articleContext
-    }
-    console.log('[help/ask] system prompt ready with', relatedArticles?.length || 0, 'articles')
-
-    // Call Groq API
+    const Groq = (await import('groq-sdk')).default
     const groq = new Groq({ apiKey: groqApiKey })
+
+    const systemPrompt = `You are a helpful support assistant for ${effectiveVertical === 'real_estate' ? 'RealtyWyze' : 'DealerWyze'}, a CRM for ${effectiveVertical === 'real_estate' ? 'real estate agents' : 'car dealerships'}.
+
+You have access to verified system knowledge below. ONLY use information from this knowledge base to answer questions. Do NOT invent UI elements, buttons, pages, or workflows.
+
+If the knowledge base doesn't contain information about the user's question, say: "I don't have information about that in my knowledge base. Please check the help articles or contact support."
+
+Be specific: reference exact page names, button labels, menu items, and step-by-step instructions.
+
+---
+VERIFIED SYSTEM KNOWLEDGE:
+${systemKnowledge}
+---
+
+User context: Currently on page: ${currentPage || 'unknown'}
+User vertical: ${effectiveVertical}`
 
     const startTime = Date.now()
     const model = process.env.GROQ_HELP_MODEL ?? 'llama-3.1-8b-instant'
-    console.log('[help/ask] calling groq API with model:', model)
+    console.log('[help/ask] calling groq with RAG, model:', model)
+
     const completion = await groq.chat.completions.create({
       model,
       messages: [
@@ -135,18 +163,20 @@ export async function POST(req: NextRequest) {
         },
       ],
       max_tokens: 300,
-      temperature: 0.7,
+      temperature: 0.3, // Lower temp for more factual responses
     })
+
     const responseTime = Date.now() - startTime
     console.log('[help/ask] groq response received in', responseTime, 'ms')
 
     const answer =
-      completion.choices[0]?.message?.content || 'I couldn\'t find an answer to that question. Try browsing our help articles or reaching out to support.'
+      completion.choices[0]?.message?.content || `I couldn't generate an answer. Please check the help articles or contact support.`
 
     return NextResponse.json({
       answer,
       responseTime,
-      model: 'groq',
+      model: 'groq-rag',
+      source: 'rag'
     })
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
