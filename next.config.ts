@@ -20,6 +20,10 @@ const securityHeaders = [
     key: 'Strict-Transport-Security',
     value: 'max-age=63072000; includeSubDomains; preload',
   },
+  {
+    key: 'Content-Security-Policy-Report-Only',
+    value: "default-src 'self' https:; script-src 'self' https: 'unsafe-inline' 'unsafe-eval' data:; style-src 'self' https: 'unsafe-inline'; img-src 'self' https: data:; font-src 'self' https: data:; connect-src 'self' https: wss:; frame-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;",
+  },
 ]
 
 const nextConfig: NextConfig = {
