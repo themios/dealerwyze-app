@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
         .map((article) => {
           const questionLower = article.question.toLowerCase()
           const answerLower = article.answer.toLowerCase()
-          const keywordsLower = (article.keywords ?? []).map(k => k.toLowerCase())
+          const keywordsLower = (article.keywords ?? []).map((k: string) => k.toLowerCase())
 
           // Match on individual words, not the whole query string
           const matchedWords = queryWords.filter(word =>
