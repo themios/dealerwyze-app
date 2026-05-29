@@ -24,26 +24,35 @@ const RequestSchema = z.object({
  */
 export async function POST(req: NextRequest) {
   try {
+    console.log('[help/ask] POST received')
     const profile = await requireProfile()
+    console.log('[help/ask] profile verified')
     const supabase = await createClient()
 
     // Get org vertical
-    const { data: org } = await supabase
+    const { data: org, error: orgError } = await supabase
       .from('organizations')
       .select('vertical')
       .eq('id', profile.org_id)
       .single()
+    if (orgError) {
+      console.error('[help/ask] org query failed:', orgError.message)
+      throw new Error(`Failed to fetch organization: ${orgError.message}`)
+    }
     const orgVertical = (org?.vertical ?? 'dealer') as Vertical
+    console.log('[help/ask] org vertical:', orgVertical)
 
     let body: unknown
     try {
       body = await req.json()
-    } catch {
+    } catch (e) {
+      console.error('[help/ask] invalid request body:', e)
       return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
     }
 
     const parsed = RequestSchema.safeParse(body)
     if (!parsed.success) {
+      console.error('[help/ask] validation failed:', parsed.error)
       return NextResponse.json(
         { error: 'Invalid request: ' + parsed.error.message },
         { status: 400 }
@@ -52,10 +61,12 @@ export async function POST(req: NextRequest) {
 
     const { question, currentPage, vertical } = parsed.data
     const effectiveVertical = vertical || orgVertical
+    console.log('[help/ask] question:', question, 'vertical:', effectiveVertical)
 
     // Check if Groq API key is available
     const groqApiKey = process.env.GROQ_API_KEY
     if (!groqApiKey) {
+      console.error('[help/ask] GROQ_API_KEY not configured')
       return NextResponse.json(
         { error: 'Help system unavailable. Please contact support.' },
         { status: 503 }
@@ -64,13 +75,16 @@ export async function POST(req: NextRequest) {
 
     // Get system prompt
     const systemPrompt = getHelpSystemPrompt(effectiveVertical, currentPage)
+    console.log('[help/ask] system prompt ready')
 
     // Call Groq API
     const groq = new Groq({ apiKey: groqApiKey })
 
     const startTime = Date.now()
+    const model = process.env.GROQ_HELP_MODEL ?? 'llama-3.1-8b-instant'
+    console.log('[help/ask] calling groq API with model:', model)
     const completion = await groq.chat.completions.create({
-      model: process.env.GROQ_HELP_MODEL ?? 'mixtral-8x7b-32768',
+      model,
       messages: [
         {
           role: 'system',
@@ -85,6 +99,7 @@ export async function POST(req: NextRequest) {
       temperature: 0.7,
     })
     const responseTime = Date.now() - startTime
+    console.log('[help/ask] groq response received in', responseTime, 'ms')
 
     const answer =
       completion.choices[0]?.message?.content || 'I couldn\'t find an answer to that question. Try browsing our help articles or reaching out to support.'
@@ -95,16 +110,28 @@ export async function POST(req: NextRequest) {
       model: 'groq',
     })
   } catch (err) {
-    console.error('Help ask API error:', err)
+    const errMsg = err instanceof Error ? err.message : String(err)
+    const errStack = err instanceof Error ? err.stack : ''
+    console.error('[help/ask] FATAL ERROR:', errMsg)
+    console.error('[help/ask] stack:', errStack)
 
-    // Graceful fallback
-    if (err instanceof Error) {
-      if (err.message.includes('401') || err.message.includes('403')) {
-        return NextResponse.json(
-          { error: 'Help system temporarily unavailable. Try searching articles instead.' },
-          { status: 503 }
-        )
-      }
+    // Auth errors
+    if (errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('Unauthorized') || errMsg.includes('Authentication')) {
+      return NextResponse.json(
+        { error: 'Help system temporarily unavailable. Groq API key invalid or revoked.' },
+        { status: 503 }
+      )
+    }
+
+    // Development mode: return full error for debugging
+    if (process.env.NODE_ENV === 'development') {
+      return NextResponse.json(
+        {
+          error: 'Could not generate answer.',
+          debug: errMsg,
+        },
+        { status: 500 }
+      )
     }
 
     return NextResponse.json(

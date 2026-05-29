@@ -35,29 +35,30 @@ export async function GET(req: NextRequest) {
     const contextPage = searchParams.get('context_page') || ''
     const vertical = (searchParams.get('vertical') as Vertical) || orgVertical
 
-    // Start with base query
-    let dbQuery = supabase
+    // Get all articles for this vertical, filter context_pages on client
+    const { data: articles, error } = await supabase
       .from('help_articles')
       .select('id, slug, question, answer, vertical, context_pages, keywords, related_links')
-
-    // Filter by vertical: match org vertical or 'both'
-    dbQuery = dbQuery
       .or(`vertical.eq.${vertical},vertical.eq.both`)
 
-    // Filter by context_page if provided
-    if (contextPage) {
-      dbQuery = dbQuery.contains('context_pages', [contextPage])
-    }
-
-    const { data: articles, error } = await dbQuery
-
     if (error) {
-      console.error('Help articles query error:', error)
+      console.error('Help articles query error:', error.message, error.details, error.hint)
+      // Dev mode: return actual error
+      if (process.env.NODE_ENV === 'development') {
+        return NextResponse.json({ error: error.message, details: error.details }, { status: 500 })
+      }
       return NextResponse.json({ error: 'Failed to fetch articles' }, { status: 500 })
     }
 
-    // Client-side keyword matching and ranking
+    // Filter by context_page if provided
     let results = articles ?? []
+    if (contextPage) {
+      results = results.filter((article) =>
+        (article.context_pages ?? []).includes(contextPage)
+      )
+    }
+
+    // Client-side keyword matching and ranking
     if (query) {
       results = results
         .map((article) => {

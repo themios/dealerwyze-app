@@ -46,13 +46,19 @@ export default function HelpSearch({ currentPage, onSelectArticle }: HelpSearchP
         if (currentPage) params.set('context_page', currentPage)
 
         const response = await fetch(`/api/help/articles?${params}`)
-        if (!response.ok) throw new Error('Search failed')
-
         const data = await response.json()
+
+        if (!response.ok) {
+          const errorMsg = data.error || data.details || 'Search failed'
+          console.error('API Error:', errorMsg, data)
+          throw new Error(errorMsg)
+        }
+
         setResults(data.articles || [])
       } catch (err) {
-        console.error('Search error:', err)
-        setError('Search failed. Try again.')
+        const msg = err instanceof Error ? err.message : String(err)
+        console.error('Search error:', msg)
+        setError(msg)
       } finally {
         setIsSearching(false)
       }
