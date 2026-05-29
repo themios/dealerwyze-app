@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
     vehicle_id:         body.vehicle_id,
     transaction_type:   txType,
     pipeline_status:    initialStatus,
+    status:             'offer', // legacy column, kept for backward compat
     transaction_number: txnNumber,
   }
 
