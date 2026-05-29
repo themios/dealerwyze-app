@@ -64,7 +64,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid year' }, { status: 400 })
   }
 
-  const isAdmin = isDealerAdmin(profile.role) || profile.role === 'agent' && false
   // Use isDealerAdmin strictly — 'agent' role is not admin
   const callerIsAdmin = isDealerAdmin(profile.role)
 
