@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState } from 'react'
+import { Suspense, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, Loader2, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react'
 import Link from 'next/link'
 import { useVertical } from '@/hooks/useVertical'
 
@@ -381,6 +381,29 @@ function NewVehicleForm() {
 
 // ── RE Listing Form ────────────────────────────────────────────────────────────
 
+// Fields that import methods are allowed to prefill (photo_url excluded by design)
+const IMPORT_PREFILL_FIELDS = [
+  'address_line1', 'city', 'state', 'zip', 'price',
+  'bedrooms', 'bathrooms', 'sqft', 'lot_size', 'year_built',
+  'property_type', 'hoa_monthly', 'listing_url', 'mls_number', 'notes',
+] as const
+
+type ImportPrefillField = typeof IMPORT_PREFILL_FIELDS[number]
+
+function mergeImportFields(
+  prev: Record<string, string>,
+  imported: Record<string, unknown>
+): Record<string, string> {
+  const next = { ...prev }
+  for (const field of IMPORT_PREFILL_FIELDS) {
+    const val = imported[field as ImportPrefillField]
+    if (val !== null && val !== undefined && val !== '') {
+      next[field] = String(val)
+    }
+  }
+  return next
+}
+
 function NewListingForm() {
   const router = useRouter()
   const supabase = createClient()
@@ -401,10 +424,186 @@ function NewListingForm() {
     hoa_monthly:   '',
     notes:         '',
     status:        'available',
+    lot_size:      '',
+    listing_url:   '',
   })
+
+  // ── Import panel state ─────────────────────────────────────────────────────
+  const [importOpen, setImportOpen] = useState(false)
+  // URL import
+  const [urlValue, setUrlValue] = useState('')
+  const [urlLoading, setUrlLoading] = useState(false)
+  const [urlMessage, setUrlMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null)
+  // Text import
+  const [pasteText, setPasteText] = useState('')
+  const [textLoading, setTextLoading] = useState(false)
+  const [textMessage, setTextMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  // Photo scan
+  const photoInputRef = useRef<HTMLInputElement>(null)
+  const [photoLoading, setPhotoLoading] = useState(false)
+  const [photoMessage, setPhotoMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  // MLS import
+  const [mlsNumber, setMlsNumber] = useState('')
+  const [mlsAddress, setMlsAddress] = useState('')
+  const [mlsCity, setMlsCity] = useState('')
+  const [mlsState, setMlsState] = useState('')
+  const [mlsZip, setMlsZip] = useState('')
+  const [mlsLoading, setMlsLoading] = useState(false)
+  const [mlsMessage, setMlsMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   function update(field: string, value: string) {
     setForm(prev => ({ ...prev, [field]: value }))
+  }
+
+  // ── Import handlers ────────────────────────────────────────────────────────
+
+  async function handleUrlImport() {
+    const trimmed = urlValue.trim()
+    if (!trimmed) return
+
+    // Client-side Realtor.com guard — don't call Apify for unsupported source
+    try {
+      const host = new URL(trimmed).hostname.replace(/^www\./, '')
+      if (host === 'realtor.com') {
+        setUrlMessage({
+          type: 'info',
+          text: 'Realtor.com imports are not supported via URL. Use "Paste Listing Text" instead — copy the listing details and paste them there.',
+        })
+        return
+      }
+    } catch {
+      setUrlMessage({ type: 'error', text: 'Enter a valid URL (starting with https://).' })
+      return
+    }
+
+    setUrlLoading(true)
+    setUrlMessage(null)
+    try {
+      const res = await fetch('/api/listings/import-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: trimmed }),
+      })
+      const data = await res.json() as Record<string, unknown>
+      if (!res.ok) {
+        setUrlMessage({ type: 'error', text: String(data.error ?? 'Import failed. Try again.') })
+        return
+      }
+      setForm(prev => mergeImportFields(prev, data) as typeof form)
+      setUrlMessage({ type: 'success', text: 'Listing data imported. Review and edit the fields below before saving.' })
+    } catch {
+      setUrlMessage({ type: 'error', text: 'Network error — check your connection and try again.' })
+    } finally {
+      setUrlLoading(false)
+    }
+  }
+
+  async function handleTextExtract() {
+    const trimmed = pasteText.trim()
+    if (trimmed.length < 50) {
+      setTextMessage({ type: 'error', text: 'Paste at least a sentence or two of listing text.' })
+      return
+    }
+    setTextLoading(true)
+    setTextMessage(null)
+    try {
+      const res = await fetch('/api/listings/import-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: trimmed }),
+      })
+      const data = await res.json() as Record<string, unknown>
+      if (!res.ok) {
+        setTextMessage({ type: 'error', text: String(data.error ?? 'Extraction failed. Try again.') })
+        return
+      }
+      setForm(prev => mergeImportFields(prev, data) as typeof form)
+      setTextMessage({ type: 'success', text: 'Fields extracted from listing text. Review and correct before saving.' })
+    } catch {
+      setTextMessage({ type: 'error', text: 'Network error — check your connection and try again.' })
+    } finally {
+      setTextLoading(false)
+    }
+  }
+
+  async function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      setPhotoMessage({ type: 'error', text: 'Select an image file (JPG, PNG, HEIC, etc.).' })
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setPhotoMessage({ type: 'error', text: 'Image must be under 5 MB.' })
+      return
+    }
+
+    setPhotoLoading(true)
+    setPhotoMessage(null)
+
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve((reader.result as string).split(',')[1])
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+
+      const res = await fetch('/api/listings/scan-photo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64, mimeType: file.type }),
+      })
+      const data = await res.json() as Record<string, unknown>
+      if (!res.ok) {
+        setPhotoMessage({ type: 'error', text: String(data.error ?? 'Photo scan failed. Try again.') })
+        return
+      }
+      setForm(prev => mergeImportFields(prev, data) as typeof form)
+      setPhotoMessage({ type: 'success', text: 'Fields extracted from image. Review and correct before saving.' })
+    } catch {
+      setPhotoMessage({ type: 'error', text: 'Could not read the image. Try a different file.' })
+    } finally {
+      setPhotoLoading(false)
+      // Reset file input so the same file can be re-selected after an error
+      if (photoInputRef.current) photoInputRef.current.value = ''
+    }
+  }
+
+  async function handleMlsImport() {
+    const mls = mlsNumber.trim()
+    const addr = mlsAddress.trim()
+    if (!mls || !addr) {
+      setMlsMessage({ type: 'error', text: 'Enter both an MLS number and property address.' })
+      return
+    }
+    setMlsLoading(true)
+    setMlsMessage(null)
+    try {
+      const res = await fetch('/api/listings/import-mls', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mls_number: mls,
+          address_line1: addr,
+          city: mlsCity.trim() || undefined,
+          state: mlsState.trim() || undefined,
+          zip: mlsZip.trim() || undefined,
+        }),
+      })
+      const data = await res.json() as Record<string, unknown>
+      if (!res.ok) {
+        setMlsMessage({ type: 'error', text: String(data.error ?? 'MLS lookup failed. Try again.') })
+        return
+      }
+      // MLS import saves immediately — redirect to the new listing detail page
+      setMlsMessage({ type: 'success', text: 'Record created — redirecting...' })
+      router.push(`/vehicles/${data.id}`)
+    } catch {
+      setMlsMessage({ type: 'error', text: 'Network error — check your connection and try again.' })
+      setMlsLoading(false)
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -419,10 +618,10 @@ function NewListingForm() {
       .from('vehicles')
       .insert({
         stock_no:      stockNo,
-        // RE listings use address as the "model" equivalent for display fallbacks
-        year:          form.year_built ? parseInt(form.year_built) : new Date().getFullYear(),
-        make:          form.property_type || 'Property',
-        model:         form.address_line1 || 'Listing',
+        // RE placeholder values: year=0, make='RE', model=address — matches import-mls pattern
+        year:          0,
+        make:          'RE',
+        model:         (form.address_line1 || 'Listing').slice(0, 100),
         price:         form.price ? parseFloat(form.price) : null,
         status:        form.status,
         notes:         form.notes || null,
@@ -434,10 +633,13 @@ function NewListingForm() {
         bedrooms:      form.bedrooms ? parseInt(form.bedrooms) : null,
         bathrooms:     form.bathrooms ? parseFloat(form.bathrooms) : null,
         sqft:          form.sqft ? parseInt(form.sqft) : null,
+        lot_size:      form.lot_size || null,
         listing_type:  form.listing_type || 'sale',
         mls_number:    mlsNo || null,
         year_built:    form.year_built ? parseInt(form.year_built) : null,
         hoa_monthly:   form.hoa_monthly ? parseFloat(form.hoa_monthly) : null,
+        listing_url:   form.listing_url || null,
+        import_source: 'manual',
       })
       .select('id')
       .single()
@@ -462,6 +664,162 @@ function NewListingForm() {
       />
 
       <form onSubmit={handleSubmit} className="px-4 py-4 space-y-4">
+        {/* ── Import Listing panel (RE vertical only) ── */}
+        <div className="border rounded-lg overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setImportOpen(o => !o)}
+            className="w-full flex items-center justify-between px-3 py-3 bg-muted/50 hover:bg-muted transition-colors text-sm font-semibold"
+          >
+            <span>Import Listing</span>
+            {importOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          </button>
+
+          {importOpen && (
+            <div className="divide-y">
+
+              {/* Method 1: URL import */}
+              <div className="px-3 py-3 space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Import from URL (Zillow / Redfin)</p>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="https://www.zillow.com/homedetails/..."
+                    value={urlValue}
+                    onChange={e => setUrlValue(e.target.value)}
+                    className="h-10 text-sm flex-1"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={urlLoading || !urlValue.trim()}
+                    onClick={handleUrlImport}
+                    className="shrink-0 h-10"
+                  >
+                    {urlLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Import'}
+                  </Button>
+                </div>
+                {urlLoading && <p className="text-xs text-muted-foreground">Importing listing data...</p>}
+                {urlMessage && (
+                  <p className={`text-xs ${urlMessage.type === 'success' ? 'text-green-600 dark:text-green-400' : urlMessage.type === 'info' ? 'text-amber-600 dark:text-amber-400' : 'text-destructive'}`}>
+                    {urlMessage.text}
+                  </p>
+                )}
+              </div>
+
+              {/* Method 2: Paste Listing Text */}
+              <div className="px-3 py-3 space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Paste Listing Text (Realtor.com or any source)</p>
+                <Textarea
+                  placeholder="Paste listing description text (works with Realtor.com and any MLS source)"
+                  value={pasteText}
+                  onChange={e => setPasteText(e.target.value)}
+                  rows={4}
+                  className="resize-none text-sm"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={textLoading || pasteText.trim().length < 10}
+                  onClick={handleTextExtract}
+                  className="h-9"
+                >
+                  {textLoading ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Extracting...</> : 'Extract Fields'}
+                </Button>
+                {textLoading && <p className="text-xs text-muted-foreground">Extracting listing info from text...</p>}
+                {textMessage && (
+                  <p className={`text-xs ${textMessage.type === 'success' ? 'text-green-600 dark:text-green-400' : 'text-destructive'}`}>
+                    {textMessage.text}
+                  </p>
+                )}
+              </div>
+
+              {/* Method 3: Photo scan */}
+              <div className="px-3 py-3 space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Scan Photo / Flyer</p>
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handlePhotoSelect}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={photoLoading}
+                  onClick={() => photoInputRef.current?.click()}
+                  className="h-9"
+                >
+                  {photoLoading ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Reading image...</> : 'Upload listing photo or flyer'}
+                </Button>
+                {photoLoading && <p className="text-xs text-muted-foreground">Reading listing info from image...</p>}
+                {photoMessage && (
+                  <p className={`text-xs ${photoMessage.type === 'success' ? 'text-green-600 dark:text-green-400' : 'text-destructive'}`}>
+                    {photoMessage.text}
+                  </p>
+                )}
+              </div>
+
+              {/* Method 4: MLS# import (saves immediately) */}
+              <div className="px-3 py-3 space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Import via MLS# (saves immediately)</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    placeholder="MLS Number"
+                    value={mlsNumber}
+                    onChange={e => setMlsNumber(e.target.value)}
+                    className="h-10 text-sm font-mono"
+                  />
+                  <Input
+                    placeholder="123 Main St"
+                    value={mlsAddress}
+                    onChange={e => setMlsAddress(e.target.value)}
+                    className="h-10 text-sm"
+                  />
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <Input
+                    placeholder="City"
+                    value={mlsCity}
+                    onChange={e => setMlsCity(e.target.value)}
+                    className="h-10 text-sm"
+                  />
+                  <Input
+                    placeholder="State"
+                    value={mlsState}
+                    onChange={e => setMlsState(e.target.value.toUpperCase())}
+                    maxLength={2}
+                    className="h-10 text-sm uppercase"
+                  />
+                  <Input
+                    placeholder="Zip"
+                    value={mlsZip}
+                    onChange={e => setMlsZip(e.target.value)}
+                    maxLength={10}
+                    className="h-10 text-sm"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={mlsLoading || !mlsNumber.trim() || !mlsAddress.trim()}
+                  onClick={handleMlsImport}
+                  className="h-9"
+                >
+                  {mlsLoading ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Creating listing...</> : 'Look Up'}
+                </Button>
+                {mlsMessage && (
+                  <p className={`text-xs ${mlsMessage.type === 'success' ? 'text-green-600 dark:text-green-400' : 'text-destructive'}`}>
+                    {mlsMessage.text}
+                  </p>
+                )}
+              </div>
+
+            </div>
+          )}
+        </div>
+
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label>Property Type *</Label>
