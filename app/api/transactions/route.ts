@@ -95,8 +95,11 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error || !transaction) {
-    console.error('[transactions] insert error:', error?.message)
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+    const msg = error?.message ?? 'Unknown error'
+    console.error('[transactions] insert error:', msg)
+    // Return details in development, generic in production
+    const detail = process.env.NODE_ENV === 'development' ? msg : 'Failed to create transaction'
+    return NextResponse.json({ error: detail }, { status: 500 })
   }
 
   return NextResponse.json(transaction, { status: 201 })

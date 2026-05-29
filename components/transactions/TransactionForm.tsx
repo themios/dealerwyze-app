@@ -100,10 +100,12 @@ export default function TransactionForm({ vehicleId, agentId, transaction, onSav
   useEffect(() => {
     if (form.move_in_date && form.lease_term_months) {
       const months = parseInt(form.lease_term_months, 10)
-      const moveIn = new Date(form.move_in_date)
-      const endDate = new Date(moveIn.getFullYear(), moveIn.getMonth() + months, moveIn.getDate())
-      const isoEnd = endDate.toISOString().split('T')[0]
-      if (isoEnd !== form.lease_end_date) upd('lease_end_date', isoEnd)
+      if (months > 0) {
+        const moveIn = new Date(form.move_in_date + 'T00:00:00')
+        const endDate = new Date(moveIn.getFullYear(), moveIn.getMonth() + months, moveIn.getDate())
+        const isoEnd = endDate.toISOString().split('T')[0]
+        setForm(p => ({ ...p, lease_end_date: isoEnd }))
+      }
     }
   }, [form.move_in_date, form.lease_term_months])
 
@@ -387,35 +389,58 @@ export default function TransactionForm({ vehicleId, agentId, transaction, onSav
             </div>
             {/* Agents & vendors */}
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-1">Agents & Vendors</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="buyer_agent">{isLease ? 'Tenant Agent' : 'Buyer Agent'}</Label>
-                <Input id="buyer_agent" placeholder="Name"
-                  value={form.buyer_agent} onChange={e => upd('buyer_agent', e.target.value)} />
+            {isLease ? (
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label htmlFor="seller_agent">Listing Agent *</Label>
+                  <Input id="seller_agent" placeholder="Name (property manager or landlord's agent)"
+                    value={form.seller_agent} onChange={e => upd('seller_agent', e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="buyer_agent">Tenant's Agent (optional)</Label>
+                  <Input id="buyer_agent" placeholder="Name"
+                    value={form.buyer_agent} onChange={e => upd('buyer_agent', e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="lender">Co-signer / Guarantor</Label>
+                  <Input id="lender" placeholder="Name"
+                    value={form.lender} onChange={e => upd('lender', e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="parties_notes">Additional notes</Label>
+                  <Textarea id="parties_notes" rows={2} placeholder="Any additional party info..."
+                    value={form.parties_notes} onChange={e => upd('parties_notes', e.target.value)} />
+                </div>
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="seller_agent">{isLease ? 'Listing Agent' : 'Seller Agent'}</Label>
-                <Input id="seller_agent" placeholder="Name"
-                  value={form.seller_agent} onChange={e => upd('seller_agent', e.target.value)} />
-              </div>
-              {!isLease && (
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="buyer_agent">Buyer Agent</Label>
+                  <Input id="buyer_agent" placeholder="Name"
+                    value={form.buyer_agent} onChange={e => upd('buyer_agent', e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="seller_agent">Seller Agent</Label>
+                  <Input id="seller_agent" placeholder="Name"
+                    value={form.seller_agent} onChange={e => upd('seller_agent', e.target.value)} />
+                </div>
                 <div className="space-y-1">
                   <Label htmlFor="title_company">Title Company</Label>
                   <Input id="title_company" placeholder="Company name"
                     value={form.title_company} onChange={e => upd('title_company', e.target.value)} />
                 </div>
-              )}
-              <div className="space-y-1">
-                <Label htmlFor="lender">{isLease ? 'Co-signer / Guarantor' : 'Lender'}</Label>
-                <Input id="lender" placeholder="Name"
-                  value={form.lender} onChange={e => upd('lender', e.target.value)} />
+                <div className="space-y-1">
+                  <Label htmlFor="lender">Lender</Label>
+                  <Input id="lender" placeholder="Name"
+                    value={form.lender} onChange={e => upd('lender', e.target.value)} />
+                </div>
+                <div className="col-span-2 space-y-1">
+                  <Label htmlFor="parties_notes">Additional notes</Label>
+                  <Textarea id="parties_notes" rows={2} placeholder="Any additional party info..."
+                    value={form.parties_notes} onChange={e => upd('parties_notes', e.target.value)} />
+                </div>
               </div>
-              <div className="col-span-2 space-y-1">
-                <Label htmlFor="parties_notes">Additional notes</Label>
-                <Textarea id="parties_notes" rows={2} placeholder="Any additional party info..."
-                  value={form.parties_notes} onChange={e => upd('parties_notes', e.target.value)} />
-              </div>
-            </div>
+            )}
           </div>
         )}
       </div>
