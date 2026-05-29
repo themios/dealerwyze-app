@@ -1,58 +1,70 @@
 import { z } from 'zod'
 
-const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD date')
+const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD date').nullish()
 
-/** Parties JSONB — each field is optional, max 200 chars */
 const PartiesSchema = z.object({
-  buyerAgent:   z.string().max(200).optional(),
-  sellerAgent:  z.string().max(200).optional(),
-  titleCompany: z.string().max(200).optional(),
-  lender:       z.string().max(200).optional(),
-  notes:        z.string().max(200).optional(),
+  buyerName:    z.string().max(200).nullish(),
+  buyerPhone:   z.string().max(30).nullish(),
+  buyerEmail:   z.string().email().max(200).nullish(),
+  buyerAgent:   z.string().max(200).nullish(),
+  sellerAgent:  z.string().max(200).nullish(),
+  titleCompany: z.string().max(200).nullish(),
+  lender:       z.string().max(200).nullish(),
+  notes:        z.string().max(500).nullish(),
 })
 
-/**
- * POST /api/transactions — create a transaction linked to a listing (vehicle).
- * vehicle_id is required; everything else is optional at creation time.
- */
+const ALL_STATUSES = [
+  'offer', 'under_contract', 'inspection', 'appraisal', 'closing', 'closed',
+  'application', 'approved', 'lease_signed', 'active', 'expired', 'cancelled',
+  'fallen_through',
+] as const
+
 export const TransactionCreateSchema = z.object({
   vehicle_id:          z.string().uuid(),
-  offer_amount:        z.number().positive().optional(),
-  offer_date:          dateString.optional(),
-  inspection_deadline: dateString.optional(),
-  contingencies:       z.array(z.string().max(100)).max(20).optional(),
-  notes:               z.string().max(2000).optional(),
-  commission_pct:      z.number().min(0).max(10).optional(),
-  co_broke_pct:        z.number().min(0).max(10).optional(),
-  listing_agent_id:    z.string().uuid().optional(),
-  buyer_agent_id:      z.string().uuid().optional(),
+  transaction_type:    z.enum(['sale', 'lease']).default('sale'),
+  // Sale fields
+  offer_amount:        z.number().positive().nullish(),
+  offer_date:          dateString,
+  inspection_deadline: dateString,
+  contingencies:       z.array(z.string().max(100)).max(20).nullish(),
+  commission_pct:      z.number().min(0).max(100).nullish(),
+  co_broke_pct:        z.number().min(0).max(100).nullish(),
+  closing_date:        dateString,
+  final_sale_price:    z.number().positive().nullish(),
+  // Lease fields
+  monthly_rent:        z.number().positive().nullish(),
+  security_deposit:    z.number().min(0).nullish(),
+  lease_term_months:   z.number().int().positive().nullish(),
+  move_in_date:        dateString,
+  lease_end_date:      dateString,
+  // Shared
+  notes:               z.string().max(2000).nullish(),
+  parties:             PartiesSchema.nullish(),
+  listing_agent_id:    z.string().uuid().nullish(),
+  buyer_agent_id:      z.string().uuid().nullish(),
 })
 
 export type TransactionCreateInput = z.infer<typeof TransactionCreateSchema>
 
-/**
- * PATCH /api/transactions/[id] — agent update path.
- * pipeline_status is accepted but 'closed' is blocked at the route layer.
- * commission_snapshot and commission_plan_id are never set here — those are
- * set exclusively by the close_re_transaction RPC (Plan 09-05).
- */
 export const TransactionUpdateSchema = z.object({
-  pipeline_status:     z.enum([
-    'offer', 'under_contract', 'inspection',
-    'appraisal', 'closing', 'closed', 'fallen_through',
-  ]).optional(),
-  offer_amount:        z.number().positive().optional(),
-  offer_date:          dateString.optional(),
-  inspection_deadline: dateString.optional(),
-  contingencies:       z.array(z.string().max(100)).max(20).optional(),
-  notes:               z.string().max(2000).optional(),
-  parties:             PartiesSchema.optional(),
-  commission_pct:      z.number().min(0).max(10).optional(),
-  co_broke_pct:        z.number().min(0).max(10).optional(),
-  closing_date:        dateString.optional(),
-  final_sale_price:    z.number().positive().optional(),
-}).refine(obj => Object.keys(obj).length > 0, {
-  message: 'At least one field must be provided',
-})
+  pipeline_status:     z.enum(ALL_STATUSES).optional(),
+  transaction_type:    z.enum(['sale', 'lease']).optional(),
+  offer_amount:        z.number().positive().nullish(),
+  offer_date:          dateString,
+  inspection_deadline: dateString,
+  contingencies:       z.array(z.string().max(100)).max(20).nullish(),
+  commission_pct:      z.number().min(0).max(100).nullish(),
+  co_broke_pct:        z.number().min(0).max(100).nullish(),
+  closing_date:        dateString,
+  final_sale_price:    z.number().positive().nullish(),
+  monthly_rent:        z.number().positive().nullish(),
+  security_deposit:    z.number().min(0).nullish(),
+  lease_term_months:   z.number().int().positive().nullish(),
+  move_in_date:        dateString,
+  lease_end_date:      dateString,
+  notes:               z.string().max(2000).nullish(),
+  parties:             PartiesSchema.nullish(),
+  commission_pct_update: z.number().min(0).max(100).nullish(),
+}).refine(obj => Object.keys(obj).length > 0, { message: 'At least one field must be provided' })
 
 export type TransactionUpdateInput = z.infer<typeof TransactionUpdateSchema>

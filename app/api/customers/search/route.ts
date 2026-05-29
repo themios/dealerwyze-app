@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   // customers table uses user_id for org scoping (not org_id)
   let query = supabase
     .from('customers')
-    .select('id, name, primary_phone')
+    .select('id, name, primary_phone, email')
     .eq('user_id', profile.org_id)
     .eq('archived', false)
     .is('merged_at', null)

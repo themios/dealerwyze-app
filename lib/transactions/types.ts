@@ -1,39 +1,64 @@
-/**
- * Transaction types for the RE pipeline.
- * PipelineStatus mirrors the 7-stage CHECK constraint in migration 193.
- */
+export type TransactionType = 'sale' | 'lease'
 
 export type PipelineStatus =
+  // Sale stages
   | 'offer'
   | 'under_contract'
   | 'inspection'
   | 'appraisal'
   | 'closing'
   | 'closed'
+  // Lease stages
+  | 'application'
+  | 'approved'
+  | 'lease_signed'
+  | 'active'
+  | 'expired'
+  | 'cancelled'
+  // Shared terminal
   | 'fallen_through'
 
-/**
- * Legal forward transitions. Closing is terminal (no forward from 'closed').
- * Only the broker close RPC may set pipeline_status='closed' — agent PATCH
- * is blocked from that transition at the API layer.
- */
+export const SALE_STAGES: PipelineStatus[] = ['offer', 'under_contract', 'inspection', 'appraisal', 'closing', 'closed']
+export const LEASE_STAGES: PipelineStatus[] = ['application', 'approved', 'lease_signed', 'active', 'expired']
+
 export const VALID_TRANSITIONS: Record<PipelineStatus, PipelineStatus[]> = {
+  // Sale
   offer:          ['under_contract', 'fallen_through'],
   under_contract: ['inspection', 'fallen_through'],
   inspection:     ['appraisal', 'fallen_through'],
   appraisal:      ['closing', 'fallen_through'],
   closing:        ['closed', 'fallen_through'],
   closed:         [],
+  // Lease
+  application:    ['approved', 'cancelled'],
+  approved:       ['lease_signed', 'cancelled'],
+  lease_signed:   ['active', 'cancelled'],
+  active:         ['expired', 'cancelled'],
+  expired:        [],
+  cancelled:      [],
+  // Shared
   fallen_through: [],
 }
 
-/** Returns true if transitioning from → to is a valid pipeline move. */
 export function canTransition(from: PipelineStatus, to: PipelineStatus): boolean {
   return VALID_TRANSITIONS[from].includes(to)
 }
 
+export function isSaleStatus(status: PipelineStatus): boolean {
+  return SALE_STAGES.includes(status) || status === 'fallen_through'
+}
+
+export function isLeaseStatus(status: PipelineStatus): boolean {
+  return LEASE_STAGES.includes(status) || status === 'cancelled'
+}
+
 /** Optional JSONB parties object stored on a transaction. */
 export interface Parties {
+  // Buyer / tenant
+  buyerName?:     string
+  buyerPhone?:    string
+  buyerEmail?:    string
+  // Agents & vendors
   buyerAgent?:    string
   sellerAgent?:   string
   titleCompany?:  string
@@ -41,29 +66,38 @@ export interface Parties {
   notes?:         string
 }
 
-/** Full Transaction row matching the extended schema (migrations 180 + 193). */
+/** Full Transaction row matching the extended schema (migrations 180 + 193 + 199). */
 export interface Transaction {
   id:                  string
   org_id:              string
   vehicle_id:          string
-  status:              string          // legacy column; mirrors pipeline_status
+  status:              string
   pipeline_status:     PipelineStatus
+  transaction_type:    TransactionType
   transaction_number:  string | null
+  // Sale fields
   offer_amount:        number | null
-  offer_date:          string | null   // DATE as ISO string
+  offer_date:          string | null
   inspection_deadline: string | null
-  contingencies:       string[]
-  parties:             Parties | null
-  notes:               string | null
-  commission_pct:      number | null
-  co_broke_pct:        number | null
-  listing_agent_id:    string | null
-  buyer_agent_id:      string | null
-  commission_plan_id:  string | null
-  commission_snapshot: Record<string, unknown> | null
   closing_date:        string | null
   closing_price:       number | null
   final_sale_price:    number | null
+  commission_pct:      number | null
+  co_broke_pct:        number | null
+  commission_plan_id:  string | null
+  commission_snapshot: Record<string, unknown> | null
+  // Lease fields
+  monthly_rent:        number | null
+  security_deposit:    number | null
+  lease_term_months:   number | null
+  move_in_date:        string | null
+  lease_end_date:      string | null
+  // Shared
+  contingencies:       string[]
+  parties:             Parties | null
+  notes:               string | null
+  listing_agent_id:    string | null
+  buyer_agent_id:      string | null
   created_at:          string
   updated_at:          string | null
 }

@@ -6,17 +6,10 @@ import {
   type PipelineStatus,
   VALID_TRANSITIONS,
   canTransition,
+  SALE_STAGES,
+  LEASE_STAGES,
+  isSaleStatus,
 } from '@/lib/transactions/types'
-
-/** Ordered list of the 6 main pipeline stages (fallen_through is a side state, not a step). */
-const STAGE_ORDER: PipelineStatus[] = [
-  'offer',
-  'under_contract',
-  'inspection',
-  'appraisal',
-  'closing',
-  'closed',
-]
 
 const STAGE_LABELS: Record<PipelineStatus, string> = {
   offer:          'Offer',
@@ -26,6 +19,12 @@ const STAGE_LABELS: Record<PipelineStatus, string> = {
   closing:        'Closing',
   closed:         'Closed',
   fallen_through: 'Fallen Through',
+  application:    'Application',
+  approved:       'Approved',
+  lease_signed:   'Lease Signed',
+  active:         'Active',
+  expired:        'Expired',
+  cancelled:      'Cancelled',
 }
 
 interface Props {
@@ -43,14 +42,17 @@ export default function TransactionStageBar({
   onFall,
   isLoading,
 }: Props) {
-  const isFallen = currentStage === 'fallen_through'
-  const isClosed = currentStage === 'closed'
+  const isLeaseTransaction = !isSaleStatus(currentStage)
+  const STAGE_ORDER = isLeaseTransaction ? LEASE_STAGES : SALE_STAGES
 
-  /** Index of current stage in the ordered list. fallen_through maps to -1. */
-  const currentIndex = isFallen ? -1 : STAGE_ORDER.indexOf(currentStage)
+  const isFallen   = currentStage === 'fallen_through'
+  const isCancelled = currentStage === 'cancelled'
+  const isClosed   = currentStage === 'closed' || currentStage === 'expired'
+  const isTerminal = isFallen || isCancelled || isClosed
 
-  /** Next main-pipeline stage (not fallen_through). */
-  const nextMain = VALID_TRANSITIONS[currentStage].find(s => s !== 'fallen_through') ?? null
+  const currentIndex = (isFallen || isCancelled) ? -1 : STAGE_ORDER.indexOf(currentStage)
+  const nextMain = VALID_TRANSITIONS[currentStage].find(s => s !== 'fallen_through' && s !== 'cancelled') ?? null
+  const terminalLabel = isLeaseTransaction ? 'cancelled' : 'fallen_through'
 
   return (
     <div className="space-y-3">
@@ -112,17 +114,22 @@ export default function TransactionStageBar({
         })}
       </div>
 
-      {/* Fallen through badge */}
+      {/* Terminal state badges */}
       {isFallen && (
         <div className="rounded-md bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 px-3 py-2 text-sm font-medium text-red-700 dark:text-red-400">
           Transaction fallen through
         </div>
       )}
+      {isCancelled && (
+        <div className="rounded-md bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 px-3 py-2 text-sm font-medium text-red-700 dark:text-red-400">
+          Lease cancelled
+        </div>
+      )}
 
       {/* Action buttons */}
-      {!isFallen && !isClosed && (
+      {!isTerminal && (
         <div className="flex items-center gap-2 flex-wrap">
-          {nextMain && canTransition(currentStage, nextMain) && (
+          {nextMain && nextMain !== 'closed' && canTransition(currentStage, nextMain) && (
             <Button
               size="sm"
               disabled={isLoading}
@@ -131,6 +138,9 @@ export default function TransactionStageBar({
               {isLoading ? 'Saving…' : `Advance to ${STAGE_LABELS[nextMain]}`}
             </Button>
           )}
+          {currentStage === 'closing' && (
+            <p className="text-xs text-muted-foreground">Your broker will confirm close to finalize commissions.</p>
+          )}
           <Button
             size="sm"
             variant="outline"
@@ -138,7 +148,7 @@ export default function TransactionStageBar({
             disabled={isLoading}
             onClick={onFall}
           >
-            Mark Fallen Through
+            {isLeaseTransaction ? 'Cancel Lease' : 'Mark Fallen Through'}
           </Button>
         </div>
       )}

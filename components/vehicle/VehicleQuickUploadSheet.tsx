@@ -4,8 +4,10 @@ import { useState, useRef } from 'react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Upload, Check, X } from 'lucide-react'
+import { useVertical } from '@/hooks/useVertical'
 
-const DOC_LABELS = ['Carfax', 'Autocheck', 'KBB', 'Title', 'Inspection', 'Window Sticker', 'Other']
+const DOC_LABELS_DEALER = ['Carfax', 'Autocheck', 'KBB', 'Title', 'Inspection', 'Window Sticker', 'Other']
+const DOC_LABELS_RE     = ['Seller disclosure', 'Inspection report', 'Appraisal', 'Floor plan', 'HOA documents', 'Purchase agreement', 'Title / escrow', 'Other']
 
 async function compressImage(file: File): Promise<File> {
   if (file.type === 'application/pdf') return file
@@ -44,7 +46,9 @@ interface Props {
 }
 
 export default function VehicleQuickUploadSheet({ vehicleId, vehicleLabel, open, onClose }: Props) {
-  const [selectedLabel, setSelectedLabel] = useState('Carfax')
+  const { vertical } = useVertical()
+  const DOC_LABELS = vertical === 'real_estate' ? DOC_LABELS_RE : DOC_LABELS_DEALER
+  const [selectedLabel, setSelectedLabel] = useState(DOC_LABELS[0])
   const [uploading, setUploading] = useState(false)
   const [uploaded, setUploaded] = useState<string | null>(null) // label of last uploaded doc
   const [error, setError] = useState<string | null>(null)

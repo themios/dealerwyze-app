@@ -4,6 +4,38 @@ Shipped product changes with migration pointers and rationale. See also `docs/en
 
 ---
 
+## 2026-05-24 — RealtyWyze Admin Vertical Scoping (full fix)
+
+- **Category:** Platform Admin / Architecture
+- **Migrations:** 185, 186, 187
+- **Why:** Every admin page on `realtywyze.us/admin` was showing DealerWyze data (alerts, analytics, affiliates, commissions, tickets, audit log, feature flags, general settings, content). Root cause: `proxy.ts` matcher excludes `/api/*` routes, so `x-vertical` header is never injected for admin API calls. All routes were defaulting to `'dealer'`.
+- **What was built:**
+  - `lib/admin/verticalScope.ts` — `getAdminVerticalScope(req)` helper; reads `host` header (not `x-vertical`) to determine vertical; queries org IDs for that vertical from DB. Returns `{ isRE, orgIds, orgIds_orEmpty }`.
+  - All admin API routes updated: `analytics`, `affiliates`, `commissions`, `tickets`, `audit-log`, `settings/general`, `settings/features`, `settings/features/[key]`, `content`.
+  - `lib/stripe/commissions.ts` — `getCommissionSummaries(vertical)` param added; filters affiliate codes by vertical.
+  - `app/(app)/admin/settings/general/page.tsx` — server component now reads host header to filter `platform_settings` by vertical.
+  - `app/(app)/admin/affiliates/page.tsx` — uses `useVertical()` for "agency"/"agencies" vs "dealer"/"dealers" copy.
+  - Platform staff routes remain global (no vertical scope) — staff serves all verticals.
+  - `app/(app)/admin/content/page.tsx` — reads `RE_CONTENT_MCP_ORG_ID` env var for RE content org.
+  - Migration 185: `platform_settings.vertical` column + RE seed row.
+  - Migration 186: `affiliate_codes.vertical` column + tag existing as `'dealer'`.
+  - Migration 187: `platform_feature_flags.vertical` column + tag existing as `'dealer'` + seed 4 RE flags.
+- **Key lesson:** In Next.js 16, `proxy.ts` (middleware) sets `x-vertical` for page routes only. API routes must read `host` header directly. Use `getAdminVerticalScope(req)` for every admin API route.
+
+---
+
+## 2026-05-24 — RE Content MCP Org Configuration
+
+- **Category:** Platform Admin
+- **Migration:** none
+- **Why:** Admin content page was showing DealerWyze content drafts for RE admin because `CONTENT_MCP_ORG_ID` env var pointed to the DW content org.
+- **What was built:**
+  - `app/(app)/admin/content/page.tsx` — reads `RE_CONTENT_MCP_ORG_ID` when `host.includes('realtywyze')`.
+  - RE content org: Themio Realty (`d775c4f7-ab05-4cc5-b8a6-2cdd61ea0626`).
+  - New env var `RE_CONTENT_MCP_ORG_ID=d775c4f7-ab05-4cc5-b8a6-2cdd61ea0626` — must be added to Vercel.
+
+---
+
 ## 2026-05-21 — RealtyWyze Phase 1A.7: email and SMS string sweep
 
 - **Category:** UX / Integrations

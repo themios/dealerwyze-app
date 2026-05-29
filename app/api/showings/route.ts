@@ -105,9 +105,8 @@ export async function GET(req: NextRequest) {
   const { data, error } = await supabase
     .from('showings')
     .select(
-      'id, scheduled_at, status, feedback_json, gcal_event_id, cal_booking_uid, cal_link, created_at, ' +
-      'contact:customers(id, name, primary_phone, email), ' +
-      'agent:profiles(id, full_name)',
+      'id, scheduled_at, status, feedback_json, gcal_event_id, cal_booking_uid, cal_link, created_at, agent_id, ' +
+      'contact:customers(id, name, primary_phone, email)',
     )
     .eq('listing_id', listingId)
     .eq('org_id', profile.org_id)

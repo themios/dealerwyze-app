@@ -112,6 +112,11 @@ export async function PATCH(
   if (body.co_broke_pct        !== undefined) updatePayload.co_broke_pct        = body.co_broke_pct
   if (body.closing_date        !== undefined) updatePayload.closing_date        = body.closing_date
   if (body.final_sale_price    !== undefined) updatePayload.final_sale_price    = body.final_sale_price
+  if (body.monthly_rent        !== undefined) updatePayload.monthly_rent        = body.monthly_rent
+  if (body.security_deposit    !== undefined) updatePayload.security_deposit    = body.security_deposit
+  if (body.lease_term_months   !== undefined) updatePayload.lease_term_months   = body.lease_term_months
+  if (body.move_in_date        !== undefined) updatePayload.move_in_date        = body.move_in_date
+  if (body.lease_end_date      !== undefined) updatePayload.lease_end_date      = body.lease_end_date
 
   const { data: updated, error: updateErr } = await supabase
     .from('transactions')
@@ -123,7 +128,10 @@ export async function PATCH(
 
   if (updateErr) {
     console.error('[transactions] PATCH update error:', updateErr.message)
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+    return NextResponse.json(
+      { error: 'Failed to save transaction. Please try again or contact support if this persists.' },
+      { status: 500 }
+    )
   }
 
   if (!updated) {

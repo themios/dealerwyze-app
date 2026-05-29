@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { createClientForRequest } from '@/lib/supabase/forRequest'
+import { createServiceClient } from '@/lib/supabase/service'
 import { requireProfile } from '@/lib/auth/profile'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -136,6 +137,38 @@ export default async function VehicleDetailPage({ params }: PageProps) {
   ])
 
   if (!vehicle) notFound()
+
+  // Resolve who has close authority for transaction confirmation:
+  // - 1 org member → they have all authority regardless of role
+  // - Multiple members → owner/admin role has authority
+  const isReOrg = org?.vertical === 'real_estate'
+  let brokerName: string | null = null
+  // Use service client for member count — createClientForRequest RLS can restrict profiles visibility
+  const svc = createServiceClient()
+  const isOwnerOrAdmin = (profile.role as string) === 'owner' || profile.role === 'admin'
+  let currentUserIsAuthority = isOwnerOrAdmin // always true if admin/owner regardless of member count
+  if (isReOrg && !currentUserIsAuthority) {
+    // Agent role — authority only if they're the sole org member
+    const { count } = await svc
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('org_id', profile.org_id)
+    const isSoleUser = (count ?? 0) <= 1
+    currentUserIsAuthority = isSoleUser
+    if (!currentUserIsAuthority) {
+      // Find the admin to show their name
+      const { data: admins } = await svc
+        .from('profiles')
+        .select('id')
+        .eq('org_id', profile.org_id)
+        .in('role', ['owner', 'admin'])
+        .limit(1)
+      if (admins?.[0]) {
+        const { data: adminUser } = await svc.auth.admin.getUserById(admins[0].id)
+        brokerName = adminUser?.user?.user_metadata?.full_name ?? adminUser?.user?.email ?? null
+      }
+    }
+  }
 
   const isStale =
     latestDoc?.created_at != null &&
@@ -491,7 +524,13 @@ export default async function VehicleDetailPage({ params }: PageProps) {
     panels[VEHICLE_DETAIL_SECTION_IDS.transactions] = (
       <div className="space-y-3">
         <SectionHeading>Transaction</SectionHeading>
-        <TransactionPanel vehicleId={id} isAdmin={isAdmin} />
+        <TransactionPanel
+          vehicleId={id}
+          isAdmin={isAdmin}
+          agentId={profile.id}
+          currentUserIsAuthority={currentUserIsAuthority}
+          brokerName={brokerName}
+        />
       </div>
     )
   }

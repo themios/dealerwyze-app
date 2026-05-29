@@ -473,6 +473,7 @@ const IMPORT_PREFILL_FIELDS = [
   'address_line1', 'city', 'state', 'zip', 'price',
   'bedrooms', 'bathrooms', 'sqft', 'lot_size', 'year_built',
   'property_type', 'hoa_monthly', 'listing_url', 'mls_number', 'notes',
+  'agent_notes',
 ] as const
 
 type ImportPrefillField = typeof IMPORT_PREFILL_FIELDS[number]
@@ -510,6 +511,7 @@ function NewListingForm() {
     year_built:    '',
     hoa_monthly:   '',
     notes:         '',
+    agent_notes:   '',
     status:        'available',
     lot_size:      '',
     listing_url:   '',
@@ -726,6 +728,7 @@ function NewListingForm() {
         year_built:    form.year_built ? parseInt(form.year_built) : null,
         hoa_monthly:   form.hoa_monthly ? parseFloat(form.hoa_monthly) : null,
         listing_url:   form.listing_url || null,
+        agent_notes:   form.agent_notes || null,
         import_source: 'manual',
       })
       .select('id')
@@ -774,6 +777,8 @@ function NewListingForm() {
                     value={urlValue}
                     onChange={e => setUrlValue(e.target.value)}
                     className="h-10 text-sm flex-1"
+                    data-lpignore="true"
+                    autoComplete="off"
                   />
                   <Button
                     type="button"
@@ -1085,6 +1090,23 @@ function NewListingForm() {
             className="resize-none"
           />
         </div>
+
+        {form.agent_notes && (
+          <div className="space-y-1.5">
+            <Label>Agent Notes <span className="text-xs font-normal text-muted-foreground">(from import)</span></Label>
+            <div
+              className="prose prose-sm max-w-none rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-foreground [&_p]:mb-2 [&_ul]:mb-2 [&_ul]:ml-4 [&_li]:list-disc"
+              dangerouslySetInnerHTML={{ __html: form.agent_notes }}
+            />
+            <button
+              type="button"
+              onClick={() => update('agent_notes', '')}
+              className="text-xs text-muted-foreground hover:text-destructive"
+            >
+              Clear agent notes
+            </button>
+          </div>
+        )}
 
         <Button
           type="submit"

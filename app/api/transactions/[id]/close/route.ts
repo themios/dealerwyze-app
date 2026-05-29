@@ -51,12 +51,15 @@ export async function POST(
   // Load transaction — must belong to this org
   const { data: txn } = await supabase
     .from('transactions')
-    .select('id, closing_date, final_sale_price, pipeline_status, closing_price')
+    .select('id, closing_date, final_sale_price, pipeline_status, closing_price, transaction_type')
     .eq('id', id)
     .eq('org_id', profile.org_id)
     .maybeSingle()
 
   if (!txn) return NextResponse.json({ error: 'Transaction not found' }, { status: 404 })
+  if (txn.transaction_type === 'lease') {
+    return NextResponse.json({ error: 'Leases cannot be closed. Mark as expired or cancelled instead.' }, { status: 422 })
+  }
   if (txn.pipeline_status === 'closed') {
     return NextResponse.json({ error: 'Transaction is already closed' }, { status: 409 })
   }

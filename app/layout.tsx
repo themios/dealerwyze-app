@@ -49,8 +49,8 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     icons: vertical === 'real_estate'
       ? {
-          icon:    [{ url: '/rw-favicon.ico', sizes: '32x32' }, { url: '/rw-icon.png' }],
-          shortcut:'/rw-favicon.ico',
+          icon:    '/rw-icon.png',
+          shortcut:'/rw-icon.png',
           apple:   '/rw-icon.png',
         }
       : {

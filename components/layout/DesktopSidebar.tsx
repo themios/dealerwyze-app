@@ -98,7 +98,7 @@ type RoleNavItem = {
 
 const ROLE_NAV: RoleNavItem[] = [
   { href: '/bhph',      label: 'BHPH',          icon: CreditCard,      requiresRole: (r: string) => r !== 'dealer_rep', feature: 'bhph' },
-  { href: '/bhph',      label: 'Leases',        icon: FileSignature,   requiresRole: (r: string) => r !== 'dealer_rep', feature: 'leaseManagement' },
+  { href: '/leases',    label: 'Leases',        icon: FileSignature,   requiresRole: (r: string) => r !== 'dealer_rep', feature: 'leaseManagement' },
   { href: '/admin/security-audit', label: 'Security Audit', icon: ShieldCheck, requiresRole: (r: string) => ['dealer_admin', 'dealer_manager', 'admin'].includes(r) },
   { href: '/analytics', label: 'Analytics', icon: BarChart2,      requiresRole: (r: string) => ['dealer_admin', 'dealer_manager', 'admin'].includes(r) },
   { href: '/pulse',     label: 'Pulse',     icon: Heart,          requiresRole: (r: string) => ['dealer_admin', 'dealer_manager', 'admin'].includes(r) },

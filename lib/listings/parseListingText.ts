@@ -35,8 +35,11 @@ Return ONLY valid JSON with these exact keys (use null if not found):
   "mls_number": "string|null",
   "listing_agent": "string|null",
   "listing_url": "string|null",
-  "description": "string|null"
+  "agent_notes": "string|null"
 }
+
+For "agent_notes": Format all descriptive content from the listing (property description, highlights, features, disclosures, showing instructions, neighborhood info, etc.) as clean HTML. Use <p> tags for paragraphs, <ul><li> for feature lists, and <strong> for section labels. Do not include structured fields already captured above (price, beds, baths, sqft, address). If no descriptive content is present, use null.
+
 Do not include any text outside the JSON object.
 
 Listing text:

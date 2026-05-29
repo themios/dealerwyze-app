@@ -74,6 +74,7 @@ export default async function ListingDetailPage({ params }: PageProps) {
     showing_instructions: string | null
     ai_description: string | null
     notes: string | null
+    agent_notes: string | null
     status: string
   }
 
@@ -155,8 +156,19 @@ export default async function ListingDetailPage({ params }: PageProps) {
         )}
       </dl>
 
-      {/* Description */}
-      {(listing.ai_description || listing.notes) && (
+      {/* Agent Notes (HTML formatted from import) */}
+      {listing.agent_notes && (
+        <div className="mb-4">
+          <h2 className="text-sm font-semibold text-foreground mb-2">Agent Notes</h2>
+          <div
+            className="prose prose-sm max-w-none text-muted-foreground [&_p]:mb-2 [&_ul]:mb-2 [&_ul]:ml-4 [&_li]:list-disc [&_strong]:text-foreground"
+            dangerouslySetInnerHTML={{ __html: listing.agent_notes }}
+          />
+        </div>
+      )}
+
+      {/* Description (plain text fallback) */}
+      {!listing.agent_notes && (listing.ai_description || listing.notes) && (
         <div className="mb-4">
           <h2 className="text-sm font-semibold text-foreground mb-1">About this property</h2>
           <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">

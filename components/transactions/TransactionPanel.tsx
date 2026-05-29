@@ -1,15 +1,31 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Paperclip, Loader2, FileText, Image } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import type { Transaction, PipelineStatus } from '@/lib/transactions/types'
 import TransactionStageBar from './TransactionStageBar'
 import TransactionForm from './TransactionForm'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+
+interface VehicleDoc {
+  id: string
+  label: string
+  file_name: string
+  file_type: string
+  signed_url: string | null
+  created_at: string
+}
 
 interface Props {
-  vehicleId: string
-  isAdmin:   boolean
+  vehicleId:               string
+  isAdmin:                 boolean
+  agentId:                 string
+  currentUserIsAuthority:  boolean
+  brokerName:              string | null
 }
 
 type UIMode = 'view' | 'create' | 'edit'
@@ -31,30 +47,80 @@ function pickActive(txns: Transaction[]): Transaction | null {
   return live ?? txns[0] ?? null
 }
 
-export default function TransactionPanel({ vehicleId, isAdmin }: Props) {
+export default function TransactionPanel({ vehicleId, isAdmin, agentId, currentUserIsAuthority, brokerName }: Props) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading]           = useState(true)
   const [fetchError, setFetchError]     = useState<string | null>(null)
   const [mode, setMode]                 = useState<UIMode>('view')
   const [advancing, setAdvancing]       = useState(false)
+  const [stageNote, setStageNote]       = useState('')
+  const [savingNote, setSavingNote]     = useState(false)
+  const [confirmFall, setConfirmFall]   = useState(false)
+  const [confirmClose, setConfirmClose]       = useState(false)
+  const [closing, setClosing]                 = useState(false)
+  const [closeError, setCloseError]           = useState<string | null>(null)
+  const [closePrice, setClosePrice]           = useState('')
+  const [closeDate, setCloseDate]             = useState('')
+  const [docs, setDocs]                 = useState<VehicleDoc[]>([])
+  const [docLabel, setDocLabel]         = useState('')
+  const [uploading, setUploading]       = useState(false)
+  const [uploadError, setUploadError]   = useState<string | null>(null)
+  const fileInputRef                    = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     setFetchError(null)
     try {
-      const res = await fetch(`/api/transactions?vehicle_id=${encodeURIComponent(vehicleId)}`)
-      if (!res.ok) {
+      const [txnRes, docRes] = await Promise.all([
+        fetch(`/api/transactions?vehicle_id=${encodeURIComponent(vehicleId)}`),
+        fetch(`/api/vehicles/${encodeURIComponent(vehicleId)}/documents`),
+      ])
+      if (!txnRes.ok) {
         setFetchError('Unable to load transaction data. Please refresh.')
         return
       }
-      const data = await res.json() as { transactions: Transaction[] }
-      setTransactions(data.transactions ?? [])
+      const txnData = await txnRes.json() as { transactions: Transaction[] }
+      setTransactions(txnData.transactions ?? [])
+      if (docRes.ok) {
+        const docData = await docRes.json() as VehicleDoc[]
+        setDocs(docData ?? [])
+      }
     } catch {
       setFetchError('Network error. Please check your connection.')
     } finally {
       setLoading(false)
     }
   }, [vehicleId])
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!docLabel.trim()) {
+      setUploadError('Add a label before uploading (e.g. "Inspection report")')
+      return
+    }
+    setUploading(true)
+    setUploadError(null)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      form.append('label', docLabel.trim())
+      form.append('document_scope', 'inventory')
+      const res = await fetch(`/api/vehicles/${vehicleId}/documents`, { method: 'POST', body: form })
+      const data = await res.json() as { error?: string }
+      if (!res.ok) {
+        setUploadError(data.error ?? 'Upload failed. Try a smaller file or different format.')
+        return
+      }
+      setDocLabel('')
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      await load()
+    } catch {
+      setUploadError('Network error during upload.')
+    } finally {
+      setUploading(false)
+    }
+  }
 
   useEffect(() => { void load() }, [load])
 
@@ -78,17 +144,41 @@ export default function TransactionPanel({ vehicleId, isAdmin }: Props) {
   async function handleFall() {
     const active = pickActive(transactions)
     if (!active) return
+    setConfirmFall(false)
     setAdvancing(true)
+    const terminalStatus = active.transaction_type === 'lease' ? 'cancelled' : 'fallen_through'
     try {
       const res = await fetch(`/api/transactions/${active.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pipeline_status: 'fallen_through' }),
+        body: JSON.stringify({ pipeline_status: terminalStatus }),
       })
       if (!res.ok) return
       await load()
     } finally {
       setAdvancing(false)
+    }
+  }
+
+  async function handleSaveNote(transactionId: string, currentStage: PipelineStatus, existingNotes: string | null) {
+    if (!stageNote.trim()) return
+    setSavingNote(true)
+    const stageLabel = currentStage.replace(/_/g, ' ')
+    const date = new Date().toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })
+    const newEntry = `[${date} · ${stageLabel}] ${stageNote.trim()}`
+    const combined = existingNotes ? `${existingNotes}\n${newEntry}` : newEntry
+    try {
+      const res = await fetch(`/api/transactions/${transactionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: combined }),
+      })
+      if (res.ok) {
+        setStageNote('')
+        await load()
+      }
+    } finally {
+      setSavingNote(false)
     }
   }
 
@@ -134,6 +224,7 @@ export default function TransactionPanel({ vehicleId, isAdmin }: Props) {
         <p className="text-sm font-semibold">Create Transaction</p>
         <TransactionForm
           vehicleId={vehicleId}
+          agentId={agentId}
           onSave={handleSaved}
           onCancel={() => setMode('view')}
         />
@@ -161,6 +252,7 @@ export default function TransactionPanel({ vehicleId, isAdmin }: Props) {
         <p className="text-sm font-semibold">Edit Transaction</p>
         <TransactionForm
           vehicleId={vehicleId}
+          agentId={agentId}
           transaction={active}
           onSave={handleSaved}
           onCancel={() => setMode('view')}
@@ -187,10 +279,174 @@ export default function TransactionPanel({ vehicleId, isAdmin }: Props) {
           <TransactionStageBar
             currentStage={active.pipeline_status}
             onAdvance={handleAdvance}
-            onFall={handleFall}
+            onFall={() => setConfirmFall(true)}
             isLoading={advancing}
             isAdmin={isAdmin}
           />
+
+          {/* Fallen Through confirmation dialog */}
+          <Dialog open={confirmFall} onOpenChange={setConfirmFall}>
+            <DialogContent className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle>Mark as Fallen Through?</DialogTitle>
+              </DialogHeader>
+              <p className="text-sm text-muted-foreground">
+                {active?.transaction_type === 'lease'
+                  ? 'This will mark the lease as cancelled. This action cannot be undone.'
+                  : 'This will close the transaction as fallen through. This action cannot be undone.'}
+              </p>
+              <DialogFooter className="gap-2 sm:gap-0">
+                <Button variant="outline" onClick={() => setConfirmFall(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={advancing}
+                  onClick={handleFall}
+                >
+                  {advancing ? 'Saving…' : 'Yes, Mark Fallen Through'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Close authority info + Confirm Close button */}
+          {active.pipeline_status === 'closing' && (
+            <div className="rounded-md bg-muted/40 px-3 py-2 space-y-2">
+              {currentUserIsAuthority ? (
+                <>
+                  <p className="text-xs text-muted-foreground">You have authority to confirm close.</p>
+                  {active.final_sale_price == null && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">Enter the final sale price in Edit before closing.</p>
+                  )}
+                  {active.closing_date == null && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">Enter the closing date in Edit before closing.</p>
+                  )}
+                  <Button
+                    size="sm"
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                    disabled={closing}
+                    onClick={() => {
+                      setCloseError(null)
+                      setClosePrice(active.final_sale_price != null ? String(active.final_sale_price) : '')
+                      setCloseDate(active.closing_date ?? '')
+                      setConfirmClose(true)
+                    }}
+                  >
+                    Confirm Close
+                  </Button>
+                  {closeError && <p className="text-xs text-destructive">{closeError}</p>}
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Broker confirmation required from: {brokerName ?? 'your org admin'}.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Confirm Close dialog — collects/verifies closing date and price inline */}
+          <Dialog open={confirmClose} onOpenChange={open => { if (!closing) setConfirmClose(open) }}>
+            <DialogContent className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle>Confirm Close</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Finalizes the deal and calculates commission splits. This cannot be undone.
+                </p>
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">Final Sale Price *</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                      <Input
+                        type="number"
+                        min={1}
+                        step="0.01"
+                        placeholder="e.g. 865000"
+                        value={closePrice}
+                        onChange={e => setClosePrice(e.target.value)}
+                        className="pl-6 h-10"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">Closing Date *</label>
+                    <Input
+                      type="date"
+                      value={closeDate}
+                      onChange={e => setCloseDate(e.target.value)}
+                      className="h-10"
+                    />
+                  </div>
+                </div>
+                {closeError && <p className="text-xs text-destructive">{closeError}</p>}
+              </div>
+              <DialogFooter className="gap-2 sm:gap-0">
+                <Button variant="outline" onClick={() => setConfirmClose(false)} disabled={closing}>
+                  Cancel
+                </Button>
+                <Button
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  disabled={closing || !closePrice || !closeDate}
+                  onClick={async () => {
+                    if (!closePrice || !closeDate) {
+                      setCloseError('Both final sale price and closing date are required.')
+                      return
+                    }
+                    setClosing(true)
+                    setCloseError(null)
+                    try {
+                      const res = await fetch(`/api/transactions/${active.id}/close`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          closing_price: parseFloat(closePrice),
+                          closing_date:  closeDate,
+                        }),
+                      })
+                      const data = await res.json() as { error?: string }
+                      if (!res.ok) {
+                        setCloseError(data.error ?? 'Close failed. Please try again.')
+                        return
+                      }
+                      setConfirmClose(false)
+                      await load()
+                    } finally {
+                      setClosing(false)
+                    }
+                  }}
+                >
+                  {closing ? 'Closing…' : 'Confirm Close'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Stage-specific notes */}
+          {active.pipeline_status !== 'closed' && active.pipeline_status !== 'fallen_through' && (
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground font-medium">
+                Add a note for this stage ({active.pipeline_status.replace(/_/g, ' ')})
+              </p>
+              <Textarea
+                rows={2}
+                placeholder="Inspection scheduled, issues found, buyer feedback..."
+                value={stageNote}
+                onChange={e => setStageNote(e.target.value)}
+                className="text-sm resize-none"
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!stageNote.trim() || savingNote}
+                onClick={() => handleSaveNote(active.id, active.pipeline_status, active.notes ?? null)}
+              >
+                {savingNote ? 'Saving…' : 'Save Note'}
+              </Button>
+            </div>
+          )}
 
           {/* Key details */}
           <div className="grid grid-cols-2 gap-2 text-sm">
@@ -257,18 +513,72 @@ export default function TransactionPanel({ vehicleId, isAdmin }: Props) {
             </div>
           )}
 
-          {/* Notes */}
+          {/* Notes — displayed as a log, one entry per line */}
           {active.notes && (
             <div>
-              <p className="text-xs text-muted-foreground mb-0.5">Notes</p>
-              <p className="text-sm">{active.notes}</p>
+              <p className="text-xs text-muted-foreground mb-1">Notes</p>
+              <div className="space-y-1">
+                {active.notes.split('\n').map(l => l.trim()).filter(Boolean).map((line, i) => (
+                  <p key={i} className="text-xs bg-muted/40 rounded px-2 py-1">{line}</p>
+                ))}
+              </div>
             </div>
           )}
 
-          {/* Document pointer */}
-          <p className="text-[11px] text-muted-foreground border-t pt-2 mt-2">
-            Transaction documents are in the Private Files section above.
-          </p>
+          {/* Document upload */}
+          <div className="border-t pt-3 mt-1 space-y-2">
+            <p className="text-xs font-medium text-muted-foreground">Documents</p>
+
+            {/* Existing docs */}
+            {docs.length > 0 && (
+              <div className="space-y-1">
+                {docs.map(doc => (
+                  <a
+                    key={doc.id}
+                    href={doc.signed_url ?? '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-xs rounded-md px-2 py-1.5 bg-muted/40 hover:bg-muted/70 transition-colors"
+                  >
+                    {doc.file_type.startsWith('image/') ? <Image className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+                    <span className="flex-1 truncate">{doc.label}</span>
+                    <span className="text-muted-foreground/60 shrink-0">{doc.file_name}</span>
+                  </a>
+                ))}
+              </div>
+            )}
+
+            {/* Upload new */}
+            <div className="flex gap-2 items-start">
+              <Input
+                placeholder="Label (e.g. Inspection report)"
+                value={docLabel}
+                onChange={e => { setDocLabel(e.target.value); setUploadError(null) }}
+                className="h-8 text-xs flex-1"
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 shrink-0 gap-1"
+                disabled={uploading}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Paperclip className="h-3.5 w-3.5" />}
+                {uploading ? 'Uploading…' : 'Attach'}
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,application/pdf,.heic,.heif"
+                className="hidden"
+                capture="environment"
+                onChange={handleUpload}
+              />
+            </div>
+            {uploadError && <p className="text-xs text-destructive">{uploadError}</p>}
+            <p className="text-[10px] text-muted-foreground">Photos, PDFs up to 5 MB. On mobile, tap Attach to use your camera.</p>
+          </div>
         </div>
       )}
 

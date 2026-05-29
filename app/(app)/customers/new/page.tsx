@@ -12,10 +12,13 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
+import { useVertical } from '@/hooks/useVertical'
 
 export default function NewCustomerPage() {
   const router = useRouter()
   const supabase = createClient()
+  const { vertical } = useVertical()
+  const isRe = vertical === 'real_estate'
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     name: '',
@@ -95,10 +98,10 @@ export default function NewCustomerPage() {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="interested_in">Interested In</Label>
+          <Label htmlFor="interested_in">{isRe ? 'Looking For' : 'Interested In'}</Label>
           <Input
             id="interested_in"
-            placeholder="2020 Honda CR-V, silver SUV under $20k…"
+            placeholder={isRe ? 'Property type, neighborhood, budget…' : '2020 Honda CR-V, silver SUV under $20k…'}
             value={form.interested_in}
             onChange={e => update('interested_in', e.target.value)}
             className="h-12 text-base"
@@ -113,17 +116,34 @@ export default function NewCustomerPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="_none">Unknown</SelectItem>
-              <SelectItem value="facebook">Facebook</SelectItem>
-              <SelectItem value="offerup">OfferUp</SelectItem>
-              <SelectItem value="craigslist">Craigslist</SelectItem>
-              <SelectItem value="cargurus">CarGurus</SelectItem>
-              <SelectItem value="autotrader">AutoTrader</SelectItem>
-              <SelectItem value="kbb">KBB</SelectItem>
-              <SelectItem value="autolist">Autolist</SelectItem>
-              <SelectItem value="carsforsale">Carsforsale.com</SelectItem>
-              <SelectItem value="referral">Referral</SelectItem>
-              <SelectItem value="walkin">Walk-in</SelectItem>
-              <SelectItem value="direct">Direct / Other</SelectItem>
+              {isRe ? (
+                <>
+                  <SelectItem value="zillow">Zillow</SelectItem>
+                  <SelectItem value="realtor">Realtor.com</SelectItem>
+                  <SelectItem value="redfin">Redfin</SelectItem>
+                  <SelectItem value="facebook">Facebook</SelectItem>
+                  <SelectItem value="instagram">Instagram</SelectItem>
+                  <SelectItem value="referral">Referral</SelectItem>
+                  <SelectItem value="open_house">Open House</SelectItem>
+                  <SelectItem value="sign_call">Sign Call</SelectItem>
+                  <SelectItem value="website">Agency Website</SelectItem>
+                  <SelectItem value="direct">Direct / Other</SelectItem>
+                </>
+              ) : (
+                <>
+                  <SelectItem value="facebook">Facebook</SelectItem>
+                  <SelectItem value="offerup">OfferUp</SelectItem>
+                  <SelectItem value="craigslist">Craigslist</SelectItem>
+                  <SelectItem value="cargurus">CarGurus</SelectItem>
+                  <SelectItem value="autotrader">AutoTrader</SelectItem>
+                  <SelectItem value="kbb">KBB</SelectItem>
+                  <SelectItem value="autolist">Autolist</SelectItem>
+                  <SelectItem value="carsforsale">Carsforsale.com</SelectItem>
+                  <SelectItem value="referral">Referral</SelectItem>
+                  <SelectItem value="walkin">Walk-in</SelectItem>
+                  <SelectItem value="direct">Direct / Other</SelectItem>
+                </>
+              )}
             </SelectContent>
           </Select>
         </div>

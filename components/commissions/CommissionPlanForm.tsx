@@ -97,12 +97,14 @@ export default function CommissionPlanForm({ plan, onSave, onCancel }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      const data = await res.json() as { plan?: CommissionPlan; error?: string }
+      const data = await res.json() as CommissionPlan & { plan?: CommissionPlan; error?: string }
       if (!res.ok) {
-        setError(data.error ?? 'Failed to save plan. Please try again.')
+        setError((data as { error?: string }).error ?? 'Failed to save plan. Please try again.')
         return
       }
-      if (data.plan) onSave(data.plan)
+      // API returns the plan directly or wrapped in { plan: ... }
+      const saved = data.plan ?? (data.id ? data : null)
+      if (saved) onSave(saved as CommissionPlan)
     } catch {
       setError('Network error. Please check your connection and try again.')
     } finally {

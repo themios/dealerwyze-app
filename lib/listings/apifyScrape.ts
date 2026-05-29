@@ -26,8 +26,19 @@ export interface ScrapedListing {
   property_type: string | null
   hoa_monthly: number | null
   listing_url: string | null
+  agent_notes: string | null
   import_source: 'url_scrape'
   import_raw_json: Record<string, unknown>
+}
+
+/** Convert a raw listing description string to simple HTML paragraphs. */
+function descriptionToHtml(raw: unknown): string | null {
+  if (!raw || typeof raw !== 'string') return null
+  const text = raw.trim()
+  if (!text) return null
+  // Split on double newlines for paragraphs; wrap each non-empty block in <p>
+  const paragraphs = text.split(/\n{2,}/).map(p => p.trim()).filter(Boolean)
+  return paragraphs.map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('\n')
 }
 
 // Actor IDs
@@ -64,8 +75,8 @@ function parseZillowAddress(address: string | null | undefined): {
   const address_line1 = parts[0] ?? null
   const city = parts[1] ?? null
 
-  // Last part: "OR 97201" or "OR"
-  const stateZip = parts[parts.length - 1].trim()
+  // Last part: "OR 97201" or "CA." or "Ca. 93065" — normalize before matching
+  const stateZip = parts[parts.length - 1].trim().replace(/\./g, '').toUpperCase()
   const stateZipMatch = stateZip.match(/^([A-Z]{2})\s*(\d{5}(?:-\d{4})?)?$/)
   const state = stateZipMatch?.[1] ?? null
   const zip = stateZipMatch?.[2] ?? null
@@ -102,6 +113,7 @@ function mapZillowItem(item: Record<string, unknown>): ScrapedListing {
     property_type: item.homeType ? String(item.homeType) : null,
     hoa_monthly: toNum(item.hoaMonthly),
     listing_url: item.url ? String(item.url) : null,
+    agent_notes: descriptionToHtml(item.description ?? item.homeDescription ?? item.text),
     import_source: 'url_scrape',
     import_raw_json: item,
   }
@@ -130,6 +142,7 @@ function mapRedfinItem(item: Record<string, unknown>): ScrapedListing {
     property_type: (item.propertyType ?? item.homeType) ? String(item.propertyType ?? item.homeType) : null,
     hoa_monthly: toNum(item.hoaMonthly ?? item.hoa),
     listing_url: (item.url ?? item.listingUrl) ? String(item.url ?? item.listingUrl) : null,
+    agent_notes: descriptionToHtml(item.description ?? item.text ?? item.remarks),
     import_source: 'url_scrape',
     import_raw_json: item,
   }

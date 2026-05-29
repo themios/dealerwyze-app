@@ -25,10 +25,9 @@ export async function GET() {
   const { data, error } = await supabase
     .from('showings')
     .select(`
-      id, scheduled_at, status, org_id, listing_id,
+      id, scheduled_at, status, org_id, listing_id, agent_id,
       listing:vehicles(id, address_line1, city, state, zip),
-      contact:customers(id, name, primary_phone),
-      agent:profiles(id, full_name)
+      contact:customers(id, name, primary_phone)
     `)
     .eq('org_id', profile.org_id)
     .gte('scheduled_at', now.toISOString())
