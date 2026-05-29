@@ -163,6 +163,18 @@ Plans:
 4. Agent opens their commission summary and sees YTD total and per-deal breakdown sortable by close date.
 5. Broker opens the org commission report and sees all agents' YTD totals and individual deal breakdowns.
 
+**Plans:** 6 plans in 4 waves
+
+Plans:
+- [ ] 09-01-PLAN.md — Migrations 193/194/195: extend transactions, extend commission_plans, close_re_transaction RPC
+- [ ] 09-02-PLAN.md — Transaction CRUD API (TXN-01/02/03/04)
+- [ ] 09-03-PLAN.md — Commission Plans CRUD API (TXN-05)
+- [ ] 09-04-PLAN.md — TransactionPanel UI on listing detail page (TXN-01/02/03/04 UI)
+- [ ] 09-05-PLAN.md — Close transaction API + dialog + commission settings page (TXN-05 UI, TXN-06)
+- [ ] 09-06-PLAN.md — Commission summary API + page (TXN-07/08)
+
+> Note: TXN-08 (Remotion RE listing video) is deferred to Phase 10. In this roadmap TXN-08 refers to broker all-agents commission view, which is covered in plan 09-06.
+
 ---
 
 ### Phase 10 — Listing Video
