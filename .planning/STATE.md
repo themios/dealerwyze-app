@@ -20,7 +20,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-28)
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| 7 — Listing Intelligence | Pending | Pre-build: RentCast key + Apify key required before code |
+| 7 — Listing Intelligence | In progress | Plans 07-01 (foundation), 07-03 (MLS/metrics/CMA) complete. 07-02 (URL/photo import) pending. |
 | 8 — Showings | Pending | Pre-build: Cal.com Platform API tier confirmation required |
 | 9 — Transactions & Commissions | Pending | Pre-build: broker interviews required before TXN-05/06 |
 | 10 — Listing Video | Pending | Depends on Phase 7 listing records |
@@ -96,4 +96,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-28)
 
 ---
 
-*State updated: 2026-05-28 — v2.0 milestone started: RealtyWyze full feature build (Phases 7–13)*
+| 2026-05-28 | RentCast lookup best-effort in import-mls (API errors don't block insert; key absence → 503) | Keeps import functional even when RentCast has transient issues |
+| 2026-05-28 | import_source='mls_import' (not 'mls') | Distinguishes manual MLS# import from future direct MLS feed |
+
+*State updated: 2026-05-28 — 07-03 complete: RentCast wrapper + LIST-03/04/05 API routes built and committed*
