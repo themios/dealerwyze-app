@@ -9,6 +9,7 @@ export const VEHICLE_DETAIL_SECTION_IDS = {
   inventory: 'vehicle-detail-inventory',
   website: 'vehicle-detail-website',
   activity: 'vehicle-detail-activity',
+  transactions: 'vehicle-detail-transactions',
 } as const
 
 export type VehicleDetailNavItem = {

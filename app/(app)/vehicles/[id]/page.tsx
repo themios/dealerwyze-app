@@ -27,6 +27,7 @@ import InlinePriceEdit from '@/components/vehicle/InlinePriceEdit'
 import { demandSignalShortLabel } from '@/lib/intelligence/demandLabels'
 import VehicleDetailSectionPicker from '@/components/vehicle/VehicleDetailSectionPicker'
 import ListingPerformanceCard from '@/components/vehicle/ListingPerformanceCard'
+import TransactionPanel from '@/components/transactions/TransactionPanel'
 import {
   VEHICLE_DETAIL_SECTION_IDS,
   uniqueNavSections,
@@ -173,6 +174,9 @@ export default async function VehicleDetailPage({ params }: PageProps) {
   navSections.push({ id: VEHICLE_DETAIL_SECTION_IDS.inventory, label: isRe ? 'Listing details' : 'Inventory' })
   if (showWebsiteOverviewPanel) {
     navSections.push({ id: VEHICLE_DETAIL_SECTION_IDS.website, label: isRe ? 'Website' : 'Website' })
+  }
+  if (isRe) {
+    navSections.push({ id: VEHICLE_DETAIL_SECTION_IDS.transactions, label: 'Transaction' })
   }
   if (activities && activities.length > 0) {
     navSections.push({ id: VEHICLE_DETAIL_SECTION_IDS.activity, label: 'Activity' })
@@ -479,6 +483,15 @@ export default async function VehicleDetailPage({ params }: PageProps) {
       <div className="space-y-3">
         <SectionHeading>Activity</SectionHeading>
         <ActivityTimeline activities={activities} />
+      </div>
+    )
+  }
+
+  if (isRe) {
+    panels[VEHICLE_DETAIL_SECTION_IDS.transactions] = (
+      <div className="space-y-3">
+        <SectionHeading>Transaction</SectionHeading>
+        <TransactionPanel vehicleId={id} isAdmin={isAdmin} />
       </div>
     )
   }
