@@ -22,7 +22,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-28)
 |-------|--------|-------|
 | 7 — Listing Intelligence | In progress | Plans 07-01 (foundation), 07-02 (URL/photo/text import), 07-03 (MLS/metrics/CMA) complete. |
 | 8 — Showings | Complete | All 6 plans complete. SHOW-01–06 covered. /showings cross-listing dashboard live. Phase complete. |
-| 9 — Transactions & Commissions | In progress | Plans 09-01/02/03 complete. Migrations 193/194/195 applied. Transaction CRUD + Commission Plans CRUD API live. Broker interviews still required before TXN-05/06. |
+| 9 — Transactions & Commissions | In progress | Plans 09-01 through 09-05 complete. Migrations 193/194/195 applied. Full transaction pipeline + commission plans CRUD + broker close flow live. Awaiting human-verify checkpoint. |
 | 10 — Listing Video | Pending | Depends on Phase 7 listing records |
 | 11 — AI Voice (Retell RE) | Pending | Pre-build: RETELL_RE_AGENT_ID env var required |
 | 12 — Public Listing Site | Pending | Pre-build: iHomeFinder IDX application submitted (30–90 days) |
@@ -111,3 +111,4 @@ See: `.planning/PROJECT.md` (updated 2026-05-28)
 *State updated: 2026-05-28 — 09-01 complete: migrations 193/194/195 — transactions extended (9 cols + expanded CHECK), commission_plans extended (7 cols + partial unique index + backfill), close_re_transaction SECURITY DEFINER RPC (atomic close + vehicle sold + commission snapshot JSONB)*
 *State updated: 2026-05-28 — 09-02 complete: Transaction CRUD API — POST/GET /api/transactions and GET/PATCH /api/transactions/[id]; PipelineStatus + VALID_TRANSITIONS + canTransition(); Zod schemas; broker-close gate (pipeline_status=closed → 422 on agent PATCH)*
 *State updated: 2026-05-28 — 09-03 complete: Commission Plans CRUD API — GET/POST /api/commission-plans and PATCH/DELETE /api/commission-plans/[id]; Zod schemas in lib/commissions/schemas.ts; default-swap logic; open-transaction 409 guard on delete*
+*State updated: 2026-05-28 — 09-05 complete: Close route hardened (isDealerAdmin, sanitized RPC errors); CommissionPlanForm + CommissionPlanCard; /settings/commission-plans (RE+admin only); nav entry with verticalHide:dealer. TXN-05 + TXN-06 live. Awaiting human-verify.*
