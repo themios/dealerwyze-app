@@ -131,16 +131,16 @@ export default function TransactionForm({ vehicleId, agentId, transaction, onSav
       .filter(Boolean)
 
     const parties = {
-      buyerName:    form.buyer_name    || undefined,
-      buyerPhone:   form.buyer_phone   || undefined,
-      buyerEmail:   form.buyer_email   || undefined,
-      buyerAgent:   form.buyer_agent   || undefined,
-      sellerAgent:  form.seller_agent  || undefined,
-      titleCompany: form.title_company || undefined,
-      lender:       form.lender        || undefined,
-      notes:        form.parties_notes || undefined,
+      buyerName:    form.buyer_name    || null,
+      buyerPhone:   form.buyer_phone   || null,
+      buyerEmail:   form.buyer_email   || null,
+      buyerAgent:   form.buyer_agent   || null,
+      sellerAgent:  form.seller_agent  || null,
+      titleCompany: form.title_company || null,
+      lender:       form.lender        || null,
+      notes:        form.parties_notes || null,
     }
-    const hasParties = Object.values(parties).some(v => v !== undefined)
+    const hasParties = Object.values(parties).some(v => v !== null)
 
     const payload: Record<string, unknown> = {
       vehicle_id:          vehicleId,

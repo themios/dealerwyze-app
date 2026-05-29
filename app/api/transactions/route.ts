@@ -67,7 +67,6 @@ export async function POST(req: NextRequest) {
     vehicle_id:         body.vehicle_id,
     transaction_type:   txType,
     pipeline_status:    initialStatus,
-    status:             initialStatus,
     transaction_number: txnNumber,
   }
 
@@ -96,10 +95,16 @@ export async function POST(req: NextRequest) {
 
   if (error || !transaction) {
     const msg = error?.message ?? 'Unknown error'
-    console.error('[transactions] insert error:', msg)
-    // Return details in development, generic in production
-    const detail = process.env.NODE_ENV === 'development' ? msg : 'Failed to create transaction'
-    return NextResponse.json({ error: detail }, { status: 500 })
+    const detail = error?.details ?? ''
+    const hint = error?.hint ?? ''
+    console.error('[transactions] insert error:', msg, detail, hint)
+    console.error('[transactions] payload:', JSON.stringify(insertPayload))
+    // Always return details to help debug
+    return NextResponse.json({
+      error: msg,
+      detail: detail,
+      hint: hint,
+    }, { status: 500 })
   }
 
   return NextResponse.json(transaction, { status: 201 })
