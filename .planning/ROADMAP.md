@@ -118,6 +118,16 @@ Plans:
 4. Agent marks a showing "No-show" and the status is reflected in both the listing's showing list and the agent's calendar view.
 5. When a showing is created or cancelled in CRM, the agent's connected Google Calendar updates within 60 seconds.
 
+**Plans:** 6 plans in 4 waves
+
+Plans:
+- [ ] 08-01-PLAN.md — Migration 192 + updateCalendarEvent() + calWebhookLimiter + CALCOM_WEBHOOK_SECRET env
+- [ ] 08-02-PLAN.md — Showings CRUD API: POST/GET /api/showings + PATCH/DELETE /api/showings/[id] (SHOW-01, SHOW-03, SHOW-08)
+- [ ] 08-03-PLAN.md — Cal.com webhook /api/cal/webhook: HMAC, dedup, BOOKING_CREATED/CANCELLED/RESCHEDULED (SHOW-07)
+- [ ] 08-04-PLAN.md — Showing reminders cron job in check-tasks (SHOW-02)
+- [ ] 08-05-PLAN.md — ShowingTimeline UI on listing detail: list, status controls, schedule form, Cal.com link (SHOW-01 UI, SHOW-03 UI, SHOW-04, SHOW-06)
+- [ ] 08-06-PLAN.md — /showings dashboard page + GET /api/showings/upcoming (SHOW-05)
+
 ---
 
 ### Phase 9 — Transactions & Commissions
@@ -310,3 +320,4 @@ These rules apply to every phase. Violating them is a blocker before merge.
 ---
 
 *Roadmap created: 2026-05-28 — v2.0 milestone, Phases 7–13, 47 requirements*
+*Phase 8 plans added: 2026-05-28 — 6 plans in 4 waves*
