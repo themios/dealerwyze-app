@@ -13,6 +13,7 @@ import PastDueBanner from '@/components/layout/PastDueBanner'
 import ImpersonationBanner from '@/components/admin/ImpersonationBanner'
 import SupportSessionBanner from '@/components/layout/SupportSessionBanner'
 import FeedbackButton from '@/components/layout/FeedbackButton'
+import HelpSystemWrapper from '@/components/help/HelpSystemWrapper'
 import OrgIdentifier from '@/components/analytics/OrgIdentifier'
 import PostHogPageView from '@/components/analytics/PostHogPageView'
 import { isDealerAdmin } from '@/types/index'
@@ -181,6 +182,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           canManageReconTemplate={profile.role === 'dealer_admin' || profile.role === 'admin'}
         />
         <FeedbackButton />
+        <HelpSystemWrapper />
       </div>
     </div>
     </>
