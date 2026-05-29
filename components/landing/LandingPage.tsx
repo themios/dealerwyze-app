@@ -4,6 +4,7 @@ import React from 'react'
 import Nav                   from './sections/Nav'
 import HeroSection           from './sections/HeroSection'
 import ElevatorPitchSection  from './sections/ElevatorPitchSection'
+import SocialProofSection    from './sections/SocialProofSection'
 import PainSection           from './sections/PainSection'
 import HowItWorksSection     from './sections/HowItWorksSection'
 import TodayListSection      from './sections/TodayListSection'
@@ -27,6 +28,7 @@ export default function LandingPage() {
       <main className="landing">
         <HeroSection />
         <ElevatorPitchSection />
+        <SocialProofSection />
         <PainSection />
         <HowItWorksSection />
         <TodayListSection />
