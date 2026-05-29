@@ -745,6 +745,124 @@ Scope:** All lease transactions for org, fetched client-side, filtered in-browse
 
 ---
 
+### FAX PAGE (/fax) - OPTIONAL FEATURE
+
+**Page Title:** "Fax"
+
+```
+Send Section (Compose Card):
+├─ Title: "Send a Fax" (Printer icon)
+├─ Fax number input field
+│  └─ Placeholder: "Fax number e.g. 818-555-1234"
+│  └─ Type: tel
+├─ File picker (dashed border button):
+│  ├─ When no file: "Tap to attach PDF or image" (Upload icon)
+│  ├─ When file selected: FileText icon + file name + remove button (X)
+│  └─ Accepted formats: .pdf, .jpeg, .png, .tiff
+├─ Error message (if validation fails)
+├─ Success message (if queued) with CheckCircle icon
+└─ Send Fax button (primary, disabled until to + file filled)
+
+History Section (list of sent faxes):
+├─ Header: "HISTORY" label + "Updating..." indicator (if polling)
+└─ Each fax card displays:
+   ├─ FileText icon
+   ├─ To number (recipient fax number)
+   ├─ File name + page count (e.g., "doc.pdf · 3p")
+   ├─ Error message (if failed)
+   ├─ Status badge (color-coded):
+   │  ├─ Queued: yellow, Clock icon
+   │  ├─ Processing: blue, spinning Loader
+   │  ├─ Sending: blue, spinning Loader
+   │  ├─ Delivered: green, CheckCircle
+   │  ├─ No Answer: orange, AlertCircle
+   │  ├─ Busy: orange, AlertCircle
+   │  ├─ Failed: red, AlertCircle
+   │  └─ Canceled: gray, X icon
+   └─ Time ago (relative time)
+
+Empty State: "No faxes sent yet."
+Loading State: "Loading…"
+```
+
+**Validation:**
+- Fax number: must be 10+ digits
+- File: required, must be PDF or image
+
+**API:**
+- Submit: POST `/api/fax/send` with FormData (file + to)
+- History: GET `/api/fax`
+
+**Polling:** every 15s while any fax in-progress (queued/processing/sending)
+
+**Verified:** ✅ Code: `/fax/page.tsx`
+
+---
+
+### ADMIN PANEL (/admin) - PLATFORM STAFF ONLY
+
+**Access Control:**
+- Requires: `platform_superuser` role
+- Redirects non-superuser platform staff:
+  - `platform_sales_manager` → /admin/sales
+  - `platform_staff_manager` → /admin/staff
+  - Default → /admin/tickets
+
+**Page Title:** "DealerWyze Admin" (dealer) or "RealtyWyze Admin" (RE)
+
+**Vertical Scoping:** Shows orgs matching `x-vertical` header (dealer vs real_estate)
+
+```
+Alert Banner (if alerts > 0):
+└─ Link to /admin/alerts
+   └─ Red banner: "{count} platform alert(s) need attention"
+
+Revenue Summary Strip (6 metric cards):
+├─ Total Dealers/Agencies
+├─ Active (subscription_status=active)
+├─ Trialing (subscription_status=trialing)
+├─ Past Due (red if count > 0)
+├─ Est. MRR ($amount from active plans)
+├─ Pending Approval (orange if count > 0)
+└─ Suspended (orange card if > 0)
+
+Metric Cards Grid (6 columns desktop, 2 mobile):
+
+1. Retention Card → /admin/retention
+   ├─ Icon: TrendingDown (purple)
+   ├─ Avg health score /100 (green≥65, yellow≥35, red<35)
+   ├─ Tier distribution bar:
+   │  ├─ Red: Critical count
+   │  ├─ Yellow: At-risk count
+   │  └─ Green: Healthy count
+   └─ Never logged in + Dormant 30d+ counts
+
+2. Support Card → /admin/tickets
+   ├─ Icon: TicketCheck (blue)
+   ├─ Open ticket count (large)
+   ├─ Urgent/High priority count (if any)
+   └─ Unassigned count (if any)
+
+3-6. Additional metric cards (organization, cron, revenue, transfers)
+
+Additional Sections:
+├─ PendingApprovalQueue (orgs awaiting approval)
+├─ PendingTransferQueue (business transfers)
+├─ Revenue trend (8-week signups chart)
+├─ Plan distribution (tier breakdown)
+└─ Cron job health (check-tasks, sync-leads, poll-reviews)
+```
+
+**Key Metrics:**
+- Health score: subscription status, last active, onboarding, SMS usage
+- Tier distribution: Critical (<35), At-risk (35-65), Healthy (>65)
+- MRR: from active tier 1/2 subscriptions
+- Attrition signals: never logged in, dormant 30d+
+
+**Verified:** ✅ Code: `/admin/page.tsx`
+
+---
+
 ## TO BE VERIFIED
 
 The following sections still need code verification. Pending details:
