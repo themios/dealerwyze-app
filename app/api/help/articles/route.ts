@@ -85,8 +85,8 @@ export async function GET(req: NextRequest) {
             keywordsLower.some((kw: string) => kw.includes(word))
           )
 
-          const questionMatch = questionLower.split(/\s+/).filter(w => queryWords.includes(w)).length
-          const answerMatch = answerLower.split(/\s+/).filter(w => queryWords.includes(w)).length
+          const questionMatch = questionLower.split(/\s+/).filter((w: string) => queryWords.includes(w)).length
+          const answerMatch = answerLower.split(/\s+/).filter((w: string) => queryWords.includes(w)).length
 
           const score = (questionMatch * 3) + (answerMatch * 1) + matchedWords.length * 2
 
