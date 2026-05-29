@@ -37,9 +37,9 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 
   return {
-    title: 'DealerWyze - CRM for Independent & Used Car Dealers | Starting $150/mo',
+    title: 'DealerWyze - CRM for Independent & Used Car Dealers',
     description:
-      'DealerWyze is an all-in-one CRM built for independent and used car dealers. Text, email, and call leads from one inbox. Manage inventory, BHPH payments, and receipts — plus a public SEO-ready dealer website for your inventory. Starting at $150/mo - half the cost of VinSolutions or AutoRaptor.',
+      'DealerWyze is an all-in-one CRM built for independent and used car dealers. Text, email, and call leads from one inbox. Manage inventory, BHPH payments, and receipts — plus a public SEO-ready dealer website for your inventory. Beta free while we add features — plans coming soon.',
     keywords: [
       'used car dealer CRM',
       'independent dealer CRM',
@@ -60,7 +60,7 @@ export async function generateMetadata(): Promise<Metadata> {
     openGraph: {
       title: 'DealerWyze - CRM for Independent & Used Car Dealers',
       description:
-        'All-in-one CRM for used car dealers. Lead inbox, texting, inventory, public SEO website, BHPH, and receipts - starting at $150/mo.',
+        'All-in-one CRM for used car dealers. Lead inbox, texting, inventory, public SEO website, BHPH, and receipts. Free beta, pricing coming soon.',
       url: 'https://dealerwyze.com',
       siteName: 'DealerWyze',
       type: 'website',
@@ -70,7 +70,7 @@ export async function generateMetadata(): Promise<Metadata> {
       card: 'summary_large_image',
       title: 'DealerWyze - CRM for Independent & Used Car Dealers',
       description:
-        'All-in-one CRM for used car dealers. Lead inbox, texting, inventory, public SEO website, BHPH, and receipts - starting at $150/mo.',
+        'All-in-one CRM for used car dealers. Lead inbox, texting, inventory, public SEO website, BHPH, and receipts. Free beta, pricing coming soon.',
       images: ['https://dealerwyze.com/og.png'],
     },
     alternates: {
@@ -107,27 +107,11 @@ const jsonLd = {
       offers: [
         {
           '@type': 'Offer',
-          name: 'Starter',
+          name: 'Beta Free',
           price: '0',
           priceCurrency: 'USD',
           description:
-            '1 user, 50 customers, 200 texts/mo, 200 emails/mo, basic inventory and lead management.',
-        },
-        {
-          '@type': 'Offer',
-          name: 'Growth',
-          price: '150',
-          priceCurrency: 'USD',
-          description:
-            '3 users, 500 customers, 1,000 texts/mo, 1,000 emails/mo, 30 faxes/mo, 5 AI voice leads/day, BHPH, sequences, want list.',
-        },
-        {
-          '@type': 'Offer',
-          name: 'Pro',
-          price: '350',
-          priceCurrency: 'USD',
-          description:
-            'Unlimited users, 2,000 customers, 3,000 texts/mo, 3,000 emails/mo, 100 faxes/mo, 20 AI voice leads/day, all Growth features.',
+            'All features free during beta. Get a unified lead inbox, two-way texting and email, inventory management, BHPH tracking, receipt scanning, AI voice leads, and a public dealer website.',
         },
       ],
     },
@@ -171,7 +155,7 @@ const jsonLd = {
           name: 'How much does DealerWyze cost?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: 'DealerWyze has three plans: Starter (free, 1 user), Growth ($150/mo, 3 users, 1,000 texts), and Pro ($350/mo, unlimited users, 3,000 texts). All plans include inventory management, lead inbox, two-way texting, and email.',
+            text: 'DealerWyze is free during beta. All features are included: inventory management, lead inbox, two-way texting, email, BHPH payment tracking, receipt scanning, AI voice leads, and a public dealer website. Pricing plans will launch later this year.',
           },
         },
         {
