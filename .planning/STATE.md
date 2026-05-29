@@ -21,7 +21,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-28)
 | Phase | Status | Notes |
 |-------|--------|-------|
 | 7 — Listing Intelligence | In progress | Plans 07-01 (foundation), 07-02 (URL/photo/text import), 07-03 (MLS/metrics/CMA) complete. |
-| 8 — Showings | In progress | Plans 08-01, 08-02, 08-03, 08-04, 08-05 complete. Showing UI live on /listings/[id]: schedule, list, status update, feedback notes, Cal.com link. |
+| 8 — Showings | Complete | All 6 plans complete. SHOW-01–06 covered. /showings cross-listing dashboard live. Phase complete. |
 | 9 — Transactions & Commissions | Pending | Pre-build: broker interviews required before TXN-05/06 |
 | 10 — Listing Video | Pending | Depends on Phase 7 listing records |
 | 11 — AI Voice (Retell RE) | Pending | Pre-build: RETELL_RE_AGENT_ID env var required |
@@ -107,3 +107,4 @@ See: `.planning/PROJECT.md` (updated 2026-05-28)
 *State updated: 2026-05-28 — 08-02 complete: showings CRUD API (POST/GET/PATCH/DELETE) with GCal best-effort sync and org-scoped RLS*
 *State updated: 2026-05-28 — 08-04 complete: showing reminders cron job (runShowingReminders) registered in check-tasks; reminder_sent_at dedup; email-only path (no agent phone column)*
 *State updated: 2026-05-28 — 08-05 complete: ShowingTimeline UI + /listings/[id] page — full showing CRUD UI (SHOW-01/02/03/04/06) live for RE agents*
+*State updated: 2026-05-28 — 08-06 complete: GET /api/showings/upcoming + /showings cross-listing dashboard (SHOW-05). Phase 8 complete.*
