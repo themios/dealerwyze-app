@@ -96,6 +96,17 @@ export default function TransactionForm({ vehicleId, agentId, transaction, onSav
     }, 250)
   }, [customerQuery])
 
+  // Auto-calculate lease end date from move-in + term
+  useEffect(() => {
+    if (form.move_in_date && form.lease_term_months) {
+      const months = parseInt(form.lease_term_months, 10)
+      const moveIn = new Date(form.move_in_date)
+      const endDate = new Date(moveIn.getFullYear(), moveIn.getMonth() + months, moveIn.getDate())
+      const isoEnd = endDate.toISOString().split('T')[0]
+      if (isoEnd !== form.lease_end_date) upd('lease_end_date', isoEnd)
+    }
+  }, [form.move_in_date, form.lease_term_months])
+
   const isEdit = Boolean(transaction?.id)
 
   function upd(k: keyof FormState, v: string) {
@@ -294,9 +305,9 @@ export default function TransactionForm({ vehicleId, agentId, transaction, onSav
               onChange={e => upd('move_in_date', e.target.value)} />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="lease_end_date">Lease End Date</Label>
-            <Input id="lease_end_date" type="date" value={form.lease_end_date}
-              onChange={e => upd('lease_end_date', e.target.value)} />
+            <Label htmlFor="lease_end_date">Lease End Date <span className="text-muted-foreground text-xs">(auto-calculated)</span></Label>
+            <Input id="lease_end_date" type="date" value={form.lease_end_date} readOnly
+              className="bg-muted/50 cursor-not-allowed" />
           </div>
         </div>
       )}
