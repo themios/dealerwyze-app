@@ -1,5 +1,3 @@
-'use client'
-
 import React from 'react'
 import Nav from '@/components/landing/sections/Nav'
 import Footer from '@/components/landing/sections/Footer'
