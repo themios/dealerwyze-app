@@ -62,6 +62,7 @@ export interface Transaction {
   commission_plan_id:  string | null
   commission_snapshot: Record<string, unknown> | null
   closing_date:        string | null
+  closing_price:       number | null
   final_sale_price:    number | null
   created_at:          string
   updated_at:          string | null
