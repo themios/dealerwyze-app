@@ -20,7 +20,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-28)
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| 7 — Listing Intelligence | In progress | Plans 07-01 (foundation), 07-03 (MLS/metrics/CMA) complete. 07-02 (URL/photo import) pending. |
+| 7 — Listing Intelligence | In progress | Plans 07-01 (foundation), 07-02 (URL/photo/text import), 07-03 (MLS/metrics/CMA) complete. |
 | 8 — Showings | Pending | Pre-build: Cal.com Platform API tier confirmation required |
 | 9 — Transactions & Commissions | Pending | Pre-build: broker interviews required before TXN-05/06 |
 | 10 — Listing Video | Pending | Depends on Phase 7 listing records |
@@ -99,4 +99,5 @@ See: `.planning/PROJECT.md` (updated 2026-05-28)
 | 2026-05-28 | RentCast lookup best-effort in import-mls (API errors don't block insert; key absence → 503) | Keeps import functional even when RentCast has transient issues |
 | 2026-05-28 | import_source='mls_import' (not 'mls') | Distinguishes manual MLS# import from future direct MLS feed |
 
+*State updated: 2026-05-28 — 07-02 complete: URL/photo/text extraction routes (LIST-01, LIST-02) built and committed*
 *State updated: 2026-05-28 — 07-03 complete: RentCast wrapper + LIST-03/04/05 API routes built and committed*
