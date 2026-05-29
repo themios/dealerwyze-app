@@ -103,3 +103,5 @@ See: `.planning/PROJECT.md` (updated 2026-05-28)
 *State updated: 2026-05-28 — 07-03 complete: RentCast wrapper + LIST-03/04/05 API routes built and committed*
 *State updated: 2026-05-28 — 08-01 complete: migration 192 (3 showings + 2 org_settings columns), updateCalendarEvent(), calWebhookLimiter, CALCOM_WEBHOOK_SECRET documented*
 *State updated: 2026-05-28 — 08-03 complete: POST /api/cal/webhook — HMAC, rate-limit, dedup, BOOKING_CREATED/CANCELLED/RESCHEDULED, cross-tenant spoofing block*
+
+*State updated: 2026-05-28 — 08-02 complete: showings CRUD API (POST/GET/PATCH/DELETE) with GCal best-effort sync and org-scoped RLS*
