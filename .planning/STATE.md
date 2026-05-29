@@ -21,7 +21,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-28)
 | Phase | Status | Notes |
 |-------|--------|-------|
 | 7 — Listing Intelligence | In progress | Plans 07-01 (foundation), 07-02 (URL/photo/text import), 07-03 (MLS/metrics/CMA) complete. |
-| 8 — Showings | Pending | Pre-build: Cal.com Platform API tier confirmation required |
+| 8 — Showings | In progress | Plans 08-01 (foundation), 08-02 (CRUD API: POST/GET/PATCH/DELETE /api/showings), 08-03 (Cal.com webhook handler) complete. |
 | 9 — Transactions & Commissions | Pending | Pre-build: broker interviews required before TXN-05/06 |
 | 10 — Listing Video | Pending | Depends on Phase 7 listing records |
 | 11 — AI Voice (Retell RE) | Pending | Pre-build: RETELL_RE_AGENT_ID env var required |
@@ -101,3 +101,5 @@ See: `.planning/PROJECT.md` (updated 2026-05-28)
 
 *State updated: 2026-05-28 — 07-02 complete: URL/photo/text extraction routes (LIST-01, LIST-02) built and committed*
 *State updated: 2026-05-28 — 07-03 complete: RentCast wrapper + LIST-03/04/05 API routes built and committed*
+*State updated: 2026-05-28 — 08-01 complete: migration 192 (3 showings + 2 org_settings columns), updateCalendarEvent(), calWebhookLimiter, CALCOM_WEBHOOK_SECRET documented*
+*State updated: 2026-05-28 — 08-03 complete: POST /api/cal/webhook — HMAC, rate-limit, dedup, BOOKING_CREATED/CANCELLED/RESCHEDULED, cross-tenant spoofing block*
