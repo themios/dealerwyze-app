@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Home, Users, Car, CalendarDays,
   ShieldCheck,
   Activity, BarChart3, ArchiveRestore,
-  ArrowLeft, Settings, Search,
+  ArrowLeft, Settings, Search, HousePlus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useVertical } from '@/hooks/useVertical'
@@ -57,11 +57,11 @@ function AlertsBadgeMobile() {
   )
 }
 
-const DEALER_NAV_ITEMS = [
+const getDealerNavItems = (vertical: string) => [
   { href: '/today',     label: 'Today',     icon: Home,            urgent: false, center: false },
   { href: '/customers', label: 'Leads',     icon: Users,           urgent: false, center: false },
   { href: '/dashboard', label: 'Home',      icon: LayoutDashboard, urgent: true,  center: true  },
-  { href: '/vehicles',  label: 'Inventory', icon: Car,             urgent: false, center: false },
+  { href: '/vehicles',  label: vertical === 'real_estate' ? 'Listings' : 'Inventory', icon: vertical === 'real_estate' ? HousePlus : Car, urgent: false, center: false },
   { href: '/calendar',  label: 'Calendar',  icon: CalendarDays,    urgent: false, center: false },
 ]
 
@@ -78,8 +78,8 @@ export default function BottomNav() {
   const isSettings = pathname.startsWith('/settings')
   const isAdminArea = pathname.startsWith('/admin')
   const urgentCount = useUrgentCount()
-  const { features } = useVertical()
-  const dealerNavItems = DEALER_NAV_ITEMS.filter(item => {
+  const { features, vertical } = useVertical()
+  const dealerNavItems = getDealerNavItems(vertical).filter(item => {
     if (item.href === '/bhph') return features.bhph
     if (item.href === '/fax') return features.fax
     return true
