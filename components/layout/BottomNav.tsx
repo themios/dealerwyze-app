@@ -150,7 +150,10 @@ export default function BottomNav() {
   }
 
   return (
-    <nav className="lg:hidden fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md border-t border-[#1B4A8A] bg-[#0D2B55] overflow-visible">
+    <nav className="lg:hidden fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md border-t border-[#1B4A8A] bg-[#0D2B55] overflow-visible"
+      style={{
+        paddingBottom: 'max(0, env(safe-area-inset-bottom))',
+      }}>
       <div className="flex items-center justify-around h-16 relative">
         {dealerNavItems.map(({ href, label, icon: Icon, urgent, center }) => {
           const active = href === '/dashboard'
@@ -165,20 +168,23 @@ export default function BottomNav() {
                 href={href}
                 aria-label={label}
                 aria-current={active ? 'page' : undefined}
-                className="relative flex flex-col items-center gap-0.5 px-1 -mt-5"
+                className="relative flex flex-col items-center justify-start flex-1 pt-2 pb-1"
               >
-                <span className={cn(
-                  'flex items-center justify-center w-14 h-14 rounded-full shadow-lg transition-colors',
-                  active ? 'bg-[#F07018]' : 'bg-[#F07018]/90 hover:bg-[#F07018]'
-                )}>
-                  {urgent && urgentCount > 0 && (
-                    <span className="absolute top-0 right-0 min-w-[16px] h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none animate-pulse">
-                      {urgentCount > 9 ? '9+' : urgentCount}
-                    </span>
-                  )}
-                  <Icon className="h-6 w-6 text-white" />
-                </span>
-                <span className="text-[10px] font-medium text-[#F07018]">{label}</span>
+                {/* Inner container with negative margin to float above nav */}
+                <div className="relative -mt-6">
+                  <span className={cn(
+                    'flex items-center justify-center w-14 h-14 rounded-full shadow-lg transition-colors',
+                    active ? 'bg-[#F07018]' : 'bg-[#F07018]/90 hover:bg-[#F07018]'
+                  )}>
+                    {urgent && urgentCount > 0 && (
+                      <span className="absolute top-0 right-0 min-w-[16px] h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none animate-pulse">
+                        {urgentCount > 9 ? '9+' : urgentCount}
+                      </span>
+                    )}
+                    <Icon className="h-6 w-6 text-white" />
+                  </span>
+                </div>
+                <span className="text-[10px] font-medium text-[#F07018] mt-1">{label}</span>
               </Link>
             )
           }
