@@ -33,6 +33,7 @@ export async function sendNotificationEmail({
   org_id,
   email_type,
   reply_to,
+  vertical,
 }: {
   to: string
   subject: string
@@ -42,11 +43,13 @@ export async function sendNotificationEmail({
   org_id?: string
   email_type?: string
   reply_to?: string
+  vertical?: 'dealer' | 'real_estate'
 }): Promise<{ resendId?: string }> {
   const key = process.env.RESEND_API_KEY
   if (!key) return {}
 
-  const fromAddress = from ?? `DealerWyze <noreply@${process.env.RESEND_FROM_DOMAIN ?? 'mail.dealerwyze.com'}>`
+  const brandName = vertical === 'real_estate' ? 'RealtyWyze' : 'DealerWyze'
+  const fromAddress = from ?? `${brandName} <noreply@${process.env.RESEND_FROM_DOMAIN ?? 'mail.dealerwyze.com'}>`
   let resendId: string | undefined
   try {
     const body: {

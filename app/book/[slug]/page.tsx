@@ -12,7 +12,7 @@ export default async function BookingPage({ params }: Props) {
 
   const { data: org } = await supabase
     .from('organizations')
-    .select('id')
+    .select('id, vertical')
     .eq('slug', slug.toLowerCase().trim())
     .maybeSingle()
 
@@ -26,6 +26,7 @@ export default async function BookingPage({ params }: Props) {
 
   const dealerName = settings?.business_name ?? 'Our Dealership'
   const enabled    = settings?.booking_enabled ?? false
+  const brandName  = org?.vertical === 'real_estate' ? 'RealtyWyze' : 'DealerWyze'
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4 py-8">
@@ -49,7 +50,7 @@ export default async function BookingPage({ params }: Props) {
           )}
         </div>
         <p className="text-center text-xs text-gray-400 mt-6">
-          Powered by DealerWyze
+          Powered by {brandName}
         </p>
       </div>
     </div>
