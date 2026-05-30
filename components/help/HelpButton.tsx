@@ -24,14 +24,10 @@ export default function HelpButton({ onOpenPanel }: HelpButtonProps) {
 
   return (
     <>
-      {/* Mobile: Fixed top-right with safe-area inset */}
+      {/* Mobile: Fixed top-right, positioned below status bar and search area */}
       <Button
         onClick={onOpenPanel}
-        className="lg:hidden fixed w-9 h-9 rounded-full p-0 shadow-md hover:shadow-lg transition-shadow z-30 bg-[#0D2B55] hover:bg-[#1B4A8A] text-white"
-        style={{
-          top: 'max(0.5rem, calc(0.5rem + env(safe-area-inset-top)))',
-          right: 'max(0.75rem, calc(0.75rem + env(safe-area-inset-right)))',
-        }}
+        className="lg:hidden fixed top-12 right-3 w-9 h-9 rounded-full p-0 shadow-md hover:shadow-lg transition-shadow z-20 bg-[#0D2B55] hover:bg-[#1B4A8A] text-white"
         title="Help"
         aria-label="Open help"
       >
