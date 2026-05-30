@@ -16,7 +16,7 @@ import {
   LogOut, Briefcase, Contact, Heart, Inbox,
   Activity, BarChart3, DatabaseBackup, ArchiveRestore,
   Clapperboard, MessageCircle, SlidersHorizontal, FileSignature,
-  CalendarDays, DollarSign,
+  CalendarDays, DollarSign, HousePlus,
 } from 'lucide-react'
 
 interface MeResponse {
@@ -369,6 +369,13 @@ function DealerSidebar({ orgName, role, isPlatformAdmin }: { orgName?: string | 
     item => item.requiresRole(role) && (!item.feature || features[item.feature]),
   )
 
+  // Swap Inventory icon based on vertical (Car for dealer, HousePlus for real estate)
+  const baseNav = BASE_NAV.map(item =>
+    item.href === '/vehicles' && vertical === 'real_estate'
+      ? { ...item, icon: HousePlus, label: 'Listings' }
+      : item
+  )
+
   // RE-only nav items — only added when vertical === 'real_estate'
   const reNav: DealerNavItem[] = vertical === 'real_estate'
     ? [
@@ -378,7 +385,7 @@ function DealerSidebar({ orgName, role, isPlatformAdmin }: { orgName?: string | 
     : []
 
   const allNav: DealerNavItem[] = [
-    ...BASE_NAV,
+    ...baseNav,
     ...reNav,
     ...visibleRoleNav,
     ...(isPlatformAdmin ? [ADMIN_NAV] : []),
