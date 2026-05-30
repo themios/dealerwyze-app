@@ -18,6 +18,7 @@
 
 import { createServiceClient } from '@/lib/supabase/service'
 import { enrollCustomer } from '@/lib/sequences/enrollCustomer'
+import { logger } from '@/lib/logger'
 import { checkQuota, incrementUsage } from '@/lib/sms/quota'
 import { getLeadOutboundTemplateVars } from '@/lib/locations/getLeadTemplateVars'
 import { fillTemplate } from '@/lib/utils'
@@ -176,9 +177,9 @@ export async function sendAutoResponseStep1(args: AutoResponseArgs): Promise<voi
       })
 
       if (!result.ok) {
-        console.error('[autoRespond] email send failed:', result.error)
+        logger.error('[autoRespond] email send failed', result.error, { customerId }, orgId)
       } else {
-        console.log('[autoRespond] email step 1 sent for customer:', customerId)
+        logger.info('[autoRespond] email step 1 sent', { customerId }, orgId)
       }
 
     } else {
@@ -280,7 +281,7 @@ export async function sendAutoResponseStep1(args: AutoResponseArgs): Promise<voi
           .eq('id', enrollmentId),
       ])
 
-      console.log('[autoRespond] SMS step 1 sent for customer:', customerId)
+      logger.info('[autoRespond] SMS step 1 sent', { customerId }, orgId)
     }
 
   } catch (err) {

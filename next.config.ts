@@ -1,15 +1,5 @@
 import type { NextConfig } from 'next'
-import path from 'path'
 import { withSentryConfig } from '@sentry/nextjs'
-import nextPwa from 'next-pwa'
-import type { Configuration } from 'webpack'
-
-const withPWA = nextPwa({
-  dest: 'public',
-  register: true,
-  skipWaiting: true,
-  disable: process.env.NODE_ENV === 'development',
-})
 
 const securityHeaders = [
   { key: 'X-Frame-Options', value: 'DENY' },
@@ -37,19 +27,8 @@ const nextConfig: NextConfig = {
 
   // Anchor Turbopack to this project directory — prevents it from traversing up to stray
   // package-lock.json files at /home/tim and /home/tim/Applications levels.
-  // Empty turbopack object also silences the "webpack config without turbopack config" error
-  // that next-pwa triggers (PWA is disabled in dev anyway).
   turbopack: {
     root: __dirname,
-  },
-  // next-pwa runs webpack alongside Turbopack. Webpack resolves CSS from ApolloCRM/
-  // context (a parent dir), so it never finds tailwindcss/tw-animate-css/shadcn in
-  // apollo-crm/node_modules. This prepends the correct node_modules to fix it.
-  webpack: (config: Configuration) => {
-    config.resolve = config.resolve ?? {}
-    const existing = Array.isArray(config.resolve.modules) ? config.resolve.modules : ['node_modules']
-    config.resolve.modules = [path.join(__dirname, 'node_modules'), ...existing]
-    return config
   },
   // Keep AI SDKs server-only so they are never bundled for the client (avoids "apiKey nor authenticator" in browser)
   images: {
@@ -84,4 +63,4 @@ const sentryConfig = {
   disableClientWebpackPlugin: false,
 }
 
-module.exports = withSentryConfig(withPWA(nextConfig), sentryConfig)
+module.exports = withSentryConfig(nextConfig, sentryConfig)

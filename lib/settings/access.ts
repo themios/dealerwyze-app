@@ -1,5 +1,5 @@
 import type { UserRole } from '@/types/index'
-import { isDealerAdmin } from '@/lib/auth/dealerRoles'
+import { isDealerAdmin, canAccessReports } from '@/lib/auth/dealerRoles'
 
 export type SettingsAudience = 'dealer_admin' | 'manager_plus' | 'all'
 
@@ -15,7 +15,7 @@ export function canViewSettingsAudience(role: UserRole, audience: SettingsAudien
     case 'dealer_admin':
       return isDealerAdmin(role)
     case 'manager_plus':
-      return role === 'dealer_admin' || role === 'dealer_manager' || role === 'admin'
+      return canAccessReports(role)
     default:
       return false
   }

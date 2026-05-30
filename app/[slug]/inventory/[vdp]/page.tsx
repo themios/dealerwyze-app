@@ -38,7 +38,7 @@ interface VdpOrgMetaRow {
   website_logo_url: string | null
 }
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 60
 
 const VEHICLE_PUBLIC_SELECT =
   'id, year, make, model, trim, color, mileage, price, photo_url, notes, stock_no, vin, status, price_history, views_count, public_slug, ai_description'

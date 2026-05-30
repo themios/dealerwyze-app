@@ -18,10 +18,11 @@ export default function VehicleIntakeButton() {
       <Button
         size="sm"
         variant="ghost"
-        title="Add listing"
+        className="text-white/70 hover:text-white gap-1"
         onClick={() => router.push('/vehicles/new')}
       >
         <Plus className="h-5 w-5" />
+        Add Listing
       </Button>
     )
   }
@@ -31,10 +32,11 @@ export default function VehicleIntakeButton() {
       <Button
         size="sm"
         variant="ghost"
-        title="Add vehicle"
+        className="text-white/70 hover:text-white gap-1"
         onClick={() => setOpen(true)}
       >
         <Plus className="h-5 w-5" />
+        Add Inventory
       </Button>
       <VehicleIntakeSheet open={open} onClose={() => setOpen(false)} />
     </>

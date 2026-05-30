@@ -2,6 +2,8 @@ import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createServiceClient } from '@/lib/supabase/service'
 import { isMultiLocationOrg } from '@/lib/locations/resolve'
+import { isDealerAdmin } from '@/lib/auth/dealerRoles'
+import type { UserRole } from '@/types/index'
 
 /**
  * Determines which profile ID to assign a new lead to, based on the org's
@@ -50,7 +52,7 @@ export async function resolveLeadAssignee(
   if (!profiles?.length) return null
 
   if (mode === 'owner') {
-    const owner = profiles.find(p => p.role === 'dealer_admin' || p.role === 'admin')
+    const owner = profiles.find(p => isDealerAdmin(p.role as UserRole))
     return owner?.id ?? profiles[0].id
   }
 

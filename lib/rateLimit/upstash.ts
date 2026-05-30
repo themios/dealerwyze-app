@@ -126,3 +126,9 @@ const _calWebhookLimiter = makeLimiter(redis, { requests: 100, windowSeconds: 60
 
 /** 100 Cal.com webhook deliveries per minute per source IP. */
 export const calWebhookLimiter = (ip: string) => check(_calWebhookLimiter, `calwh:${ip}`)
+
+// Public VDP view counter — 60 increments per minute per IP (abuse containment)
+const _vdpViewLimiter = makeLimiter(redis, { requests: 60, windowSeconds: 60 })
+
+/** 60 view-count increments per minute per IP on public VDP pages. */
+export const vdpViewLimiter = (ip: string) => check(_vdpViewLimiter, `vdpview:${ip}`)

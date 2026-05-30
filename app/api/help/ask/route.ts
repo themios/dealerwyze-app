@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
+import { assertCanUseFeature } from '@/lib/billing/assertFeature'
+import { orgAiAskLimiter } from '@/lib/rateLimit/upstash'
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 import type { Vertical } from '@/lib/vertical'
@@ -24,6 +26,9 @@ export async function POST(req: NextRequest) {
   try {
     console.log('[help/ask] POST received')
     const profile = await requireProfile()
+    await assertCanUseFeature(profile.org_id, 'ai_ask')
+    const { allowed } = await orgAiAskLimiter(profile.org_id)
+    if (!allowed) return NextResponse.json({ error: 'Too many help requests. Try again later.' }, { status: 429 })
     console.log('[help/ask] profile verified')
     const supabase = await createClient()
 

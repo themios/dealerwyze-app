@@ -36,7 +36,7 @@ import {
   pickUniqueOrgSlugMatch,
 } from '@/lib/dealer-public/publicOrgBySlug'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 60
 
 const fontCormorant = Cormorant_Garamond({
   subsets: ['latin'],

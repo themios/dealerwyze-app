@@ -40,11 +40,11 @@ export default function AddLeadMenu() {
       <Button
         size="sm"
         variant="ghost"
-        className="text-white/70 hover:text-white"
+        className="text-white/70 hover:text-white gap-1"
         onClick={() => setMenuOpen(o => !o)}
-        title="Add lead"
       >
         <Plus className="h-5 w-5" />
+        Add Lead
       </Button>
 
       {menuOpen && (

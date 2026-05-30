@@ -344,12 +344,14 @@ export default function ContactsPage() {
   // ── top-right buttons ──────────────────────────────────────────────────────
 
   const topRight = view === 'list' ? (
-    <div className="flex items-center gap-1">
-      <Button size="sm" variant="ghost" onClick={() => { setForm({ ...EMPTY_FORM }); setScannedFile(null); setView('manual') }} title="Add contact">
+    <div className="flex items-center gap-2">
+      <Button size="sm" variant="ghost" className="text-white/70 hover:text-white gap-1" onClick={() => { setForm({ ...EMPTY_FORM }); setScannedFile(null); setView('manual') }}>
         <Plus className="h-5 w-5" />
+        Add Contact
       </Button>
-      <Button size="sm" variant="ghost" onClick={() => cameraRef.current?.click()} title="Scan business card">
+      <Button size="sm" variant="ghost" className="text-white/70 hover:text-white gap-1" onClick={() => cameraRef.current?.click()}>
         <ScanLine className="h-5 w-5" />
+        Scan Card
       </Button>
     </div>
   ) : undefined

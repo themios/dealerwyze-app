@@ -165,7 +165,7 @@ async function handleTikTokCallback(
     access_token: string; refresh_token: string; expires_in: number; open_id: string
   }
   if (!td?.access_token) {
-    console.error('[tiktok/callback] no access_token in response:', JSON.stringify(tokenBody))
+    console.error('[tiktok/callback] no access_token in response — error:', tokenBody?.error, (tokenBody?.data as Record<string, unknown>)?.description)
     throw new Error('TikTok token exchange failed - no access_token')
   }
 
