@@ -6,6 +6,7 @@ import { canAccessAdminArea, isPlatformSuperAdmin } from '@/lib/auth/platform'
 import { buildStaffOrgCookie, clearStaffOrgCookie, getStaffSessionInfo } from '@/lib/auth/staffSession'
 import { logOrgAudit } from '@/lib/audit/orgAudit'
 import { writeAuditLog } from '@/lib/audit/log'
+import { getAdminVerticalScope } from '@/lib/admin/verticalScope'
 
 /**
  * POST /api/admin/impersonate { org_id, write_mode? }
@@ -26,6 +27,12 @@ export async function POST(req: NextRequest) {
   // write_mode grants raw RLS-bypassing service-role access — superadmin only
   if (write_mode && !(await isPlatformSuperAdmin(user.id))) {
     return NextResponse.json({ error: 'Write-mode impersonation requires superadmin' }, { status: 403 })
+  }
+
+  // Verify the target org belongs to the current vertical (critical for multi-vertical isolation)
+  const scope = await getAdminVerticalScope(req)
+  if (!scope.orgIds.includes(org_id)) {
+    return NextResponse.json({ error: 'Org not found' }, { status: 404 })
   }
 
   // Verify the target org exists and is not the sentinel org

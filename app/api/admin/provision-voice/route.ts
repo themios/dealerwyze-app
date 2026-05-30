@@ -3,6 +3,7 @@ import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
 import { provisionVoiceAgent, deprovisionVoiceAgent } from '@/lib/voice/provision'
 import { requirePlatformSuperAdmin } from '@/lib/auth/platform'
+import { getAdminVerticalScope } from '@/lib/admin/verticalScope'
 
 /**
  * POST /api/admin/provision-voice
@@ -19,6 +20,12 @@ export async function POST(req: NextRequest) {
   const supabase = createServiceClient()
   const body     = await req.json() as { org_id?: string }
   const orgId    = body.org_id ?? profile.org_id
+
+  // Verify the target org belongs to the current vertical
+  const scope = await getAdminVerticalScope(req)
+  if (!scope.orgIds.includes(orgId)) {
+    return NextResponse.json({ error: 'Org not found' }, { status: 404 })
+  }
 
   const { data: org } = await supabase
     .from('organizations')
@@ -67,6 +74,12 @@ export async function DELETE(req: NextRequest) {
 
   const body  = await req.json() as { org_id?: string }
   const orgId = body.org_id ?? profile.org_id
+
+  // Verify the target org belongs to the current vertical
+  const scope = await getAdminVerticalScope(req)
+  if (!scope.orgIds.includes(orgId)) {
+    return NextResponse.json({ error: 'Org not found' }, { status: 404 })
+  }
 
   await deprovisionVoiceAgent(orgId)
   return NextResponse.json({ ok: true })
