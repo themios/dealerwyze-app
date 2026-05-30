@@ -11,6 +11,7 @@ import GoogleCalendarSection       from './sections/GoogleCalendarSection'
 import EmailFromDomainSection      from './sections/EmailFromDomainSection'
 import SocialPostingSection        from './sections/SocialPostingSection'
 import BhphPaymentMethodsSection   from './sections/BhphPaymentMethodsSection'
+import DataExportSection           from './sections/DataExportSection'
 import DangerZoneSection           from './sections/DangerZoneSection'
 
 export default function OrganizationSettingsPage() {
@@ -34,6 +35,7 @@ export default function OrganizationSettingsPage() {
         <GoogleCalendarSection />
         <EmailFromDomainSection />
         <SocialPostingSection isRE={isRE} />
+        <DataExportSection isRE={isRE} />
         <DangerZoneSection isRE={isRE} />
       </div>
     </SettingsPageShell>
