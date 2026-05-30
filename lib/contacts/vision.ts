@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { aiClient, AI_MODEL, imageBlock } from '@/lib/ai/client'
 
 export interface CardExtraction {
   name: string | null
@@ -37,39 +37,33 @@ export async function scanBusinessCard(
   imageBase64: string,
   mimeType: 'image/jpeg' | 'image/png' | 'image/webp',
 ): Promise<CardExtraction> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set')
+  if (!process.env.OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY not set')
 
-  const client = new Anthropic({ apiKey })
-
-  const response = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+  const response = await aiClient.chat.completions.create({
+    model: AI_MODEL,
     max_tokens: 400,
-    system: SYSTEM_PROMPT,
     messages: [
+      { role: 'system', content: SYSTEM_PROMPT },
       {
         role: 'user',
         content: [
-          {
-            type: 'image',
-            source: { type: 'base64', media_type: mimeType, data: imageBase64 },
-          },
+          imageBlock(mimeType, imageBase64),
           { type: 'text', text: USER_PROMPT },
         ],
       },
     ],
   })
 
-  const text = response.content[0]?.type === 'text' ? response.content[0].text : ''
+  const text = response.choices[0]?.message?.content ?? ''
   const start = text.indexOf('{')
   const end   = text.lastIndexOf('}')
   if (start === -1 || end === -1 || end <= start) {
-    throw new Error(`No JSON in Haiku response: ${text.slice(0, 200)}`)
+    throw new Error(`No JSON in AI response: ${text.slice(0, 200)}`)
   }
 
   try {
     return JSON.parse(text.slice(start, end + 1)) as CardExtraction
   } catch {
-    throw new Error(`Invalid JSON from Haiku: ${text.slice(start, start + 200)}`)
+    throw new Error(`Invalid JSON from AI: ${text.slice(start, start + 200)}`)
   }
 }

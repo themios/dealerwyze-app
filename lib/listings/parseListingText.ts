@@ -12,7 +12,7 @@
  * Model: claude-haiku-4-5 (cost-efficient; same model as vehicle parse-text)
  */
 
-import Anthropic from '@anthropic-ai/sdk'
+import { aiClient, AI_MODEL } from '@/lib/ai/client'
 
 const MAX_TEXT_LENGTH = 10_000
 const MIN_TEXT_LENGTH = 50
@@ -45,10 +45,8 @@ Do not include any text outside the JSON object.
 Listing text:
 {text}`
 
-const client = new Anthropic()
-
 /**
- * Extract RE listing fields from pasted listing description text using Claude Haiku.
+ * Extract RE listing fields from pasted listing description text using Gemini Flash Lite.
  *
  * @param text - Raw listing description text (Realtor.com, MLS copy, or any source)
  * @returns Extracted RE fields with import_source set, or null if extraction fails
@@ -63,18 +61,13 @@ export async function parseListingText(
 
   const prompt = RE_TEXT_PROMPT_TEMPLATE.replace('{text}', safeText)
 
-  const message = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+  const response = await aiClient.chat.completions.create({
+    model: AI_MODEL,
     max_tokens: 700,
-    messages: [
-      {
-        role: 'user',
-        content: prompt,
-      },
-    ],
+    messages: [{ role: 'user', content: prompt }],
   })
 
-  const responseText = message.content[0]?.type === 'text' ? message.content[0].text : ''
+  const responseText = response.choices[0]?.message?.content ?? ''
 
   // Extract JSON from model response (handles any leading/trailing prose)
   const start = responseText.indexOf('{')

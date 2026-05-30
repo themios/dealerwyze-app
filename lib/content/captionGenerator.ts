@@ -1,5 +1,5 @@
 import 'server-only'
-import Anthropic from '@anthropic-ai/sdk'
+import { aiClient, AI_MODEL } from '@/lib/ai/client'
 import type { ContentReelProps } from '@/lib/remotion/types'
 
 const PLATFORM_RULES: Record<string, string> = {
@@ -19,24 +19,20 @@ export async function generateContentCaption(
   props: ContentReelProps,
   platform: string,
 ): Promise<string> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) return buildFallbackCaption(props, platform)
+  if (!process.env.OPENROUTER_API_KEY) return buildFallbackCaption(props, platform)
 
   const rules = PLATFORM_RULES[platform] ?? PLATFORM_RULES.instagram
   const slidesSummary = props.slides
     .map((s, i) => `${i + 1}. ${s.headline}${s.body ? ': ' + s.body : ''}`)
     .join('\n')
 
-  const client = new Anthropic({ apiKey })
-
   try {
-    const response = await client.messages.create({
-      model:      'claude-haiku-4-5-20251001',
+    const response = await aiClient.chat.completions.create({
+      model:      AI_MODEL,
       max_tokens: 600,
-      system:     SYSTEM_PROMPT,
-      messages: [{
-        role:    'user',
-        content: `Write a ${platform} caption for this content reel.
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: `Write a ${platform} caption for this content reel.
 
 Topic: ${props.topic}
 ${props.tagline ? `Tagline: ${props.tagline}` : ''}
@@ -46,14 +42,14 @@ CTA: ${props.ctaText}
 Slide content:
 ${slidesSummary}
 
-Platform rules: ${rules}`,
-      }],
+Platform rules: ${rules}` },
+      ],
     })
 
-    const text = response.content[0]
-    if (text.type === 'text') return text.text.trim()
+    const text = response.choices[0]?.message?.content
+    if (text) return text.trim()
   } catch (err) {
-    console.error('[captionGenerator] Anthropic call failed:', err)
+    console.error('[captionGenerator] AI call failed:', err)
   }
 
   return buildFallbackCaption(props, platform)

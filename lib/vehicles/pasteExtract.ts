@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { aiClient, AI_MODEL } from '@/lib/ai/client'
 import { z } from 'zod'
 
 const CAR_MAKES = [
@@ -454,24 +454,17 @@ export function extractVehicleFromPastedTextHeuristically(text: string): Vehicle
   return normalizeExtraction(extraction)
 }
 
-async function extractVehicleFromPastedTextWithAi(text: string, apiKey: string): Promise<VehiclePasteExtraction> {
-  const client = new Anthropic({ apiKey })
-  const response = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+async function extractVehicleFromPastedTextWithAi(text: string): Promise<VehiclePasteExtraction> {
+  const response = await aiClient.chat.completions.create({
+    model: AI_MODEL,
     max_tokens: 700,
-    system: SYSTEM_PROMPT,
     messages: [
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: `${USER_PROMPT}\n\nPasted text:\n${text}` },
-        ],
-      },
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: `${USER_PROMPT}\n\nPasted text:\n${text}` },
     ],
   })
 
-  const content = response.content[0]
-  const reply = content?.type === 'text' ? content.text : ''
+  const reply = response.choices[0]?.message?.content ?? ''
   const start = reply.indexOf('{')
   const end = reply.lastIndexOf('}')
   if (start === -1 || end === -1 || end <= start) {
@@ -499,12 +492,11 @@ export async function extractVehicleFromPastedText(text: string): Promise<Vehicl
     return heuristic
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) {
+  if (!process.env.OPENROUTER_API_KEY) {
     if (hasVehicleIdentity(heuristic)) return heuristic
-    throw new Error('ANTHROPIC_API_KEY not set')
+    throw new Error('OPENROUTER_API_KEY not set')
   }
 
-  const ai = await extractVehicleFromPastedTextWithAi(text, apiKey)
+  const ai = await extractVehicleFromPastedTextWithAi(text)
   return mergeExtractions(heuristic, ai)
 }

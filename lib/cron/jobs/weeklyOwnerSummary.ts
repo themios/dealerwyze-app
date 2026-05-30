@@ -7,7 +7,7 @@
  */
 
 import 'server-only'
-import Anthropic from '@anthropic-ai/sdk'
+import { aiClient, AI_MODEL } from '@/lib/ai/client'
 import { sendNotificationEmail } from '@/lib/email/notify'
 import { computeAttritionScore } from '@/lib/admin/attrition'
 import type { createServiceClient } from '@/lib/supabase/service'
@@ -146,11 +146,10 @@ export async function runWeeklyOwnerSummary(
 
   let aiNarrative = ''
 
-  if (process.env.ANTHROPIC_API_KEY) {
+  if (process.env.OPENROUTER_API_KEY) {
     try {
-      const client = new Anthropic()
-      const msg = await client.messages.create({
-        model:      'claude-haiku-4-5-20251001',
+      const msg = await aiClient.chat.completions.create({
+        model:      AI_MODEL,
         max_tokens: 600,
         messages: [{
           role:    'user',
@@ -163,8 +162,8 @@ Here is the data snapshot for this week:
 ${JSON.stringify(snapshot, null, 2)}`,
         }],
       })
-      const block = msg.content[0]
-      if (block.type === 'text') aiNarrative = block.text
+      const text = msg.choices[0]?.message?.content
+      if (text) aiNarrative = text
     } catch (err) {
       console.error('[weeklyOwnerSummary] AI narrative failed:', err)
     }

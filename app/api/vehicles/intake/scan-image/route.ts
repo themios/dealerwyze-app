@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import Anthropic from '@anthropic-ai/sdk'
-
-const client = new Anthropic()
+import { aiClient, AI_MODEL, imageBlock } from '@/lib/ai/client'
 
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
 const MAX_BYTES = 5 * 1024 * 1024 // 5 MB
@@ -22,38 +20,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unsupported image type' }, { status: 400 })
   }
 
-  // Validate size before processing
   const bytes = Buffer.from(imageBase64, 'base64')
   if (bytes.length > MAX_BYTES) {
     return NextResponse.json({ error: 'Image too large (max 5MB)' }, { status: 400 })
   }
 
   try {
-    const message = await client.messages.create({
-      model: 'claude-opus-4-5',
+    const response = await aiClient.chat.completions.create({
+      model: AI_MODEL,
       max_tokens: 512,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: mimeType as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif',
-                data: imageBase64,
-              },
-            },
-            {
-              type: 'text',
-              text: `Extract vehicle information from this image. Look for: VIN (17-character code), year, make, brand, model, trim level, and odometer/mileage reading. Return ONLY valid JSON with these exact keys (use null if not found): { "vin": string|null, "year": number|null, "make": string|null, "model": string|null, "trim": string|null, "mileage": number|null }. If you see a VIN, include all 17 characters exactly as shown. Do not include any text outside the JSON object.`,
-            },
-          ],
-        },
-      ],
+      messages: [{
+        role: 'user',
+        content: [
+          imageBlock(mimeType, imageBase64),
+          {
+            type: 'text',
+            text: `Extract vehicle information from this image. Look for: VIN (17-character code), year, make, brand, model, trim level, and odometer/mileage reading. Return ONLY valid JSON with these exact keys (use null if not found): { "vin": string|null, "year": number|null, "make": string|null, "model": string|null, "trim": string|null, "mileage": number|null }. If you see a VIN, include all 17 characters exactly as shown. Do not include any text outside the JSON object.`,
+          },
+        ],
+      }],
     })
 
-    const text = message.content[0].type === 'text' ? message.content[0].text : ''
+    const text = response.choices[0]?.message?.content ?? ''
 
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     if (!jsonMatch) {
@@ -78,7 +66,7 @@ export async function POST(req: NextRequest) {
       mileage: extracted.mileage ? parseInt(String(extracted.mileage)) || null : null,
     })
   } catch (err) {
-    console.error('[scan-image] Anthropic error:', err)
+    console.error('[scan-image] error:', err)
     return NextResponse.json({ error: 'Image scan failed' }, { status: 500 })
   }
 }

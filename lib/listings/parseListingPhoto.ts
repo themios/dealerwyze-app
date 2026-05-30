@@ -1,14 +1,13 @@
 /**
- * parseListingPhoto — Claude Vision RE prompt for listing photo/flyer extraction.
+ * parseListingPhoto — Gemini vision prompt for listing photo/flyer extraction.
  *
- * Adapts the vehicle scan-image pattern with an RE-specific prompt.
  * Validates image size (max 5MB) and MIME type before calling the model.
  * Returns extracted RE fields or null if the model cannot parse them.
  *
  * photo_url is NOT returned — photos are managed via vehicle_photos upload.
  */
 
-import Anthropic from '@anthropic-ai/sdk'
+import { aiClient, AI_MODEL, imageBlock } from '@/lib/ai/client'
 
 const ALLOWED_TYPES = new Set<string>(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
 const MAX_BYTES = 5 * 1024 * 1024 // 5 MB
@@ -31,8 +30,6 @@ Return ONLY valid JSON with these exact keys (use null if not found):
 }
 Do not include any text outside the JSON object.`
 
-const client = new Anthropic()
-
 /**
  * Scan a base64 listing photo or flyer and extract RE listing fields.
  *
@@ -53,31 +50,19 @@ export async function parseListingPhoto(
     throw new Error('Image too large (max 5MB). Compress the image and try again.')
   }
 
-  const message = await client.messages.create({
-    model: 'claude-opus-4-5',
+  const response = await aiClient.chat.completions.create({
+    model: AI_MODEL,
     max_tokens: 512,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: mimeType as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif',
-              data: imageBase64,
-            },
-          },
-          {
-            type: 'text',
-            text: RE_PHOTO_PROMPT,
-          },
-        ],
-      },
-    ],
+    messages: [{
+      role: 'user',
+      content: [
+        imageBlock(mimeType, imageBase64),
+        { type: 'text', text: RE_PHOTO_PROMPT },
+      ],
+    }],
   })
 
-  const text = message.content[0]?.type === 'text' ? message.content[0].text : ''
+  const text = response.choices[0]?.message?.content ?? ''
   const jsonMatch = text.match(/\{[\s\S]*\}/)
   if (!jsonMatch) return null
 

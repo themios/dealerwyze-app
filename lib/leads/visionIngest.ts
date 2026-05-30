@@ -1,4 +1,5 @@
 import 'server-only'
+import { aiClient, AI_MODEL, imageBlock } from '@/lib/ai/client'
 import type { LeadScanResult } from './visionIngestTypes'
 export { scanResultToParsedLead } from './scanResultToParsedLead'
 
@@ -95,7 +96,7 @@ Return ONLY this JSON — no markdown, no code fences, no commentary:
   "overall_confidence": "high|medium|low"
 }`
 
-// ── JSON extractor (same pattern as business card scanner) ────────────────────
+// ── JSON extractor ────────────────────────────────────────────────────────────
 
 function parseResponse(text: string): LeadScanResult {
   const start = text.indexOf('{')
@@ -106,82 +107,65 @@ function parseResponse(text: string): LeadScanResult {
   return JSON.parse(text.slice(start, end + 1)) as LeadScanResult
 }
 
-// ── Pasted text scan (Haiku — any format: CarGurus, AutoTrader, OfferUp, generic) ─
+// ── Pasted text scan ──────────────────────────────────────────────────────────
 
 export async function scanLeadText(pastedText: string): Promise<LeadScanResult> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
-  const { default: Anthropic } = await import('@anthropic-ai/sdk')
-  const client = new Anthropic({ apiKey })
-
-  const response = await client.messages.create({
-    model:      'claude-haiku-4-5-20251001',
+  const response = await aiClient.chat.completions.create({
+    model:      AI_MODEL,
     max_tokens: 800,
-    system:     SYSTEM_PROMPT,
-    messages: [{
-      role:    'user',
-      content: `${TEXT_LEAD_PROMPT}\n\n---\nINPUT TEXT:\n${pastedText.slice(0, 8000)}`,
-    }],
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: `${TEXT_LEAD_PROMPT}\n\n---\nINPUT TEXT:\n${pastedText.slice(0, 8000)}` },
+    ],
   })
 
-  const text = response.content[0]?.type === 'text' ? response.content[0].text : ''
+  const text = response.choices[0]?.message?.content ?? ''
   return parseResponse(text)
 }
 
-// ── Image scan (Haiku — fast + cheap) ─────────────────────────────────────────
+// ── Image scan ────────────────────────────────────────────────────────────────
 
 export async function scanLeadImage(
   imageBase64: string,
   mimeType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif',
 ): Promise<LeadScanResult> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
-  const { default: Anthropic } = await import('@anthropic-ai/sdk')
-  const client = new Anthropic({ apiKey })
-
-  const response = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+  const response = await aiClient.chat.completions.create({
+    model: AI_MODEL,
     max_tokens: 600,
-    system: SYSTEM_PROMPT,
-    messages: [{
-      role: 'user',
-      content: [
-        { type: 'image', source: { type: 'base64', media_type: mimeType, data: imageBase64 } },
-        { type: 'text', text: USER_PROMPT },
-      ],
-    }],
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT },
+      {
+        role: 'user',
+        content: [
+          imageBlock(mimeType, imageBase64),
+          { type: 'text', text: USER_PROMPT },
+        ],
+      },
+    ],
   })
 
-  const text = response.content[0]?.type === 'text' ? response.content[0].text : ''
+  const text = response.choices[0]?.message?.content ?? ''
   return parseResponse(text)
 }
 
-// ── PDF scan (Sonnet — better multi-page reasoning) ───────────────────────────
+// ── PDF scan — send as image_url with PDF mime (Gemini supports native PDF) ──
 
 export async function scanLeadPdf(pdfBase64: string): Promise<LeadScanResult> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
-  const { default: Anthropic } = await import('@anthropic-ai/sdk')
-  const client = new Anthropic({ apiKey })
-
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-6',
+  const response = await aiClient.chat.completions.create({
+    model: AI_MODEL,
     max_tokens: 600,
-    system: SYSTEM_PROMPT,
-    messages: [{
-      role: 'user',
-      content: [
-        {
-          type: 'document',
-          source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 },
-          // Limit to first 10 pages to cap cost on large credit apps
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as any,
-        { type: 'text', text: USER_PROMPT },
-      ],
-    }],
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT },
+      {
+        role: 'user',
+        content: [
+          imageBlock('application/pdf', pdfBase64),
+          { type: 'text', text: USER_PROMPT },
+        ],
+      },
+    ],
   })
 
-  const text = response.content[0]?.type === 'text' ? response.content[0].text : ''
+  const text = response.choices[0]?.message?.content ?? ''
   return parseResponse(text)
 }

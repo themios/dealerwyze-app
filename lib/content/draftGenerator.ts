@@ -1,5 +1,6 @@
 import 'server-only'
-import Anthropic from '@anthropic-ai/sdk'
+import { aiClient, AI_MODEL } from '@/lib/ai/client'
+// aiClient is OpenAI-compatible; assigned to `client` below for minimal diff
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { OrgBrandConfig } from './brandConfig'
 
@@ -78,7 +79,7 @@ export async function generateDraftBatch(
     themes?: string[]      // specific themes to use, or all if omitted
   } = {},
 ): Promise<ContentDraft[]> {
-  const client   = new Anthropic()
+  const client   = aiClient
   const count    = options.count ?? 10
   const themes   = options.isBuyerFacing ? BUYER_THEMES : DEALER_THEMES
   const selected = options.themes
@@ -99,14 +100,16 @@ export async function generateDraftBatch(
     }>
 
     try {
-      const response = await client.messages.create({
-        model:      'claude-haiku-4-5-20251001',
+      const response = await client.chat.completions.create({
+        model:      AI_MODEL,
         max_tokens: 4096,
-        system:     buildSystemPrompt(config, options.isBuyerFacing ?? false),
-        messages: [{ role: 'user', content: buildUserPrompt(theme, config, batchSize) }],
+        messages: [
+          { role: 'system', content: buildSystemPrompt(config, options.isBuyerFacing ?? false) },
+          { role: 'user', content: buildUserPrompt(theme, config, batchSize) },
+        ],
       })
 
-      const raw = response.content[0].type === 'text' ? response.content[0].text : '[]'
+      const raw = response.choices[0]?.message?.content ?? '[]'
       // Strip markdown code fences if present
       const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
       scripts = JSON.parse(text)

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
+import { assertCanUseFeature, BillingError } from '@/lib/billing/assertFeature'
 import { createClientForRequest } from '@/lib/supabase/forRequest'
-import Anthropic from '@anthropic-ai/sdk'
+import { aiClient, AI_MODEL } from '@/lib/ai/client'
 
 interface Params { params: Promise<{ id: string }> }
 
@@ -10,16 +11,12 @@ interface MarketInsight {
   topProblems?: string[]
 }
 
-interface AnthropicTextBlock {
-  type: 'text'
-  text: string
-}
-
 export async function POST(_req: NextRequest, { params }: Params) {
   const { id } = await params
 
   try {
     const profile = await requireProfile()
+    await assertCanUseFeature(profile.org_id, 'ai_reanalyze')
     // Auth client (forRequest): RLS enforces org isolation when reading the vehicle for AI input.
     const supabase = await createClientForRequest()
 
@@ -47,8 +44,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: `Cannot generate description for ${isRe ? 'closed' : 'sold'} listing` }, { status: 400 })
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) {
+    if (!process.env.OPENROUTER_API_KEY) {
       return NextResponse.json({ error: 'AI not configured' }, { status: 503 })
     }
 
@@ -116,17 +112,13 @@ RULES:
 - Honest tone. Do not invent service history not stated in the notes or documents.
 - No headers, no markdown, no numbered lines, no blank lines between bullets.`
 
-    const client = new Anthropic({ apiKey })
-    const response = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+    const response = await aiClient.chat.completions.create({
+      model: AI_MODEL,
       max_tokens: 500,
       messages: [{ role: 'user', content: prompt }],
     })
 
-    const firstBlock = response.content[0]
-    const rawText = firstBlock && firstBlock.type === 'text'
-      ? (firstBlock as AnthropicTextBlock).text.trim()
-      : ''
+    const rawText = (response.choices[0]?.message?.content ?? '').trim()
     // Strip any markdown header line (e.g. "# Title\n")
     const description = rawText.replace(/^#+\s+[^\r\n]+[\r\n]+/, '').trim()
     if (!description) {
@@ -141,6 +133,7 @@ RULES:
 
     return NextResponse.json({ description })
   } catch (err: unknown) {
+    if (err instanceof BillingError) return NextResponse.json({ error: err.message }, { status: 402 })
     console.error('[ai-description] error:', err instanceof Error ? err.message : err)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
