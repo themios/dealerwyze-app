@@ -24,10 +24,10 @@ export default function HelpButton({ onOpenPanel }: HelpButtonProps) {
 
   return (
     <>
-      {/* Mobile: Fixed top-right button in header area */}
+      {/* Mobile: Fixed top-right button in header area — offset to avoid overlapping search */}
       <Button
         onClick={onOpenPanel}
-        className="lg:hidden fixed top-3 right-3 w-9 h-9 rounded-full p-0 shadow-md hover:shadow-lg transition-shadow z-30 bg-[#0D2B55] hover:bg-[#1B4A8A] text-white"
+        className="lg:hidden fixed top-3 right-12 w-9 h-9 rounded-full p-0 shadow-md hover:shadow-lg transition-shadow z-30 bg-[#0D2B55] hover:bg-[#1B4A8A] text-white"
         title="Help"
         aria-label="Open help"
       >

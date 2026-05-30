@@ -36,7 +36,7 @@ export default function VehicleIntakeButton() {
         onClick={() => setOpen(true)}
       >
         <Plus className="h-5 w-5" />
-        Add Inventory
+        Add Inv
       </Button>
       <VehicleIntakeSheet open={open} onClose={() => setOpen(false)} />
     </>
