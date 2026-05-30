@@ -177,9 +177,9 @@ export async function sendAutoResponseStep1(args: AutoResponseArgs): Promise<voi
       })
 
       if (!result.ok) {
-        logger.error('[autoRespond] email send failed', result.error, { customerId }, orgId)
+        logger.error('[autoRespond]', 'email send failed', { error: result.error, customerId }, orgId)
       } else {
-        logger.info('[autoRespond] email step 1 sent', { customerId }, orgId)
+        logger.info('[autoRespond]', 'email step 1 sent', { customerId }, orgId)
       }
 
     } else {
@@ -281,7 +281,7 @@ export async function sendAutoResponseStep1(args: AutoResponseArgs): Promise<voi
           .eq('id', enrollmentId),
       ])
 
-      logger.info('[autoRespond] SMS step 1 sent', { customerId }, orgId)
+      logger.info('[autoRespond]', 'SMS step 1 sent', { customerId }, orgId)
     }
 
   } catch (err) {
