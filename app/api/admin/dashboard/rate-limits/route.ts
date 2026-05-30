@@ -7,7 +7,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { requirePlatformSuperAdmin } from '@/lib/auth/platform'
-import { redis } from '@/lib/cron/redis'
 
 interface RateLimitMetric {
   endpoint: string
@@ -66,9 +65,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Check for abuse patterns (would query Redis for spikes)
-    const abusePatterns = [
-      // Example: { org_id: 'xxx', endpoint: 'sms', spike_start: '2026-05-30T14:30:00Z', request_count: 5000 }
-    ]
+    const abusePatterns: never[] = []
 
     // Quota status by plan
     const quotaStatus = [
