@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 import { orgTodayBulkLimiter } from '@/lib/rateLimit/upstash'
-import { buildLostLeadAuditRow } from '@/lib/intelligence/lostLeadAudit'
+import { buildLostLeadAuditRow, type LostLeadAuditInsert } from '@/lib/intelligence/lostLeadAudit'
 
 const bulkSchema = z.object({
   activityIds: z.array(z.string().uuid()).min(1).max(50),
@@ -75,13 +75,14 @@ export async function POST(req: NextRequest) {
           }),
         ))
 
-        if (auditRows.some(row => !row)) {
+        const validAuditRows = auditRows.filter((row): row is LostLeadAuditInsert => row !== null)
+        if (validAuditRows.length === 0) {
           return NextResponse.json({ error: 'Failed to build audit snapshots.' }, { status: 500 })
         }
 
         const { data: inserted, error: insertError } = await supabase
           .from('lost_lead_audit')
-          .insert(auditRows)
+          .insert(validAuditRows)
           .select('id')
 
         if (insertError) {
