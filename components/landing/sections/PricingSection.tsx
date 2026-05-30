@@ -81,20 +81,18 @@ export default function PricingSection() {
             Start free today. No credit card needed.
           </h2>
           <p className="text-base" style={{ color: '#6B6355' }}>
-            We&apos;re in beta - free access while we build together. Paid plans launch when the product is ready.
+            30-day free trial with full access. After trial, choose a plan or use our free tier.
           </p>
         </div>
 
-        {/* Beta notice banner */}
+        {/* Trial & pricing banner */}
         <div className="max-w-3xl mx-auto mb-10 rounded-2xl px-6 py-4 flex items-start gap-3"
           style={{ backgroundColor: '#FFF7ED', border: '1.5px solid #FDBA74' }}>
           <FlaskConical className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#9A3412' }} />
           <div>
-            <p className="text-sm font-black" style={{ color: '#9A3412' }}>Beta Testing Phase</p>
+            <p className="text-sm font-black" style={{ color: '#9A3412' }}>30-Day Free Trial</p>
             <p className="text-sm mt-0.5" style={{ color: '#7C2D12' }}>
-              DealerWyze is in active beta. You get full access at no charge while we refine the product.
-              We&apos;ll give at least 30 days notice before any paid transition, and early beta users will
-              receive a discounted rate when paid plans launch.
+              Full access for 30 days—no credit card required. After your trial ends, continue free with our basic plan (CRM only), or upgrade to Growth ($150/mo with AI) or Pro ($350/mo with phone service).
             </p>
           </div>
         </div>
@@ -112,9 +110,9 @@ export default function PricingSection() {
                 Available Now - Free
               </span>
             </div>
-            <h3 className="text-xl font-black mb-1 text-white">Beta Access</h3>
+            <h3 className="text-xl font-black mb-1 text-white">30-Day Trial</h3>
             <p className="text-sm mb-3" style={{ color: 'rgba(255,255,255,0.65)' }}>
-              Full CRM access during our beta phase
+              Full access to all features
             </p>
             <div className="flex items-end gap-1 mb-4">
               <span className="text-4xl font-black text-white">$0</span>
@@ -138,19 +136,19 @@ export default function PricingSection() {
             </p>
           </div>
 
-          {/* Complete CRM - Coming Soon */}
-          <div className="rounded-2xl p-7 relative flex flex-col opacity-75"
-            style={{ backgroundColor: '#fff', border: `2px solid #D1C9BF`,
-              boxShadow: '0 2px 16px rgba(13,43,85,0.06)' }}>
+          {/* Growth Plan */}
+          <div className="rounded-2xl p-7 relative flex flex-col"
+            style={{ backgroundColor: '#fff', border: `2px solid ${ORANGE}`,
+              boxShadow: `0 2px 16px ${ORANGE}20` }}>
             <div className="mb-5">
               <span className="text-xs font-black uppercase tracking-wide px-3 py-1.5 rounded-full"
-                style={{ backgroundColor: 'rgba(13,43,85,0.08)', color: NAVY }}>
-                Coming Soon
+                style={{ backgroundColor: `${ORANGE}20`, color: ORANGE }}>
+                Popular
               </span>
             </div>
-            <h3 className="text-xl font-black mb-1" style={{ color: NAVY }}>Complete CRM</h3>
+            <h3 className="text-xl font-black mb-1" style={{ color: NAVY }}>Growth</h3>
             <p className="text-sm mb-3" style={{ color: '#6B6355' }}>
-              All-inclusive CRM - SMS, fax, AI tools, BHPH, no add-ons
+              CRM + AI (email, lead scanning, dealer brief, pricing intelligence)
             </p>
             <div className="mb-1">
               <div className="flex items-end gap-1">
@@ -169,25 +167,25 @@ export default function PricingSection() {
                 </li>
               ))}
             </ul>
-            <div className="w-full py-3.5 rounded-xl font-bold text-sm text-center cursor-not-allowed"
-              style={{ backgroundColor: '#E8E2D8', color: '#9A8E85' }}>
-              Available After Beta
-            </div>
+            <button className="w-full py-3.5 rounded-xl font-bold text-sm text-center transition-all hover:opacity-90 active:scale-95"
+              style={{ backgroundColor: ORANGE, color: '#fff' }}>
+              Choose Plan
+            </button>
           </div>
 
-          {/* Complete CRM + Voice - Coming Soon */}
-          <div className="rounded-2xl p-7 relative flex flex-col opacity-75"
+          {/* Pro Plan */}
+          <div className="rounded-2xl p-7 relative flex flex-col"
             style={{ backgroundColor: '#fff', border: `2px solid #D1C9BF`,
               boxShadow: '0 2px 16px rgba(13,43,85,0.06)' }}>
             <div className="mb-5">
               <span className="text-xs font-black uppercase tracking-wide px-3 py-1.5 rounded-full"
                 style={{ backgroundColor: 'rgba(13,43,85,0.08)', color: NAVY }}>
-                Coming Soon
+                Advanced
               </span>
             </div>
-            <h3 className="text-xl font-black mb-1" style={{ color: NAVY }}>CRM + Voice AI</h3>
+            <h3 className="text-xl font-black mb-1" style={{ color: NAVY }}>Pro</h3>
             <p className="text-sm mb-3" style={{ color: '#6B6355' }}>
-              Complete CRM plus a 24/7 AI voice agent that qualifies leads
+              Growth + 24/7 AI voice agent (answers calls, qualifies leads)
             </p>
             <div className="mb-1">
               <div className="flex items-end gap-1">
@@ -218,10 +216,10 @@ export default function PricingSection() {
                 </li>
               ))}
             </ul>
-            <div className="w-full py-3.5 rounded-xl font-bold text-sm text-center cursor-not-allowed"
-              style={{ backgroundColor: '#E8E2D8', color: '#9A8E85' }}>
-              Available After Beta
-            </div>
+            <button className="w-full py-3.5 rounded-xl font-bold text-sm text-center transition-all hover:opacity-90 active:scale-95"
+              style={{ backgroundColor: ORANGE, color: '#fff' }}>
+              Choose Plan
+            </button>
           </div>
         </div>
 
