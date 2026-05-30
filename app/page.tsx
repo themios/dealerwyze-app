@@ -123,7 +123,7 @@ const jsonLd = {
           name: 'How does DealerWyze compare to VinSolutions?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: 'VinSolutions targets large franchise dealers and typically costs $500-$1,500/mo. DealerWyze is built specifically for independent and used car dealers, starting at $150/mo. It includes two-way texting, BHPH payment tracking, receipt scanning, and AI voice leads - features VinSolutions does not offer for small lots.',
+            text: 'VinSolutions targets large franchise dealers and typically costs $500-$1,500/mo. DealerWyze is free during beta and built specifically for independent and used car dealers. It includes two-way texting, BHPH payment tracking, receipt scanning, and AI voice leads - features VinSolutions does not offer for small lots.',
           },
         },
         {
@@ -131,7 +131,7 @@ const jsonLd = {
           name: 'How does DealerWyze compare to AutoRaptor?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: 'AutoRaptor is a lead management tool primarily for independent dealers. DealerWyze covers lead management plus inventory, BHPH, expense tracking, receipt OCR, AI voice answering, and an AI-powered daily Dealer Brief. Pricing starts at $150/mo vs AutoRaptor\'s $400+/mo.',
+            text: 'AutoRaptor is a lead management tool priced at $400+/mo. DealerWyze is free during beta and covers lead management plus inventory, BHPH tracking, receipt OCR, AI voice answering, and an AI-powered daily Dealer Brief - all included.',
           },
         },
         {
@@ -139,7 +139,7 @@ const jsonLd = {
           name: 'How does DealerWyze compare to DealerCenter?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: 'DealerCenter is a full dealer management system (DMS) with F&I and accounting modules, priced at $300-$800+/mo. DealerWyze focuses on customer communication, lead follow-up, and daily operations - a lighter, faster tool that complements or replaces DealerCenter for smaller lots that do not need a full DMS.',
+            text: 'DealerCenter is a full dealer management system (DMS) with F&I and accounting modules, priced at $300-$800+/mo. DealerWyze is free during beta and focuses on customer communication, lead follow-up, and daily operations - a lighter, faster tool that complements smaller lots that do not need a full DMS.',
           },
         },
         {
