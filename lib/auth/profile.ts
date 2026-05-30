@@ -73,14 +73,15 @@ export async function requireProfile(): Promise<Profile> {
   // Cached in Upstash with 5-min TTL to avoid write-amplification on every request.
   const skipWrite = await shouldSkipLastActiveWrite(profile.org_id)
   if (!skipWrite) {
-    await createServiceClient()
-      .from('organizations')
-      .update({ last_active_at: new Date().toISOString() })
-      .eq('id', profile.org_id)
-      .catch(err => {
-        // Log but don't throw — stale last_active_at is not critical
-        console.error('[requireProfile] last_active_at update failed:', err)
-      })
+    try {
+      await createServiceClient()
+        .from('organizations')
+        .update({ last_active_at: new Date().toISOString() })
+        .eq('id', profile.org_id)
+    } catch (err) {
+      // Log but don't throw — stale last_active_at is not critical
+      console.error('[requireProfile] last_active_at update failed:', err)
+    }
   }
 
   return normalizeOwnerRole(profile)
