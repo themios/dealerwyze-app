@@ -186,6 +186,28 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // ── POLICY 4: CSRF Protection ──────────────────────────────────────────────────
+  // For state-mutating requests to /api/*, verify Origin header matches request host.
+  // Webhook prefixes (stripe, twilio, retell, etc.) are excluded — they use signature verification.
+  if (pathname.startsWith('/api/') && MUTATING_METHODS.has(request.method)) {
+    const csrfExemptPrefixes = ['/api/stripe/webhook', '/api/twilio/inbound', '/api/voice/retell-callback', '/api/fax/webhook', '/api/telegram/webhook']
+    const isExempt = csrfExemptPrefixes.some(p => pathname.startsWith(p))
+
+    if (!isExempt) {
+      const origin = request.headers.get('origin') || request.headers.get('referer')?.split('?')[0]
+      const host = request.headers.get('host')
+      const secFetchSite = request.headers.get('sec-fetch-site')
+
+      // Reject if Origin/Referer does not match host, or Sec-Fetch-Site indicates cross-site
+      if (secFetchSite && secFetchSite !== 'same-origin' && secFetchSite !== 'same-site') {
+        return new NextResponse('Forbidden: cross-origin request', { status: 403 })
+      }
+      if (origin && host && !origin.includes(host)) {
+        return new NextResponse('Forbidden: origin mismatch', { status: 403 })
+      }
+    }
+  }
+
   // Pass through all other API routes without auth check, but inject x-vertical
   // so admin API routes can scope queries to the correct product vertical.
   if (pathname.startsWith('/api/')) {
