@@ -263,7 +263,7 @@ function OSHeroSection() {
           <FadeUp delay={0.08}>
             <div className="rounded-[2rem] overflow-hidden shadow-2xl" style={{ background: 'linear-gradient(145deg,#16213e 0%,#0D2B55 100%)', border: '1px solid rgba(255,255,255,0.1)' }}>
               <div className="px-5 py-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.04)' }}>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] mb-1" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] mb-1" style={{ color: 'rgba(255,255,255,0.70)' }}>
                   Running right now
                 </p>
                 <p className="text-white font-black text-lg">DealerWyze handled this while you slept</p>

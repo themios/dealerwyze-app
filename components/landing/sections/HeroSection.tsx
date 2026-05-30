@@ -109,7 +109,7 @@ export default function HeroSection() {
                 <span className="font-semibold">TCPA / CAN-SPAM Compliant</span>
               </a>
             </div>
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm" style={{ color: 'rgba(255,255,255,0.70)' }}>
               <span>Built for independent dealers</span>
               <span>·</span>
               <span>Gmail + IMAP lead import</span>

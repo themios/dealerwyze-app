@@ -21,7 +21,7 @@ export default function Footer() {
             ].map((link) => (
               <a key={link.href} href={link.href}
                 className="text-sm transition-colors hover:text-white"
-                style={{ color: 'rgba(255,255,255,0.45)' }}>
+                style={{ color: 'rgba(255,255,255,0.70)' }}>
                 {link.label}
               </a>
             ))}

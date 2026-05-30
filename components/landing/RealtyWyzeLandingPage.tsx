@@ -456,7 +456,7 @@ export default function RealtyWyzeLandingPage() {
                 style={{ backgroundColor: ORANGE, boxShadow: '0 4px 16px rgba(240,112,24,0.4)' }}>
                 Start Free. No Card Needed.
               </Link>
-              <p className="text-center mt-3 text-xs" style={{ color: 'rgba(255,255,255,0.45)' }}>
+              <p className="text-center mt-3 text-xs" style={{ color: 'rgba(255,255,255,0.70)' }}>
                 No credit card · No commitment
               </p>
             </div>
