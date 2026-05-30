@@ -100,6 +100,15 @@ export default function HeroSection() {
                 See How It Works
               </a>
             </div>
+            <div className="mb-6">
+              <a href="/terms.html#sms-consent" className="inline-flex items-center gap-1 text-xs px-3 py-2 rounded-full"
+                style={{ backgroundColor: 'rgba(240,112,24,0.15)', color: ORANGE }}>
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M6.293 6.293a1 1 0 011.414 0L10 8.586l2.293-2.293a1 1 0 111.414 1.414L11.414 10l2.293 2.293a1 1 0 01-1.414 1.414L10 11.414l-2.293 2.293a1 1 0 01-1.414-1.414L8.586 10 6.293 7.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+                <span className="font-semibold">TCPA / CAN-SPAM Compliant</span>
+              </a>
+            </div>
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>
               <span>Built for independent dealers</span>
               <span>·</span>

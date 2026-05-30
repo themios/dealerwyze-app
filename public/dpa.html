@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Data Processing Addendum — DealerWyze</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 15px; line-height: 1.7; color: #1a1a1a; background: #fff; padding: 24px 16px 64px; }
+    .wrap { max-width: 680px; margin: 0 auto; }
+    a.back { display: inline-block; margin-bottom: 24px; color: #F07018; text-decoration: none; font-size: 14px; }
+    a.back:hover { text-decoration: underline; }
+    h1 { font-size: 26px; font-weight: 700; margin-bottom: 4px; }
+    .meta { font-size: 13px; color: #666; margin-bottom: 32px; }
+    h2 { font-size: 18px; font-weight: 600; margin: 32px 0 10px; }
+    p { margin-bottom: 12px; color: #333; }
+    ul, ol { margin: 8px 0 12px 20px; color: #333; }
+    li { margin-bottom: 6px; }
+    hr { border: none; border-top: 1px solid #e5e5e5; margin: 32px 0; }
+    .footer-note { font-size: 13px; color: #888; margin-top: 40px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="back" href="/">← Back</a>
+
+    <h1>Data Processing Addendum</h1>
+    <p class="meta"><strong>DealerWyze</strong> — <strong>Effective Date: May 30, 2026</strong></p>
+
+    <hr>
+
+    <h2>1. Introduction</h2>
+    <p>This Data Processing Addendum ("DPA") is entered into between KMA Auto Inc, operating as DealerWyze ("Processor"), and the customer who has executed the DealerWyze Terms of Service ("Customer"). This DPA governs the processing of personal data on behalf of Customer under the DealerWyze subscription service.</p>
+    <p>The terms of this DPA are supplementary to and do not modify the DealerWyze Terms of Service. In the event of conflict, the terms of this DPA shall control regarding the processing of personal data.</p>
+
+    <hr>
+
+    <h2>2. Roles and Responsibilities</h2>
+    <p><strong>2.1 Data Controller:</strong> Customer is the "data controller" and is responsible for determining the purposes and means of processing personal data, including customer data entered into DealerWyze.</p>
+    <p><strong>2.2 Data Processor:</strong> Processor acts as a "data processor" and processes personal data solely on behalf of Customer and in accordance with Customer's documented instructions.</p>
+    <p><strong>2.3 Customer Obligations:</strong> Customer is solely responsible for obtaining lawful basis for processing (e.g., consent, contract, legitimate interest) and for complying with all applicable data protection laws.</p>
+
+    <hr>
+
+    <h2>3. Scope of Processing</h2>
+    <p><strong>3.1 Personal Data:</strong> Personal data processed may include customer names, phone numbers, email addresses, mailing addresses, vehicle interests, purchase history, communication logs, and any other personal information Customer provides to DealerWyze.</p>
+    <p><strong>3.2 Purpose:</strong> Processing occurs solely for the purpose of providing the DealerWyze Service, including lead management, customer communication (SMS, email), and appointment scheduling.</p>
+    <p><strong>3.3 Subprocessors:</strong> Processor uses the following subprocessors to provide the Service:</p>
+    <ul>
+      <li>Twilio Inc. — SMS delivery</li>
+      <li>Google LLC — Gmail OAuth integration for lead capture</li>
+      <li>Stripe Inc. — Payment processing (Processor only processes hashed billing info, not card data)</li>
+      <li>Supabase Inc. — Database and file storage, hosting in the United States</li>
+      <li>Vercel Inc. — Application hosting</li>
+    </ul>
+    <p>Customer authorizes Processor to use these subprocessors. Processor remains liable to Customer for subprocessor performance.</p>
+
+    <hr>
+
+    <h2>4. Data Security</h2>
+    <p><strong>4.1 Security Measures:</strong> Processor implements the following technical and organizational measures to protect personal data:</p>
+    <ul>
+      <li>Encryption in transit using TLS 1.2 or higher</li>
+      <li>Encryption at rest using AES-256</li>
+      <li>Access controls with multi-factor authentication for personnel</li>
+      <li>Row-level database security (RLS) enforced so each Customer can only access its own data</li>
+      <li>Regular security audits and vulnerability scanning</li>
+      <li>Incident response procedures</li>
+    </ul>
+    <p><strong>4.2 Data Breach Notification:</strong> In the event of a confirmed data breach, Processor will notify Customer without undue delay and provide information necessary for Customer to meet its regulatory obligations.</p>
+
+    <hr>
+
+    <h2>5. Customer Rights and Data Subject Rights</h2>
+    <p><strong>5.1 Data Subject Requests:</strong> Processor will, at Customer's request and upon reasonable notice, assist Customer in responding to data subject access requests, deletion requests, correction requests, and other rights under applicable data protection laws (e.g., CCPA, GDPR).</p>
+    <p><strong>5.2 Tools Provided:</strong> DealerWyze provides built-in tools for Customer to exercise rights on behalf of its customers, including data export and deletion capabilities accessible within the application.</p>
+
+    <hr>
+
+    <h2>6. International Data Transfers</h2>
+    <p><strong>6.1:</strong> All data is processed and stored in the United States. Processor will not transfer personal data outside the United States without Customer's prior written consent and implementation of appropriate safeguards required by law.</p>
+
+    <hr>
+
+    <h2>7. Data Retention</h2>
+    <p><strong>7.1:</strong> Personal data is retained for the duration of the DealerWyze subscription. Upon account cancellation, Customer's data is retained for ninety (90) calendar days, after which it is permanently deleted from production systems. Backup copies may be retained up to sixty (60) days post-deletion in accordance with the Privacy Policy.</p>
+
+    <hr>
+
+    <h2>8. Audit Rights</h2>
+    <p><strong>8.1:</strong> Upon reasonable request and at Customer's expense, Processor will make available information necessary for Customer to verify Processor's compliance with this DPA, including upon-request audit reports, privacy impact assessments, and security documentation.</p>
+
+    <hr>
+
+    <h2>9. Liability and Indemnification</h2>
+    <p><strong>9.1:</strong> Processor's liability regarding the processing of personal data is limited to the scope of the DealerWyze Terms of Service, Section 14 (Limitation of Liability).</p>
+
+    <hr>
+
+    <h2>10. Termination</h2>
+    <p><strong>10.1:</strong> Upon termination or expiration of the DealerWyze Terms of Service, this DPA automatically terminates. Customer is responsible for verifying data deletion in accordance with Section 7.</p>
+
+    <hr>
+
+    <h2>11. Contact</h2>
+    <p>For questions regarding this Data Processing Addendum or Processor's handling of personal data, contact:<br><br>
+    <strong>KMA Auto Inc</strong><br>
+    Email: <a href="mailto:privacy@dealerwyze.com">privacy@dealerwyze.com</a></p>
+
+    <p class="footer-note"><em>This Data Processing Addendum was last updated on May 30, 2026.</em></p>
+  </div>
+</body>
+</html>
