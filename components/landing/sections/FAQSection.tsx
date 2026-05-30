@@ -79,16 +79,19 @@ export default function FAQSection() {
               style={{ backgroundColor: '#FDFAF7', border: '1px solid #E8E2D8',
                 boxShadow: '0 1px 6px rgba(13,43,85,0.05)' }}>
               <button
+                id={`faq-button-${i}`}
                 className="w-full text-left px-6 py-4 flex items-center justify-between gap-4 hover:bg-gray-50 transition-colors"
-                onClick={() => setOpen(open === i ? null : i)}>
+                onClick={() => setOpen(open === i ? null : i)}
+                aria-expanded={open === i}
+                aria-controls={`faq-item-${i}`}>
                 <span className="font-black text-sm" style={{ color: NAVY }}>{faq.q}</span>
-                <span className="text-xl font-black flex-shrink-0 transition-transform duration-200"
+                <span className="text-xl font-black flex-shrink-0 transition-transform duration-200" aria-hidden="true"
                   style={{ color: ORANGE, transform: open === i ? 'rotate(45deg)' : 'none' }}>
                   +
                 </span>
               </button>
               {open === i && (
-                <div className="px-6 pb-5">
+                <div id={`faq-item-${i}`} className="px-6 pb-5" role="region" aria-labelledby={`faq-button-${i}`}>
                   <p className="text-sm leading-relaxed" style={{ color: '#3D3530' }}>{faq.a}</p>
                 </div>
               )}
