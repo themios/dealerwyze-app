@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
 
   const { data: org } = await supabase
     .from('organizations')
-    .select('name')
+    .select('name, vertical')
     .eq('id', orgId)
     .single()
 
@@ -46,6 +46,7 @@ export async function POST(req: NextRequest) {
       hoursStart:   settings.voice_business_hours_start ?? '09:00',
       hoursEnd:     settings.voice_business_hours_end   ?? '19:00',
       dealerCell:   settings.dealer_cell_number         ?? '',
+      vertical:     org?.vertical ?? 'dealer',
     })
     return NextResponse.json(result)
   } catch (e) {

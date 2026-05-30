@@ -38,23 +38,38 @@ function buildPrompt(
   hoursStart:   string,
   hoursEnd:     string,
   dealerCell:   string,
+  vertical:     'dealer' | 'real_estate' = 'dealer',
 ): string {
-  return `You are the AI phone receptionist for ${businessName}, a used car dealership.
+  const businessType = vertical === 'real_estate' ? 'real estate agency' : 'used car dealership'
+  const vehicleInstructions = vertical === 'real_estate'
+    ? '2. If they\'re asking about a property: ask for location/type of interest, check MLS listings if you have the tool, and share availability.'
+    : '2. If they\'re asking about a vehicle: ask for make/model/year of interest, check live inventory if you have the tool, and share availability.'
+  const collectionItems = vertical === 'real_estate'
+    ? 'caller name, callback phone number, property interests (location, type, budget), and preferred appointment time.'
+    : 'caller name, callback phone number, vehicle interest, and preferred appointment time.'
+
+  return `You are the AI phone receptionist for ${businessName}, a ${businessType}.
+
+IMPORTANT: At the start of the call, you must inform the caller that the call is being recorded.
+Say: "Thank you for calling ${businessName}. Please note that this call is being recorded for quality and training purposes. How can I help you today?"
 
 Your goals on each call:
-1. Greet the caller warmly and ask how you can help.
-2. If they're asking about a vehicle: ask for make/model/year of interest, check live inventory if you have the tool, and share availability.
-3. If they want to reach someone: let them know a salesperson will call back shortly.
-4. Always collect: caller name, callback phone number, vehicle interest, and preferred appointment time.
+1. Greet the caller warmly and inform them of recording (see above).
+${vehicleInstructions}
+3. If they want to reach someone: let them know a team member will call back shortly.
+4. Always collect: ${collectionItems}
 
 Business hours: ${hoursStart} – ${hoursEnd}.
-${dealerCell ? `Sales team direct: ${dealerCell}.` : ''}
+${dealerCell ? `Team direct: ${dealerCell}.` : ''}
 
 Rules:
-- Never quote financing, monthly payments, or out-the-door prices without sales team confirmation.
-- For listing prices, share only the advertised price and say "final price confirmed with sales team."
+- Never quote financing, monthly payments, or out-the-door prices without team confirmation.
+${vertical === 'real_estate'
+  ? '- For listing information, share only publicly available MLS data and say "I can arrange a showing with my team."'
+  : '- For listing prices, share only the advertised price and say "final price confirmed with sales team."'}
 - Keep all responses under 30 words when possible.
-- Be friendly, professional, and concise.`
+- Be friendly, professional, and concise.
+- Honor STOP/STOP RECORDING requests if the caller explicitly asks to opt out of recording.`
 }
 
 /**
@@ -69,6 +84,7 @@ export async function provisionVoiceAgent(
     hoursStart:   string
     hoursEnd:     string
     dealerCell:   string
+    vertical?:    'dealer' | 'real_estate'
   },
 ): Promise<{ llmId: string; agentId: string }> {
   const supabase = createServiceClient()
@@ -84,8 +100,8 @@ export async function provisionVoiceAgent(
     return { agentId: existing.retell_agent_id, llmId: existing.retell_llm_id }
   }
 
-  // 1. Create LLM (org-specific prompt)
-  const prompt = buildPrompt(opts.businessName, opts.hoursStart, opts.hoursEnd, opts.dealerCell)
+  // 1. Create LLM (org-specific prompt with recording disclosure)
+  const prompt = buildPrompt(opts.businessName, opts.hoursStart, opts.hoursEnd, opts.dealerCell, opts.vertical)
   const llm = await retellPost('/create-retell-llm', {
     general_prompt: prompt,
     begin_message:  `Thank you for calling ${opts.businessName}. How can I help you today?`,
