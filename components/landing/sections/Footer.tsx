@@ -20,8 +20,8 @@ export default function Footer() {
               { label: 'Sign In',  href: '/login'     },
             ].map((link) => (
               <a key={link.href} href={link.href}
-                className="text-sm transition-colors hover:text-white"
-                style={{ color: 'rgba(255,255,255,0.70)' }}>
+                className="text-sm transition-colors hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 rounded"
+                style={{ color: 'rgba(255,255,255,0.70)', outlineColor: 'rgba(255,255,255,0.8)' }}>
                 {link.label}
               </a>
             ))}

@@ -89,14 +89,14 @@ export default function HeroSection() {
             </p>
             <div className="flex flex-col sm:flex-row gap-3 mb-6">
               <Link href="/signup"
-                className="inline-flex items-center justify-center gap-2 px-7 py-4 rounded-xl font-bold text-base text-white transition-all hover:opacity-90 active:scale-95 shadow-lg"
-                style={{ backgroundColor: ORANGE, boxShadow: '0 4px 20px rgba(240,112,24,0.4)' }}>
+                className="inline-flex items-center justify-center gap-2 px-7 py-4 rounded-xl font-bold text-base text-white transition-all hover:opacity-90 active:scale-95 shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                style={{ backgroundColor: ORANGE, boxShadow: '0 4px 20px rgba(240,112,24,0.4)', outlineColor: 'rgba(255,255,255,0.8)' }}>
                 Start Free, No Card
                 <ChevronRight className="w-4 h-4" />
               </Link>
               <a href="#how-it-works"
-                className="inline-flex items-center justify-center gap-2 px-7 py-4 rounded-xl font-semibold text-base transition-all hover:bg-white/10 border"
-                style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.35)' }}>
+                className="inline-flex items-center justify-center gap-2 px-7 py-4 rounded-xl font-semibold text-base transition-all hover:bg-white/10 border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.35)', outlineColor: 'rgba(255,255,255,0.8)' }}>
                 See How It Works
               </a>
             </div>

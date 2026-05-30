@@ -80,7 +80,8 @@ export default function FAQSection() {
                 boxShadow: '0 1px 6px rgba(13,43,85,0.05)' }}>
               <button
                 id={`faq-button-${i}`}
-                className="w-full text-left px-6 py-4 flex items-center justify-between gap-4 hover:bg-gray-50 transition-colors"
+                className="w-full text-left px-6 py-4 flex items-center justify-between gap-4 hover:bg-gray-50 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                style={{ outlineColor: NAVY }}
                 onClick={() => setOpen(open === i ? null : i)}
                 aria-expanded={open === i}
                 aria-controls={`faq-item-${i}`}>
@@ -101,8 +102,8 @@ export default function FAQSection() {
         <p className="text-center mt-8 text-sm" style={{ color: '#6B6355' }}>
           Still have questions?{' '}
           <a href="mailto:support@dealerwyze.com"
-            className="underline underline-offset-2 hover:opacity-70 transition-opacity font-semibold"
-            style={{ color: NAVY }}>
+            className="underline underline-offset-2 hover:opacity-70 transition-opacity font-semibold focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 rounded"
+            style={{ color: NAVY, outlineColor: NAVY }}>
             support@dealerwyze.com
           </a>
         </p>

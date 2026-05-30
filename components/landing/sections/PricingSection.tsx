@@ -129,8 +129,8 @@ export default function PricingSection() {
               ))}
             </ul>
             <Link href="/signup"
-              className="w-full py-3.5 rounded-xl font-bold text-sm text-white text-center transition-all hover:opacity-90 active:scale-95"
-              style={{ backgroundColor: ORANGE, boxShadow: '0 4px 16px rgba(240,112,24,0.4)' }}>
+              className="w-full py-3.5 rounded-xl font-bold text-sm text-white text-center transition-all hover:opacity-90 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+              style={{ backgroundColor: ORANGE, boxShadow: '0 4px 16px rgba(240,112,24,0.4)', outlineColor: 'rgba(255,255,255,0.8)' }}>
               Start Free - No Card Needed
             </Link>
             <p className="text-center mt-3 text-xs" style={{ color: 'rgba(255,255,255,0.70)' }}>
@@ -228,8 +228,8 @@ export default function PricingSection() {
         <p className="text-center mt-8 text-sm" style={{ color: '#6B6355' }}>
           Questions?{' '}
           <a href="mailto:support@dealerwyze.com"
-            className="underline underline-offset-2 hover:opacity-70 transition-opacity"
-            style={{ color: NAVY }}>
+            className="underline underline-offset-2 hover:opacity-70 transition-opacity focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 rounded"
+            style={{ color: NAVY, outlineColor: NAVY }}>
             support@dealerwyze.com
           </a>
         </p>
