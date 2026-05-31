@@ -52,7 +52,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const { data: listing } = await supabase
     .from('vehicles')
-    .select('address_line1, city, state, price, property_type, bedrooms, bathrooms, sqft')
+    .select('address_line1, city, state, price, property_type, bedrooms, bathrooms, sqft, photo_url, description')
     .eq('id', id)
     .eq('user_id', org.id)
     .maybeSingle()
@@ -66,9 +66,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   ].filter(Boolean).join(', ')
 
   return {
-    title: `${addr || 'Listing'} - ${org.name}`,
-    description: `${propTypeLabel(listing.property_type)}${details ? ' - ' + details : ''} listed at ${formatPrice(listing.price)} by ${org.name}`,
+    title: `${addr || 'Listing'} - ${formatPrice(listing.price)} - ${org.name}`,
+    description: listing.description || `${propTypeLabel(listing.property_type)}${details ? ' - ' + details : ''} listed at ${formatPrice(listing.price)} by ${org.name}`,
     robots: org.website_robots_noindex ? { index: false, follow: false } : { index: true, follow: true },
+    openGraph: {
+      title: `${addr} - ${formatPrice(listing.price)}`,
+      description: listing.description || `${propTypeLabel(listing.property_type)}${details ? ' - ' + details : ''}`,
+      type: 'website',
+      images: listing.photo_url ? [{ url: listing.photo_url, width: 1200, height: 628 }] : [],
+    },
   }
 }
 
@@ -86,7 +92,7 @@ export default async function ListingDetailPage({ params }: Props) {
 
   const { data: listing } = await supabase
     .from('vehicles')
-    .select('id, photo_url, price, property_type, bedrooms, bathrooms, sqft, lot_size, year_built, address_line1, city, state, zip, school_district, subdivision, mls_number, listing_type, hoa_monthly, showing_instructions, ai_description, notes, status')
+    .select('id, photo_url, price, property_type, bedrooms, bathrooms, sqft, lot_size, year_built, address_line1, city, state, zip, school_district, subdivision, mls_number, listing_type, hoa_monthly, showing_instructions, ai_description, description, notes, status, dom, listing_status, price_history, mls_synced_at, mls_source')
     .eq('id', id)
     .eq('user_id', org.id)
     .maybeSingle()
@@ -131,7 +137,7 @@ export default async function ListingDetailPage({ params }: Props) {
         {listing.property_type && <span>{propTypeLabel(listing.property_type)}</span>}
       </div>
 
-      {/* Details */}
+      {/* MLS & Status Details */}
       <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm text-gray-700 mb-6">
         {listing.listing_type && (
           <>
@@ -142,7 +148,19 @@ export default async function ListingDetailPage({ params }: Props) {
         {listing.mls_number && (
           <>
             <dt className="text-gray-500">MLS #</dt>
-            <dd className="font-mono">{listing.mls_number}</dd>
+            <dd className="font-mono font-semibold">{listing.mls_number}</dd>
+          </>
+        )}
+        {listing.mls_source && listing.mls_source === 'bridge' && listing.listing_status && (
+          <>
+            <dt className="text-gray-500">MLS Status</dt>
+            <dd className="capitalize">{listing.listing_status}</dd>
+          </>
+        )}
+        {listing.dom != null && (
+          <>
+            <dt className="text-gray-500">Days on Market</dt>
+            <dd>{listing.dom} day{listing.dom !== 1 ? 's' : ''}</dd>
           </>
         )}
         {listing.hoa_monthly != null && (
@@ -165,12 +183,12 @@ export default async function ListingDetailPage({ params }: Props) {
         )}
       </dl>
 
-      {/* Description */}
-      {(listing.ai_description || listing.notes) && (
+      {/* Description — prioritize MLS description if available */}
+      {(listing.description || listing.ai_description || listing.notes) && (
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-2">About this property</h2>
           <p className="text-gray-700 leading-relaxed whitespace-pre-line">
-            {listing.ai_description || listing.notes}
+            {listing.description || listing.ai_description || listing.notes}
           </p>
         </div>
       )}

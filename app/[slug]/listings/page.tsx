@@ -94,28 +94,37 @@ export default async function PublicListingsPage({ params }: Props) {
 
   const { data: listings } = await supabase
     .from('vehicles')
-    .select('id, photo_url, price, property_type, bedrooms, bathrooms, sqft, address_line1, city, state, zip, mls_number, status')
+    .select('id, photo_url, price, property_type, bedrooms, bathrooms, sqft, address_line1, city, state, zip, mls_number, status, mls_synced_at, dom')
     .eq('user_id', org.id)
     .in('status', ['available', 'pending'])
-    .order('created_at', { ascending: false })
     .limit(100)
+
+  // Sort listings: MLS first (by mls_synced_at DESC), then manual listings (by created_at DESC)
+  const sortedListings = listings
+    ? [...listings].sort((a, b) => {
+        const aMls = a.mls_synced_at ? 1 : 0
+        const bMls = b.mls_synced_at ? 1 : 0
+        if (aMls !== bMls) return bMls - aMls
+        return 0
+      })
+    : []
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">{org.name}</h1>
         {org.website_tagline && <p className="text-gray-600 mt-1">{org.website_tagline}</p>}
-        <p className="text-sm text-gray-500 mt-2">{listings?.length ?? 0} active listing{listings?.length !== 1 ? 's' : ''}</p>
+        <p className="text-sm text-gray-500 mt-2">{sortedListings?.length ?? 0} active listing{sortedListings?.length !== 1 ? 's' : ''}</p>
       </div>
 
-      {!listings?.length ? (
+      {!sortedListings?.length ? (
         <div className="text-center py-16 text-gray-500">
           <p className="text-lg font-medium">No active listings right now.</p>
           <p className="text-sm mt-2">Check back soon or contact us directly.</p>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {listings.map((v) => (
+          {sortedListings.map((v) => (
             <Link key={v.id} href={`/${slugNorm}/listings/${v.id}`} className="group block rounded-lg overflow-hidden border border-gray-200 hover:shadow-md transition-shadow bg-white">
               <div className="aspect-[4/3] bg-gray-100 overflow-hidden">
                 {v.photo_url ? (
@@ -140,7 +149,10 @@ export default async function PublicListingsPage({ params }: Props) {
                   <span className="text-xs text-gray-400">{propTypeLabel(v.property_type)}</span>
                 </div>
                 {v.mls_number && (
-                  <p className="text-xs text-gray-400 mt-1">MLS# {v.mls_number}</p>
+                  <div className="flex items-center justify-between mt-1">
+                    <p className="text-xs text-gray-400">MLS# {v.mls_number}</p>
+                    {v.dom != null && <p className="text-xs text-gray-400">{v.dom}d</p>}
+                  </div>
                 )}
               </div>
             </Link>
