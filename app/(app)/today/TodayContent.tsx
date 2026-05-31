@@ -28,6 +28,7 @@ import VehicleMatchCard from '@/components/leads/VehicleMatchCard'
 import EmailFollowUpItem from '@/components/leads/EmailFollowUpItem'
 import AppointmentRequestCard from '@/components/today/AppointmentRequestCard'
 import UpcomingAppointmentsList, { type UpcomingAppointmentItem } from '@/components/appointments/UpcomingAppointmentsList'
+import ShowingRequestsCard from '@/components/today/ShowingRequestsCard'
 import type { AtRiskLeadItem } from '@/lib/today/atRisk'
 import TodaySummaryStrip from '@/components/today/TodaySummaryStrip'
 import TodayFilterChips, { type TodayFilter } from '@/components/today/TodayFilterChips'
@@ -1081,6 +1082,7 @@ export default function TodayContent({
           appointments={upcomingAppointments}
         />
 
+        <ShowingRequestsCard />
         {atRisk.length > 0 && (
           <section className="space-y-2 rounded-xl border border-amber-200/80 bg-amber-50/40 p-3 dark:border-amber-900/50 dark:bg-amber-950/20">
             <div className="flex items-center justify-between gap-2">
