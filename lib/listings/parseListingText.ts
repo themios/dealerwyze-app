@@ -12,7 +12,7 @@
  * Model: claude-haiku-4-5 (cost-efficient; same model as vehicle parse-text)
  */
 
-import { aiClient, AI_MODEL } from '@/lib/ai/client'
+import { getAiClient, AI_MODEL } from '@/lib/ai/client'
 
 const MAX_TEXT_LENGTH = 10_000
 const MIN_TEXT_LENGTH = 50
@@ -61,7 +61,7 @@ export async function parseListingText(
 
   const prompt = RE_TEXT_PROMPT_TEMPLATE.replace('{text}', safeText)
 
-  const response = await aiClient.chat.completions.create({
+  const response = await getAiClient().chat.completions.create({
     model: AI_MODEL,
     max_tokens: 700,
     messages: [{ role: 'user', content: prompt }],

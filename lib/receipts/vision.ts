@@ -1,4 +1,4 @@
-import { aiClient, AI_MODEL, imageBlock } from '@/lib/ai/client'
+import { getAiClient, AI_MODEL, imageBlock } from '@/lib/ai/client'
 
 export interface ReceiptExtraction {
   vendor_raw: string | null
@@ -84,7 +84,7 @@ CONSTRAINTS:
 - Only use category_id values from the list provided above
 - If vendor/date/total is unclear, add a flag to data_quality_flags`
 
-  const response = await aiClient.chat.completions.create({
+  const response = await getAiClient().chat.completions.create({
     model: AI_MODEL,
     max_tokens: 900,
     messages: [

@@ -1,4 +1,4 @@
-import { aiClient, AI_MODEL, imageBlock } from '@/lib/ai/client'
+import { getAiClient, AI_MODEL, imageBlock } from '@/lib/ai/client'
 import { createServiceClient } from '@/lib/supabase/service'
 
 /**
@@ -31,7 +31,7 @@ export async function summarizeVehicleDoc(
     const arrayBuffer = await blob.arrayBuffer()
     const base64 = Buffer.from(arrayBuffer).toString('base64')
 
-    const response = await aiClient.chat.completions.create({
+    const response = await getAiClient().chat.completions.create({
       model: AI_MODEL,
       max_tokens: 300,
       messages: [{

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { assertCanUseFeature, BillingError } from '@/lib/billing/assertFeature'
 import { createClientForRequest } from '@/lib/supabase/forRequest'
-import { aiClient, AI_MODEL } from '@/lib/ai/client'
+import { getAiClient, AI_MODEL } from '@/lib/ai/client'
 
 interface Params { params: Promise<{ id: string }> }
 
@@ -112,7 +112,7 @@ RULES:
 - Honest tone. Do not invent service history not stated in the notes or documents.
 - No headers, no markdown, no numbered lines, no blank lines between bullets.`
 
-    const response = await aiClient.chat.completions.create({
+    const response = await getAiClient().chat.completions.create({
       model: AI_MODEL,
       max_tokens: 500,
       messages: [{ role: 'user', content: prompt }],

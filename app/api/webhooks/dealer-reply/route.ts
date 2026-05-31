@@ -1,9 +1,15 @@
 /*
- * Resend inbound setup (one-time, done in Resend dashboard):
+ * Resend inbound email webhook (signed header auth).
+ *
+ * Setup (one-time, done in Resend dashboard):
  * 1. Add reply.dealerwyze.com as an inbound domain (add MX records to DNS)
  * 2. Create routing rule: *@reply.dealerwyze.com →
- *    POST https://app.dealerwyze.com/api/webhooks/dealer-reply?secret={RESEND_INBOUND_SECRET}
- * 3. Set RESEND_INBOUND_SECRET and RESEND_REPLY_DOMAIN in environment variables.
+ *    POST https://app.dealerwyze.com/api/webhooks/dealer-reply
+ * 3. Note the signing secret Resend displays (store as RESEND_INBOUND_SECRET)
+ * 4. Set RESEND_INBOUND_SECRET and RESEND_REPLY_DOMAIN in environment variables.
+ *
+ * Auth: Validates HMAC-SHA256(rawBody, RESEND_INBOUND_SECRET) against x-resend-signature header.
+ * Includes 5-minute timestamp replay protection via x-resend-timestamp header.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -26,13 +32,41 @@ interface ResendInboundPayload {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-function safeEqual(a: string, b: string): boolean {
-  if (!a || !b) return false
+/**
+ * Validate Resend signature: HMAC-SHA256(rawBody, secret) as hex.
+ * Includes 5-minute replay protection via timestamp header.
+ */
+function validateResendSignature(
+  secret: string,
+  rawBody: string,
+  sigHeader: string,
+  timestampHeader: string
+): boolean {
+  // Parse signature header (format: "t=<timestamp>,v1=<signature>")
+  const parts = Object.fromEntries(
+    sigHeader.split(',').map(p => {
+      const idx = p.indexOf('=')
+      return idx === -1 ? [p, ''] : [p.slice(0, idx), p.slice(idx + 1)]
+    })
+  )
+  const ts = parts['t'] ?? timestampHeader
+  const sig = parts['v1'] ?? parts['signature']
+
+  if (!ts || !sig) return false
+
+  // Reject timestamps older than 5 minutes
+  const tsMs = Number(ts)
+  if (!Number.isFinite(tsMs)) return false
+  if (Math.abs(Date.now() - tsMs) > 5 * 60 * 1000) return false
+
+  // Compute HMAC-SHA256 over rawBody
+  const expected = crypto
+    .createHmac('sha256', secret)
+    .update(rawBody)
+    .digest('hex')
+
   try {
-    const bufA = Buffer.from(a)
-    const bufB = Buffer.from(b)
-    if (bufA.length !== bufB.length) return false
-    return crypto.timingSafeEqual(bufA, bufB)
+    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig))
   } catch {
     return false
   }
@@ -53,14 +87,38 @@ function escapeHtml(text: string): string {
 
 export async function POST(req: NextRequest) {
   const secret = process.env.RESEND_INBOUND_SECRET ?? ''
-  const incoming = req.nextUrl.searchParams.get('secret') ?? ''
-  if (!safeEqual(secret, incoming)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 400 })
+  if (!secret) {
+    console.error('[dealer-reply] RESEND_INBOUND_SECRET not configured')
+    return NextResponse.json({ error: 'Service misconfigured' }, { status: 503 })
+  }
+
+  // Read raw body for signature validation
+  const rawBody = await req.text()
+
+  // Validate signed header + timestamp replay protection
+  const sigHeader = req.headers.get('x-resend-signature') ?? ''
+  const tsHeader = req.headers.get('x-resend-timestamp') ?? ''
+  if (!validateResendSignature(secret, rawBody, sigHeader, tsHeader)) {
+    // Log signature failure for security monitoring
+    void writeAuditLog({
+      orgId:      null,
+      actorId:    null,
+      actorType:  'staff',
+      action:     'webhook_auth_failure',
+      entityType: 'webhook',
+      entityId:   'dealer-reply',
+      metadata:   {
+        path:   '/api/webhooks/dealer-reply',
+        reason: 'invalid_signature',
+        ip:     req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? null,
+      },
+    })
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   let payload: ResendInboundPayload | null
   try {
-    payload = await req.json() as ResendInboundPayload
+    payload = JSON.parse(rawBody) as ResendInboundPayload
   } catch {
     payload = null
   }

@@ -34,6 +34,9 @@ vi.mock('@/lib/auth/staffSession', () => ({
 vi.mock('@/lib/audit/orgAudit', () => ({
   logOrgAudit: vi.fn().mockResolvedValue(undefined),
 }))
+vi.mock('@/lib/admin/verticalScope', () => ({
+  getAdminVerticalScope: vi.fn().mockResolvedValue({ orgIds: ['org-target'] }),
+}))
 vi.mock('next/headers', () => ({
   cookies: vi.fn().mockResolvedValue({ get: vi.fn() }),
 }))

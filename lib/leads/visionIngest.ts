@@ -1,5 +1,5 @@
 import 'server-only'
-import { aiClient, AI_MODEL, imageBlock } from '@/lib/ai/client'
+import { getAiClient, AI_MODEL, imageBlock } from '@/lib/ai/client'
 import type { LeadScanResult } from './visionIngestTypes'
 export { scanResultToParsedLead } from './scanResultToParsedLead'
 
@@ -110,7 +110,7 @@ function parseResponse(text: string): LeadScanResult {
 // ── Pasted text scan ──────────────────────────────────────────────────────────
 
 export async function scanLeadText(pastedText: string): Promise<LeadScanResult> {
-  const response = await aiClient.chat.completions.create({
+  const response = await getAiClient().chat.completions.create({
     model:      AI_MODEL,
     max_tokens: 800,
     messages: [
@@ -129,7 +129,7 @@ export async function scanLeadImage(
   imageBase64: string,
   mimeType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif',
 ): Promise<LeadScanResult> {
-  const response = await aiClient.chat.completions.create({
+  const response = await getAiClient().chat.completions.create({
     model: AI_MODEL,
     max_tokens: 600,
     messages: [
@@ -151,7 +151,7 @@ export async function scanLeadImage(
 // ── PDF scan — send as image_url with PDF mime (Gemini supports native PDF) ──
 
 export async function scanLeadPdf(pdfBase64: string): Promise<LeadScanResult> {
-  const response = await aiClient.chat.completions.create({
+  const response = await getAiClient().chat.completions.create({
     model: AI_MODEL,
     max_tokens: 600,
     messages: [

@@ -1,6 +1,5 @@
 import 'server-only'
-import { aiClient, AI_MODEL } from '@/lib/ai/client'
-// aiClient is OpenAI-compatible; assigned to `client` below for minimal diff
+import { getAiClient, AI_MODEL } from '@/lib/ai/client'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { OrgBrandConfig } from './brandConfig'
 
@@ -79,7 +78,7 @@ export async function generateDraftBatch(
     themes?: string[]      // specific themes to use, or all if omitted
   } = {},
 ): Promise<ContentDraft[]> {
-  const client   = aiClient
+  const client   = getAiClient()
   const count    = options.count ?? 10
   const themes   = options.isBuyerFacing ? BUYER_THEMES : DEALER_THEMES
   const selected = options.themes

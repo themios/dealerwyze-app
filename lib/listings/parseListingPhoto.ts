@@ -7,7 +7,7 @@
  * photo_url is NOT returned — photos are managed via vehicle_photos upload.
  */
 
-import { aiClient, AI_MODEL, imageBlock } from '@/lib/ai/client'
+import { getAiClient, AI_MODEL, imageBlock } from '@/lib/ai/client'
 
 const ALLOWED_TYPES = new Set<string>(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
 const MAX_BYTES = 5 * 1024 * 1024 // 5 MB
@@ -50,7 +50,7 @@ export async function parseListingPhoto(
     throw new Error('Image too large (max 5MB). Compress the image and try again.')
   }
 
-  const response = await aiClient.chat.completions.create({
+  const response = await getAiClient().chat.completions.create({
     model: AI_MODEL,
     max_tokens: 512,
     messages: [{

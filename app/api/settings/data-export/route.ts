@@ -79,11 +79,11 @@ export async function GET(req: NextRequest) {
       .order('created_at', { ascending: true })
       .limit(10000)
 
-    // Vehicles
+    // Vehicles (scoped by user_id = org, not org_id; migration 195 note)
     const { data: vehicles } = await supabase
       .from('vehicles')
       .select('id, year, make, model, trim, vin, mileage, price, status, color, interior_color, body_type, transmission, fuel_type, created_at, updated_at')
-      .eq('org_id', orgId)
+      .eq('user_id', orgId)
       .order('created_at', { ascending: true })
       .limit(10000)
 

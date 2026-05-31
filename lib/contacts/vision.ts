@@ -1,4 +1,4 @@
-import { aiClient, AI_MODEL, imageBlock } from '@/lib/ai/client'
+import { getAiClient, AI_MODEL, imageBlock } from '@/lib/ai/client'
 
 export interface CardExtraction {
   name: string | null
@@ -39,7 +39,7 @@ export async function scanBusinessCard(
 ): Promise<CardExtraction> {
   if (!process.env.OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY not set')
 
-  const response = await aiClient.chat.completions.create({
+  const response = await getAiClient().chat.completions.create({
     model: AI_MODEL,
     max_tokens: 400,
     messages: [

@@ -1,5 +1,5 @@
 import 'server-only'
-import { aiClient, AI_MODEL } from '@/lib/ai/client'
+import { getAiClient, AI_MODEL } from '@/lib/ai/client'
 import type { ContentReelProps } from '@/lib/remotion/types'
 
 const PLATFORM_RULES: Record<string, string> = {
@@ -27,7 +27,7 @@ export async function generateContentCaption(
     .join('\n')
 
   try {
-    const response = await aiClient.chat.completions.create({
+    const response = await getAiClient().chat.completions.create({
       model:      AI_MODEL,
       max_tokens: 600,
       messages: [
