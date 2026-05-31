@@ -84,21 +84,21 @@ export default function PricingSection() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="text-center mb-14">
           <h2 className="text-3xl sm:text-4xl font-black mb-3" style={{ color: NAVY }}>
-            Start free today. No credit card needed.
+            Free forever during beta.
           </h2>
           <p className="text-base" style={{ color: '#6B6355' }}>
-            30-day free trial with full access. After trial, choose a plan or use our free tier.
+            Everything is free while we build. Growth plan: free now, $150/mo at launch. Pro plan coming soon.
           </p>
         </div>
 
-        {/* Trial & pricing banner */}
+        {/* Beta banner */}
         <div className="max-w-3xl mx-auto mb-10 rounded-2xl px-6 py-4 flex items-start gap-3"
           style={{ backgroundColor: '#FFF7ED', border: '1.5px solid #FDBA74' }}>
           <FlaskConical className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#9A3412' }} />
           <div>
-            <p className="text-sm font-black" style={{ color: '#9A3412' }}>30-Day Free Trial</p>
+            <p className="text-sm font-black" style={{ color: '#9A3412' }}>Beta Program</p>
             <p className="text-sm mt-0.5" style={{ color: '#7C2D12' }}>
-              Full access for 30 days—no credit card required. After trial, choose Growth ($150/mo with 3,000 SMS) or Pro ($350/mo with 5,000 SMS + 3,000 voice minutes). Buy more anytime: $10 for 750 SMS or $25 for 750 voice minutes.
+              We're in beta. Everything is free right now: Growth plan ($0), AI features, SMS, video rendering, and more. We'll notify 30 days before paid plans launch. Early adopters keep the free tier forever.
             </p>
           </div>
         </div>
@@ -149,7 +149,7 @@ export default function PricingSection() {
             <div className="mb-5">
               <span className="text-xs font-black uppercase tracking-wide px-3 py-1.5 rounded-full"
                 style={{ backgroundColor: `${ORANGE}20`, color: ORANGE }}>
-                Popular
+                Free Now
               </span>
             </div>
             <h3 className="text-xl font-black mb-1" style={{ color: NAVY }}>Growth</h3>
@@ -158,11 +158,11 @@ export default function PricingSection() {
             </p>
             <div className="mb-1">
               <div className="flex items-end gap-1">
-                <span className="text-4xl font-black" style={{ color: NAVY }}>${crmMonthly}</span>
-                <span className="text-sm pb-1.5" style={{ color: '#6B6355' }}>/mo, billed monthly</span>
+                <span className="text-4xl font-black" style={{ color: NAVY }}>$0</span>
+                <span className="text-sm pb-1.5" style={{ color: '#6B6355' }}>/mo during beta</span>
               </div>
               <p className="text-xs mt-1" style={{ color: '#9A3412' }}>
-                or <strong>${crmAnnual}/mo</strong> billed annually - save ${crmSavings}/yr
+                Becomes <strong>${crmMonthly}/mo</strong> after beta ends
               </p>
             </div>
             <ul className="space-y-2.5 mb-7 mt-4 flex-1">
@@ -192,13 +192,13 @@ export default function PricingSection() {
           </div>
 
           {/* Pro Plan */}
-          <div className="rounded-2xl p-7 relative flex flex-col"
+          <div className="rounded-2xl p-7 relative flex flex-col opacity-75"
             style={{ backgroundColor: '#fff', border: `2px solid #D1C9BF`,
               boxShadow: '0 2px 16px rgba(13,43,85,0.06)' }}>
             <div className="mb-5">
               <span className="text-xs font-black uppercase tracking-wide px-3 py-1.5 rounded-full"
                 style={{ backgroundColor: 'rgba(13,43,85,0.08)', color: NAVY }}>
-                Advanced
+                Coming Soon
               </span>
             </div>
             <h3 className="text-xl font-black mb-1" style={{ color: NAVY }}>Pro</h3>
@@ -210,8 +210,8 @@ export default function PricingSection() {
                 <span className="text-4xl font-black" style={{ color: NAVY }}>${crmMonthly + voiceAddon}</span>
                 <span className="text-sm pb-1.5" style={{ color: '#6B6355' }}>/mo</span>
               </div>
-              <p className="text-xs mt-1" style={{ color: '#9A3412' }}>
-                or <strong>${fullAnnual}/mo</strong> billed annually - save ${fullSavings}/yr
+              <p className="text-xs mt-1" style={{ color: '#6B6355' }}>
+                Available after beta
               </p>
             </div>
             <ul className="space-y-2.5 mb-7 mt-4 flex-1">
@@ -243,9 +243,9 @@ export default function PricingSection() {
                 <p className="text-xs" style={{ color: '#9A3412' }}>Need more? Add 750 SMS ($10) or 750 voice minutes ($25) anytime.</p>
               </li>
             </ul>
-            <button className="w-full py-3.5 rounded-xl font-bold text-sm text-center transition-all hover:opacity-90 active:scale-95"
-              style={{ backgroundColor: ORANGE, color: '#fff' }}>
-              Choose Plan
+            <button disabled className="w-full py-3.5 rounded-xl font-bold text-sm text-center cursor-not-allowed"
+              style={{ backgroundColor: '#E8E2D8', color: '#9A8E85' }}>
+              Available After Beta
             </button>
           </div>
         </div>

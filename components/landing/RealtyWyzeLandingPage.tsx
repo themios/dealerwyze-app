@@ -386,20 +386,20 @@ export default function RealtyWyzeLandingPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-10">
             <p className="text-xs font-black uppercase tracking-widest mb-3" style={{ color: ORANGE }}>Pricing</p>
-            <h2 className="text-3xl sm:text-4xl font-black mb-4" style={{ color: NAVY }}>Start free today. No credit card needed.</h2>
+            <h2 className="text-3xl sm:text-4xl font-black mb-4" style={{ color: NAVY }}>Free forever during beta.</h2>
             <p className="text-gray-600 max-w-xl mx-auto">
-              One closing pays for two years of RealtyWyze. We&apos;re in early access and the full platform is free while we build together.
+              One closing pays for two years of RealtyWyze. We're in beta and everything is free while we build together.
             </p>
           </div>
 
-          {/* Early access banner */}
+          {/* Beta banner */}
           <div className="max-w-3xl mx-auto mb-10 rounded-2xl px-6 py-4 flex items-start gap-3"
             style={{ backgroundColor: '#FFF7ED', border: '1.5px solid #FDBA74' }}>
             <FlaskConical className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#9A3412' }} />
             <div>
-              <p className="text-sm font-black" style={{ color: '#9A3412' }}>30-Day Free Trial</p>
+              <p className="text-sm font-black" style={{ color: '#9A3412' }}>Beta Program</p>
               <p className="text-sm mt-0.5" style={{ color: '#7C2D12' }}>
-                Full access for 30 days—no credit card required. After trial, choose Growth ($150/mo with 3,000 SMS) or Pro ($350/mo with 5,000 SMS + 3,000 voice minutes). Buy more anytime: $10 for 750 SMS or $25 for 750 voice minutes.
+                We're in beta. Everything is free right now: Growth plan ($0), AI features, SMS, listing videos, and more. We'll notify 30 days before paid plans launch. Early adopters keep the free tier forever.
               </p>
             </div>
           </div>
@@ -466,7 +466,7 @@ export default function RealtyWyzeLandingPage() {
               <div className="mb-5">
                 <span className="text-xs font-black uppercase tracking-wide px-3 py-1.5 rounded-full"
                   style={{ backgroundColor: `${ORANGE}20`, color: ORANGE }}>
-                  Popular
+                  Free Now
                 </span>
               </div>
               <h3 className="text-xl font-black mb-1" style={{ color: NAVY }}>Growth</h3>
@@ -475,11 +475,11 @@ export default function RealtyWyzeLandingPage() {
               </p>
               <div className="mb-1">
                 <div className="flex items-end gap-1">
-                  <span className="text-4xl font-black" style={{ color: NAVY }}>$150</span>
-                  <span className="text-sm pb-1.5" style={{ color: '#6B6355' }}>/mo, billed monthly</span>
+                  <span className="text-4xl font-black" style={{ color: NAVY }}>$0</span>
+                  <span className="text-sm pb-1.5" style={{ color: '#6B6355' }}>/mo during beta</span>
                 </div>
                 <p className="text-xs mt-1" style={{ color: '#9A3412' }}>
-                  or <strong>$135/mo</strong> billed annually. Save $180/yr.
+                  Becomes <strong>$150/mo</strong> after beta ends
                 </p>
               </div>
               <ul className="space-y-2.5 mb-7 mt-4 flex-1">
@@ -531,13 +531,13 @@ export default function RealtyWyzeLandingPage() {
             </div>
 
             {/* Pro */}
-            <div className="rounded-2xl p-7 relative flex flex-col"
+            <div className="rounded-2xl p-7 relative flex flex-col opacity-75"
               style={{ backgroundColor: '#fff', border: `2px solid #D1C9BF`,
                 boxShadow: '0 2px 16px rgba(13,43,85,0.06)' }}>
               <div className="mb-5">
                 <span className="text-xs font-black uppercase tracking-wide px-3 py-1.5 rounded-full"
                   style={{ backgroundColor: 'rgba(13,43,85,0.08)', color: NAVY }}>
-                  Advanced
+                  Coming Soon
                 </span>
               </div>
               <h3 className="text-xl font-black mb-1" style={{ color: NAVY }}>Pro</h3>
@@ -549,8 +549,8 @@ export default function RealtyWyzeLandingPage() {
                   <span className="text-4xl font-black" style={{ color: NAVY }}>$350</span>
                   <span className="text-sm pb-1.5" style={{ color: '#6B6355' }}>/mo</span>
                 </div>
-                <p className="text-xs mt-1" style={{ color: '#9A3412' }}>
-                  or <strong>$315/mo</strong> billed annually. Save $420/yr.
+                <p className="text-xs mt-1" style={{ color: '#6B6355' }}>
+                  Available after beta
                 </p>
               </div>
               <ul className="space-y-2.5 mb-7 mt-4 flex-1">
@@ -612,9 +612,9 @@ export default function RealtyWyzeLandingPage() {
                   <p className="text-xs" style={{ color: '#9A3412' }}>Need more? Add 750 SMS ($10) or 750 voice minutes ($25) anytime.</p>
                 </li>
               </ul>
-              <button className="w-full py-3.5 rounded-xl font-bold text-sm text-center transition-all hover:opacity-90 active:scale-95"
-                style={{ backgroundColor: ORANGE, color: '#fff' }}>
-                Choose Plan
+              <button disabled className="w-full py-3.5 rounded-xl font-bold text-sm text-center cursor-not-allowed"
+                style={{ backgroundColor: '#E8E2D8', color: '#9A8E85' }}>
+                Available After Beta
               </button>
             </div>
           </div>
@@ -668,7 +668,7 @@ export default function RealtyWyzeLandingPage() {
               { q: 'How does the AI voice agent work?', a: 'When a buyer calls and you\'re unavailable, the AI answers, qualifies the caller (what they\'re looking for, timeline, pre-approval status), and creates a follow-up task in your inbox. Buyers always reach a live-feeling response, even when you\'re in a showing.' },
               { q: 'Can I use it with my current email and phone?', a: 'Yes. Connect your Gmail or another email inbox in Settings. RealtyWyze pulls in inquiries from connected inboxes and lets you reply from within the app. Your business phone number is provisioned inside RealtyWyze for two-way texting.' },
               { q: 'How long does setup take?', a: 'Most agents are fully set up in under 10 minutes: connect your inbox, add your listings, provision your phone number. The onboarding wizard walks you through each step. Your Today list starts building from day one.' },
-              { q: 'What does it cost?', a: 'Growth is $150/mo with 3,000 SMS credits. Pro is $350/mo with 5,000 SMS + 3,000 voice minutes. Both include 30 days free to try. SMS and voice credits never expire—they roll over month to month. Buy more anytime: $10 for 750 SMS or $25 for 750 voice minutes. One closing pays for years of RealtyWyze.' },
+              { q: 'What does it cost?', a: 'Everything is free during beta. Growth plan is $0 now and becomes $150/mo after beta ends. Pro plan ($350/mo) is coming soon. SMS and voice credits never expire—they roll over month to month. Early adopters get the free tier forever. One closing pays for years of RealtyWyze.' },
             ].map(faq => <FAQItem key={faq.q} {...faq} />)}
           </div>
         </div>
@@ -689,7 +689,7 @@ export default function RealtyWyzeLandingPage() {
           <Link href="/signup" className="inline-flex items-center gap-2 text-base font-bold px-10 py-4 rounded-xl text-white transition-all hover:opacity-90 shadow-2xl" style={{ backgroundColor: ORANGE }}>
             Start your free trial <ChevronRight className="w-5 h-5" />
           </Link>
-          <p className="mt-5 text-sm text-white/40">30 days free. Then $150/mo or $350/mo. Cancel anytime.</p>
+          <p className="mt-5 text-sm text-white/40">Free during beta. Early adopters keep the free tier forever.</p>
         </div>
       </section>
 
