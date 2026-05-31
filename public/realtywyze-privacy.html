@@ -24,7 +24,7 @@
 <body>
 
 <h1>Privacy Policy</h1>
-<p class="updated"><strong>Last Updated:</strong> May 2026</p>
+<p class="updated"><strong>Last Updated:</strong> May 31, 2026</p>
 
 <p>RealtyWyze ("we," "us," "our," or "Company") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you visit our platform (the "Service"), designed for independent real estate agents and small brokerages.</p>
 
@@ -55,11 +55,25 @@
   <li><strong>AI Features:</strong> Generate listing descriptions, lead summaries, and voice agent responses using your data (governed separately in our AI Service Addendum)</li>
 </ul>
 
-<h2>3. Session Replay and Analytics</h2>
-<p>RealtyWyze uses Sentry for session replay and error tracking. During normal use, we may record a sampled subset (5%) of user sessions to diagnose performance issues and improve the platform. Session replays may include text input, property photos, and conversation content.</p>
-<p><strong>You can opt out of session replay:</strong> contact <a href="mailto:privacy@dealerwyze.com">privacy@dealerwyze.com</a> and we will set an opt-out flag in your browser.</p>
+<h2>3. RealtyWyze-Specific Data Handling</h2>
 
-<h2>4. Data Sharing & Disclosure</h2>
+<h3>3.1 MLS Data Storage</h3>
+<p>If you integrate RealtyWyze with an MLS (Multiple Listing Service) through our Bridge API or manual entry, MLS listing data (property details, photos, status, price history) is retained in your RealtyWyze account while your account is active. When you delete a listing or cancel your account, MLS data is deleted within 30 days. You remain responsible for compliance with all MLS board data usage policies.</p>
+
+<h3>3.2 Buyer Profiles and Search Criteria</h3>
+<p>If you create buyer profiles in RealtyWyze (e.g., "3BR, $900k-$1.1M, Pasadena area"), this information is stored securely in your account. Only you and authorized team members can access buyer profile data. Buyer profiles are retained while your account is active and deleted within 30 days of account cancellation.</p>
+
+<h3>3.3 Showing Request and Feedback Data</h3>
+<p>Showing requests, confirmations, feedback, and attendance records are retained for 2 years for audit, history, and dispute resolution purposes. After 2 years, this data is deleted. Post-showing feedback (buyer interest level, agent notes) is retained in your account timeline indefinitely unless you manually delete it.</p>
+
+<h3>3.4 Listing Photos and Media</h3>
+<p>Listing photos from MLS or manually uploaded are stored in Supabase Storage (encrypted). Photos are retained while the listing exists in your account. Deleting a listing deletes associated photos. Photos are not retained after account cancellation.</p>
+
+<h2>4. Session Replay and Analytics</h2>
+<p>RealtyWyze uses Sentry for session replay and error tracking. During normal use, we may record a sampled subset (5%) of user sessions to diagnose performance issues and improve the platform. Session replays may include text input, property photos, and conversation content.</p>
+<p><strong>You can opt out of session replay:</strong> contact <a href="mailto:privacy@realtywyze.us">privacy@realtywyze.us</a> and we will set an opt-out flag in your browser.</p>
+
+<h2>5. Data Sharing & Disclosure</h2>
 <p>We do NOT sell or share your personal data with third parties for marketing. We share data only as follows:</p>
 <ul>
   <li><strong>Service Providers:</strong> Payment processors (Stripe), email (Resend), cloud storage (Supabase), AI inference (Anthropic, Groq), voice agents (Retell), analytics (Sentry, PostHog, Vercel)</li>
@@ -67,7 +81,7 @@
   <li><strong>Business Transfer:</strong> In event of merger, acquisition, or asset sale</li>
 </ul>
 
-<h2>5. Data Retention</h2>
+<h2>6. Data Retention</h2>
 <ul>
   <li><strong>Account Data:</strong> Retained while your account is active</li>
   <li><strong>Deleted Contacts/Leads:</strong> Soft-deleted and marked as deleted; hard-deleted 90 days after cancellation</li>
@@ -76,7 +90,7 @@
   <li><strong>Session Replays:</strong> Retained for up to 90 days in Sentry</li>
 </ul>
 
-<h2>6. Your Privacy Rights</h2>
+<h2>7. Your Privacy Rights</h2>
 
 <h3>CCPA / CPRA (California)</h3>
 <p>If you are a California resident, you have the right to:</p>
@@ -86,12 +100,12 @@
   <li>Opt out of the "sale" or "sharing" of personal information for cross-context behavioral advertising (we do not do this)</li>
   <li>Receive a response to your request within 45 days</li>
 </ul>
-<p><strong>Submit requests to:</strong> <a href="mailto:privacy@dealerwyze.com">privacy@dealerwyze.com</a> (we verify you are the account holder before processing)</p>
+<p><strong>Submit requests to:</strong> <a href="mailto:privacy@realtywyze.us">privacy@realtywyze.us</a> (we verify you are the account holder before processing)</p>
 
 <h3>GDPR (EU)</h3>
-<p>If you are an EU resident, you have the right to access, correct, delete, restrict processing, data portability, and object to processing. Submit requests to: <a href="mailto:privacy@dealerwyze.com">privacy@dealerwyze.com</a>. Responses within 30 days.</p>
+<p>If you are an EU resident, you have the right to access, correct, delete, restrict processing, data portability, and object to processing. Submit requests to: <a href="mailto:privacy@realtywyze.us">privacy@realtywyze.us</a>. Responses within 30 days.</p>
 
-<h2>7. Data Security</h2>
+<h2>8. Data Security</h2>
 <ul>
   <li><strong>Encryption in Transit:</strong> TLS 1.2+ for all connections</li>
   <li><strong>Encryption at Rest:</strong> AES-256 for database and backups</li>
@@ -99,24 +113,24 @@
   <li><strong>Access Controls:</strong> Row-level security (RLS) ensures you can only access your own data</li>
 </ul>
 
-<h2>8. Cookies & Tracking</h2>
+<h2>9. Cookies & Tracking</h2>
 <p>We use essential cookies for authentication and session management. We use analytics cookies (PostHog, Vercel Speed Insights) to understand feature usage. You can disable non-essential cookies in your browser settings.</p>
 
-<h2>9. Third-Party Links</h2>
+<h2>10. Third-Party Links</h2>
 <p>Our platform may link to third-party sites (Google Calendar, Gmail, Stripe Dashboard, etc.). We are not responsible for their privacy practices. Review their policies before submitting data.</p>
 
-<h2>10. Children's Privacy</h2>
+<h2>11. Children's Privacy</h2>
 <p>RealtyWyze is not intended for users under 18. We do not knowingly collect data from minors. If we discover we have collected data from a minor, we will delete it promptly.</p>
 
-<h2>11. Changes to This Policy</h2>
+<h2>12. Changes to This Policy</h2>
 <p>We may update this policy. We will post the new version on this page and update the "Last Updated" date. If changes materially affect your rights, we will send email notice.</p>
 
-<h2>12. Contact Us</h2>
+<h2>13. Contact Us</h2>
 <p>For privacy questions, requests, or complaints:</p>
 <ul>
-  <li><strong>Email:</strong> <a href="mailto:privacy@dealerwyze.com">privacy@dealerwyze.com</a></li>
+  <li><strong>Email:</strong> <a href="mailto:privacy@realtywyze.us">privacy@realtywyze.us</a></li>
   <li><strong>Mail:</strong> Legal Department, KMA Auto Inc, [Your Address]</li>
-  <li><strong>CCPA Agent:</strong> <a href="mailto:privacy@dealerwyze.com">privacy@dealerwyze.com</a></li>
+  <li><strong>CCPA Agent:</strong> <a href="mailto:privacy@realtywyze.us">privacy@realtywyze.us</a></li>
 </ul>
 
 </body>
