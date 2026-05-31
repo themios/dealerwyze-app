@@ -3,7 +3,7 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { createServiceClient } from '@/lib/supabase/service'
 import { loadOrganizationsMatchingPublicSlug, pickUniqueOrgSlugMatch } from '@/lib/dealer-public/publicOrgBySlug'
-import ListingContactForm from './ListingContactForm'
+import ShowingRequestForm from './ShowingRequestForm'
 
 export const dynamic = 'force-dynamic'
 
@@ -187,7 +187,7 @@ export default async function ListingDetailPage({ params }: Props) {
       {!isSold && (
         <div className="border border-gray-200 rounded-lg p-6 bg-gray-50">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Schedule a Showing</h2>
-          <ListingContactForm
+          <ShowingRequestForm
             orgId={org.id}
             listingId={listing.id}
             address={addr}
