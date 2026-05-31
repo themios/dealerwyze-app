@@ -37,16 +37,16 @@ const faqs = [
     a: 'BHPH (Buy Here Pay Here) is in-house financing where you act as the lender. If you finance your own customers, the BHPH module tracks loans, payments, and collections. If you don\'t do BHPH, you simply don\'t use it.',
   },
   {
-    q: 'What\'s included in Complete CRM?',
-    a: 'Complete CRM ($150/mo) is all-inclusive: unlimited contacts and leads, two-way SMS with a dedicated business number, fax, Gmail sync, a public SEO-ready dealer inventory website, AI Lead Scanner, AI Dealer Brief, AI Receipt OCR, BHPH loan tracking, bookkeeping, analytics, and team management. No add-ons or hidden fees.',
+    q: 'What\'s included in the Growth plan?',
+    a: 'Growth ($150/mo) includes unlimited contacts and leads, two-way SMS with a dedicated business number, fax, Gmail sync, a public SEO-ready dealer inventory website, AI Lead Scanner, AI Dealer Brief, AI Receipt OCR, BHPH loan tracking, bookkeeping, analytics, 25 listing videos per month, auto-posting to Facebook/Instagram/TikTok/YouTube, and team management. No hidden fees.',
   },
   {
-    q: 'What does the Voice AI add-on do?',
-    a: 'The Voice AI add-on ($200/mo, requires Complete CRM) adds a Retell AI phone agent that answers inbound calls 24/7, qualifies leads, and writes call transcripts directly to the customer record - even when you\'re on the lot or after hours. Includes 1,000 voice minutes/month.',
+    q: 'What does the Pro plan include?',
+    a: 'Pro ($350/mo) includes everything in Growth, plus 5,000 SMS credits per month (vs. 3,000 in Growth), 3,000 voice minutes per month, and our AI voice agent that answers inbound calls 24/7, qualifies leads, and writes transcripts directly to your customer record.',
   },
   {
     q: 'Is there an annual discount?',
-    a: 'Yes - 10% off when you pay annually. Complete CRM drops from $150/mo to $135/mo (saving $180/yr). The full CRM + Voice stack drops from $350/mo to $315/mo (saving $420/yr).',
+    a: 'Yes - 10% off when you pay annually. Growth drops from $150/mo to $135/mo (saving $180/yr). Pro drops from $350/mo to $315/mo (saving $420/yr).',
   },
   {
     q: 'Is two-way SMS included?',
@@ -59,6 +59,10 @@ const faqs = [
   {
     q: 'What happens to my data if I cancel?',
     a: 'You retain full access until your billing period ends. Before canceling, you can export your customers, vehicles, and transactions to CSV. After a 90-day grace period, data is purged from our servers.',
+  },
+  {
+    q: 'Is there a free plan after beta?',
+    a: 'Yes. After the beta period ends, new dealers get a 30-day free trial of the Growth plan. If you don\'t add a payment method, you automatically move to our Free Tier (included customer management, inventory, email sync, BHPH tracking, and analytics—but no SMS, voice, or video features). The Free Tier is free forever. Beta users who sign up before launch keep the free tier forever, even if they cancel a paid plan later.',
   },
 ]
 
