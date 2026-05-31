@@ -304,13 +304,12 @@ export default function RealtyWyzeLandingPage() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {[
               { icon: Inbox,        title: 'Unified Lead Inbox',       desc: 'Zillow, Realtor.com, email, and text in one queue. Reply by text or email without switching apps. Every message saved to the client timeline.' },
-              { icon: Home,         title: 'Listing Management',        desc: 'Add listings with price, beds, baths, and photos. Track showing requests, offer activity, and price history per property.' },
+              { icon: Home,         title: 'Listing Management',        desc: 'Add listings with price, beds, baths, and photos. Track offer activity and price history per property.' },
               { icon: Phone,        title: 'AI Voice Agent',            desc: 'Answers inbound calls when you\'re in a showing, qualifies the caller, and creates a follow-up task automatically. Every buyer reaches a human-level response.' },
               { icon: RefreshCw,    title: 'Follow-Up Sequences',       desc: 'Automated email and text cadences for buyers and sellers. Set them once. RealtyWyze keeps the conversation warm between meetings.' },
-              { icon: Calendar,     title: 'Showing Scheduler',         desc: 'Clients request showings directly. You confirm in one tap. RealtyWyze tracks attendance, feedback, and next steps per property.' },
               { icon: Users,        title: 'Client Profiles',           desc: 'Every call, text, email, note, and saved search in one timeline per client. Anyone on your team can pick up the conversation instantly.' },
               { icon: BarChart2,    title: 'Daily AI Briefing',         desc: 'Every morning, RealtyWyze delivers a concise briefing on active buyers, stale listings, follow-ups overdue, and anything worth knowing before your first call.' },
-              { icon: Zap,          title: 'Public Listing Pages',      desc: 'Each listing gets a shareable page with photos, property details, and a showing request form. Built for buyer outreach and social posting.' },
+              { icon: Zap,          title: 'Public Listing Pages',      desc: 'Each listing gets a shareable page with photos and property details. Built for buyer outreach and social posting.' },
               { icon: MessageSquare,title: 'Two-Way Text & Email',      desc: 'Reply to clients by text or email from the same inbox. Templates for the messages you send every day. Your number stays consistent.' },
             ].map(({ icon: Icon, title, desc }) => (
               <div key={title} className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
@@ -435,7 +434,6 @@ export default function RealtyWyzeLandingPage() {
                   'Gmail + IMAP lead auto-import',
                   'AI Lead Scanner (photo & PDF)',
                   'AI Daily Brief (who to call today)',
-                  'Showing scheduler & calendar',
                   'Follow-up sequences & templates',
                   'Google Calendar integration',
                   'Client Pulse surveys + rep score',
@@ -492,7 +490,6 @@ export default function RealtyWyzeLandingPage() {
                   'Gmail + IMAP lead auto-import',
                   'AI Lead Scanner (photo & PDF)',
                   'AI Daily Brief (who to call today)',
-                  'Showing scheduler & calendar',
                   'Follow-up sequences & templates',
                   'Google Calendar integration',
                   'Client Pulse surveys + rep score',
@@ -563,7 +560,6 @@ export default function RealtyWyzeLandingPage() {
                   'Gmail + IMAP lead auto-import',
                   'AI Lead Scanner (photo & PDF)',
                   'AI Daily Brief (who to call today)',
-                  'Showing scheduler & calendar',
                   'Follow-up sequences & templates',
                   'Google Calendar integration',
                   'Client Pulse surveys + rep score',
@@ -630,6 +626,34 @@ export default function RealtyWyzeLandingPage() {
         </div>
       </section>
 
+      {/* ── Roadmap (Q2 Coming Soon) ── */}
+      <section className="py-20 lg:py-28" style={{ backgroundColor: CREAM }}>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="text-center mb-14">
+            <p className="text-xs font-black uppercase tracking-widest mb-3" style={{ color: ORANGE }}>Coming Q2 2026</p>
+            <h2 className="text-3xl sm:text-4xl font-black" style={{ color: NAVY }}>On the roadmap</h2>
+            <p className="text-gray-600 max-w-2xl mx-auto mt-4">
+              We&rsquo;re shipping new features every week. Here&rsquo;s what agents are asking for most.
+            </p>
+          </div>
+          <div className="grid sm:grid-cols-3 gap-6">
+            {[
+              { icon: Calendar, title: 'Showing Scheduler', desc: 'Buyers request showings directly from your listing pages. Manage requests, confirmations, and no-shows from your dashboard.' },
+              { icon: Home, title: 'MLS Sync', desc: 'Auto-sync listings from your MLS board. Keep your listing inventory up-to-date automatically with price changes and status updates.' },
+              { icon: Users, title: 'Buyer Matching', desc: 'Save buyer criteria once. New listings automatically match to interested buyers. Get notified of perfect matches instantly.' },
+            ].map(({ icon: Icon, title, desc }) => (
+              <div key={title} className="rounded-2xl border-2 p-6 bg-white text-center" style={{ borderColor: ORANGE }}>
+                <div className="w-14 h-14 rounded-xl flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: `${ORANGE}15` }}>
+                  <Icon className="w-6 h-6" style={{ color: ORANGE }} />
+                </div>
+                <h3 className="font-black text-lg mb-2" style={{ color: NAVY }}>{title}</h3>
+                <p className="text-sm text-gray-600 leading-relaxed">{desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ── Founder (Limbic — trust/human) ── */}
       <section className="py-20 lg:py-28" style={{ backgroundColor: CREAM }}>
         <div className="max-w-3xl mx-auto px-4 sm:px-6">
@@ -663,7 +687,7 @@ export default function RealtyWyzeLandingPage() {
           </div>
           <div className="divide-y divide-gray-100">
             {[
-              { q: 'How is RealtyWyze different from a generic CRM?', a: "Generic CRMs like HubSpot or Salesforce are built for sales teams, not agents. RealtyWyze is purpose-built for real estate: showing scheduling, listing management, buyer-to-listing matching, and AI voice that handles inbound calls while you're in showings. Setup takes minutes, not weeks." },
+              { q: 'How is RealtyWyze different from a generic CRM?', a: "Generic CRMs like HubSpot or Salesforce are built for sales teams, not agents. RealtyWyze is purpose-built for real estate: AI voice agent answering calls while you're in showings, SMS and email automation, listing management, and a unified inbox for all leads. Setup takes minutes, not weeks." },
               { q: 'Does it replace my MLS or showing software?', a: "No. RealtyWyze connects to your workflow rather than replacing your MLS. It's the CRM layer that captures inquiries, manages client follow-up, and keeps your listings organized. Think of it as the system that makes everything else more effective." },
               { q: 'How does the AI voice agent work?', a: 'When a buyer calls and you\'re unavailable, the AI answers, qualifies the caller (what they\'re looking for, timeline, pre-approval status), and creates a follow-up task in your inbox. Buyers always reach a live-feeling response, even when you\'re in a showing.' },
               { q: 'Can I use it with my current email and phone?', a: 'Yes. Connect your Gmail or another email inbox in Settings. RealtyWyze pulls in inquiries from connected inboxes and lets you reply from within the app. Your business phone number is provisioned inside RealtyWyze for two-way texting.' },
@@ -702,11 +726,11 @@ export default function RealtyWyzeLandingPage() {
               <p className="text-sm text-white/50 mt-1">The CRM for independent agents.</p>
             </div>
             <nav className="flex flex-wrap items-center gap-4 sm:gap-6">
-              <a href="#features"    className="text-sm text-white/50 hover:text-white transition-colors">Features</a>
-              <a href="#pricing"     className="text-sm text-white/50 hover:text-white transition-colors">Pricing</a>
-              <a href="/privacy.html" className="text-sm text-white/50 hover:text-white transition-colors">Privacy</a>
-              <a href="/terms.html"   className="text-sm text-white/50 hover:text-white transition-colors">Terms</a>
-              <Link href="/login"     className="text-sm text-white/50 hover:text-white transition-colors">Sign in</Link>
+              <a href="#features"          className="text-sm text-white/50 hover:text-white transition-colors">Features</a>
+              <a href="#pricing"           className="text-sm text-white/50 hover:text-white transition-colors">Pricing</a>
+              <a href="/realtywyze-privacy.html" className="text-sm text-white/50 hover:text-white transition-colors">Privacy</a>
+              <a href="/realtywyze-terms.html"   className="text-sm text-white/50 hover:text-white transition-colors">Terms</a>
+              <Link href="/login"          className="text-sm text-white/50 hover:text-white transition-colors">Sign in</Link>
             </nav>
           </div>
           <div className="border-t border-white/10 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
