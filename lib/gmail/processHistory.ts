@@ -15,6 +15,9 @@ import { simpleParser } from 'mailparser'
 import { createServiceClient } from '@/lib/supabase/service'
 import { stopSequenceOnReply } from '@/lib/sequences/stopSequenceOnReply'
 import { parseAnyLead, parseCarGurusDigest } from '@/lib/leads/parser'
+import { parseZillowLead } from '@/lib/leads/parseZillow'
+import { parseRealtorComLead } from '@/lib/leads/parseRealtorCom'
+import { parseBoomtownLead } from '@/lib/leads/parseBoomtown'
 import { ingestLead } from '@/lib/leads/ingest'
 import { applyLeadLocationDetection } from '@/lib/leads/detectLeadLocation'
 import { getLeadSourceEmailMatchers, matchesLeadSourceEmail } from '@/lib/leads/sourceMatchers'
@@ -236,7 +239,19 @@ export async function processGmailHistory(
         leads++
       }
     } else {
-      const parsedLead = parseAnyLead(subject, body, fromEmail)
+      // Try specialized RealtyWyze parsers first
+      let parsedLead = parseZillowLead(subject, body, fromEmail)
+      if (!parsedLead) {
+        parsedLead = parseRealtorComLead(subject, body, fromEmail)
+      }
+      if (!parsedLead) {
+        parsedLead = parseBoomtownLead(subject, body, fromEmail)
+      }
+      // Fall back to generic parser
+      if (!parsedLead) {
+        parsedLead = parseAnyLead(subject, body, fromEmail)
+      }
+
       if (parsedLead) {
         await ingestLead(parsedLead, gmailMsgId, orgId, {
           location: { emailSubject: subject, emailBody: body },

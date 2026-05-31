@@ -1,4 +1,4 @@
-export type LeadSource = 'cargurus' | 'autotrader' | 'offerup' | 'cargurus_digest' | 'facebook' | 'kbb' | 'autolist' | 'carsforsale' | 'other'
+export type LeadSource = 'cargurus' | 'autotrader' | 'offerup' | 'cargurus_digest' | 'facebook' | 'kbb' | 'autolist' | 'carsforsale' | 'zillow' | 'realtor.com' | 'boomtown' | 'other'
 
 export interface ParsedLead {
   name: string
