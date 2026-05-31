@@ -62,6 +62,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const out: MetadataRoute.Sitemap = []
 
+  // Add legal pages at the start
+  out.push({
+    url: `${base}/terms`,
+    changeFrequency: 'monthly',
+    priority: 0.5,
+  })
+  out.push({
+    url: `${base}/privacy`,
+    changeFrequency: 'monthly',
+    priority: 0.5,
+  })
+
   for (const org of orgList) {
     const slug = slugByOrgId.get(org.id)!
     const invUrl = `${base}/${slug}/inventory`

@@ -158,9 +158,9 @@ export default function SignupForm({ vertical }: { vertical: Vertical }) {
               />
               <span className="text-xs text-muted-foreground leading-snug">
                 I agree to the{' '}
-                <a href="/terms.html" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">Terms of Service</a>
+                <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">Terms of Service</a>
                 {' '}and{' '}
-                <a href="/privacy.html" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">Privacy Policy</a>
+                <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">Privacy Policy</a>
                 , including the Acceptable Use Policy. I confirm I am authorized to bind my {vertical === 'real_estate' ? 'brokerage' : 'dealership'} to this agreement.
               </span>
             </label>
