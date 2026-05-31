@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Phone, Mail, Calendar } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 
 interface ShowingRequest {
   id: string
@@ -26,7 +25,6 @@ interface ShowingRequest {
 
 export default function ShowingRequestDetail({ showing }: { showing: ShowingRequest }) {
   const router = useRouter()
-  const supabase = createClient()
   const [mode, setMode] = useState<'view' | 'confirm' | 'decline' | 'propose'>(
     'view'
   )
@@ -55,28 +53,21 @@ export default function ShowingRequestDetail({ showing }: { showing: ShowingRequ
     setLoading(true)
     setError(null)
     try {
-      const { error: updateError } = await supabase
-        .from('showing_requests')
-        .update({
-          status: 'confirmed',
-          confirmed_time: selectedTime,
-          confirmed_at: new Date().toISOString(),
-        })
-        .eq('id', showing.id)
-
-      if (updateError) throw updateError
-
-      // Send SMS to buyer
-      await fetch('/api/twilio/send-sms', {
+      const res = await fetch('/api/showings/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          to: showing.buyer_phone,
-          body: `Great! Your showing is confirmed for ${new Date(selectedTime).toLocaleString()}. We'll meet you at ${address}.`,
+          showing_id: showing.id,
+          confirmed_time: selectedTime,
         }),
-      }).catch(() => {})
+      })
 
-      router.push('/today?focus=1')
+      if (res.ok) {
+        router.push('/today?focus=1')
+      } else {
+        const err = await res.json().catch(() => ({}))
+        setError(err.error || 'Failed to confirm showing')
+      }
     } catch (err) {
       console.error('Error confirming showing:', err)
       setError('Failed to confirm showing')
@@ -89,30 +80,21 @@ export default function ShowingRequestDetail({ showing }: { showing: ShowingRequ
     setLoading(true)
     setError(null)
     try {
-      const { error: updateError } = await supabase
-        .from('showing_requests')
-        .update({
-          status: 'declined',
-        })
-        .eq('id', showing.id)
+      const res = await fetch('/api/showings/decline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          showing_id: showing.id,
+          message: message || undefined,
+        }),
+      })
 
-      if (updateError) throw updateError
-
-      // Send SMS to buyer
-      if (showing.buyer_phone) {
-        await fetch('/api/twilio/send-sms', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            to: showing.buyer_phone,
-            body: message
-              ? `Unfortunately we're not available: ${message}`
-              : 'Unfortunately we are not available for those times. Please contact us if you would like to schedule at another time.',
-          }),
-        }).catch(() => {})
+      if (res.ok) {
+        router.push('/today?focus=1')
+      } else {
+        const err = await res.json().catch(() => ({}))
+        setError(err.error || 'Failed to decline showing')
       }
-
-      router.push('/today?focus=1')
     } catch (err) {
       console.error('Error declining showing:', err)
       setError('Failed to decline showing')
@@ -130,21 +112,22 @@ export default function ShowingRequestDetail({ showing }: { showing: ShowingRequ
     setLoading(true)
     setError(null)
     try {
-      // Don't update status yet - keep as pending until buyer confirms
-      // Send SMS to buyer with proposed time
-      if (showing.buyer_phone) {
-        await fetch('/api/twilio/send-sms', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            to: showing.buyer_phone,
-            body: `We'd like to propose ${new Date(proposedTime).toLocaleString()} for your showing at ${address}. Does this work for you?`,
-          }),
-        }).catch(() => {})
-      }
+      const res = await fetch('/api/showings/propose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          showing_id: showing.id,
+          proposed_time: proposedTime,
+        }),
+      })
 
-      setMode('view')
-      setProposedTime('')
+      if (res.ok) {
+        setMode('view')
+        setProposedTime('')
+      } else {
+        const err = await res.json().catch(() => ({}))
+        setError(err.error || 'Failed to propose time')
+      }
     } catch (err) {
       console.error('Error proposing time:', err)
       setError('Failed to propose time')
