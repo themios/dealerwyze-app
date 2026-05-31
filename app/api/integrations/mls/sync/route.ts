@@ -166,6 +166,15 @@ export async function POST(req: NextRequest) {
 
     // Fetch listings from Bridge API
     let listings: BridgeListing[] = []
+
+    // Ensure all required params are set
+    if (!agentId || !boardId || !apiKey) {
+      return NextResponse.json(
+        { error: 'Missing required MLS parameters: agentId, boardId, apiKey' },
+        { status: 400 }
+      )
+    }
+
     try {
       listings = await getListings(agentId, boardId, apiKey)
       result.listings_fetched = listings.length

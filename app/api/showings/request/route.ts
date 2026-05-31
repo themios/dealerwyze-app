@@ -9,6 +9,7 @@ import { z } from 'zod'
 import { createServiceClient } from '@/lib/supabase/service'
 import { webLeadLimiter } from '@/lib/rateLimit/upstash'
 import { sendNotificationEmail } from '@/lib/email/notify'
+import { notifyAgentShowingRequest } from '@/lib/showings/notifyAgentShowingRequest'
 
 const MAX_BODY_BYTES = 8192
 
@@ -137,29 +138,19 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // Send SMS to agent (async, best-effort)
-  const agentSMSBody = `New showing request for ${address} from ${buyer_name}. Preferred times: ${
-    [
-      requested_times?.[0] ? new Date(requested_times[0]).toLocaleString() : null,
-      requested_times?.[1] ? new Date(requested_times[1]).toLocaleString() : null,
-      requested_times?.[2] ? new Date(requested_times[2]).toLocaleString() : null,
-    ]
-      .filter(Boolean)
-      .join(', ') || 'not specified'
-  }`
-
-  if (agent.phone) {
-    // Fire and forget SMS to agent via Twilio
-    fetch('/api/twilio/send-sms', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        to: agent.phone,
-        body: agentSMSBody,
-        org_id,
-      }),
-    }).catch((err) => console.error('Failed to send SMS to agent:', err))
-  }
+  // Notify agent using helper
+  notifyAgentShowingRequest({
+    orgId: org_id,
+    agentId: agent.id,
+    agentName: agent.display_name || 'Agent',
+    agentPhone: agent.phone ?? null,
+    agentEmail: agent.email ?? null,
+    buyerName,
+    buyerPhone: buyer_phone ?? null,
+    address,
+    showingId: showingRequest.id,
+    requestedTimes: (requested_times ?? []).map((t) => t),
+  }).catch((err) => console.error('Failed to notify agent:', err))
 
   // Send confirmation email to buyer
   const buyerEmailSubject = `Your showing request for ${address}`

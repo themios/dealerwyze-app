@@ -26,8 +26,9 @@ type UpdateBuyerProfile = z.infer<typeof UpdateBuyerProfileSchema>;
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const profile = await requireProfile();
   const client = createClient();
 
@@ -39,7 +40,7 @@ export async function PUT(
     const { data: existing, error: fetchError } = await client
       .from('buyer_profiles')
       .select('id')
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('agent_id', profile.id)
       .single();
 
@@ -73,7 +74,7 @@ export async function PUT(
     const { data, error } = await client
       .from('buyer_profiles')
       .update(updateObj)
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('agent_id', profile.id)
       .select()
       .single();
@@ -98,8 +99,9 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const profile = await requireProfile();
   const client = createClient();
 
@@ -108,7 +110,7 @@ export async function DELETE(
     const { data: existing, error: fetchError } = await client
       .from('buyer_profiles')
       .select('id')
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('agent_id', profile.id)
       .single();
 
@@ -122,7 +124,7 @@ export async function DELETE(
     const { error } = await client
       .from('buyer_profiles')
       .delete()
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('agent_id', profile.id);
 
     if (error) throw error;
