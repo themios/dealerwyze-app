@@ -28,7 +28,6 @@ const freeFeatures = [
 
 const crmFeatures = [
   'Unlimited contacts & leads',
-  'Two-way SMS + dedicated business number',
   'Public dealer website & SEO-ready vehicle pages',
   'Vehicle-linked activity tracking',
   'Lead pipeline (Kanban board)',
@@ -48,19 +47,26 @@ const crmFeatures = [
   'Team members + role-based access',
   '25 AI listing videos/month',
   'Auto-post to Facebook, Instagram, TikTok, YouTube',
-  'Add 25 more videos for $10 anytime',
 ]
 
-const proFeatures = crmFeatures.map(f =>
-  f === '25 AI listing videos/month' ? '75 AI listing videos/month' : f
-)
+const smsFeatures = [
+  'Two-way SMS + dedicated business number',
+  '3,000 SMS credits/month (included)',
+  'SMS credits never expire—they roll over each month',
+]
+
+const proSmsFeatures = [
+  'Two-way SMS + dedicated business number',
+  '5,000 SMS credits/month (included)',
+  '3,000 voice minutes/month (included)',
+  'SMS & voice credits never expire—they roll over each month',
+]
 
 const voiceFeatures = [
   'Dedicated AI voice agent (Retell AI)',
   'Answers inbound calls 24/7',
   'Post-call transcripts & summaries',
   'Auto lead creation from inbound calls',
-  '1,000 voice minutes/month included',
   'After-hours call handling',
 ]
 
@@ -92,7 +98,7 @@ export default function PricingSection() {
           <div>
             <p className="text-sm font-black" style={{ color: '#9A3412' }}>30-Day Free Trial</p>
             <p className="text-sm mt-0.5" style={{ color: '#7C2D12' }}>
-              Full access for 30 days—no credit card required. After your trial ends, continue free with our basic plan (CRM only), or upgrade to Growth ($150/mo with AI) or Pro ($350/mo with phone service).
+              Full access for 30 days—no credit card required. After trial, choose Growth ($150/mo with 3,000 SMS) or Pro ($350/mo with 5,000 SMS + 3,000 voice minutes). Buy more anytime: $10 for 750 SMS or $25 for 750 voice minutes.
             </p>
           </div>
         </div>
@@ -148,7 +154,7 @@ export default function PricingSection() {
             </div>
             <h3 className="text-xl font-black mb-1" style={{ color: NAVY }}>Growth</h3>
             <p className="text-sm mb-3" style={{ color: '#6B6355' }}>
-              CRM + AI (email, lead scanning, dealer brief, pricing intelligence)
+              CRM + AI tools + 3,000 SMS credits
             </p>
             <div className="mb-1">
               <div className="flex items-end gap-1">
@@ -166,6 +172,18 @@ export default function PricingSection() {
                   {feat}
                 </li>
               ))}
+              <li className="pt-2 border-t" style={{ borderColor: '#E8E2D8', listStyle: 'none' }}>
+                <p className="text-xs font-black uppercase tracking-wide mb-2" style={{ color: ORANGE }}>Messaging</p>
+              </li>
+              {smsFeatures.map((feat, i) => (
+                <li key={`s${i}`} className="flex items-start gap-2.5 text-sm" style={{ color: '#3D3530' }}>
+                  <Check className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#C4B8AC' }} />
+                  {feat}
+                </li>
+              ))}
+              <li className="pt-2 mt-2 border-t" style={{ borderColor: '#E8E2D8', listStyle: 'none' }}>
+                <p className="text-xs" style={{ color: '#9A3412' }}>Need more? Add 750 SMS for $10 anytime.</p>
+              </li>
             </ul>
             <button className="w-full py-3.5 rounded-xl font-bold text-sm text-center transition-all hover:opacity-90 active:scale-95"
               style={{ backgroundColor: ORANGE, color: '#fff' }}>
@@ -185,29 +203,35 @@ export default function PricingSection() {
             </div>
             <h3 className="text-xl font-black mb-1" style={{ color: NAVY }}>Pro</h3>
             <p className="text-sm mb-3" style={{ color: '#6B6355' }}>
-              Growth + 24/7 AI voice agent (answers calls, qualifies leads)
+              Everything in Growth + 5,000 SMS + 3,000 voice minutes + AI voice agent
             </p>
             <div className="mb-1">
               <div className="flex items-end gap-1">
                 <span className="text-4xl font-black" style={{ color: NAVY }}>${crmMonthly + voiceAddon}</span>
                 <span className="text-sm pb-1.5" style={{ color: '#6B6355' }}>/mo</span>
               </div>
-              <p className="text-xs mt-1" style={{ color: '#6B6355' }}>
-                $150 CRM + $200 Voice add-on
-              </p>
-              <p className="text-xs mt-0.5" style={{ color: '#9A3412' }}>
+              <p className="text-xs mt-1" style={{ color: '#9A3412' }}>
                 or <strong>${fullAnnual}/mo</strong> billed annually - save ${fullSavings}/yr
               </p>
             </div>
             <ul className="space-y-2.5 mb-7 mt-4 flex-1">
-              {proFeatures.map((feat, i) => (
+              {crmFeatures.map((feat, i) => (
                 <li key={i} className="flex items-start gap-2.5 text-sm" style={{ color: '#3D3530' }}>
                   <Check className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#C4B8AC' }} />
                   {feat}
                 </li>
               ))}
               <li className="pt-2 border-t" style={{ borderColor: '#E8E2D8', listStyle: 'none' }}>
-                <p className="text-xs font-black uppercase tracking-wide mb-2" style={{ color: ORANGE }}>Voice Add-on</p>
+                <p className="text-xs font-black uppercase tracking-wide mb-2" style={{ color: ORANGE }}>Messaging & Voice</p>
+              </li>
+              {proSmsFeatures.map((feat, i) => (
+                <li key={`p${i}`} className="flex items-start gap-2.5 text-sm" style={{ color: '#3D3530' }}>
+                  <Check className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#C4B8AC' }} />
+                  {feat}
+                </li>
+              ))}
+              <li className="pt-2 border-t" style={{ borderColor: '#E8E2D8', listStyle: 'none' }}>
+                <p className="text-xs font-black uppercase tracking-wide mb-2" style={{ color: ORANGE }}>AI Voice Agent</p>
               </li>
               {voiceFeatures.map((feat, i) => (
                 <li key={`v${i}`} className="flex items-start gap-2.5 text-sm" style={{ color: '#3D3530' }}>
@@ -215,6 +239,9 @@ export default function PricingSection() {
                   {feat}
                 </li>
               ))}
+              <li className="pt-2 mt-2 border-t" style={{ borderColor: '#E8E2D8', listStyle: 'none' }}>
+                <p className="text-xs" style={{ color: '#9A3412' }}>Need more? Add 750 SMS ($10) or 750 voice minutes ($25) anytime.</p>
+              </li>
             </ul>
             <button className="w-full py-3.5 rounded-xl font-bold text-sm text-center transition-all hover:opacity-90 active:scale-95"
               style={{ backgroundColor: ORANGE, color: '#fff' }}>

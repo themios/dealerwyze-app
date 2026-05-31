@@ -163,7 +163,7 @@ export default function RealtyWyzeLandingPage() {
           <Link href="/signup" className="inline-flex items-center gap-2 px-8 py-4 rounded-xl font-bold text-base transition-all hover:opacity-90 active:scale-95 shadow-xl" style={{ backgroundColor: NAVY, color: '#fff', boxShadow: '0 4px 24px rgba(13,43,85,0.35)' }}>
             Start Free Today <ChevronRight className="w-4 h-4" />
           </Link>
-          <p className="mt-4 text-sm text-white/60">No credit card. No commitment. Free during beta.</p>
+          <p className="mt-4 text-sm text-white/60">No credit card. No commitment. 30 days free to try.</p>
         </div>
       </section>
 
@@ -397,11 +397,9 @@ export default function RealtyWyzeLandingPage() {
             style={{ backgroundColor: '#FFF7ED', border: '1.5px solid #FDBA74' }}>
             <FlaskConical className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#9A3412' }} />
             <div>
-              <p className="text-sm font-black" style={{ color: '#9A3412' }}>Early Access Phase</p>
+              <p className="text-sm font-black" style={{ color: '#9A3412' }}>30-Day Free Trial</p>
               <p className="text-sm mt-0.5" style={{ color: '#7C2D12' }}>
-                RealtyWyze is in active early access. You get full platform access at no charge while we refine it together.
-                We&apos;ll give at least 30 days notice before any paid transition, and early access agents will
-                receive a discounted rate when paid plans launch.
+                Full access for 30 days—no credit card required. After trial, choose Growth ($150/mo with 3,000 SMS) or Pro ($350/mo with 5,000 SMS + 3,000 voice minutes). Buy more anytime: $10 for 750 SMS or $25 for 750 voice minutes.
               </p>
             </div>
           </div>
@@ -409,7 +407,7 @@ export default function RealtyWyzeLandingPage() {
           {/* Cards */}
           <div className="grid sm:grid-cols-3 gap-6">
 
-            {/* Free Early Access — featured */}
+            {/* Free Trial — featured */}
             <div className="rounded-2xl p-7 relative flex flex-col"
               style={{ backgroundColor: NAVY, border: `2px solid ${NAVY}`,
                 boxShadow: '0 8px 32px rgba(13,43,85,0.35)' }}>
@@ -419,9 +417,9 @@ export default function RealtyWyzeLandingPage() {
                   Available Now, Free
                 </span>
               </div>
-              <h3 className="text-xl font-black mb-1 text-white">Early Access</h3>
+              <h3 className="text-xl font-black mb-1 text-white">30-Day Trial</h3>
               <p className="text-sm mb-3" style={{ color: 'rgba(255,255,255,0.65)' }}>
-                Full platform access during our early access phase
+                Full access to all features
               </p>
               <div className="flex items-end gap-1 mb-4">
                 <span className="text-4xl font-black text-white">$0</span>
@@ -461,19 +459,19 @@ export default function RealtyWyzeLandingPage() {
               </p>
             </div>
 
-            {/* Complete CRM — Coming Soon */}
-            <div className="rounded-2xl p-7 relative flex flex-col opacity-75"
-              style={{ backgroundColor: '#fff', border: `2px solid #D1C9BF`,
-                boxShadow: '0 2px 16px rgba(13,43,85,0.06)' }}>
+            {/* Growth */}
+            <div className="rounded-2xl p-7 relative flex flex-col"
+              style={{ backgroundColor: '#fff', border: `2px solid ${ORANGE}`,
+                boxShadow: `0 2px 16px ${ORANGE}20` }}>
               <div className="mb-5">
                 <span className="text-xs font-black uppercase tracking-wide px-3 py-1.5 rounded-full"
-                  style={{ backgroundColor: 'rgba(13,43,85,0.08)', color: NAVY }}>
-                  Coming Soon
+                  style={{ backgroundColor: `${ORANGE}20`, color: ORANGE }}>
+                  Popular
                 </span>
               </div>
-              <h3 className="text-xl font-black mb-1" style={{ color: NAVY }}>Complete CRM</h3>
+              <h3 className="text-xl font-black mb-1" style={{ color: NAVY }}>Growth</h3>
               <p className="text-sm mb-3" style={{ color: '#6B6355' }}>
-                SMS, AI tools, sequences. All in, no add-ons.
+                CRM + AI tools + 3,000 SMS credits
               </p>
               <div className="mb-1">
                 <div className="flex items-end gap-1">
@@ -488,7 +486,6 @@ export default function RealtyWyzeLandingPage() {
                 {[
                   'Unlimited clients & leads',
                   'Unlimited active listings',
-                  'Two-way SMS + dedicated business number',
                   'Public listing pages (SEO-ready)',
                   'Listing-linked activity tracking',
                   'Lead pipeline (Kanban board)',
@@ -501,53 +498,78 @@ export default function RealtyWyzeLandingPage() {
                   'Client Pulse surveys + rep score',
                   'Analytics & full XLSX export',
                   'Contacts & business card scan',
-                  'Commission tracking',
                   'Team members + role-based access',
                   '25 AI listing videos/month',
                   'Auto-post to Facebook & Instagram',
-                  'Add 25 more videos for $10 anytime',
                 ].map((feat, i) => (
                   <li key={i} className="flex items-start gap-2.5 text-sm" style={{ color: '#3D3530' }}>
                     <Check className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#C4B8AC' }} />
                     {feat}
                   </li>
                 ))}
+                <li className="pt-2 border-t" style={{ borderColor: '#E8E2D8', listStyle: 'none' }}>
+                  <p className="text-xs font-black uppercase tracking-wide mb-2" style={{ color: ORANGE }}>Messaging</p>
+                </li>
+                {[
+                  'Two-way SMS + dedicated business number',
+                  '3,000 SMS credits/month (included)',
+                  'SMS credits never expire—they roll over each month',
+                ].map((feat, i) => (
+                  <li key={`s${i}`} className="flex items-start gap-2.5 text-sm" style={{ color: '#3D3530' }}>
+                    <Check className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#C4B8AC' }} />
+                    {feat}
+                  </li>
+                ))}
+                <li className="pt-2 mt-2 border-t" style={{ borderColor: '#E8E2D8', listStyle: 'none' }}>
+                  <p className="text-xs" style={{ color: '#9A3412' }}>Need more? Add 750 SMS for $10 anytime.</p>
+                </li>
               </ul>
-              <div className="w-full py-3.5 rounded-xl font-bold text-sm text-center cursor-not-allowed"
-                style={{ backgroundColor: '#E8E2D8', color: '#9A8E85' }}>
-                Available After Early Access
-              </div>
+              <button className="w-full py-3.5 rounded-xl font-bold text-sm text-center transition-all hover:opacity-90 active:scale-95"
+                style={{ backgroundColor: ORANGE, color: '#fff' }}>
+                Choose Plan
+              </button>
             </div>
 
-            {/* CRM + Voice AI — Coming Soon */}
-            <div className="rounded-2xl p-7 relative flex flex-col opacity-75"
+            {/* Pro */}
+            <div className="rounded-2xl p-7 relative flex flex-col"
               style={{ backgroundColor: '#fff', border: `2px solid #D1C9BF`,
                 boxShadow: '0 2px 16px rgba(13,43,85,0.06)' }}>
               <div className="mb-5">
                 <span className="text-xs font-black uppercase tracking-wide px-3 py-1.5 rounded-full"
                   style={{ backgroundColor: 'rgba(13,43,85,0.08)', color: NAVY }}>
-                  Coming Soon
+                  Advanced
                 </span>
               </div>
-              <h3 className="text-xl font-black mb-1" style={{ color: NAVY }}>CRM + Voice AI</h3>
+              <h3 className="text-xl font-black mb-1" style={{ color: NAVY }}>Pro</h3>
               <p className="text-sm mb-3" style={{ color: '#6B6355' }}>
-                Full CRM plus an AI agent that answers while you&apos;re showing
+                Everything in Growth + 5,000 SMS + 3,000 voice minutes + AI voice agent
               </p>
               <div className="mb-1">
                 <div className="flex items-end gap-1">
                   <span className="text-4xl font-black" style={{ color: NAVY }}>$350</span>
                   <span className="text-sm pb-1.5" style={{ color: '#6B6355' }}>/mo</span>
                 </div>
-                <p className="text-xs mt-1" style={{ color: '#6B6355' }}>
-                  $150 CRM + $200 Voice add-on
-                </p>
-                <p className="text-xs mt-0.5" style={{ color: '#9A3412' }}>
+                <p className="text-xs mt-1" style={{ color: '#9A3412' }}>
                   or <strong>$315/mo</strong> billed annually. Save $420/yr.
                 </p>
               </div>
               <ul className="space-y-2.5 mb-7 mt-4 flex-1">
                 {[
-                  'Everything in Complete CRM',
+                  'Unlimited clients & leads',
+                  'Unlimited active listings',
+                  'Public listing pages (SEO-ready)',
+                  'Listing-linked activity tracking',
+                  'Lead pipeline (Kanban board)',
+                  'Gmail + IMAP lead auto-import',
+                  'AI Lead Scanner (photo & PDF)',
+                  'AI Daily Brief (who to call today)',
+                  'Showing scheduler & calendar',
+                  'Follow-up sequences & templates',
+                  'Google Calendar integration',
+                  'Client Pulse surveys + rep score',
+                  'Analytics & full XLSX export',
+                  'Contacts & business card scan',
+                  'Team members + role-based access',
                   '75 AI listing videos/month',
                   'Auto-post to Facebook & Instagram',
                 ].map((feat, i) => (
@@ -557,27 +579,43 @@ export default function RealtyWyzeLandingPage() {
                   </li>
                 ))}
                 <li className="pt-2 border-t" style={{ borderColor: '#E8E2D8', listStyle: 'none' }}>
-                  <p className="text-xs font-black uppercase tracking-wide mb-2" style={{ color: ORANGE }}>Voice Add-on</p>
+                  <p className="text-xs font-black uppercase tracking-wide mb-2" style={{ color: ORANGE }}>Messaging & Voice</p>
+                </li>
+                {[
+                  'Two-way SMS + dedicated business number',
+                  '5,000 SMS credits/month (included)',
+                  '3,000 voice minutes/month (included)',
+                  'SMS & voice credits never expire—they roll over each month',
+                ].map((feat, i) => (
+                  <li key={`p${i}`} className="flex items-start gap-2.5 text-sm" style={{ color: '#3D3530' }}>
+                    <Check className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#C4B8AC' }} />
+                    {feat}
+                  </li>
+                ))}
+                <li className="pt-2 border-t" style={{ borderColor: '#E8E2D8', listStyle: 'none' }}>
+                  <p className="text-xs font-black uppercase tracking-wide mb-2" style={{ color: ORANGE }}>AI Voice Agent</p>
                 </li>
                 {[
                   'Dedicated AI voice agent (Retell AI)',
-                  'Answers inbound calls when you\'re in a showing',
+                  'Answers inbound calls 24/7',
                   'Qualifies buyers on budget, timeline, and pre-approval',
                   'Captures seller leads after hours',
                   'Post-call transcripts & summaries',
                   'Auto lead creation from every inbound call',
-                  '1,000 voice minutes/month included',
                 ].map((feat, i) => (
                   <li key={`v${i}`} className="flex items-start gap-2.5 text-sm" style={{ color: '#3D3530' }}>
                     <Check className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#C4B8AC' }} />
                     {feat}
                   </li>
                 ))}
+                <li className="pt-2 mt-2 border-t" style={{ borderColor: '#E8E2D8', listStyle: 'none' }}>
+                  <p className="text-xs" style={{ color: '#9A3412' }}>Need more? Add 750 SMS ($10) or 750 voice minutes ($25) anytime.</p>
+                </li>
               </ul>
-              <div className="w-full py-3.5 rounded-xl font-bold text-sm text-center cursor-not-allowed"
-                style={{ backgroundColor: '#E8E2D8', color: '#9A8E85' }}>
-                Available After Early Access
-              </div>
+              <button className="w-full py-3.5 rounded-xl font-bold text-sm text-center transition-all hover:opacity-90 active:scale-95"
+                style={{ backgroundColor: ORANGE, color: '#fff' }}>
+                Choose Plan
+              </button>
             </div>
           </div>
 
@@ -630,7 +668,7 @@ export default function RealtyWyzeLandingPage() {
               { q: 'How does the AI voice agent work?', a: 'When a buyer calls and you\'re unavailable, the AI answers, qualifies the caller (what they\'re looking for, timeline, pre-approval status), and creates a follow-up task in your inbox. Buyers always reach a live-feeling response, even when you\'re in a showing.' },
               { q: 'Can I use it with my current email and phone?', a: 'Yes. Connect your Gmail or another email inbox in Settings. RealtyWyze pulls in inquiries from connected inboxes and lets you reply from within the app. Your business phone number is provisioned inside RealtyWyze for two-way texting.' },
               { q: 'How long does setup take?', a: 'Most agents are fully set up in under 10 minutes: connect your inbox, add your listings, provision your phone number. The onboarding wizard walks you through each step. Your Today list starts building from day one.' },
-              { q: 'What does it cost?', a: 'Complete CRM is $150/mo for solo agents. CRM + Voice is $350/mo with the AI voice add-on. Both will include a 14-day free trial with no credit card required. Right now it is free during early access. One commission check covers years of RealtyWyze.' },
+              { q: 'What does it cost?', a: 'Growth is $150/mo with 3,000 SMS credits. Pro is $350/mo with 5,000 SMS + 3,000 voice minutes. Both include 30 days free to try. SMS and voice credits never expire—they roll over month to month. Buy more anytime: $10 for 750 SMS or $25 for 750 voice minutes. One closing pays for years of RealtyWyze.' },
             ].map(faq => <FAQItem key={faq.q} {...faq} />)}
           </div>
         </div>
@@ -651,7 +689,7 @@ export default function RealtyWyzeLandingPage() {
           <Link href="/signup" className="inline-flex items-center gap-2 text-base font-bold px-10 py-4 rounded-xl text-white transition-all hover:opacity-90 shadow-2xl" style={{ backgroundColor: ORANGE }}>
             Start your free trial <ChevronRight className="w-5 h-5" />
           </Link>
-          <p className="mt-5 text-sm text-white/40">14 days free. Then $150/mo. Cancel anytime.</p>
+          <p className="mt-5 text-sm text-white/40">30 days free. Then $150/mo or $350/mo. Cancel anytime.</p>
         </div>
       </section>
 
