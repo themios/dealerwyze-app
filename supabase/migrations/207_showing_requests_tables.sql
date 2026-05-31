@@ -56,6 +56,7 @@ ALTER TABLE showing_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE showing_feedback ENABLE ROW LEVEL SECURITY;
 
 -- Agent can view showing requests for their own listings
+DROP POLICY IF EXISTS "Agent can view own showing requests" ON showing_requests;
 CREATE POLICY "Agent can view own showing requests"
   ON showing_requests FOR SELECT
   USING (
@@ -64,6 +65,7 @@ CREATE POLICY "Agent can view own showing requests"
   );
 
 -- Agent can create showing requests (as agent, owner links to their listings)
+DROP POLICY IF EXISTS "Agent can create own showing requests" ON showing_requests;
 CREATE POLICY "Agent can create own showing requests"
   ON showing_requests FOR INSERT
   WITH CHECK (
@@ -72,6 +74,7 @@ CREATE POLICY "Agent can create own showing requests"
   );
 
 -- Agent can update showing requests (status, confirmed_time, calendar event)
+DROP POLICY IF EXISTS "Agent can update own showing requests" ON showing_requests;
 CREATE POLICY "Agent can update own showing requests"
   ON showing_requests FOR UPDATE
   USING (
@@ -80,6 +83,7 @@ CREATE POLICY "Agent can update own showing requests"
   );
 
 -- Agent can delete showing requests (soft delete via status, but allow hard delete if needed)
+DROP POLICY IF EXISTS "Agent can delete own showing requests" ON showing_requests;
 CREATE POLICY "Agent can delete own showing requests"
   ON showing_requests FOR DELETE
   USING (
@@ -88,6 +92,7 @@ CREATE POLICY "Agent can delete own showing requests"
   );
 
 -- Agent can view feedback for their own showings
+DROP POLICY IF EXISTS "Agent can view own feedback" ON showing_feedback;
 CREATE POLICY "Agent can view own feedback"
   ON showing_feedback FOR SELECT
   USING (
@@ -96,6 +101,7 @@ CREATE POLICY "Agent can view own feedback"
   );
 
 -- Agent can create feedback for their own showings
+DROP POLICY IF EXISTS "Agent can create own feedback" ON showing_feedback;
 CREATE POLICY "Agent can create own feedback"
   ON showing_feedback FOR INSERT
   WITH CHECK (
@@ -104,6 +110,7 @@ CREATE POLICY "Agent can create own feedback"
   );
 
 -- Agent can update their feedback
+DROP POLICY IF EXISTS "Agent can update own feedback" ON showing_feedback;
 CREATE POLICY "Agent can update own feedback"
   ON showing_feedback FOR UPDATE
   USING (
