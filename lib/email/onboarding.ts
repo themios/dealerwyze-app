@@ -443,7 +443,7 @@ export function buildReDayOneTipsEmailHtml(agentName: string, appUrl: string): s
       </p>
 
       ${sig(reUrl, 'real_estate')}
-      ${helpCta()}
+      ${helpCta('real_estate')}
     </div>
     ${footer(reUrl, 'real_estate')}
   </td></tr>
@@ -494,7 +494,7 @@ export function buildReDayThreeFollowUpHtml(agentName: string, appUrl: string): 
         Happy to walk you through it.
       </p>
       ${sig(reUrl, 'real_estate')}
-      ${helpCta()}
+      ${helpCta('real_estate')}
     </div>
     ${footer(reUrl, 'real_estate')}
   </td></tr>
@@ -537,7 +537,7 @@ export function buildReDaySevenFollowUpHtml(agentName: string, appUrl: string): 
         </a>
       </div>
       ${sig(reUrl, 'real_estate')}
-      ${helpCta()}
+      ${helpCta('real_estate')}
     </div>
     ${footer(reUrl, 'real_estate')}
   </td></tr>
