@@ -26,7 +26,7 @@ type CreateBuyerProfile = z.infer<typeof CreateBuyerProfileSchema>;
 
 export async function GET(request: NextRequest) {
   const profile = await requireProfile();
-  const client = createClient();
+  const client = await createClient();
 
   try {
     const { data, error } = await client
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const profile = await requireProfile();
-  const client = createClient();
+  const client = await createClient();
 
   try {
     const body = await request.json();

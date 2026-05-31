@@ -30,7 +30,7 @@ export async function PUT(
 ) {
   const { id } = await params;
   const profile = await requireProfile();
-  const client = createClient();
+  const client = await createClient();
 
   try {
     const body = await request.json();
@@ -85,7 +85,7 @@ export async function PUT(
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation error', details: err.errors },
+        { error: 'Validation error', details: err.issues },
         { status: 400 }
       );
     }
@@ -103,7 +103,7 @@ export async function DELETE(
 ) {
   const { id } = await params;
   const profile = await requireProfile();
-  const client = createClient();
+  const client = await createClient();
 
   try {
     // Verify ownership before deleting

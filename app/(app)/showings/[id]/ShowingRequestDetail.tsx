@@ -42,7 +42,7 @@ export default function ShowingRequestDetail({ showing }: { showing: ShowingRequ
     showing.requested_time_1,
     showing.requested_time_2,
     showing.requested_time_3,
-  ].filter((t) => t)
+  ].filter((t): t is string => !!t)
 
   async function handleConfirm() {
     if (!selectedTime) {
