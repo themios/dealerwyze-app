@@ -2,23 +2,36 @@
  * POST /api/integrations/mls/sync
  *
  * Sync listings from Bridge MLS API to vehicles table.
+ * Multi-tenant aware, uses idempotency to prevent duplicate processing.
+ *
  * Called by:
- * - Cron job (daily, 6 AM) for all agents
- * - Directly by agent onboarding flow (first sync)
+ * - Agent onboarding flow (manual sync request)
+ * - Dashboard "Sync now" button
+ * - Cron job indirectly (cron calls upsert logic directly)
  *
- * Body:
- * - agentId: string (Bridge agent ID or email)
- * - boardId: string (MLS board ID)
- * - apiKey: string (Bridge API key, encrypted in request)
+ * Request body:
+ * - agentId: string (Bridge agent ID, optional)
+ * - boardId: string (MLS board ID, optional)
+ * - apiKey: string (Bridge API key, optional)
  *
- * OR uses agent's profile settings (mls_board_id, bridge_api_key)
+ * If not provided in body, uses agent's profile settings.
+ *
+ * Response:
+ * {
+ *   success: boolean,
+ *   listings_synced: number,
+ *   listings_created: number,
+ *   listings_updated: number,
+ *   errors: string[]
+ * }
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
-import { getListings, SyncResult, BridgeListing } from '@/lib/mls/bridgeClient'
+import { getListings, BridgeListing } from '@/lib/mls/bridgeClient'
+import { writeAuditLog } from '@/lib/audit/log'
 
 const SyncRequestSchema = z.object({
   agentId: z.string().min(1).optional(),
@@ -26,13 +39,13 @@ const SyncRequestSchema = z.object({
   apiKey: z.string().min(1).optional(),
 })
 
-interface ListingRow {
-  mls_number: string
-  [key: string]: unknown
+interface PriceHistoryEntry {
+  price: number
+  date: string
 }
 
 /**
- * Calculate days on market from listing_date
+ * Calculate days on market from listing date
  */
 function calculateDOM(listingDateStr: string | null): number | null {
   if (!listingDateStr) return null
@@ -48,31 +61,71 @@ function calculateDOM(listingDateStr: string | null): number | null {
 }
 
 /**
- * Transform Bridge listing to vehicle insert/update payload
+ * Generate idempotency key for webhook deduplication
+ * Prevents re-processing the same sync multiple times
  */
-function transformBridgeListingToVehicle(
+function generateIdempotencyKey(agentId: string, boardId: string, syncTimestamp: string): string {
+  return `mls-sync:${agentId}:${boardId}:${syncTimestamp}`
+}
+
+/**
+ * Upsert a single listing with idempotency and conflict handling
+ * Uses ON CONFLICT to handle concurrent syncs safely
+ * Preserves user-set fields (showing_count, notes_seller, notes_agent)
+ */
+async function upsertListing(
+  supabase: any,
   listing: BridgeListing,
-  userId: string
-): Record<string, unknown> {
-  return {
-    user_id: userId,
+  orgId: string
+): Promise<{ action: 'created' | 'updated'; vehicleId: string }> {
+  // Fetch existing record if present (for price history + field preservation)
+  const { data: existing } = await supabase
+    .from('vehicles')
+    .select('id, price, price_history, showing_count, notes_seller, notes_agent')
+    .eq('mls_number', listing.mls_number)
+    .eq('org_id', orgId)
+    .maybeSingle()
+
+  const now = new Date().toISOString()
+
+  // Calculate price history: only append if price changed
+  let priceHistory: PriceHistoryEntry[] = []
+  if (existing?.price_history) {
+    priceHistory = Array.isArray(existing.price_history) ? existing.price_history : []
+  }
+
+  if (listing.price && existing?.price !== listing.price) {
+    priceHistory.push({
+      price: listing.price,
+      date: now,
+    })
+  }
+
+  // Build upsert payload
+  const payload: Record<string, any> = {
+    org_id: orgId,
     mls_number: listing.mls_number,
     mls_board_id: listing.listing_office || 'unknown',
-    mls_synced_at: new Date().toISOString(),
+    mls_synced_at: now,
     mls_source: 'bridge',
     listing_status: listing.listing_status,
     dom: calculateDOM(listing.listing_date),
-    // Vehicle-specific fields
+    price: listing.price,
+    price_history: priceHistory,
+
+    // RE-specific vehicle mapping
     year: 0,
     make: 'RE',
     model: `${listing.address.city} Property`,
     stock_no: `MLS-${listing.mls_number}-${Date.now()}`,
     status: listing.listing_status === 'active' ? 'active' : 'inactive',
-    // Address fields
+
+    // Address
     address_line1: listing.address.address_line1,
     city: listing.address.city,
     state: listing.address.state,
     zip: listing.address.zip,
+
     // Property details
     bedrooms: listing.bedrooms,
     bathrooms: listing.bathrooms,
@@ -81,26 +134,94 @@ function transformBridgeListingToVehicle(
     description: listing.description,
     property_type: listing.property_type,
     import_source: 'bridge_mls',
-    // Photos (URLs only; actual download happens async)
+
+    // Photos (URLs only; async download is TODO)
     photos: listing.photos.map(p => ({ url: p.url, caption: p.caption })),
-    // Price history
-    price: listing.price,
-    price_history: listing.price
-      ? [{ price: listing.price, date: new Date().toISOString() }]
-      : [],
+  }
+
+  // Preserve user-set fields if this is an update
+  if (existing) {
+    if (existing.showing_count !== null && existing.showing_count !== undefined) {
+      payload.showing_count = existing.showing_count
+    }
+    if (existing.notes_seller) {
+      payload.notes_seller = existing.notes_seller
+    }
+    if (existing.notes_agent) {
+      payload.notes_agent = existing.notes_agent
+    }
+  }
+
+  // Upsert with ON CONFLICT on (mls_number, org_id) unique index
+  const { data, error } = await supabase
+    .from('vehicles')
+    .upsert(payload, {
+      onConflict: 'mls_number,org_id',
+      ignoreDuplicates: false,
+    })
+    .select('id')
+    .single()
+
+  if (error) {
+    throw new Error(`Upsert failed: ${error.message}`)
+  }
+
+  if (!data?.id) {
+    throw new Error('Upsert returned no ID')
+  }
+
+  // Queue async photo download (no-op for now)
+  if (listing.photos.length > 0) {
+    console.log(`[mls-sync] Queued ${listing.photos.length} photos for ${listing.mls_number}`)
+    // TODO: Implement async photo downloader (Bull queue, Redis, etc.)
+  }
+
+  return {
+    action: existing ? 'updated' : 'created',
+    vehicleId: data.id,
   }
 }
 
 /**
- * Queue async photo download (stub for now)
- * TODO: Implement async photo downloader (Bull queue, Cloudflare Durable Objects, etc.)
+ * GET /api/integrations/mls/sync?status=pending|success|failed&limit=50
+ * Fetch sync logs for the authenticated agent
  */
-async function queuePhotoDownload(
-  vehicleId: string,
-  photoUrls: string[]
-): Promise<void> {
-  // Placeholder: in production, queue to Redis/Bull/etc.
-  console.log(`[photoDownload] Queued ${photoUrls.length} photos for vehicle ${vehicleId}`)
+export async function GET(req: NextRequest) {
+  try {
+    const profile = await requireProfile()
+    const supabase = await createClient()
+
+    const status = req.nextUrl.searchParams.get('status')
+    const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') || '50'), 500)
+
+    let query = supabase
+      .from('mls_sync_log')
+      .select('id, synced_at, listings_synced, listings_created, listings_updated, status, errors, mls_board_id')
+      .eq('agent_id', profile.id)
+      .order('synced_at', { ascending: false })
+      .limit(limit)
+
+    if (status) {
+      query = query.eq('status', status)
+    }
+
+    const { data: logs, error } = await query
+
+    if (error) {
+      return NextResponse.json(
+        { error: `Failed to fetch sync logs: ${error.message}` },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({
+      logs: logs || [],
+      count: logs?.length || 0,
+    })
+  } catch (err) {
+    console.error('[mls/sync GET] error:', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -155,17 +276,40 @@ export async function POST(req: NextRequest) {
       apiKey = agentProfile.bridge_api_key
     }
 
-    const result: SyncResult = {
-      success: false,
-      listings_fetched: 0,
-      listings_created: 0,
-      listings_updated: 0,
-      errors: [],
-      timestamp: new Date(),
+    // Idempotency check: prevent duplicate syncs within same minute
+    const syncTimestamp = new Date().toISOString().substring(0, 16) // YYYY-MM-DDTHH:MM
+    const idempotencyKey = generateIdempotencyKey(agentId!, boardId!, syncTimestamp)
+
+    const { data: existingSync } = await supabase
+      .from('webhook_idempotency')
+      .select('id, processed_at')
+      .eq('key', idempotencyKey)
+      .eq('provider', 'mls_bridge')
+      .maybeSingle()
+
+    if (existingSync) {
+      const processedTime = new Date(existingSync.processed_at)
+      const nowTime = new Date()
+      const diffMs = nowTime.getTime() - processedTime.getTime()
+
+      // Skip if already processed within last 5 minutes
+      if (diffMs < 5 * 60 * 1000) {
+        return NextResponse.json({
+          success: true,
+          listings_synced: 0,
+          listings_created: 0,
+          listings_updated: 0,
+          errors: ['Sync already in progress, skipping'],
+        })
+      }
     }
 
-    // Fetch listings from Bridge API
-    let listings: BridgeListing[] = []
+    // Mark this sync in progress
+    await supabase.from('webhook_idempotency').upsert({
+      key: idempotencyKey,
+      provider: 'mls_bridge',
+      processed_at: new Date().toISOString(),
+    })
 
     // Ensure all required params are set
     if (!agentId || !boardId || !apiKey) {
@@ -175,14 +319,17 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // Fetch listings from Bridge API
+    let listings: BridgeListing[] = []
     try {
       listings = await getListings(agentId, boardId, apiKey)
-      result.listings_fetched = listings.length
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error'
-      result.errors.push(`Bridge API error: ${msg}`)
-      // Log sync failure and return early
+      const errors = [`Bridge API error: ${msg}`]
+
+      // Log sync failure
       await supabase.from('mls_sync_log').insert({
+        org_id: profile.org_id,
         agent_id: profile.id,
         mls_board_id: boardId,
         listings_synced: 0,
@@ -191,87 +338,79 @@ export async function POST(req: NextRequest) {
         errors: msg,
         status: 'failed',
       })
-      return NextResponse.json(result, { status: 400 })
+
+      return NextResponse.json(
+        {
+          success: false,
+          listings_synced: 0,
+          listings_created: 0,
+          listings_updated: 0,
+          errors,
+        },
+        { status: 400 }
+      )
     }
 
-    // Process each listing: insert new, update existing
-    const photoQueueJobs = []
+    // Process each listing
+    let created = 0
+    let updated = 0
+    const syncErrors: string[] = []
 
     for (const listing of listings) {
       try {
-        const payload = transformBridgeListingToVehicle(listing, profile.org_id)
-
-        // Try update first, then insert if not found
-        const { data: existing } = await supabase
-          .from('vehicles')
-          .select('id')
-          .eq('mls_number', listing.mls_number)
-          .eq('user_id', profile.org_id)
-          .single()
-
-        if (existing) {
-          // Update existing listing
-          const { error: updateError } = await supabase
-            .from('vehicles')
-            .update(payload)
-            .eq('id', existing.id)
-
-          if (updateError) {
-            result.errors.push(`Failed to update ${listing.mls_number}: ${updateError.message}`)
-          } else {
-            result.listings_updated++
-            // Queue photo download
-            if (listing.photos.length > 0) {
-              photoQueueJobs.push(queuePhotoDownload(existing.id, listing.photos.map(p => p.url)))
-            }
-          }
+        const result = await upsertListing(supabase, listing, profile.org_id)
+        if (result.action === 'created') {
+          created++
         } else {
-          // Insert new listing
-          const { data: newVehicle, error: insertError } = await supabase
-            .from('vehicles')
-            .insert(payload)
-            .select('id')
-            .single()
-
-          if (insertError) {
-            result.errors.push(`Failed to insert ${listing.mls_number}: ${insertError.message}`)
-          } else if (newVehicle) {
-            result.listings_created++
-            // Queue photo download
-            if (listing.photos.length > 0) {
-              photoQueueJobs.push(queuePhotoDownload(newVehicle.id, listing.photos.map(p => p.url)))
-            }
-          }
+          updated++
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Unknown error'
-        result.errors.push(`Error processing ${listing.mls_number}: ${msg}`)
+        syncErrors.push(`${listing.mls_number}: ${msg}`)
       }
     }
 
-    // Queue all photo downloads (async, don't wait)
-    Promise.all(photoQueueJobs).catch(err => {
-      console.error('Photo download queue error:', err)
-    })
-
     // Log sync result
-    const { error: logError } = await supabase.from('mls_sync_log').insert({
+    const status = syncErrors.length === 0 ? 'success' : 'partial'
+    await supabase.from('mls_sync_log').insert({
+      org_id: profile.org_id,
       agent_id: profile.id,
       mls_board_id: boardId,
-      listings_synced: result.listings_fetched,
-      listings_created: result.listings_created,
-      listings_updated: result.listings_updated,
-      errors: result.errors.length > 0 ? result.errors.join('; ') : null,
-      status: result.errors.length === 0 ? 'success' : 'partial',
+      listings_synced: listings.length,
+      listings_created: created,
+      listings_updated: updated,
+      errors: syncErrors.length > 0 ? syncErrors.join('; ') : null,
+      status,
     })
 
-    if (logError) {
-      console.error('Failed to log sync result:', logError)
-    }
+    // Audit log
+    await writeAuditLog({
+      action: 'mls_sync_manual',
+      actor_type: 'user',
+      actor_id: profile.id,
+      entity_type: 'listing_batch',
+      org_id: profile.org_id,
+      metadata: {
+        board_id: boardId,
+        listings_synced: listings.length,
+        created,
+        updated,
+        errors: syncErrors.length,
+      },
+    })
 
-    result.success = result.errors.length === 0
+    const success = syncErrors.length === 0
 
-    return NextResponse.json(result, { status: result.success ? 200 : 207 })
+    return NextResponse.json(
+      {
+        success,
+        listings_synced: listings.length,
+        listings_created: created,
+        listings_updated: updated,
+        errors: syncErrors,
+      },
+      { status: success ? 200 : 207 }
+    )
   } catch (err) {
     console.error('[mls/sync] unexpected error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

@@ -24,6 +24,7 @@ import { runDealerInboxAutomations } from '@/lib/cron/jobs/dealerInboxAutomation
 import { runPlatformOwnerDigest } from '@/lib/cron/jobs/platformOwnerDigest'
 import { runShowingReminders } from '@/lib/cron/jobs/showingReminders'
 import { runMatchBuyerListings } from '@/lib/cron/jobs/matchBuyerListings'
+import { runMlsSync } from '@/lib/cron/jobs/mlsSync'
 
 export const runtime = 'nodejs'
 export const maxDuration = 55
@@ -69,6 +70,7 @@ export async function GET(req: NextRequest) {
   let ownerDigest:   Awaited<ReturnType<typeof runPlatformOwnerDigest>>     | undefined
   let showingRems:   Awaited<ReturnType<typeof runShowingReminders>>        | undefined
   let buyerMatches:  Awaited<ReturnType<typeof runMatchBuyerListings>>      | undefined
+  let mlsSync:       Awaited<ReturnType<typeof runMlsSync>>                 | undefined
 
   try {
     receipts    = await runJob('receiptTasks',            () => runReceiptTasks(supabase))
@@ -94,6 +96,7 @@ export async function GET(req: NextRequest) {
     )
     ownerDigest = await runJob('platformOwnerDigest',      () => runPlatformOwnerDigest(supabase))
     showingRems = await runJob('showingReminders',          () => runShowingReminders(supabase))
+    mlsSync     = await runJob('mlsSync',                   () => runMlsSync(supabase))
     buyerMatches = await runJob('matchBuyerListings',       () => runMatchBuyerListings(supabase))
   } finally {
     const anyFailed = Object.values(jobResults).some(v => v !== 'ok')
@@ -120,6 +123,11 @@ export async function GET(req: NextRequest) {
     re_followups_sent:           reFollowUps?.reFollowUpsSent,
     platform_digest_sent:        ownerDigest?.platformDigestSent,
     showing_reminders_queued:    showingRems?.remindersQueued,
+    mls_agents_synced:           mlsSync?.agents_synced,
+    mls_listings_fetched:        mlsSync?.total_listings_fetched,
+    mls_listings_created:        mlsSync?.total_listings_created,
+    mls_listings_updated:        mlsSync?.total_listings_updated,
+    mls_sync_errors:             mlsSync?.errors,
     buyer_matches_created:       buyerMatches?.matchesCreated,
     job_results:                 jobResults,
   })
