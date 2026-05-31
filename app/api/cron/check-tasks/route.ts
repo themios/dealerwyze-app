@@ -25,6 +25,7 @@ import { runPlatformOwnerDigest } from '@/lib/cron/jobs/platformOwnerDigest'
 import { runShowingReminders } from '@/lib/cron/jobs/showingReminders'
 import { runMatchBuyerListings } from '@/lib/cron/jobs/matchBuyerListings'
 import { runMlsSync } from '@/lib/cron/jobs/mlsSync'
+import { detectShowingNoShows } from '@/lib/cron/jobs/detectShowingNoShows'
 
 export const runtime = 'nodejs'
 export const maxDuration = 55
@@ -71,6 +72,7 @@ export async function GET(req: NextRequest) {
   let showingRems:   Awaited<ReturnType<typeof runShowingReminders>>        | undefined
   let buyerMatches:  Awaited<ReturnType<typeof runMatchBuyerListings>>      | undefined
   let mlsSync:       Awaited<ReturnType<typeof runMlsSync>>                 | undefined
+  let noShows:       Awaited<ReturnType<typeof detectShowingNoShows>>        | undefined
 
   try {
     receipts    = await runJob('receiptTasks',            () => runReceiptTasks(supabase))
@@ -98,6 +100,7 @@ export async function GET(req: NextRequest) {
     showingRems = await runJob('showingReminders',          () => runShowingReminders(supabase))
     mlsSync     = await runJob('mlsSync',                   () => runMlsSync(supabase))
     buyerMatches = await runJob('matchBuyerListings',       () => runMatchBuyerListings(supabase))
+    noShows     = await runJob('detectShowingNoShows',        () => detectShowingNoShows())
   } finally {
     const anyFailed = Object.values(jobResults).some(v => v !== 'ok')
     await finishCronRun(runId, anyFailed ? 'partial_failure' : 'success', adminResult?.allOrgsCount)
@@ -129,6 +132,7 @@ export async function GET(req: NextRequest) {
     mls_listings_updated:        mlsSync?.total_listings_updated,
     mls_sync_errors:             mlsSync?.errors,
     buyer_matches_created:       buyerMatches?.matchesCreated,
+    showing_noshows_processed:   noShows?.processed,
     job_results:                 jobResults,
   })
 }

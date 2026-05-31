@@ -1,84 +1,101 @@
 /**
- * Showing reminders — notifies agents via email ~24 hours before a scheduled showing.
- * Window: 22–26 hours from now (matches appointmentRemindersV2 pattern).
- * Idempotent: reminder_sent_at IS NULL guard prevents double-firing.
+ * lib/cron/jobs/showingReminders.ts
  *
- * SMS is omitted: org_settings has no agent phone column.
- * Agent email is resolved via supabase.auth.admin.getUserById(agent_id).
- * Covers SHOW-02.
+ * RealtyWyze showing request reminders — notifies agents 24 hours before confirmed showings
+ * Window: 22–26 hours from now
+ * Idempotent: only sends if reminder_sent_at IS NULL
+ * Queries showing_requests table (buyer inquiries), not showings table (dealer appointments)
  */
 
 import { sendNotificationEmail } from '@/lib/email/notify'
 import type { createServiceClient } from '@/lib/supabase/service'
 
 export async function runShowingReminders(
-  supabase: ReturnType<typeof createServiceClient>,
+  supabase: ReturnType<typeof createServiceClient>
 ): Promise<{ remindersQueued: number }> {
   const windowStart = new Date(Date.now() + 22 * 60 * 60 * 1000).toISOString()
-  const windowEnd   = new Date(Date.now() + 26 * 60 * 60 * 1000).toISOString()
+  const windowEnd = new Date(Date.now() + 26 * 60 * 60 * 1000).toISOString()
 
-  const { data: showings } = await supabase
-    .from('showings')
+  // Query showing_requests table (RealtyWyze buyer inquiry showings)
+  const { data: requests, error } = await supabase
+    .from('showing_requests')
     .select(`
-      id, scheduled_at, org_id, agent_id, listing_id,
-      listing:vehicles(id, address),
-      contact:customers(id, name)
+      id, confirmed_time, org_id, agent_id, buyer_name,
+      listing:vehicles(address_line1, city, state, zip)
     `)
-    .eq('status', 'scheduled')
+    .eq('status', 'confirmed')
     .is('reminder_sent_at', null)
-    .gte('scheduled_at', windowStart)
-    .lte('scheduled_at', windowEnd)
+    .gte('confirmed_time', windowStart)
+    .lte('confirmed_time', windowEnd)
     .limit(500)
+
+  if (error) {
+    console.error('[showingReminders] Query error:', error)
+    return { remindersQueued: 0 }
+  }
 
   let remindersQueued = 0
 
-  for (const showing of showings ?? []) {
-    if (!showing.agent_id) continue
+  for (const request of requests ?? []) {
+    if (!request.agent_id) continue
 
-    // Resolve agent display name from profiles
+    // Resolve agent display name and email
     const { data: agentProfile } = await supabase
       .from('profiles')
-      .select('id, display_name')
-      .eq('id', showing.agent_id)
+      .select('id, display_name, email')
+      .eq('id', request.agent_id)
       .maybeSingle()
 
-    // Resolve agent email from Supabase Auth (not stored on profiles)
-    const { data: authUser } = await supabase.auth.admin.getUserById(showing.agent_id)
-    const agentEmail = authUser?.user?.email
-    if (!agentEmail) continue
+    const agentEmail = agentProfile?.email
+    if (!agentEmail) {
+      console.warn(`[showingReminders] Agent ${request.agent_id} has no email`)
+      continue
+    }
 
-    const listing = Array.isArray(showing.listing) ? showing.listing[0] : showing.listing
-    const contact = Array.isArray(showing.contact) ? showing.contact[0] : showing.contact
+    // Format listing address
+    const listing = Array.isArray(request.listing) ? request.listing[0] : request.listing
+    const address = listing
+      ? [listing.address_line1, listing.city, listing.state, listing.zip]
+          .filter(Boolean)
+          .join(', ')
+      : 'Property'
 
-    const scheduledAt = new Date(showing.scheduled_at).toLocaleString('en-US', {
-      weekday: 'long', month: 'long', day: 'numeric',
-      hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles',
+    // Send reminder email
+    const agentName = agentProfile?.display_name || 'Agent'
+    const subject = `Showing reminder: ${address}`
+    const html = `
+      <p>Hi ${agentName},</p>
+      <p>You have a showing scheduled in about 24 hours.</p>
+      <p><strong>${address}</strong></p>
+      <p>Buyer: ${request.buyer_name}</p>
+      <p>Be on time!</p>
+    `
+
+    await sendNotificationEmail({
+      to: agentEmail,
+      subject,
+      html,
+    }).catch(() => {
+      console.error(
+        `[showingReminders] Failed to send reminder for request ${request.id}`
+      )
     })
 
-    const address   = (listing as { address?: string } | null)?.address ?? 'Unknown address'
-    const buyerName = (contact as { name?: string } | null)?.name ?? 'a buyer'
-    const agentName = agentProfile?.display_name ?? 'Agent'
-
-    // Email to agent — best-effort (failure logged, does not halt loop)
-    await sendNotificationEmail({
-      to:      agentEmail,
-      subject: `Showing reminder: ${address}`,
-      html:    `<p>Hi ${agentName},</p>
-                <p>You have a showing scheduled for <strong>${scheduledAt}</strong> at <strong>${address}</strong> with ${buyerName}.</p>
-                <p>This is your 24-hour reminder.</p>`,
-      org_id:     showing.org_id,
-      email_type: 'showing_reminder',
-    }).catch(err => console.error('[showingReminders] email failed:', { showingId: showing.id, error: (err as Error).message }))
-
-    // Stamp reminder_sent_at to prevent double-fire on re-runs
+    // Mark reminder sent in DB
     await supabase
-      .from('showings')
+      .from('showing_requests')
       .update({ reminder_sent_at: new Date().toISOString() })
-      .eq('id', showing.id)
-
-    remindersQueued++
+      .eq('id', request.id)
+      .then(() => {
+        remindersQueued++
+      })
+      .catch(() => {
+        console.error(
+          `[showingReminders] Failed to mark reminder sent for request ${request.id}`
+        )
+      })
   }
 
-  console.log(`[check-tasks] showing reminders queued: ${remindersQueued}`)
+  console.log(`[showingReminders] Queued ${remindersQueued} reminders`)
   return { remindersQueued }
 }
