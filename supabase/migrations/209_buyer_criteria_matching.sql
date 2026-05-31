@@ -47,13 +47,13 @@ CREATE TABLE matched_opportunities (
 CREATE UNIQUE INDEX idx_matched_opportunities_unique
   ON matched_opportunities(buyer_profile_id, listing_id);
 
-CREATE INDEX idx_buyer_profiles_agent ON buyer_profiles(agent_id);
-CREATE INDEX idx_buyer_profiles_org ON buyer_profiles(org_id);
-CREATE INDEX idx_buyer_profiles_active ON buyer_profiles(active) WHERE active = true;
-CREATE INDEX idx_matched_opportunities_status ON matched_opportunities(status);
-CREATE INDEX idx_matched_opportunities_buyer ON matched_opportunities(buyer_profile_id);
-CREATE INDEX idx_matched_opportunities_listing ON matched_opportunities(listing_id);
-CREATE INDEX idx_matched_opportunities_created ON matched_opportunities(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_buyer_profiles_agent ON buyer_profiles(agent_id);
+CREATE INDEX IF NOT EXISTS idx_buyer_profiles_org ON buyer_profiles(org_id);
+CREATE INDEX IF NOT EXISTS idx_buyer_profiles_active ON buyer_profiles(active) WHERE active = true;
+CREATE INDEX IF NOT EXISTS idx_matched_opportunities_status ON matched_opportunities(status);
+CREATE INDEX IF NOT EXISTS idx_matched_opportunities_buyer ON matched_opportunities(buyer_profile_id);
+CREATE INDEX IF NOT EXISTS idx_matched_opportunities_listing ON matched_opportunities(listing_id);
+CREATE INDEX IF NOT EXISTS idx_matched_opportunities_created ON matched_opportunities(created_at DESC);
 
 -- RLS Policies
 ALTER TABLE buyer_profiles ENABLE ROW LEVEL SECURITY;

@@ -7,4 +7,4 @@ ALTER TABLE profiles ADD COLUMN IF NOT EXISTS bridge_api_key TEXT;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS mls_license_number TEXT;
 
 -- Index for finding agents with MLS config
-CREATE INDEX idx_profiles_mls_board ON profiles(mls_board_id) WHERE mls_board_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_profiles_mls_board ON profiles(mls_board_id) WHERE mls_board_id IS NOT NULL;
