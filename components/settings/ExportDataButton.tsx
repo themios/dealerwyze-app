@@ -2,8 +2,10 @@
 
 import { useState } from 'react'
 import { Download } from 'lucide-react'
+import { useVertical } from '@/lib/vertical'
 
 export default function ExportDataButton() {
+  const { vertical } = useVertical()
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState<string | null>(null)
 
@@ -21,7 +23,8 @@ export default function ExportDataButton() {
       const url  = URL.createObjectURL(blob)
       const a    = document.createElement('a')
       a.href     = url
-      a.download = `dealerwyze-export-${new Date().toISOString().slice(0, 10)}.zip`
+      const prefix = vertical === 'real_estate' ? 'realtywyze' : 'dealerwyze'
+      a.download = `${prefix}-export-${new Date().toISOString().slice(0, 10)}.zip`
       a.click()
       URL.revokeObjectURL(url)
     } catch {
