@@ -2,19 +2,18 @@ import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { NextRequest, NextResponse } from 'next/server'
 
-export async function GET(request: NextRequest) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   const profile = await requireProfile()
   const client = createClient()
 
   try {
-    const { searchParams } = new URL(request.url)
-    const status = searchParams.get('status')
-    const buyerId = searchParams.get('buyer_id')
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 100)
-    const offset = parseInt(searchParams.get('offset') || '0', 10)
+    const { id } = params
 
-    // Build query
-    let query = client
+    // Fetch with verification of ownership
+    const { data, error } = await client
       .from('matched_opportunities')
       .select(
         `
@@ -39,7 +38,8 @@ export async function GET(request: NextRequest) {
           year_built_min,
           year_built_max,
           property_type,
-          hoa_allowed
+          hoa_allowed,
+          agent_id
         ),
         vehicles!inner (
           id,
@@ -54,50 +54,51 @@ export async function GET(request: NextRequest) {
           mls_number,
           photos
         )
-      `,
-        { count: 'exact' }
+      `
       )
-      .eq('buyer_profiles.agent_id', profile.id)
+      .eq('id', id)
+      .single()
 
-    // Apply filters
-    if (status) {
-      query = query.eq('status', status)
+    if (error || !data) {
+      return NextResponse.json(
+        { error: 'Matched opportunity not found' },
+        { status: 404 }
+      )
     }
-    if (buyerId) {
-      query = query.eq('buyer_profile_id', buyerId)
+
+    // Check ownership
+    const buyerProfile = (data as any).buyer_profiles
+    if (buyerProfile.agent_id !== profile.id) {
+      return NextResponse.json(
+        { error: 'Not authorized' },
+        { status: 403 }
+      )
     }
 
-    // Order and paginate
-    const { data, error, count } = await query
-      .order('matched_at', { ascending: false })
-      .range(offset, offset + limit - 1)
-
-    if (error) throw error
-
-    return NextResponse.json({
-      matches: data || [],
-      total: count || 0,
-      hasMore: (offset + limit) < (count || 0),
-    })
+    return NextResponse.json(data)
   } catch (err) {
-    console.error('Error fetching matched opportunities:', err)
+    console.error('Error fetching matched opportunity:', err)
     return NextResponse.json(
-      { error: 'Failed to fetch matched opportunities' },
+      { error: 'Failed to fetch matched opportunity' },
       { status: 500 }
     )
   }
 }
 
-export async function PATCH(request: NextRequest) {
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   const profile = await requireProfile()
   const client = createClient()
 
   try {
-    const { ids, status } = await request.json()
+    const { id } = params
+    const { status } = await request.json()
 
-    if (!ids || !Array.isArray(ids) || ids.length === 0 || !status) {
+    if (!status) {
       return NextResponse.json(
-        { error: 'ids (array) and status required' },
+        { error: 'status required' },
         { status: 400 }
       )
     }
@@ -111,8 +112,8 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    // Verify ownership: all opportunities must belong to this agent's buyer profiles
-    const { data: opportunities, error: fetchError } = await client
+    // Verify ownership
+    const { data: existing, error: fetchError } = await client
       .from('matched_opportunities')
       .select(
         `
@@ -124,25 +125,22 @@ export async function PATCH(request: NextRequest) {
         )
       `
       )
-      .in('id', ids)
+      .eq('id', id)
+      .single()
 
-    if (fetchError) throw fetchError
-
-    if (!opportunities || opportunities.length === 0) {
+    if (fetchError || !existing) {
       return NextResponse.json(
-        { error: 'No matched opportunities found' },
+        { error: 'Matched opportunity not found' },
         { status: 404 }
       )
     }
 
-    // Check ownership of all opportunities
-    for (const opp of opportunities as any[]) {
-      if (opp.buyer_profiles.agent_id !== profile.id) {
-        return NextResponse.json(
-          { error: 'Not authorized' },
-          { status: 403 }
-        )
-      }
+    const buyerProfile = (existing as any).buyer_profiles
+    if (buyerProfile.agent_id !== profile.id) {
+      return NextResponse.json(
+        { error: 'Not authorized' },
+        { status: 403 }
+      )
     }
 
     // Build update payload
@@ -151,21 +149,21 @@ export async function PATCH(request: NextRequest) {
       updateData.agent_notified_at = new Date().toISOString()
     }
 
-    // Update all opportunities
-    const { error: updateError } = await client
+    // Update
+    const { data, error: updateError } = await client
       .from('matched_opportunities')
       .update(updateData)
-      .in('id', ids)
+      .eq('id', id)
+      .select()
+      .single()
 
     if (updateError) throw updateError
 
-    return NextResponse.json({
-      updated: ids.length,
-    })
+    return NextResponse.json(data)
   } catch (err) {
-    console.error('Error bulk updating matched opportunities:', err)
+    console.error('Error updating matched opportunity:', err)
     return NextResponse.json(
-      { error: 'Failed to update matched opportunities' },
+      { error: 'Failed to update matched opportunity' },
       { status: 500 }
     )
   }

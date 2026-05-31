@@ -22,7 +22,6 @@ const UpdateBuyerProfileSchema = z.object({
   active: z.boolean().optional(),
 });
 
-type UpdateBuyerProfile = z.infer<typeof UpdateBuyerProfileSchema>;
 
 export async function PUT(
   request: NextRequest,
@@ -39,7 +38,7 @@ export async function PUT(
     // Verify ownership before updating
     const { data: existing, error: fetchError } = await client
       .from('buyer_profiles')
-      .select('id')
+      .select('*')
       .eq('id', id)
       .eq('agent_id', profile.id)
       .single();
@@ -51,8 +50,52 @@ export async function PUT(
       );
     }
 
+    // Validate ranges (merge with existing values for partial updates)
+    const bedrooms_min = validated.bedrooms_min !== undefined ? validated.bedrooms_min : existing.bedrooms_min;
+    const bedrooms_max = validated.bedrooms_max !== undefined ? validated.bedrooms_max : existing.bedrooms_max;
+    const bathrooms_min = validated.bathrooms_min !== undefined ? validated.bathrooms_min : existing.bathrooms_min;
+    const bathrooms_max = validated.bathrooms_max !== undefined ? validated.bathrooms_max : existing.bathrooms_max;
+    const price_min = validated.price_min !== undefined ? validated.price_min : existing.price_min;
+    const price_max = validated.price_max !== undefined ? validated.price_max : existing.price_max;
+    const sqft_min = validated.sqft_min !== undefined ? validated.sqft_min : existing.sqft_min;
+    const sqft_max = validated.sqft_max !== undefined ? validated.sqft_max : existing.sqft_max;
+    const year_built_min = validated.year_built_min !== undefined ? validated.year_built_min : existing.year_built_min;
+    const year_built_max = validated.year_built_max !== undefined ? validated.year_built_max : existing.year_built_max;
+
+    // Check all ranges for validity
+    if (bedrooms_min !== null && bedrooms_max !== null && bedrooms_min > bedrooms_max) {
+      return NextResponse.json(
+        { error: 'Bedrooms min must be less than or equal to max' },
+        { status: 400 }
+      );
+    }
+    if (bathrooms_min !== null && bathrooms_max !== null && bathrooms_min > bathrooms_max) {
+      return NextResponse.json(
+        { error: 'Bathrooms min must be less than or equal to max' },
+        { status: 400 }
+      );
+    }
+    if (price_min !== null && price_max !== null && price_min > price_max) {
+      return NextResponse.json(
+        { error: 'Price min must be less than or equal to max' },
+        { status: 400 }
+      );
+    }
+    if (sqft_min !== null && sqft_max !== null && sqft_min > sqft_max) {
+      return NextResponse.json(
+        { error: 'Sqft min must be less than or equal to max' },
+        { status: 400 }
+      );
+    }
+    if (year_built_min !== null && year_built_max !== null && year_built_min > year_built_max) {
+      return NextResponse.json(
+        { error: 'Year built min must be less than or equal to max' },
+        { status: 400 }
+      );
+    }
+
     // Build update object with only provided fields
-    const updateObj: any = {};
+    const updateObj: Record<string, unknown> = {};
     if (validated.buyer_name !== undefined) updateObj.buyer_name = validated.buyer_name;
     if (validated.bedrooms_min !== undefined) updateObj.bedrooms_min = validated.bedrooms_min;
     if (validated.bedrooms_max !== undefined) updateObj.bedrooms_max = validated.bedrooms_max;

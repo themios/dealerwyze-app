@@ -13,13 +13,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal, Users } from 'lucide-react';
+import { toast } from 'sonner';
+import { SkeletonCard } from '@/components/ui/SkeletonRow';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useBuyerCriteriaTranslations, useButtonTranslations } from '@/lib/i18n/useWaveTranslations';
 
 interface BuyerProfile {
   id: string;
@@ -59,22 +62,42 @@ function formatRange(min: number | null, max: number | null): string {
   return parts.length > 0 ? parts.join(' - ') : 'Any';
 }
 
+interface PaginatedResponse {
+  data: BuyerProfile[];
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+}
+
 export default function BuyerCriteriaPage() {
+  const t = useBuyerCriteriaTranslations();
+  const btn = useButtonTranslations();
   const [profiles, setProfiles] = useState<BuyerProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const limit = 20;
 
   useEffect(() => {
     const fetchProfiles = async () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch('/api/buyer-profiles');
+        const params = new URLSearchParams({
+          limit: limit.toString(),
+          offset: offset.toString(),
+        });
+        const res = await fetch(`/api/buyer-profiles?${params}`);
         if (!res.ok) throw new Error('Failed to fetch profiles');
-        const data = await res.json();
-        setProfiles(data);
+        const data: PaginatedResponse = await res.json();
+        setProfiles(data.data);
+        setTotal(data.total);
+        setHasMore(data.hasMore);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An error occurred');
       } finally {
@@ -83,17 +106,34 @@ export default function BuyerCriteriaPage() {
     };
 
     fetchProfiles();
-  }, [refreshKey]);
+  }, [offset, refreshKey]);
 
   const handleDelete = async (id: string) => {
     try {
       const res = await fetch(`/api/buyer-profiles/${id}`, {
         method: 'DELETE',
       });
-      if (!res.ok) throw new Error('Failed to delete profile');
-      setProfiles(profiles.filter((p) => p.id !== id));
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to delete profile');
+      }
+
+      // Find the deleted profile name for the toast
+      const deletedProfile = profiles.find((p) => p.id === id);
+      const profileName = deletedProfile?.buyer_name || 'Profile';
+
+      // Recalculate offset if we deleted the last item in the page
+      const newProfiles = profiles.filter((p) => p.id !== id);
+      if (newProfiles.length === 0 && offset > 0) {
+        setOffset(Math.max(0, offset - limit));
+      } else {
+        setProfiles(newProfiles);
+      }
       setDeleteId(null);
+      toast.success(`Deleted ${profileName}`);
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete profile';
+      toast.error(errorMessage);
       console.error('Delete error:', err);
     }
   };
@@ -102,10 +142,22 @@ export default function BuyerCriteriaPage() {
     setRefreshKey((prev) => prev + 1);
   };
 
-  if (loading) {
+  if (loading && profiles.length === 0) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <p className="text-muted-foreground">Loading buyer profiles...</p>
+      <div className="space-y-6 py-6">
+        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+          <div>
+            <h1 className="text-3xl font-bold">{t('title')}</h1>
+            <p className="mt-1 text-muted-foreground">
+              {t('description')}
+            </p>
+          </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SkeletonCard key={i} delay={i * 50} />
+          ))}
+        </div>
       </div>
     );
   }
@@ -115,9 +167,9 @@ export default function BuyerCriteriaPage() {
       {/* Header */}
       <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-3xl font-bold">Buyer Criteria</h1>
+          <h1 className="text-3xl font-bold">{t('title')}</h1>
           <p className="mt-1 text-muted-foreground">
-            Save buyer profiles and automatically match them to new listings
+            {t('description')}
           </p>
         </div>
         <BuyerProfileForm onSuccess={handleSuccess} />
@@ -130,11 +182,13 @@ export default function BuyerCriteriaPage() {
       )}
 
       {/* Empty State */}
-      {profiles.length === 0 ? (
+      {profiles.length === 0 && !loading ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <p className="mb-4 text-muted-foreground">
-              No buyer profiles yet. Create one to get started.
+            <Users className="h-12 w-12 text-muted-foreground/50 mb-4" />
+            <h3 className="text-lg font-semibold mb-2">{t('noProfiles')}</h3>
+            <p className="mb-6 text-center text-muted-foreground max-w-sm">
+              {t('noProfilesDescription')}
             </p>
             <BuyerProfileForm onSuccess={handleSuccess} />
           </CardContent>
@@ -260,6 +314,33 @@ export default function BuyerCriteriaPage() {
               </CardContent>
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      {profiles.length > 0 && (
+        <div className="flex flex-col items-center justify-between gap-4 border-t pt-6 sm:flex-row">
+          <p className="text-sm text-muted-foreground">
+            Showing {offset + 1} to {Math.min(offset + limit, total)} of {total} profiles
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setOffset(Math.max(0, offset - limit))}
+              disabled={offset === 0 || loading}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setOffset(offset + limit)}
+              disabled={!hasMore || loading}
+            >
+              Next
+            </Button>
+          </div>
         </div>
       )}
 

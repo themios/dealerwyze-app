@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { toast } from 'sonner';
 
 interface BuyerProfile {
   id: string;
@@ -56,6 +57,7 @@ export function BuyerProfileForm({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const [formData, setFormData] = useState({
     buyer_name: profile?.buyer_name || '',
@@ -75,8 +77,57 @@ export function BuyerProfileForm({
     notes: profile?.notes || '',
   });
 
+  // Validate range constraints
+  const validateRanges = (): boolean => {
+    const newErrors: Record<string, string> = {};
+
+    const bedroomMin = formData.bedrooms_min ? parseInt(formData.bedrooms_min as string) : null;
+    const bedroomMax = formData.bedrooms_max ? parseInt(formData.bedrooms_max as string) : null;
+    if (bedroomMin !== null && bedroomMax !== null && bedroomMin > bedroomMax) {
+      newErrors.bedrooms = 'Minimum must be less than or equal to maximum';
+    }
+
+    const bathroomMin = formData.bathrooms_min ? parseFloat(formData.bathrooms_min as string) : null;
+    const bathroomMax = formData.bathrooms_max ? parseFloat(formData.bathrooms_max as string) : null;
+    if (bathroomMin !== null && bathroomMax !== null && bathroomMin > bathroomMax) {
+      newErrors.bathrooms = 'Minimum must be less than or equal to maximum';
+    }
+
+    const priceMin = formData.price_min ? parseInt(formData.price_min as string) : null;
+    const priceMax = formData.price_max ? parseInt(formData.price_max as string) : null;
+    if (priceMin !== null && priceMax !== null && priceMin > priceMax) {
+      newErrors.price = 'Minimum must be less than or equal to maximum';
+    }
+
+    const sqftMin = formData.sqft_min ? parseInt(formData.sqft_min as string) : null;
+    const sqftMax = formData.sqft_max ? parseInt(formData.sqft_max as string) : null;
+    if (sqftMin !== null && sqftMax !== null && sqftMin > sqftMax) {
+      newErrors.sqft = 'Minimum must be less than or equal to maximum';
+    }
+
+    const yearMin = formData.year_built_min ? parseInt(formData.year_built_min as string) : null;
+    const yearMax = formData.year_built_max ? parseInt(formData.year_built_max as string) : null;
+    if (yearMin !== null && yearMax !== null && yearMin > yearMax) {
+      newErrors.year_built = 'Minimum must be less than or equal to maximum';
+    }
+
+    setFieldErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!formData.buyer_name.trim()) {
+      setError('Buyer name is required');
+      return;
+    }
+
+    if (!validateRanges()) {
+      setError('Please fix the validation errors below');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -116,10 +167,17 @@ export function BuyerProfileForm({
         throw new Error(data.error || 'Failed to save profile');
       }
 
+      const successMessage = profile
+        ? `Updated ${formData.buyer_name}`
+        : `Created ${formData.buyer_name}`;
+
+      toast.success(successMessage);
       setOpen(false);
       onSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred';
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -138,7 +196,7 @@ export function BuyerProfileForm({
         <DialogHeader>
           <DialogTitle>{profile ? 'Edit Buyer Profile' : 'New Buyer Profile'}</DialogTitle>
           <DialogDescription>
-            Save this buyer's search criteria to match new listings
+            Save this buyer&apos;s search criteria to match new listings
           </DialogDescription>
         </DialogHeader>
 
@@ -161,6 +219,9 @@ export function BuyerProfileForm({
               placeholder="e.g., John Smith"
               required
             />
+            {!formData.buyer_name.trim() && (
+              <p className="text-sm text-red-600">Buyer name is required</p>
+            )}
           </div>
 
           {/* Bedrooms Range */}
@@ -176,6 +237,7 @@ export function BuyerProfileForm({
                 }
                 placeholder="e.g., 2"
                 min="0"
+                className={fieldErrors.bedrooms ? 'border-red-500' : ''}
               />
             </div>
             <div className="space-y-2">
@@ -189,9 +251,13 @@ export function BuyerProfileForm({
                 }
                 placeholder="e.g., 4"
                 min="0"
+                className={fieldErrors.bedrooms ? 'border-red-500' : ''}
               />
             </div>
           </div>
+          {fieldErrors.bedrooms && (
+            <p className="text-sm text-red-600">{fieldErrors.bedrooms}</p>
+          )}
 
           {/* Bathrooms Range */}
           <div className="grid gap-3 sm:grid-cols-2">
@@ -207,6 +273,7 @@ export function BuyerProfileForm({
                 }
                 placeholder="e.g., 1.5"
                 min="0"
+                className={fieldErrors.bathrooms ? 'border-red-500' : ''}
               />
             </div>
             <div className="space-y-2">
@@ -221,9 +288,13 @@ export function BuyerProfileForm({
                 }
                 placeholder="e.g., 3"
                 min="0"
+                className={fieldErrors.bathrooms ? 'border-red-500' : ''}
               />
             </div>
           </div>
+          {fieldErrors.bathrooms && (
+            <p className="text-sm text-red-600">{fieldErrors.bathrooms}</p>
+          )}
 
           {/* Price Range */}
           <div className="grid gap-3 sm:grid-cols-2">
@@ -238,6 +309,7 @@ export function BuyerProfileForm({
                 }
                 placeholder="e.g., 500000"
                 min="0"
+                className={fieldErrors.price ? 'border-red-500' : ''}
               />
             </div>
             <div className="space-y-2">
@@ -251,9 +323,13 @@ export function BuyerProfileForm({
                 }
                 placeholder="e.g., 1100000"
                 min="0"
+                className={fieldErrors.price ? 'border-red-500' : ''}
               />
             </div>
           </div>
+          {fieldErrors.price && (
+            <p className="text-sm text-red-600">{fieldErrors.price}</p>
+          )}
 
           {/* Sqft Range (Optional) */}
           <div className="grid gap-3 sm:grid-cols-2">
@@ -268,6 +344,7 @@ export function BuyerProfileForm({
                 }
                 placeholder="e.g., 1500"
                 min="0"
+                className={fieldErrors.sqft ? 'border-red-500' : ''}
               />
             </div>
             <div className="space-y-2">
@@ -281,9 +358,13 @@ export function BuyerProfileForm({
                 }
                 placeholder="e.g., 3000"
                 min="0"
+                className={fieldErrors.sqft ? 'border-red-500' : ''}
               />
             </div>
           </div>
+          {fieldErrors.sqft && (
+            <p className="text-sm text-red-600">{fieldErrors.sqft}</p>
+          )}
 
           {/* Location */}
           <div className="space-y-2">
@@ -311,6 +392,7 @@ export function BuyerProfileForm({
                 }
                 placeholder="e.g., 1970"
                 min="1800"
+                className={fieldErrors.year_built ? 'border-red-500' : ''}
               />
             </div>
             <div className="space-y-2">
@@ -324,9 +406,13 @@ export function BuyerProfileForm({
                 }
                 placeholder="e.g., 2010"
                 min="1800"
+                className={fieldErrors.year_built ? 'border-red-500' : ''}
               />
             </div>
           </div>
+          {fieldErrors.year_built && (
+            <p className="text-sm text-red-600">{fieldErrors.year_built}</p>
+          )}
 
           {/* Property Type */}
           <div className="space-y-2">

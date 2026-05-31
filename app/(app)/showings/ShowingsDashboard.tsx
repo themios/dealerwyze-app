@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { ShowingFeedbackModal } from './ShowingFeedbackModal'
+import { useShowingsTranslations } from '@/lib/i18n/useWaveTranslations'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -109,6 +110,7 @@ interface ShowingsDashboardProps {
 }
 
 export default function ShowingsDashboard({ initialShowings }: ShowingsDashboardProps) {
+  const t = useShowingsTranslations()
   const [showings, setShowings] = useState<ShowingRequest[]>(initialShowings)
   const [filter, setFilter] = useState<FilterTab>('all')
   const [feedbackModalOpen, setFeedbackModalOpen] = useState<string | null>(null)

@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from '@/lib/auth/profile'
 import ShowingsDashboard, { type ShowingRequest } from './ShowingsDashboard'
+// Note: translations are handled in the client component ShowingsDashboard
 
 export const dynamic = 'force-dynamic'
 
