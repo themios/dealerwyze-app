@@ -1,5 +1,6 @@
 import type { NextConfig } from 'next'
 import { withSentryConfig } from '@sentry/nextjs'
+import createNextIntlPlugin from 'next-intl/plugin'
 
 const securityHeaders = [
   { key: 'X-Frame-Options', value: 'DENY' },
@@ -54,6 +55,10 @@ const nextConfig: NextConfig = {
   ],
 }
 
+// Wrap with next-intl plugin
+const withNextIntl = createNextIntlPlugin('./lib/i18n/serverTranslations.ts')
+const nextConfigWithIntl = withNextIntl(nextConfig)
+
 const sentryConfig = {
   silent: !process.env.CI,
   widenClientFileUpload: true,
@@ -63,4 +68,4 @@ const sentryConfig = {
   disableClientWebpackPlugin: false,
 }
 
-module.exports = withSentryConfig(nextConfig, sentryConfig)
+module.exports = withSentryConfig(nextConfigWithIntl, sentryConfig)

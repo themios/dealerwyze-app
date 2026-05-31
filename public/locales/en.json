@@ -1,0 +1,62 @@
+{
+  "common": {
+    "appName": "DealerWyze",
+    "signOut": "Sign Out"
+  },
+  "nav": {
+    "today": "Today",
+    "leads": "Leads",
+    "messages": "Messages",
+    "vehicles": "Vehicles",
+    "sequences": "Sequences",
+    "settings": "Settings",
+    "more": "More"
+  },
+  "button": {
+    "sendMessage": "Send Message",
+    "addVehicle": "Add Vehicle",
+    "confirmPayment": "Confirm Payment",
+    "scheduleSequence": "Schedule Sequence",
+    "save": "Save",
+    "cancel": "Cancel",
+    "submit": "Submit",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close"
+  },
+  "error": {
+    "leadNotFound": "Lead not found",
+    "smsFailed": "SMS failed to send",
+    "uploadFailed": "Upload failed",
+    "unauthorized": "Unauthorized",
+    "notAuthorized": "You don't have permission to access this resource",
+    "serverError": "An error occurred. Please try again.",
+    "invalidInput": "Invalid input provided"
+  },
+  "sms": {
+    "welcomeText": "Welcome to DealerWyze",
+    "newLeadText": "New lead from {{source}}",
+    "paymentReminder": "Payment reminder: Your DealerWyze invoice is due",
+    "sequenceMessage": "This is an automated message from {{dealership}}"
+  },
+  "onboarding": {
+    "step1": "Your Dealership",
+    "step2": "First Vehicle",
+    "step3": "Lead Inbox",
+    "step4": "Your Team",
+    "welcome": "Welcome to DealerWyze",
+    "letStart": "Let's get you started"
+  },
+  "template": {
+    "smsTemplate": "SMS Template",
+    "emailTemplate": "Email Template",
+    "selectTemplate": "Select a template"
+  },
+  "messages": {
+    "loading": "Loading...",
+    "noResults": "No results found",
+    "success": "Success",
+    "error": "Error",
+    "retry": "Retry"
+  }
+}

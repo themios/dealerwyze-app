@@ -30,10 +30,11 @@ function footer(appUrl: string, vertical: V = 'dealer'): string {
 }
 
 // Shared "ask for help" CTA used in follow-up emails.
-function helpCta(): string {
+function helpCta(vertical: V = 'dealer'): string {
+  const supportEmail = vertical === 'real_estate' ? 'support@realtywyze.us' : 'support@dealerwyze.com'
   return `
     <div style="text-align:center;margin-top:24px">
-      <a href="mailto:support@dealerwyze.com?subject=I%20need%20help%20getting%20started"
+      <a href="mailto:${supportEmail}?subject=I%20need%20help%20getting%20started"
          style="display:inline-block;background:#F8FAFC;border:1.5px solid #E2E8F0;color:#0D2B55;
                 font-weight:700;font-size:13px;padding:10px 24px;border-radius:8px;text-decoration:none">
         Ask for help getting started

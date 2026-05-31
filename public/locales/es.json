@@ -1,0 +1,62 @@
+{
+  "common": {
+    "appName": "DealerWyze",
+    "signOut": "Cerrar sesión"
+  },
+  "nav": {
+    "today": "Hoy",
+    "leads": "Leads",
+    "messages": "Mensajes",
+    "vehicles": "Vehículos",
+    "sequences": "Secuencias",
+    "settings": "Configuración",
+    "more": "Más"
+  },
+  "button": {
+    "sendMessage": "Enviar mensaje",
+    "addVehicle": "Agregar vehículo",
+    "confirmPayment": "Confirmar pago",
+    "scheduleSequence": "Programar secuencia",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "submit": "Enviar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "close": "Cerrar"
+  },
+  "error": {
+    "leadNotFound": "Lead no encontrado",
+    "smsFailed": "Error al enviar SMS",
+    "uploadFailed": "Error al cargar",
+    "unauthorized": "No autorizado",
+    "notAuthorized": "No tienes permiso para acceder a este recurso",
+    "serverError": "Ocurrió un error. Por favor, intenta de nuevo.",
+    "invalidInput": "Entrada inválida"
+  },
+  "sms": {
+    "welcomeText": "Bienvenido a DealerWyze",
+    "newLeadText": "Nuevo lead de {{source}}",
+    "paymentReminder": "Recordatorio de pago: Tu factura de DealerWyze está vencida",
+    "sequenceMessage": "Este es un mensaje automatizado de {{dealership}}"
+  },
+  "onboarding": {
+    "step1": "Tu concesionario",
+    "step2": "Primer vehículo",
+    "step3": "Bandeja de entrada",
+    "step4": "Tu equipo",
+    "welcome": "Bienvenido a DealerWyze",
+    "letStart": "Comencemos"
+  },
+  "template": {
+    "smsTemplate": "Plantilla de SMS",
+    "emailTemplate": "Plantilla de correo",
+    "selectTemplate": "Selecciona una plantilla"
+  },
+  "messages": {
+    "loading": "Cargando...",
+    "noResults": "Sin resultados",
+    "success": "Éxito",
+    "error": "Error",
+    "retry": "Reintentar"
+  }
+}

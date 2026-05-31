@@ -81,7 +81,7 @@ function formatVin(value: unknown) {
 
 function SectionHeading({ children }: { children: ReactNode }) {
   return (
-    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b pb-2 mb-1">
+    <p className="text-xs sm:text-sm font-semibold text-muted-foreground uppercase tracking-wide border-b pb-2 mb-1">
       {children}
     </p>
   )
@@ -293,16 +293,16 @@ export default async function VehicleDetailPage({ params }: PageProps) {
           </div>
         ) : null}
 
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
           {canEdit && vehicle.status !== 'sold' ? (
             <InlinePriceEdit vehicleId={id} initialPrice={vehicle.price ?? null} />
           ) : vehicle.price ? (
-            <p className="text-3xl font-bold tabular-nums">{formatCurrency(vehicle.price)}</p>
+            <p className="text-2xl sm:text-3xl font-bold tabular-nums">{formatCurrency(vehicle.price)}</p>
           ) : (
             <p className="text-muted-foreground">No price set</p>
           )}
           <span
-            className={`shrink-0 text-sm font-medium px-3 py-1 rounded-full capitalize ${statusColors[vehicle.status]}`}
+            className={`shrink-0 text-xs sm:text-sm font-medium px-3 py-1 rounded-full capitalize w-fit ${statusColors[vehicle.status]}`}
           >
             {vehicle.status}
           </span>

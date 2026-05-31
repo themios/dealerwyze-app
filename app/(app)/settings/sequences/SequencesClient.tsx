@@ -108,12 +108,12 @@ export default function SequencesClient({ initialSequences }: Props) {
 
   return (
     <>
-      <div className="flex gap-2 mb-4">
+      <div className="flex gap-1 sm:gap-2 mb-4">
         {(['email', 'sms'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+            className={`px-3 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition-colors ${
               activeTab === tab
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-muted text-muted-foreground hover:bg-accent'
@@ -124,11 +124,11 @@ export default function SequencesClient({ initialSequences }: Props) {
         ))}
       </div>
 
-      {error ? <p className="text-sm text-destructive mb-4">{error}</p> : null}
+      {error ? <p className="text-xs sm:text-sm text-destructive mb-4">{error}</p> : null}
 
       <div className="space-y-2 mb-4">
         {initialSequences.length === 0 && filtered.length === 0 && (
-          <div className="text-center py-12 text-muted-foreground">
+          <div className="text-center py-8 sm:py-12 px-4 text-muted-foreground">
             <div className="flex justify-center mb-3">
               {activeTab === 'email' ? <Mail className="h-8 w-8 opacity-40" /> : <MessageSquare className="h-8 w-8 opacity-40" />}
             </div>
@@ -162,29 +162,31 @@ export default function SequencesClient({ initialSequences }: Props) {
           <button
             key={seq.id}
             onClick={() => router.push(`/settings/sequences/${seq.id}`)}
-            className="w-full text-left p-4 rounded-lg border bg-card hover:bg-accent transition-colors"
+            className="w-full text-left p-3 sm:p-4 rounded-lg border bg-card hover:bg-accent transition-colors"
           >
-            <div className="flex items-center justify-between">
+            <div className="flex items-start sm:items-center justify-between gap-2 sm:gap-3">
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <p className="font-medium text-sm">{seq.name}</p>
-                  <Badge variant="outline" className="text-xs">{AUTO_MODE_LABELS[seq.auto_mode]}</Badge>
-                  {seq.topic && seq.topic !== 'general' && (
-                    <Badge variant="secondary" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                      {TOPIC_LABELS[seq.topic] ?? seq.topic}
-                    </Badge>
-                  )}
-                  {seq.trigger_type && seq.trigger_type !== 'manual' && (
-                    <Badge variant="secondary" className="text-xs bg-orange-50 text-orange-700 border-orange-200">
-                      {TRIGGER_LABELS[seq.trigger_type] ?? seq.trigger_type}
-                    </Badge>
-                  )}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mb-1 flex-wrap">
+                  <p className="font-medium text-sm break-words">{seq.name}</p>
+                  <div className="flex flex-wrap gap-1">
+                    <Badge variant="outline" className="text-xs">{AUTO_MODE_LABELS[seq.auto_mode]}</Badge>
+                    {seq.topic && seq.topic !== 'general' && (
+                      <Badge variant="secondary" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                        {TOPIC_LABELS[seq.topic] ?? seq.topic}
+                      </Badge>
+                    )}
+                    {seq.trigger_type && seq.trigger_type !== 'manual' && (
+                      <Badge variant="secondary" className="text-xs bg-orange-50 text-orange-700 border-orange-200">
+                        {TRIGGER_LABELS[seq.trigger_type] ?? seq.trigger_type}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {stepCount(seq)} step{stepCount(seq) !== 1 ? 's' : ''} - {enrollCount(seq)} active enrollment{enrollCount(seq) !== 1 ? 's' : ''}
                 </p>
               </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-1 sm:mt-0" />
             </div>
           </button>
         ))}

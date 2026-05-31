@@ -1,5 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import createMiddleware from 'next-intl/middleware'
+import { i18n } from '@/i18n.config'
 
 // ── POLICY 1: Rate Limiting ────────────────────────────────────────────────────
 // Upstash Redis sliding window per IP — shared across all Vercel instances.
@@ -165,9 +167,23 @@ function isSuspended(suspendedAt: string | null | undefined): boolean {
   return !!suspendedAt
 }
 
+// next-intl middleware for i18n routing (/en/, /es/, etc.)
+const intlMiddleware = createMiddleware({
+  locales: i18n.locales,
+  defaultLocale: i18n.defaultLocale,
+  localePrefix: 'as-needed',
+})
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const vertical = resolveVertical(request.headers.get('host') ?? '')
+
+  // Apply next-intl middleware for language routing
+  // This must run before auth checks so paths are correctly routed to /{locale}/...
+  const intlResponse = intlMiddleware(request)
+  if (intlResponse) {
+    return intlResponse
+  }
 
   // Block mutating API calls during staff impersonation sessions
   if (await isImpersonationBlocked(request)) {

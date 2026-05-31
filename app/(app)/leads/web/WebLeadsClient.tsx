@@ -140,26 +140,26 @@ function LeadCard({
   }
 
   return (
-    <div className={`px-4 py-3.5 transition-colors hover:bg-muted/20 ${inquiry.status === 'archived' ? 'opacity-60' : ''}`}>
+    <div className={`px-4 py-3.5 sm:px-6 sm:py-4 transition-colors hover:bg-muted/20 ${inquiry.status === 'archived' ? 'opacity-60' : ''}`}>
       <div className="flex items-start gap-3">
         <StatusDot status={inquiry.status} />
 
-        <div className="flex-1 min-w-0 space-y-1.5">
-          {/* Row 1: name + contact + time */}
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0">
+        <div className="flex-1 min-w-0 space-y-1.5 sm:space-y-2">
+          {/* Row 1: name + contact + time — responsive layout */}
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1 sm:gap-2">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-1 sm:gap-x-2 sm:gap-y-0.5 min-w-0">
               {inquiry.status === 'new' && (
                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400 uppercase tracking-wide leading-none">
                   New
                 </span>
               )}
-              <span className="text-sm font-semibold text-foreground">
+              <span className="text-sm sm:text-base font-semibold text-foreground break-words">
                 {inquiry.name ?? 'Unknown'}
               </span>
               {inquiry.phone && (
                 <a
                   href={`tel:${inquiry.phone}`}
-                  className="text-sm text-muted-foreground hover:text-foreground"
+                  className="text-sm text-primary hover:underline underline sm:no-underline sm:text-muted-foreground sm:hover:text-foreground"
                 >
                   {inquiry.phone}
                 </a>
@@ -167,13 +167,13 @@ function LeadCard({
               {inquiry.email && (
                 <a
                   href={`mailto:${inquiry.email}`}
-                  className="text-xs text-muted-foreground hover:text-foreground truncate max-w-[200px]"
+                  className="text-xs text-primary hover:underline underline sm:no-underline sm:text-muted-foreground sm:hover:text-foreground truncate sm:max-w-[200px]"
                 >
                   {inquiry.email}
                 </a>
               )}
             </div>
-            <span className="shrink-0 flex items-center gap-1 text-[11px] text-muted-foreground/60 whitespace-nowrap">
+            <span className="flex items-center gap-1 text-[11px] text-muted-foreground/60 whitespace-nowrap">
               <Clock className="h-3 w-3" aria-hidden />
               {relativeTime(inquiry.created_at)}
             </span>
@@ -213,13 +213,13 @@ function LeadCard({
             </div>
           )}
 
-          {/* Row 4: actions */}
-          <div className="flex flex-wrap items-center gap-2 pt-0.5">
+          {/* Row 4: actions — stack on mobile, wrap on desktop */}
+          <div className="flex flex-col sm:flex-wrap items-start sm:items-center gap-2 pt-0.5">
             {inquiry.status !== 'imported' ? (
               <button
                 onClick={importLead}
                 disabled={busy}
-                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                className="w-full sm:w-auto inline-flex items-center justify-center sm:justify-start gap-1.5 h-10 sm:h-8 px-3 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
               >
                 <UserPlus className="h-3.5 w-3.5" aria-hidden />
                 Import as Lead
@@ -228,7 +228,7 @@ function LeadCard({
               <button
                 onClick={importLead}
                 disabled={busy}
-                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium border border-border bg-background hover:bg-muted disabled:opacity-50 transition-colors"
+                className="w-full sm:w-auto inline-flex items-center justify-center sm:justify-start gap-1.5 h-10 sm:h-8 px-3 rounded-md text-xs font-medium border border-border bg-background hover:bg-muted disabled:opacity-50 transition-colors"
               >
                 <UserPlus className="h-3.5 w-3.5" aria-hidden />
                 Re-import
@@ -239,7 +239,7 @@ function LeadCard({
               <button
                 onClick={() => patch('archived')}
                 disabled={busy}
-                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium border border-border bg-background hover:bg-muted disabled:opacity-50 transition-colors"
+                className="w-full sm:w-auto inline-flex items-center justify-center sm:justify-start gap-1.5 h-10 sm:h-8 px-3 rounded-md text-xs font-medium border border-border bg-background hover:bg-muted disabled:opacity-50 transition-colors"
               >
                 <Archive className="h-3.5 w-3.5" aria-hidden />
                 Archive
@@ -248,7 +248,7 @@ function LeadCard({
               <button
                 onClick={() => patch('new')}
                 disabled={busy}
-                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium border border-border bg-background hover:bg-muted disabled:opacity-50 transition-colors"
+                className="w-full sm:w-auto inline-flex items-center justify-center sm:justify-start gap-1.5 h-10 sm:h-8 px-3 rounded-md text-xs font-medium border border-border bg-background hover:bg-muted disabled:opacity-50 transition-colors"
               >
                 <RotateCcw className="h-3.5 w-3.5" aria-hidden />
                 Restore
@@ -256,27 +256,27 @@ function LeadCard({
             )}
 
             {confirmDelete ? (
-              <>
+              <div className="w-full sm:w-auto flex flex-col sm:flex-row sm:items-center gap-2">
                 <span className="text-xs text-destructive font-medium">Delete?</span>
                 <button
                   onClick={remove}
                   disabled={busy}
-                  className="inline-flex items-center h-8 px-3 rounded-md text-xs font-medium bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 transition-colors"
+                  className="w-full sm:w-auto inline-flex items-center justify-center sm:justify-start h-10 sm:h-8 px-3 rounded-md text-xs font-medium bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 transition-colors"
                 >
                   Confirm
                 </button>
                 <button
                   onClick={() => setConfirmDelete(false)}
-                  className="inline-flex items-center h-8 px-3 rounded-md text-xs border border-border bg-background hover:bg-muted transition-colors"
+                  className="w-full sm:w-auto inline-flex items-center justify-center sm:justify-start h-10 sm:h-8 px-3 rounded-md text-xs border border-border bg-background hover:bg-muted transition-colors"
                 >
                   Cancel
                 </button>
-              </>
+              </div>
             ) : (
               <button
                 onClick={() => setConfirmDelete(true)}
                 disabled={busy}
-                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-50 transition-colors"
+                className="w-full sm:w-auto inline-flex items-center justify-center sm:justify-start gap-1.5 h-10 sm:h-8 px-3 rounded-md text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-50 transition-colors"
               >
                 <Trash2 className="h-3.5 w-3.5" aria-hidden />
                 Delete
@@ -316,13 +316,13 @@ export default function WebLeadsClient({ initialInquiries }: { initialInquiries:
 
   return (
     <div>
-      {/* Tabs */}
-      <div className="flex items-center gap-1 px-4 py-2 border-b border-border overflow-x-auto">
+      {/* Tabs — responsive spacing and sizing */}
+      <div className="flex items-center gap-1 px-4 sm:px-6 py-2 sm:py-3 border-b border-border overflow-x-auto">
         {TABS.map(tab => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-sm font-medium whitespace-nowrap transition-colors ${
+            className={`inline-flex items-center gap-1.5 h-10 sm:h-8 px-2 sm:px-3 rounded-md text-xs sm:text-sm font-medium whitespace-nowrap transition-colors ${
               activeTab === tab.key
                 ? 'bg-primary text-primary-foreground'
                 : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -330,7 +330,7 @@ export default function WebLeadsClient({ initialInquiries }: { initialInquiries:
           >
             {tab.label}
             {counts[tab.key] > 0 && (
-              <span className={`text-[11px] rounded-full px-1.5 py-px leading-none font-semibold ${
+              <span className={`text-[10px] sm:text-[11px] rounded-full px-1 sm:px-1.5 py-px leading-none font-semibold ${
                 activeTab === tab.key
                   ? 'bg-primary-foreground/20 text-primary-foreground'
                   : 'bg-muted text-muted-foreground'
@@ -344,13 +344,13 @@ export default function WebLeadsClient({ initialInquiries }: { initialInquiries:
 
       {/* List */}
       {visible.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
-          <Inbox className="h-10 w-10 text-muted-foreground/30 mb-3" aria-hidden />
-          <p className="text-sm font-medium text-foreground">
+        <div className="flex flex-col items-center justify-center py-12 sm:py-20 px-4 sm:px-6 text-center">
+          <Inbox className="h-8 sm:h-10 w-8 sm:w-10 text-muted-foreground/30 mb-3" aria-hidden />
+          <p className="text-sm sm:text-base font-medium text-foreground">
             {activeTab === 'all' ? 'No web leads yet.' : `No ${activeTab} leads.`}
           </p>
           {activeTab === 'all' && (
-            <p className="text-sm text-muted-foreground mt-1 max-w-xs">
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1 max-w-xs">
               When customers contact you from your public website, they&apos;ll appear here.
             </p>
           )}
