@@ -17,6 +17,7 @@ create index if not exists idx_help_articles_keywords on public.help_articles us
 
 -- Enable RLS and add policy for authenticated users to read all articles
 alter table public.help_articles enable row level security;
+drop policy if exists "Allow authenticated users to read help articles" on public.help_articles;
 create policy "Allow authenticated users to read help articles"
   on public.help_articles for select
   to authenticated
@@ -122,4 +123,5 @@ insert into public.help_articles (slug, question, answer, vertical, context_page
 ('billing-and-payments', 'How do I manage my subscription?',
 'Go to **Settings**, click **Billing** in the left menu to see your plan, usage, and payment method. You can upgrade, downgrade, or cancel anytime. Invoices are sent to your email and saved here.',
 'both', array['billing', 'settings'], array['billing', 'payment', 'subscription', 'invoice', 'card'],
-'[{"label": "Billing", "page": "/settings/billing"}, {"label": "Invoices", "page": "/settings/invoices"}]'::jsonb);
+'[{"label": "Billing", "page": "/settings/billing"}, {"label": "Invoices", "page": "/settings/invoices"}]'::jsonb)
+on conflict (slug) do nothing;

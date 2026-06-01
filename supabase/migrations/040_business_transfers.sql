@@ -27,33 +27,33 @@ CREATE TABLE IF NOT EXISTS business_transfers (
 );
 
 -- Fast lookup by token (only relevant for pending_claim rows)
-CREATE INDEX idx_business_transfers_token
+CREATE INDEX IF NOT EXISTS idx_business_transfers_token
   ON business_transfers (transfer_token)
   WHERE status = 'pending_claim';
 
 -- Admin dashboard: pending items sorted newest first
-CREATE INDEX idx_business_transfers_pending
+CREATE INDEX IF NOT EXISTS idx_business_transfers_pending
   ON business_transfers (created_at DESC)
   WHERE status IN ('pending_claim', 'pending_approval');
 
 -- Enforce: only one active transfer per org at a time (application-level check uses this)
-CREATE INDEX idx_business_transfers_org_active
+CREATE INDEX IF NOT EXISTS idx_business_transfers_org_active
   ON business_transfers (org_id)
   WHERE status NOT IN ('completed', 'cancelled', 'expired');
 
 -- RLS: SuperAdmin reads all; dealer_admin reads their own org's transfers
 ALTER TABLE business_transfers ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "superadmin_all_transfers"
-  ON business_transfers FOR ALL
+DROP POLICY IF EXISTS "superadmin_all_transfers" ON business_transfers;
+CREATE POLICY "superadmin_all_transfers" ON business_transfers FOR ALL
   USING (
     EXISTS (
       SELECT 1 FROM platform_superusers WHERE user_id = auth.uid()
     )
   );
 
-CREATE POLICY "dealer_admin_own_org_transfers"
-  ON business_transfers FOR SELECT
+DROP POLICY IF EXISTS "dealer_admin_own_org_transfers" ON business_transfers;
+CREATE POLICY "dealer_admin_own_org_transfers" ON business_transfers FOR SELECT
   USING (
     org_id = public.get_org_id()
   );

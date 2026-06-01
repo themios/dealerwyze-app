@@ -16,10 +16,13 @@ CREATE TABLE IF NOT EXISTS org_pipeline_stages (
 
 ALTER TABLE org_pipeline_stages ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "pipeline_stages_select" ON org_pipeline_stages;
 CREATE POLICY "pipeline_stages_select" ON org_pipeline_stages
   FOR SELECT USING (org_id = get_org_id());
+DROP POLICY IF EXISTS "pipeline_stages_insert" ON org_pipeline_stages;
 CREATE POLICY "pipeline_stages_insert" ON org_pipeline_stages
   FOR INSERT WITH CHECK (org_id = get_org_id());
+DROP POLICY IF EXISTS "pipeline_stages_update" ON org_pipeline_stages;
 CREATE POLICY "pipeline_stages_update" ON org_pipeline_stages
   FOR UPDATE USING (org_id = get_org_id());
 

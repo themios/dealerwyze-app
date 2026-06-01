@@ -35,6 +35,7 @@ ALTER TABLE org_settings
 -- RLS
 ALTER TABLE voice_calls ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "voice_calls_org_access" ON voice_calls;
 CREATE POLICY "voice_calls_org_access" ON voice_calls
   FOR ALL USING (org_id::text = auth.uid()::text);
 

@@ -40,12 +40,14 @@ CREATE INDEX IF NOT EXISTS idx_bhph_ledger_customer
 
 ALTER TABLE public.bhph_payment_ledger ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "org_bhph_ledger_select" ON public.bhph_payment_ledger;
 CREATE POLICY "org_bhph_ledger_select" ON public.bhph_payment_ledger
   FOR SELECT
   USING (
     user_id = (SELECT org_id FROM public.profiles WHERE id = auth.uid() LIMIT 1)
   );
 
+DROP POLICY IF EXISTS "org_bhph_ledger_insert" ON public.bhph_payment_ledger;
 CREATE POLICY "org_bhph_ledger_insert" ON public.bhph_payment_ledger
   FOR INSERT
   WITH CHECK (
@@ -112,8 +114,18 @@ $$;
 REVOKE ALL ON FUNCTION public.bhph_payment_allocation(NUMERIC, DATE, NUMERIC, NUMERIC, DATE, TIMESTAMPTZ) FROM PUBLIC;
 
 -- ─── Preserve legacy 4-arg finalize as v1 ────────────────────────────────────
-ALTER FUNCTION public.finalize_bhph_payment(UUID, TEXT, TIMESTAMPTZ, NUMERIC)
-  RENAME TO finalize_bhph_payment_v1;
+DO $$
+BEGIN
+  -- Drop v1 if it already exists (idempotent)
+  DROP FUNCTION IF EXISTS public.finalize_bhph_payment_v1(UUID, TEXT, TIMESTAMPTZ, NUMERIC);
+
+  -- Rename the old 4-arg finalize to v1
+  ALTER FUNCTION public.finalize_bhph_payment(UUID, TEXT, TIMESTAMPTZ, NUMERIC)
+    RENAME TO finalize_bhph_payment_v1;
+EXCEPTION WHEN OTHERS THEN
+  -- If function doesn't exist or already renamed, continue
+  NULL;
+END $$;
 
 COMMENT ON FUNCTION public.finalize_bhph_payment_v1(UUID, TEXT, TIMESTAMPTZ, NUMERIC) IS
   'Legacy BHPH finalize (pre-141). Use finalize_bhph_payment (5-arg) for interest + ledger.';

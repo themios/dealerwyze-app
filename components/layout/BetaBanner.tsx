@@ -1,13 +1,21 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
-import { useVertical } from '@/lib/vertical'
 
 export default function BetaBanner() {
-  const { vertical, brandName } = useVertical()
   const [dismissed, setDismissed] = useState(false)
-  if (dismissed) return null
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const isRealEstate = typeof window !== 'undefined' && window.location.hostname.includes('realtywyze')
+  const vertical = isRealEstate ? 'real_estate' : 'dealer'
+  const brandName = isRealEstate ? 'RealtyWyze' : 'DealerWyze'
+
+  if (!mounted || dismissed) return null
 
   const supportEmail = vertical === 'real_estate' ? 'support@realtywyze.us' : 'support@dealerwyze.com'
 

@@ -1,4 +1,4 @@
-create table platform_content_config (
+create table if not exists platform_content_config (
   id                        uuid primary key default gen_random_uuid(),
   marketing_org_id          uuid references organizations(id) on delete set null,
   default_platforms         text[] not null default '{instagram,tiktok}',
@@ -14,4 +14,9 @@ create table platform_content_config (
   updated_at                timestamptz not null default now(),
   updated_by                uuid references profiles(id) on delete set null
 );
+DO $$
+BEGIN
+  -- Insert default platform_content_config config if not exists
 insert into platform_content_config (id) values (gen_random_uuid());
+EXCEPTION WHEN unique_violation THEN NULL;
+END $$;

@@ -53,6 +53,7 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_create_org_on_signup ON profiles;
 CREATE TRIGGER trg_create_org_on_signup
   AFTER INSERT ON profiles
   FOR EACH ROW EXECUTE FUNCTION create_org_on_signup();

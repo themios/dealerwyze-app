@@ -21,8 +21,8 @@ CREATE INDEX IF NOT EXISTS idx_vehicle_photos_org
 
 ALTER TABLE public.vehicle_photos ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "org_can_manage_vehicle_photos"
-  ON public.vehicle_photos
+DROP POLICY IF EXISTS "org_can_manage_vehicle_photos" ON public.vehicle_photos;
+CREATE POLICY "org_can_manage_vehicle_photos" ON public.vehicle_photos
   FOR ALL
   USING (org_id = public.get_org_id());
 

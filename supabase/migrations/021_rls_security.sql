@@ -7,9 +7,11 @@
 ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
 
 -- Owner can read/update their own org
+DROP POLICY IF EXISTS "org_owner_select" ON organizations;
 CREATE POLICY "org_owner_select" ON organizations
   FOR SELECT USING (id = auth.uid());
 
+DROP POLICY IF EXISTS "org_owner_update" ON organizations;
 CREATE POLICY "org_owner_update" ON organizations
   FOR UPDATE USING (id = auth.uid());
 
@@ -18,9 +20,11 @@ CREATE POLICY "org_owner_update" ON organizations
 -- ── org_settings ──────────────────────────────────────────────────────────────
 ALTER TABLE org_settings ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "org_settings_owner_select" ON org_settings;
 CREATE POLICY "org_settings_owner_select" ON org_settings
   FOR SELECT USING (org_id = auth.uid());
 
+DROP POLICY IF EXISTS "org_settings_owner_update" ON org_settings;
 CREATE POLICY "org_settings_owner_update" ON org_settings
   FOR UPDATE USING (org_id = auth.uid());
 
@@ -29,10 +33,12 @@ CREATE POLICY "org_settings_owner_update" ON org_settings
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
 -- Users can read profiles in their own org
+DROP POLICY IF EXISTS "profiles_same_org_select" ON profiles;
 CREATE POLICY "profiles_same_org_select" ON profiles
   FOR SELECT USING (org_id = auth.uid() OR id = auth.uid());
 
 -- Users can only update their own profile
+DROP POLICY IF EXISTS "profiles_self_update" ON profiles;
 CREATE POLICY "profiles_self_update" ON profiles
   FOR UPDATE USING (id = auth.uid());
 

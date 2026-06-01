@@ -1,4 +1,4 @@
-create table platform_social_accounts (
+create table if not exists platform_social_accounts (
   id                            uuid primary key default gen_random_uuid(),
   platform                      text not null
                                   check (platform in ('facebook','instagram','tiktok','youtube','linkedin','threads')),

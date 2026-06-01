@@ -137,11 +137,14 @@ ALTER TABLE coupon_redemptions ENABLE ROW LEVEL SECURITY;
 
 -- Only service role (and platform superadmin via service client) can touch these
 -- Dealers never read coupon internals; they just enter a code at checkout
+DROP POLICY IF EXISTS "service_only_affiliate_codes" ON affiliate_codes;
 CREATE POLICY "service_only_affiliate_codes" ON affiliate_codes
   FOR ALL USING (false);  -- blocked for anon/auth; service client bypasses RLS
 
+DROP POLICY IF EXISTS "service_only_coupons" ON coupons;
 CREATE POLICY "service_only_coupons" ON coupons
   FOR ALL USING (false);
 
+DROP POLICY IF EXISTS "service_only_coupon_redemptions" ON coupon_redemptions;
 CREATE POLICY "service_only_coupon_redemptions" ON coupon_redemptions
   FOR ALL USING (false);

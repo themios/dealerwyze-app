@@ -5,7 +5,8 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { loadOrganizationsMatchingPublicSlug, pickUniqueOrgSlugMatch } from '@/lib/dealer-public/publicOrgBySlug'
 import type { PropertyType } from '@/types/index'
 
-export const dynamic = 'force-dynamic'
+// ISR: revalidate every 60 seconds for public listing pages
+export const revalidate = 60
 
 function normalizeSlugParam(s: string) {
   try { return decodeURIComponent(s).trim() } catch { return s.trim() }

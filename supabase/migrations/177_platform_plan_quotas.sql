@@ -1,6 +1,6 @@
 -- migration 177: platform_plan_quotas
 -- Configurable per-plan resource limits. null = unlimited.
-create table platform_plan_quotas (
+create table if not exists platform_plan_quotas (
   id                       uuid primary key default gen_random_uuid(),
   plan                     text not null unique
                              check (plan in ('free','trial','starter','growth','pro')),
@@ -21,4 +21,5 @@ values
   ('trial',   100,  2,    1,    200,  10,   2),
   ('starter', 500,  3,    2,    1000, 20,   5),
   ('growth',  2000, 5,    5,    5000, 50,   20),
-  ('pro',     null, null, null, null, null, null);
+  ('pro',     null, null, null, null, null, null)
+on conflict (plan) do nothing;

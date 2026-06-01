@@ -114,8 +114,10 @@ CREATE POLICY "org_own_briefings" ON briefings FOR ALL
 -- organizations: member SELECT + admin UPDATE (INSERT/DELETE denied in section 3)
 DROP POLICY IF EXISTS "org_member_select" ON organizations;
 DROP POLICY IF EXISTS "org_admin_update"  ON organizations;
+DROP POLICY IF EXISTS "org_member_select" ON organizations;
 CREATE POLICY "org_member_select" ON organizations FOR SELECT
   USING (id = get_org_id());
+DROP POLICY IF EXISTS "org_admin_update" ON organizations;
 CREATE POLICY "org_admin_update" ON organizations FOR UPDATE
   USING     (id = get_org_id())
   WITH CHECK (id = get_org_id());
@@ -123,8 +125,10 @@ CREATE POLICY "org_admin_update" ON organizations FOR UPDATE
 -- org_settings: member SELECT + admin UPDATE
 DROP POLICY IF EXISTS "org_settings_member_select" ON org_settings;
 DROP POLICY IF EXISTS "org_settings_admin_update"  ON org_settings;
+DROP POLICY IF EXISTS "org_settings_member_select" ON org_settings;
 CREATE POLICY "org_settings_member_select" ON org_settings FOR SELECT
   USING (org_id = get_org_id());
+DROP POLICY IF EXISTS "org_settings_admin_update" ON org_settings;
 CREATE POLICY "org_settings_admin_update" ON org_settings FOR UPDATE
   USING     (org_id = get_org_id())
   WITH CHECK (org_id = get_org_id());
@@ -138,10 +142,13 @@ CREATE POLICY "profiles_same_org_select" ON profiles FOR SELECT
 DROP POLICY IF EXISTS "voice_calls_org_select" ON voice_calls;
 DROP POLICY IF EXISTS "voice_calls_org_insert" ON voice_calls;
 DROP POLICY IF EXISTS "voice_calls_org_update" ON voice_calls;
+DROP POLICY IF EXISTS "voice_calls_org_select" ON voice_calls;
 CREATE POLICY "voice_calls_org_select" ON voice_calls FOR SELECT
   USING (org_id = get_org_id());
+DROP POLICY IF EXISTS "voice_calls_org_insert" ON voice_calls;
 CREATE POLICY "voice_calls_org_insert" ON voice_calls FOR INSERT
   WITH CHECK (org_id = get_org_id());
+DROP POLICY IF EXISTS "voice_calls_org_update" ON voice_calls;
 CREATE POLICY "voice_calls_org_update" ON voice_calls FOR UPDATE
   USING     (org_id = get_org_id())
   WITH CHECK (org_id = get_org_id());
@@ -152,12 +159,16 @@ CREATE POLICY "voice_calls_org_update" ON voice_calls FOR UPDATE
 
 DROP POLICY IF EXISTS "orgs_no_direct_insert" ON organizations;
 DROP POLICY IF EXISTS "orgs_no_direct_delete" ON organizations;
+DROP POLICY IF EXISTS "orgs_no_direct_insert" ON organizations;
 CREATE POLICY "orgs_no_direct_insert" ON organizations FOR INSERT WITH CHECK (false);
+DROP POLICY IF EXISTS "orgs_no_direct_delete" ON organizations;
 CREATE POLICY "orgs_no_direct_delete" ON organizations FOR DELETE USING (false);
 
 DROP POLICY IF EXISTS "org_settings_no_direct_insert" ON org_settings;
 DROP POLICY IF EXISTS "org_settings_no_direct_delete" ON org_settings;
+DROP POLICY IF EXISTS "org_settings_no_direct_insert" ON org_settings;
 CREATE POLICY "org_settings_no_direct_insert" ON org_settings FOR INSERT WITH CHECK (false);
+DROP POLICY IF EXISTS "org_settings_no_direct_delete" ON org_settings;
 CREATE POLICY "org_settings_no_direct_delete" ON org_settings FOR DELETE USING (false);
 
 -- ── 4. Backfill platform staff profiles to sentinel org ───────────────────

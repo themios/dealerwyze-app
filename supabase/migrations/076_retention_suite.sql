@@ -73,6 +73,7 @@ CREATE TABLE IF NOT EXISTS retention_settings (
 
 ALTER TABLE retention_settings ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "retention_settings_org" ON retention_settings;
 CREATE POLICY "retention_settings_org" ON retention_settings
   USING (org_id = public.get_org_id())
   WITH CHECK (org_id = public.get_org_id());
@@ -114,6 +115,7 @@ CREATE INDEX IF NOT EXISTS idx_card_mailings_pending
 
 ALTER TABLE card_mailings ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "card_mailings_org" ON card_mailings;
 CREATE POLICY "card_mailings_org" ON card_mailings
   USING (org_id = public.get_org_id())
   WITH CHECK (org_id = public.get_org_id());

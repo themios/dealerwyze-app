@@ -37,14 +37,14 @@ CREATE INDEX IF NOT EXISTS idx_bhph_payment_methods_org_bhph
 
 ALTER TABLE public.bhph_payment_methods ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "bhph_payment_methods_select_org"
-  ON public.bhph_payment_methods
+DROP POLICY IF EXISTS "bhph_payment_methods_select_org" ON public.bhph_payment_methods;
+CREATE POLICY "bhph_payment_methods_select_org" ON public.bhph_payment_methods
   FOR SELECT
   TO authenticated
   USING (org_id = public.get_org_id());
 
-CREATE POLICY "bhph_payment_methods_insert_org"
-  ON public.bhph_payment_methods
+DROP POLICY IF EXISTS "bhph_payment_methods_insert_org" ON public.bhph_payment_methods;
+CREATE POLICY "bhph_payment_methods_insert_org" ON public.bhph_payment_methods
   FOR INSERT
   TO authenticated
   WITH CHECK (org_id = public.get_org_id());

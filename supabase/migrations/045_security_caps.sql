@@ -15,10 +15,12 @@ CREATE INDEX IF NOT EXISTS idx_security_events_org  ON security_events (org_id, 
 
 -- SuperAdmin reads only
 ALTER TABLE security_events ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "superadmin_all_security_events" ON security_events;
 CREATE POLICY "superadmin_all_security_events" ON security_events
   FOR ALL USING (get_org_id() = '00000000-0000-0000-0000-000000000001');
 
 -- Service role can insert (used by webhook routes, cron)
+DROP POLICY IF EXISTS "service_insert_security_events" ON security_events;
 CREATE POLICY "service_insert_security_events" ON security_events
   FOR INSERT WITH CHECK (true);
 

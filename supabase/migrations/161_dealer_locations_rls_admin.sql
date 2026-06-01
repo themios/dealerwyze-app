@@ -25,6 +25,7 @@ DROP POLICY IF EXISTS "dealer_locations_insert" ON dealer_locations;
 DROP POLICY IF EXISTS "dealer_locations_update" ON dealer_locations;
 DROP POLICY IF EXISTS "dealer_locations_delete" ON dealer_locations;
 
+DROP POLICY IF EXISTS "dealer_locations_insert" ON dealer_locations;
 CREATE POLICY "dealer_locations_insert" ON dealer_locations
   FOR INSERT
   WITH CHECK (
@@ -32,6 +33,7 @@ CREATE POLICY "dealer_locations_insert" ON dealer_locations
     AND get_my_role() IN ('dealer_admin', 'admin')
   );
 
+DROP POLICY IF EXISTS "dealer_locations_update" ON dealer_locations;
 CREATE POLICY "dealer_locations_update" ON dealer_locations
   FOR UPDATE
   USING (
@@ -43,6 +45,7 @@ CREATE POLICY "dealer_locations_update" ON dealer_locations
     AND get_my_role() IN ('dealer_admin', 'admin')
   );
 
+DROP POLICY IF EXISTS "dealer_locations_delete" ON dealer_locations;
 CREATE POLICY "dealer_locations_delete" ON dealer_locations
   FOR DELETE
   USING (

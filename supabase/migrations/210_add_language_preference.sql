@@ -2,7 +2,7 @@
 -- Supports both dealer (DealerWyze) and real estate (RealtyWyze) use cases
 
 ALTER TABLE profiles
-ADD COLUMN language_preference text DEFAULT 'en' CHECK (language_preference IN ('en', 'es'));
+ADD COLUMN IF NOT EXISTS language_preference text DEFAULT 'en' CHECK (language_preference IN ('en', 'es'));
 
 -- Create index for language filtering (useful for analytics/targeting)
 CREATE INDEX IF NOT EXISTS idx_profiles_language_preference ON profiles(language_preference);

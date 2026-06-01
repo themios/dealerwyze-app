@@ -14,4 +14,5 @@ CREATE TABLE IF NOT EXISTS vehicle_documents (
 CREATE INDEX IF NOT EXISTS idx_vehicle_docs_vehicle ON vehicle_documents(vehicle_id);
 ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS voice_summary TEXT;
 ALTER TABLE vehicle_documents ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "vehicle_docs_org" ON vehicle_documents;
 CREATE POLICY "vehicle_docs_org" ON vehicle_documents FOR ALL USING (user_id = auth.uid());

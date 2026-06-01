@@ -23,5 +23,6 @@ CREATE INDEX IF NOT EXISTS idx_contacts_org_id ON contacts(org_id);
 
 ALTER TABLE contacts ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "contacts_org" ON contacts;
 CREATE POLICY "contacts_org" ON contacts FOR ALL
   USING (org_id = (SELECT org_id FROM profiles WHERE id = auth.uid()));

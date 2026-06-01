@@ -1,9 +1,15 @@
--- Migration 207: MLS schema extensions
+-- Migration 208: MLS schema extensions
 -- Add MLS-specific columns to vehicles table
 -- Create mls_sync_log table for audit trail
 
 -- Step 0: Add org_id to vehicles table (multi-tenant scoping)
-ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS org_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
+-- Note: vehicles table is from migration 001. RLS is disabled during schema change.
+-- org_id is nullable initially; populate via separate migration once org mapping is determined
+BEGIN;
+ALTER TABLE vehicles DISABLE ROW LEVEL SECURITY;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS org_id UUID;
+ALTER TABLE vehicles ENABLE ROW LEVEL SECURITY;
+COMMIT;
 
 -- Step 1: Add MLS columns to vehicles table
 ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS mls_number TEXT;
@@ -36,9 +42,21 @@ CREATE INDEX IF NOT EXISTS idx_vehicles_mls_synced ON vehicles(mls_synced_at DES
 CREATE INDEX IF NOT EXISTS idx_mls_sync_log_agent ON mls_sync_log(agent_id);
 CREATE INDEX IF NOT EXISTS idx_mls_sync_log_board ON mls_sync_log(mls_board_id);
 
+-- Backfill columns if mls_sync_log predates this migration shape
+ALTER TABLE mls_sync_log ADD COLUMN IF NOT EXISTS org_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
+ALTER TABLE mls_sync_log ADD COLUMN IF NOT EXISTS agent_id UUID REFERENCES profiles(id) ON DELETE CASCADE;
+ALTER TABLE mls_sync_log ADD COLUMN IF NOT EXISTS mls_board_id TEXT;
+ALTER TABLE mls_sync_log ADD COLUMN IF NOT EXISTS synced_at TIMESTAMP DEFAULT now();
+ALTER TABLE mls_sync_log ADD COLUMN IF NOT EXISTS listings_synced INT;
+ALTER TABLE mls_sync_log ADD COLUMN IF NOT EXISTS listings_created INT;
+ALTER TABLE mls_sync_log ADD COLUMN IF NOT EXISTS listings_updated INT;
+ALTER TABLE mls_sync_log ADD COLUMN IF NOT EXISTS errors TEXT;
+ALTER TABLE mls_sync_log ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
+
 -- Step 4: RLS policy for mls_sync_log (agents can see their own sync logs)
 ALTER TABLE mls_sync_log ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "agents_view_own_mls_syncs" ON mls_sync_log;
 CREATE POLICY "agents_view_own_mls_syncs" ON mls_sync_log
   FOR SELECT
   USING (
@@ -47,6 +65,7 @@ CREATE POLICY "agents_view_own_mls_syncs" ON mls_sync_log
     )
   );
 
+DROP POLICY IF EXISTS "service_role_manage_mls_syncs" ON mls_sync_log;
 CREATE POLICY "service_role_manage_mls_syncs" ON mls_sync_log
   FOR ALL
   USING (true)

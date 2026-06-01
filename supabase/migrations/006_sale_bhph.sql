@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS bhph_payments (
 -- RLS for bhph_payments (same org pattern)
 ALTER TABLE bhph_payments ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "org_bhph" ON bhph_payments;
 CREATE POLICY "org_bhph" ON bhph_payments
   FOR ALL
   USING (user_id = (
@@ -46,6 +47,7 @@ CREATE TABLE IF NOT EXISTS vehicles_archive (
 );
 
 ALTER TABLE vehicles_archive ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_archive" ON vehicles_archive;
 CREATE POLICY "org_archive" ON vehicles_archive
   FOR ALL
   USING (user_id = (

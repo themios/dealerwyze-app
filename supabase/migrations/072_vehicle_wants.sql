@@ -31,6 +31,7 @@ CREATE INDEX IF NOT EXISTS vehicle_wants_user_id_status_idx ON vehicle_wants(use
 -- 3. RLS
 ALTER TABLE vehicle_wants ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "org_isolation" ON vehicle_wants;
 CREATE POLICY "org_isolation" ON vehicle_wants
   USING (user_id = get_org_id())
   WITH CHECK (user_id = get_org_id());

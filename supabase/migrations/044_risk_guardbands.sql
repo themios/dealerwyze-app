@@ -14,9 +14,9 @@ ALTER TABLE org_settings
   -- Secure inventory feed token (rotatable)
   ADD COLUMN IF NOT EXISTS feed_token              TEXT        NULL;
 
--- Backfill feed_token for existing orgs (random hex)
+-- Backfill feed_token for existing orgs (random hex from UUID)
 UPDATE org_settings
-SET feed_token = encode(gen_random_bytes(16), 'hex')
+SET feed_token = substring(gen_random_uuid()::text, 1, 32)
 WHERE feed_token IS NULL;
 
 -- ── 2. Organizations: quota notification + churn detection ───────────────────

@@ -17,6 +17,7 @@ CREATE INDEX IF NOT EXISTS customer_documents_user_idx ON customer_documents(use
 -- Row Level Security
 ALTER TABLE customer_documents ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can manage own org documents" ON customer_documents;
 CREATE POLICY "Users can manage own org documents"
 ON customer_documents
 FOR ALL

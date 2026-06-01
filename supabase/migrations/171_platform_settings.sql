@@ -1,4 +1,4 @@
-create table platform_settings (
+create table if not exists platform_settings (
   id                 uuid primary key default gen_random_uuid(),
   platform_name      text not null default 'DealerWyze',
   support_email      text not null default 'support@dealerwyze.com',
@@ -12,4 +12,10 @@ create table platform_settings (
   updated_at         timestamptz not null default now(),
   updated_by         uuid references profiles(id) on delete set null
 );
-insert into platform_settings (id) values (gen_random_uuid());
+
+DO $$
+BEGIN
+  IF (SELECT COUNT(*) FROM platform_settings) = 0 THEN
+    INSERT INTO platform_settings (id) VALUES (gen_random_uuid());
+  END IF;
+END $$;

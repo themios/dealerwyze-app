@@ -21,8 +21,8 @@ END$$;
 -- Fix broken RLS policy that referenced nonexistent platform_admins table
 DROP POLICY IF EXISTS "platform_admin_read_audit" ON org_audit_log;
 
-CREATE POLICY "platform_admin_read_audit"
-  ON org_audit_log
+DROP POLICY IF EXISTS "platform_admin_read_audit" ON org_audit_log;
+CREATE POLICY "platform_admin_read_audit" ON org_audit_log
   FOR SELECT
   USING (
     EXISTS (
@@ -33,8 +33,8 @@ CREATE POLICY "platform_admin_read_audit"
 -- Add org-admin read policy (drop first so this is idempotent)
 DROP POLICY IF EXISTS "org_admin_read_own_audit" ON org_audit_log;
 
-CREATE POLICY "org_admin_read_own_audit"
-  ON org_audit_log
+DROP POLICY IF EXISTS "org_admin_read_own_audit" ON org_audit_log;
+CREATE POLICY "org_admin_read_own_audit" ON org_audit_log
   FOR SELECT
   USING (
     org_id IS NOT NULL AND

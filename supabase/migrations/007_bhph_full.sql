@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS payment_reminder_log (
 
 ALTER TABLE payment_reminder_log ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "org_reminder_log" ON payment_reminder_log;
 CREATE POLICY "org_reminder_log" ON payment_reminder_log
   FOR ALL
   USING (user_id = (SELECT org_id FROM profiles WHERE id = auth.uid() LIMIT 1));

@@ -13,21 +13,25 @@ CREATE TABLE IF NOT EXISTS dealer_locations (
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_dealer_locations_org_id ON dealer_locations(org_id);
-CREATE INDEX idx_dealer_locations_org_active ON dealer_locations(org_id, is_active);
+create index if not exists idx_dealer_locations_org_id on dealer_locations(org_id);
+create index if not exists idx_dealer_locations_org_active on dealer_locations(org_id, is_active);
 
 ALTER TABLE dealer_locations ENABLE ROW LEVEL SECURITY;
 
 -- Org members can read their own locations
+DROP POLICY IF EXISTS "dealer_locations_select" ON dealer_locations;
 CREATE POLICY "dealer_locations_select" ON dealer_locations
   FOR SELECT USING (org_id = get_org_id());
 
 -- Only dealer_admin/admin can write
+DROP POLICY IF EXISTS "dealer_locations_insert" ON dealer_locations;
 CREATE POLICY "dealer_locations_insert" ON dealer_locations
   FOR INSERT WITH CHECK (org_id = get_org_id());
 
+DROP POLICY IF EXISTS "dealer_locations_update" ON dealer_locations;
 CREATE POLICY "dealer_locations_update" ON dealer_locations
   FOR UPDATE USING (org_id = get_org_id());
 
+DROP POLICY IF EXISTS "dealer_locations_delete" ON dealer_locations;
 CREATE POLICY "dealer_locations_delete" ON dealer_locations
   FOR DELETE USING (org_id = get_org_id());

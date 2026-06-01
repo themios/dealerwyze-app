@@ -29,11 +29,13 @@ ALTER TABLE support_tickets          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE support_ticket_messages  ENABLE ROW LEVEL SECURITY;
 
 -- Dealers see only their org's tickets
+DROP POLICY IF EXISTS "tickets_org" ON support_tickets;
 CREATE POLICY "tickets_org" ON support_tickets FOR ALL USING (
   org_id IN (SELECT p.org_id FROM profiles p WHERE p.id = auth.uid())
 );
 
 -- Dealers see only non-internal messages on their org's tickets
+DROP POLICY IF EXISTS "ticket_msgs_org" ON support_ticket_messages;
 CREATE POLICY "ticket_msgs_org" ON support_ticket_messages FOR ALL USING (
   is_internal = false
   AND ticket_id IN (

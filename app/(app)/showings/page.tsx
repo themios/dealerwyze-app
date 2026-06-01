@@ -52,8 +52,11 @@ export default async function ShowingsPage() {
     console.error('[showings/page] fetch error:', error.message)
   }
 
-  // Cast to ShowingRequest[]
-  const showingRequests = (showings ?? []) as ShowingRequest[]
+  // Map to ShowingRequest[] - normalize listing from array to object
+  const showingRequests = (showings ?? []).map((showing: any) => ({
+    ...showing,
+    listing: Array.isArray(showing.listing) ? showing.listing[0] ?? null : showing.listing,
+  })) as ShowingRequest[]
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">

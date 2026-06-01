@@ -25,5 +25,6 @@ CREATE INDEX IF NOT EXISTS idx_faxes_customer   ON faxes(customer_id) WHERE cust
 
 ALTER TABLE faxes ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "faxes_org" ON faxes;
 CREATE POLICY "faxes_org" ON faxes FOR ALL
   USING (org_id = (SELECT org_id FROM profiles WHERE id = auth.uid()));

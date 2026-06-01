@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS org_webhooks (
   active BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX idx_org_webhooks_org ON org_webhooks(org_id) WHERE active = true;
+CREATE INDEX IF NOT EXISTS idx_org_webhooks_org ON org_webhooks(org_id) WHERE active = true;
 ALTER TABLE org_webhooks ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_members_own_webhooks" ON org_webhooks;
 CREATE POLICY "org_members_own_webhooks" ON org_webhooks
   FOR ALL USING (org_id = public.get_org_id());

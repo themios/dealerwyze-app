@@ -43,10 +43,10 @@ CREATE INDEX IF NOT EXISTS idx_ai_scan_log_org ON ai_scan_log (org_id, created_a
 ALTER TABLE ai_scan_log ENABLE ROW LEVEL SECURITY;
 
 -- SuperAdmin sees all; org members see own
-CREATE POLICY "superadmin_all_scan_log"
-  ON ai_scan_log FOR SELECT
+DROP POLICY IF EXISTS "superadmin_all_scan_log" ON ai_scan_log;
+CREATE POLICY "superadmin_all_scan_log" ON ai_scan_log FOR SELECT
   USING (EXISTS (SELECT 1 FROM platform_superusers WHERE user_id = auth.uid()));
 
-CREATE POLICY "org_own_scan_log"
-  ON ai_scan_log FOR SELECT
+DROP POLICY IF EXISTS "org_own_scan_log" ON ai_scan_log;
+CREATE POLICY "org_own_scan_log" ON ai_scan_log FOR SELECT
   USING (org_id = public.get_org_id());

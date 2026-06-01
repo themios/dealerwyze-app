@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     const raw = await req.json()
     const parsed = Schema.safeParse(raw)
     if (!parsed.success) {
-      console.error('Schema validation failed:', parsed.error.errors)
+      console.error('Schema validation failed:', parsed.error.issues)
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
     }
     body = parsed.data
@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
     agentName: agent.display_name || 'Agent',
     agentPhone: agent.phone ?? null,
     agentEmail: agent.email ?? null,
-    buyerName,
+    buyerName: buyer_name,
     buyerPhone: buyer_phone ?? null,
     address,
     showingId: showingRequest.id,

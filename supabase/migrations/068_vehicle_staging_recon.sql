@@ -42,8 +42,8 @@ CREATE INDEX IF NOT EXISTS idx_recon_items_org
 
 ALTER TABLE public.recon_checklist_items ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "org_can_manage_recon_items"
-  ON public.recon_checklist_items
+DROP POLICY IF EXISTS "org_can_manage_recon_items" ON public.recon_checklist_items;
+CREATE POLICY "org_can_manage_recon_items" ON public.recon_checklist_items
   FOR ALL
   USING     (org_id = public.get_org_id())
   WITH CHECK (org_id = public.get_org_id());

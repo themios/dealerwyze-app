@@ -47,7 +47,8 @@ BEGIN
       AND policyname = 'org members can read commission plans'
   ) THEN
     EXECUTE $policy$
-      CREATE POLICY "org members can read commission plans"
+      DROP POLICY IF EXISTS "org members can read commission plans" ON commission_plans;
+CREATE POLICY "org members can read commission plans"
         ON commission_plans FOR SELECT
         USING (org_id = (SELECT org_id FROM profiles WHERE id = auth.uid()))
     $policy$;
@@ -59,7 +60,8 @@ BEGIN
       AND policyname = 'org admins can modify commission plans'
   ) THEN
     EXECUTE $policy$
-      CREATE POLICY "org admins can modify commission plans"
+      DROP POLICY IF EXISTS "org admins can modify commission plans" ON commission_plans;
+CREATE POLICY "org admins can modify commission plans"
         ON commission_plans FOR ALL
         USING (org_id = (SELECT org_id FROM profiles WHERE id = auth.uid()))
     $policy$;

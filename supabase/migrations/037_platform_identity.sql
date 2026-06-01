@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS platform_superusers (
 
 -- Only service role can read/write — deny all user-level access
 ALTER TABLE platform_superusers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "platform_superusers_deny_all" ON platform_superusers;
 CREATE POLICY "platform_superusers_deny_all" ON platform_superusers FOR ALL
   USING (false);
 

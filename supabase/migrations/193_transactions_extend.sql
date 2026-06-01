@@ -17,21 +17,33 @@ ALTER TABLE transactions
 -- 2. Expand status CHECK constraint to include new RE pipeline statuses
 --    Drop the old constraint (which only allowed pending/closed/cancelled)
 --    and replace with the expanded set.
-ALTER TABLE transactions
-  DROP CONSTRAINT IF EXISTS transactions_status_check;
-
-ALTER TABLE transactions
-  ADD CONSTRAINT transactions_status_check
-    CHECK (status IN ('offer','under_contract','inspection','appraisal','closing','closed','fallen_through','cancelled'));
+DO $$
+BEGIN
+  ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_status_check;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'transactions_status_check'
+  ) THEN
+    ALTER TABLE transactions
+      ADD CONSTRAINT transactions_status_check
+        CHECK (status IN ('offer','under_contract','inspection','appraisal','closing','closed','fallen_through','cancelled'));
+  END IF;
+END $$;
 
 -- 3. Migrate existing rows: map old status values to new equivalents
 UPDATE transactions SET status = 'offer'          WHERE status = 'pending';
 UPDATE transactions SET status = 'fallen_through' WHERE status = 'cancelled';
 
 -- 4. Add pipeline_status CHECK constraint
-ALTER TABLE transactions
-  ADD CONSTRAINT transactions_pipeline_status_check
-    CHECK (pipeline_status IN ('offer','under_contract','inspection','appraisal','closing','closed','fallen_through'));
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'transactions_pipeline_status_check'
+  ) THEN
+    ALTER TABLE transactions
+      ADD CONSTRAINT transactions_pipeline_status_check
+        CHECK (pipeline_status IN ('offer','under_contract','inspection','appraisal','closing','closed','fallen_through'));
+  END IF;
+END $$;
 
 -- 5. Indexes
 CREATE INDEX IF NOT EXISTS idx_transactions_org_vehicle
@@ -51,7 +63,8 @@ BEGIN
       AND policyname = 'org members can access own transactions'
   ) THEN
     EXECUTE $policy$
-      CREATE POLICY "org members can access own transactions"
+      DROP POLICY IF EXISTS "org members can access own transactions" ON transactions;
+CREATE POLICY "org members can access own transactions"
         ON transactions FOR ALL
         USING (org_id = (SELECT org_id FROM profiles WHERE id = auth.uid()))
     $policy$;

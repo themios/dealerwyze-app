@@ -56,13 +56,13 @@ CREATE INDEX IF NOT EXISTS deal_intent_outcomes_org_sold_idx
 
 ALTER TABLE public.deal_intent_outcomes ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "deal_intent_outcomes_select_org"
-  ON public.deal_intent_outcomes
+DROP POLICY IF EXISTS "deal_intent_outcomes_select_org" ON public.deal_intent_outcomes;
+CREATE POLICY "deal_intent_outcomes_select_org" ON public.deal_intent_outcomes
   FOR SELECT
   USING (org_id = get_org_id());
 
-CREATE POLICY "deal_intent_outcomes_insert_service"
-  ON public.deal_intent_outcomes
+DROP POLICY IF EXISTS "deal_intent_outcomes_insert_service" ON public.deal_intent_outcomes;
+CREATE POLICY "deal_intent_outcomes_insert_service" ON public.deal_intent_outcomes
   FOR INSERT
   WITH CHECK (org_id = get_org_id());
 

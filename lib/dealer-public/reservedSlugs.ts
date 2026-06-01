@@ -1,0 +1,53 @@
+import { i18n } from '@/i18n.config'
+
+/** First-path segments used by the CRM app — never treat as public dealer slugs. */
+export const RESERVED_PUBLIC_SLUGS = new Set([
+  ...i18n.locales,
+  'admin',
+  'analytics',
+  'api',
+  'auth',
+  'bhph',
+  'blog',
+  'book',
+  'buyer-criteria',
+  'calendar',
+  'commissions',
+  'contacts',
+  'customers',
+  'dashboard',
+  'fax',
+  'forgot-password',
+  'leases',
+  'leads',
+  'listings',
+  'login',
+  'lp',
+  'matches',
+  'messages',
+  'more',
+  'onboarding',
+  'pay',
+  'pending',
+  'pipeline',
+  'privacy',
+  'pulse',
+  'receipts',
+  'reports',
+  'reset-password',
+  'search',
+  'settings',
+  'showings',
+  'signup',
+  'sms-opt-in',
+  'support',
+  'suspended',
+  'terms',
+  'today',
+  'transfer',
+  'vehicles',
+])
+
+export function isReservedPublicSlug(slug: string): boolean {
+  return RESERVED_PUBLIC_SLUGS.has(slug.toLowerCase())
+}

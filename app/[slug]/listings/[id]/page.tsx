@@ -5,7 +5,8 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { loadOrganizationsMatchingPublicSlug, pickUniqueOrgSlugMatch } from '@/lib/dealer-public/publicOrgBySlug'
 import ShowingRequestForm from './ShowingRequestForm'
 
-export const dynamic = 'force-dynamic'
+// ISR: revalidate every 60 seconds for public listing detail pages
+export const revalidate = 60
 
 type Props = { params: Promise<{ slug: string; id: string }> }
 

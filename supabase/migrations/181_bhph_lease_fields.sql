@@ -44,8 +44,10 @@ ALTER TABLE bhph_contracts ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org members read bhph_contracts"  ON bhph_contracts;
 DROP POLICY IF EXISTS "org members write bhph_contracts" ON bhph_contracts;
 
+DROP POLICY IF EXISTS "org members read bhph_contracts" ON bhph_contracts;
 CREATE POLICY "org members read bhph_contracts" ON bhph_contracts
   FOR SELECT USING (org_id = (SELECT org_id FROM profiles WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "org members write bhph_contracts" ON bhph_contracts;
 CREATE POLICY "org members write bhph_contracts" ON bhph_contracts
   FOR ALL USING (org_id = (SELECT org_id FROM profiles WHERE id = auth.uid()));

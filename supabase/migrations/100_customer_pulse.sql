@@ -62,8 +62,11 @@ alter table pulse_surveys   enable row level security;
 alter table pulse_responses enable row level security;
 alter table pulse_actions   enable row level security;
 
+DROP POLICY IF EXISTS "pulse_surveys_org" ON pulse_surveys;
 create policy "pulse_surveys_org"   on pulse_surveys   using (org_id = public.get_org_id());
+DROP POLICY IF EXISTS "pulse_responses_org" ON pulse_responses;
 create policy "pulse_responses_org" on pulse_responses  using (org_id = public.get_org_id());
+DROP POLICY IF EXISTS "pulse_actions_org" ON pulse_actions;
 create policy "pulse_actions_org"   on pulse_actions    using (org_id = public.get_org_id());
 
 -- Indexes

@@ -8,4 +8,6 @@ WHERE ctid NOT IN (
 
 -- Add unique constraint so ON CONFLICT DO NOTHING works in future
 ALTER TABLE video_templates
+  DROP CONSTRAINT IF EXISTS video_templates_composition_id_unique;
+ALTER TABLE video_templates
   ADD CONSTRAINT video_templates_composition_id_unique UNIQUE (composition_id);

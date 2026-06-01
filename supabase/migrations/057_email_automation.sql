@@ -8,5 +8,7 @@ ALTER TABLE public.org_settings
 
 -- Constrain valid values (matches SMS automation_mode constraint pattern)
 ALTER TABLE public.org_settings
+  DROP CONSTRAINT IF EXISTS chk_email_automation_mode;
+ALTER TABLE public.org_settings
   ADD CONSTRAINT chk_email_automation_mode
     CHECK (email_automation_mode IN ('manual', 'semi_auto', 'full_auto'));

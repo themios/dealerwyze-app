@@ -53,5 +53,4 @@ CREATE UNIQUE INDEX customer_sequences_active_per_channel
 
 -- ── 5. Index for efficient per-customer channel-status lookups ────────────────
 DROP INDEX IF EXISTS idx_customer_sequences_customer_channel;
-CREATE INDEX idx_customer_sequences_customer_channel
-  ON customer_sequences (org_id, customer_id, channel, status);
+create index if not exists idx_customer_sequences_customer_channel on customer_sequences (org_id, customer_id, channel, status);

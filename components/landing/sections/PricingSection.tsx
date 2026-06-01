@@ -210,8 +210,8 @@ export default function PricingSection() {
                 <span className="text-4xl font-black" style={{ color: NAVY }}>${crmMonthly + voiceAddon}</span>
                 <span className="text-sm pb-1.5" style={{ color: '#6B6355' }}>/mo</span>
               </div>
-              <p className="text-xs mt-1" style={{ color: '#6B6355' }}>
-                Available after beta
+              <p className="text-xs mt-1" style={{ color: '#9A3412' }}>
+                Coming after beta ends. Growth + AI voice agent ($200/mo add-on).
               </p>
             </div>
             <ul className="space-y-2.5 mb-7 mt-4 flex-1">

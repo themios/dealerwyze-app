@@ -29,6 +29,7 @@ CREATE INDEX IF NOT EXISTS idx_email_accounts_org ON email_accounts(org_id);
 ALTER TABLE email_accounts ENABLE ROW LEVEL SECURITY;
 
 -- Users can only see/manage their own org's accounts
+DROP POLICY IF EXISTS "email_accounts_org" ON email_accounts;
 CREATE POLICY "email_accounts_org" ON email_accounts FOR ALL USING (
   org_id IN (SELECT p.org_id FROM profiles p WHERE p.id = auth.uid())
 );

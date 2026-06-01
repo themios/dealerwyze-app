@@ -6,14 +6,14 @@ ALTER TABLE public.inventory_inquiries
     CHECK (status IN ('new', 'imported', 'archived'));
 
 -- Allow org members to update status of their own inquiries
-CREATE POLICY "org_can_update_inquiries"
-  ON public.inventory_inquiries
+DROP POLICY IF EXISTS "org_can_update_inquiries" ON public.inventory_inquiries;
+CREATE POLICY "org_can_update_inquiries" ON public.inventory_inquiries
   FOR UPDATE
   USING  (org_id = public.get_org_id())
   WITH CHECK (org_id = public.get_org_id());
 
 -- Allow org members to delete their own inquiries
-CREATE POLICY "org_can_delete_inquiries"
-  ON public.inventory_inquiries
+DROP POLICY IF EXISTS "org_can_delete_inquiries" ON public.inventory_inquiries;
+CREATE POLICY "org_can_delete_inquiries" ON public.inventory_inquiries
   FOR DELETE
   USING (org_id = public.get_org_id());

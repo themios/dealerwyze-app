@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     const raw = await req.json()
     const parsed = Schema.safeParse(raw)
     if (!parsed.success) {
-      console.error('Schema validation failed:', parsed.error.errors)
+      console.error('Schema validation failed:', parsed.error.issues)
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
     }
     body = parsed.data
@@ -97,7 +97,8 @@ export async function POST(req: NextRequest) {
     const followUpDue = new Date()
     followUpDue.setDate(followUpDue.getDate() + 3) // 3 days from now
 
-    await supabase
+    // Fire-and-forget follow-up task creation
+    void supabase
       .from('activities')
       .insert({
         user_id: profile.org_id,
@@ -106,7 +107,6 @@ export async function POST(req: NextRequest) {
         priority: 'high',
         due_at: followUpDue.toISOString(),
       })
-      .catch((err) => console.error('Failed to create follow-up task:', err))
   }
 
   return NextResponse.json(

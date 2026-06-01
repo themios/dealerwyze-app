@@ -88,10 +88,15 @@ ALTER TABLE activities ENABLE ROW LEVEL SECURITY;
 ALTER TABLE templates ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies (user_id = auth.uid())
+DROP POLICY IF EXISTS "users_own_customers" ON customers;
 CREATE POLICY "users_own_customers" ON customers FOR ALL USING (user_id = auth.uid());
+DROP POLICY IF EXISTS "users_own_vehicles" ON vehicles;
 CREATE POLICY "users_own_vehicles" ON vehicles FOR ALL USING (user_id = auth.uid());
+DROP POLICY IF EXISTS "users_own_activities" ON activities;
 CREATE POLICY "users_own_activities" ON activities FOR ALL USING (user_id = auth.uid());
+DROP POLICY IF EXISTS "users_own_templates" ON templates;
 CREATE POLICY "users_own_templates" ON templates FOR ALL USING (user_id = auth.uid());
+DROP POLICY IF EXISTS "users_own_customer_vehicles" ON customer_vehicles;
 CREATE POLICY "users_own_customer_vehicles" ON customer_vehicles FOR ALL
   USING (EXISTS (SELECT 1 FROM customers c WHERE c.id = customer_id AND c.user_id = auth.uid()));
 

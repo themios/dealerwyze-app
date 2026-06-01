@@ -13,8 +13,8 @@ ALTER TABLE public.bhph_payment_tokens ENABLE ROW LEVEL SECURITY;
 
 -- Org staff can read/manage their own org's payment tokens.
 -- The public /pay/[token] route uses service role (bypasses RLS).
-CREATE POLICY "org_own_bhph_payment_tokens"
-  ON public.bhph_payment_tokens
+DROP POLICY IF EXISTS "org_own_bhph_payment_tokens" ON public.bhph_payment_tokens;
+CREATE POLICY "org_own_bhph_payment_tokens" ON public.bhph_payment_tokens
   FOR ALL
   USING (org_id = public.get_org_id());
 
@@ -33,8 +33,8 @@ ALTER TABLE public.abuse_flags ENABLE ROW LEVEL SECURITY;
 -- ── 2. commission_ledger: RLS enabled but no policy ─────────
 -- Org staff (admin/manager) can view their own org's ledger.
 -- Writes go through service client only.
-CREATE POLICY "org_own_commission_ledger"
-  ON public.commission_ledger
+DROP POLICY IF EXISTS "org_own_commission_ledger" ON public.commission_ledger;
+CREATE POLICY "org_own_commission_ledger" ON public.commission_ledger
   FOR SELECT
   USING (org_id = public.get_org_id());
 
@@ -43,8 +43,8 @@ CREATE POLICY "org_own_commission_ledger"
 -- Replace with: only the authenticated user can insert their own events.
 DROP POLICY IF EXISTS "service_insert_security_events" ON public.security_events;
 
-CREATE POLICY "authenticated_insert_security_events"
-  ON public.security_events
+DROP POLICY IF EXISTS "authenticated_insert_security_events" ON public.security_events;
+CREATE POLICY "authenticated_insert_security_events" ON public.security_events
   FOR INSERT
   WITH CHECK (auth.role() = 'authenticated');
 

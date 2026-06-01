@@ -28,5 +28,6 @@ CREATE INDEX IF NOT EXISTS idx_gbp_reviews_notified
 
 -- RLS
 ALTER TABLE gbp_reviews ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "gbp_reviews_org" ON gbp_reviews;
 CREATE POLICY "gbp_reviews_org" ON gbp_reviews FOR ALL
   USING (org_id = (SELECT org_id FROM profiles WHERE id = auth.uid()));

@@ -25,6 +25,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_org_action
 ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
 
 -- Dealers see only rows for their org (rows with NULL org_id are ops-only / service role).
+DROP POLICY IF EXISTS audit_log_select_own_org ON public.audit_log;
 CREATE POLICY audit_log_select_own_org
   ON public.audit_log
   FOR SELECT

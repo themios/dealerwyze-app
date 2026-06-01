@@ -32,13 +32,13 @@ CREATE INDEX IF NOT EXISTS recommendations_org_entity
 ALTER TABLE public.recommendations ENABLE ROW LEVEL SECURITY;
 
 -- Dealers read their own org's recommendations only
-CREATE POLICY "org members read recommendations"
-  ON public.recommendations FOR SELECT
+DROP POLICY IF EXISTS "org members read recommendations" ON public.recommendations;
+CREATE POLICY "org members read recommendations" ON public.recommendations FOR SELECT
   USING (org_id = (SELECT auth.uid()));
 
 -- Dealers can dismiss and mark acted-on (status fields only — no INSERT)
-CREATE POLICY "org members update recommendation status"
-  ON public.recommendations FOR UPDATE
+DROP POLICY IF EXISTS "org members update recommendation status" ON public.recommendations;
+CREATE POLICY "org members update recommendation status" ON public.recommendations FOR UPDATE
   USING (org_id = (SELECT auth.uid()))
   WITH CHECK (org_id = (SELECT auth.uid()));
 

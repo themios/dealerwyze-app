@@ -4,6 +4,22 @@ Shipped product changes with migration pointers and rationale. See also `docs/en
 
 ---
 
+## 2026-05-31 — Production migration push (177–215)
+
+- **Category:** Database / DevOps
+- **Migration:** 177–215 (idempotent fixes in 177, 193, 200, 208, 209)
+- **Why:** `supabase db push` to production failed on partially-applied schema (duplicate constraints, policies, seed rows, and syntax typos).
+- **What was built:**
+  - `177_platform_plan_quotas.sql` — removed duplicate `IF NOT EXISTS`; seed uses `ON CONFLICT (plan) DO NOTHING`.
+  - `193_transactions_extend.sql` — constraint adds guarded with `pg_constraint` checks.
+  - `200_help_articles.sql` — `DROP POLICY IF EXISTS` + `ON CONFLICT (slug)` on seed.
+  - `208_mls_schema_extensions.sql` — `org_id` column `IF NOT EXISTS`; backfill `mls_sync_log` columns before RLS policies.
+  - `209_buyer_criteria_matching.sql` — `CREATE UNIQUE INDEX IF NOT EXISTS`; fixed `DROP POLICY` targets for `matched_opportunities`.
+  - `210_add_language_preference.sql`, `211_showing_requests_reminders.sql` — `ADD COLUMN IF NOT EXISTS`.
+  - Remote DB confirmed **up to date** through migration 215.
+
+---
+
 ## 2026-05-24 — RealtyWyze Admin Vertical Scoping (full fix)
 
 - **Category:** Platform Admin / Architecture
@@ -33,6 +49,19 @@ Shipped product changes with migration pointers and rationale. See also `docs/en
   - `app/(app)/admin/content/page.tsx` — reads `RE_CONTENT_MCP_ORG_ID` when `host.includes('realtywyze')`.
   - RE content org: Themio Realty (`d775c4f7-ab05-4cc5-b8a6-2cdd61ea0626`).
   - New env var `RE_CONTENT_MCP_ORG_ID=d775c4f7-ab05-4cc5-b8a6-2cdd61ea0626` — must be added to Vercel.
+
+---
+
+## 2026-06-01 — Fix production 404 on dealerwyze.com (next-intl vs [slug] collision)
+
+- **Category:** Bug fix
+- **Migration:** none
+- **Why:** Spanish i18n middleware used `/en/` and `/es/` URL prefixes; `app/[slug]` treated those as dealer slugs and redirected to `/en/inventory`, breaking `/`, `/login`, and the landing page.
+- **What was built:**
+  - `proxy.ts` — `localePrefix: 'never'`; stop returning intl middleware before auth; merge `NEXT_LOCALE` cookies.
+  - `lib/dealer-public/reservedSlugs.ts` — block CRM path segments from public dealer slug routes.
+  - `app/[slug]/page.tsx` — `notFound()` for reserved slugs.
+  - `components/i18n/LanguageToggle.tsx` — cookie + refresh instead of `/es/...` URLs.
 
 ---
 

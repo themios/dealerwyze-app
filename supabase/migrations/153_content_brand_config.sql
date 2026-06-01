@@ -19,14 +19,17 @@ create table if not exists content_brand_config (
 
 alter table content_brand_config enable row level security;
 
+DROP POLICY IF EXISTS "org members can select own brand config" ON content_brand_config;
 create policy "org members can select own brand config"
   on content_brand_config for select
   using (org_id = (select get_org_id()));
 
+DROP POLICY IF EXISTS "org members can insert own brand config" ON content_brand_config;
 create policy "org members can insert own brand config"
   on content_brand_config for insert
   with check (org_id = (select get_org_id()));
 
+DROP POLICY IF EXISTS "org members can update own brand config" ON content_brand_config;
 create policy "org members can update own brand config"
   on content_brand_config for update
   using (org_id = (select get_org_id()))

@@ -28,8 +28,8 @@ CREATE INDEX IF NOT EXISTS intelligence_events_org_entity
 -- RLS: each org sees only its own events
 ALTER TABLE public.intelligence_events ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "org members can read their intelligence events"
-  ON public.intelligence_events
+DROP POLICY IF EXISTS "org members can read their intelligence events" ON public.intelligence_events;
+CREATE POLICY "org members can read their intelligence events" ON public.intelligence_events
   FOR SELECT
   USING (org_id = (SELECT auth.uid()));
 

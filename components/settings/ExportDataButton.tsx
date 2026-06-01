@@ -1,12 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Download } from 'lucide-react'
-import { useVertical } from '@/lib/vertical'
 
 export default function ExportDataButton() {
-  const { vertical } = useVertical()
+  const [mounted, setMounted] = useState(false)
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const isRealEstate = typeof window !== 'undefined' && window.location.hostname.includes('realtywyze')
+  const vertical = isRealEstate ? 'real_estate' : 'dealer'
   const [error, setError]     = useState<string | null>(null)
 
   async function handleExport() {
@@ -32,6 +38,18 @@ export default function ExportDataButton() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (!mounted) {
+    return (
+      <div className="flex items-center gap-3 w-full p-4 rounded-lg border bg-card">
+        <div className="h-5 w-5 bg-muted rounded flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="h-4 w-32 bg-muted rounded" />
+          <div className="h-3 w-48 bg-muted rounded mt-2" />
+        </div>
+      </div>
+    )
   }
 
   return (

@@ -16,20 +16,23 @@ create table if not exists content_renders (
   completed_at         timestamptz
 );
 
-create index content_renders_org_id_idx        on content_renders (org_id);
-create index content_renders_lambda_render_idx on content_renders (lambda_render_id) where lambda_render_id is not null;
+create index if not exists content_renders_org_id_idx        on content_renders (org_id);
+create index if not exists content_renders_lambda_render_idx on content_renders (lambda_render_id) where lambda_render_id is not null;
 
 alter table content_renders enable row level security;
 
 -- Org members can view, insert, and update their own renders (service role handles webhook updates)
+DROP POLICY IF EXISTS "org members can select content_renders" ON content_renders;
 create policy "org members can select content_renders"
   on content_renders for select
   using (org_id = (select get_org_id()));
 
+DROP POLICY IF EXISTS "org members can insert content_renders" ON content_renders;
 create policy "org members can insert content_renders"
   on content_renders for insert
   with check (org_id = (select get_org_id()));
 
+DROP POLICY IF EXISTS "org members can update content_renders" ON content_renders;
 create policy "org members can update content_renders"
   on content_renders for update
   using (org_id = (select get_org_id()));

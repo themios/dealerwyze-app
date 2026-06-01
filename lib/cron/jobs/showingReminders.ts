@@ -86,14 +86,7 @@ export async function runShowingReminders(
       .from('showing_requests')
       .update({ reminder_sent_at: new Date().toISOString() })
       .eq('id', request.id)
-      .then(() => {
-        remindersQueued++
-      })
-      .catch(() => {
-        console.error(
-          `[showingReminders] Failed to mark reminder sent for request ${request.id}`
-        )
-      })
+    remindersQueued++
   }
 
   console.log(`[showingReminders] Queued ${remindersQueued} reminders`)

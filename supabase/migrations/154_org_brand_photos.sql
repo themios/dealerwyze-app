@@ -13,24 +13,28 @@ create table if not exists org_brand_photos (
   created_at  timestamptz not null default now()
 );
 
-create index org_brand_photos_org_idx        on org_brand_photos (org_id);
-create index org_brand_photos_org_active_idx on org_brand_photos (org_id, active);
+create index if not exists org_brand_photos_org_idx on org_brand_photos (org_id);
+create index if not exists org_brand_photos_org_active_idx on org_brand_photos (org_id, active);
 
 alter table org_brand_photos enable row level security;
 
+DROP POLICY IF EXISTS "org members can select own photos" ON org_brand_photos;
 create policy "org members can select own photos"
   on org_brand_photos for select
   using (org_id = (select get_org_id()));
 
+DROP POLICY IF EXISTS "org members can insert own photos" ON org_brand_photos;
 create policy "org members can insert own photos"
   on org_brand_photos for insert
   with check (org_id = (select get_org_id()));
 
+DROP POLICY IF EXISTS "org members can update own photos" ON org_brand_photos;
 create policy "org members can update own photos"
   on org_brand_photos for update
   using (org_id = (select get_org_id()))
   with check (org_id = (select get_org_id()));
 
+DROP POLICY IF EXISTS "org members can delete own photos" ON org_brand_photos;
 create policy "org members can delete own photos"
   on org_brand_photos for delete
   using (org_id = (select get_org_id()));

@@ -9,7 +9,6 @@
  * Service-role job (no auth context). Idempotent: unique constraint prevents duplicates.
  */
 
-import type { ReturnType as SupabaseReturnType } from '@supabase/supabase-js'
 import { matchesProfile, type BuyerProfile, type Listing } from '@/lib/matching/matchListing'
 import { sendNotificationEmail } from '@/lib/email/notify'
 import type { createServiceClient } from '@/lib/supabase/service'

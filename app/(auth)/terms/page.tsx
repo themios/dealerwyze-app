@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getVerticalFromHost } from '@/lib/vertical/getVerticalFromHost'
 import Link from 'next/link'
 import DOMPurify from 'isomorphic-dompurify'
 
@@ -13,12 +12,13 @@ export default function TermsPage() {
   useEffect(() => {
     const fetchContent = async () => {
       try {
-        // Get vertical from host
-        const config = await getVerticalFromHost()
-        setVertical(config.vertical)
+        // Detect vertical from hostname
+        const hostname = typeof window !== 'undefined' ? window.location.hostname : 'dealerwyze.com'
+        const detectedVertical = hostname.includes('realtywyze') ? 'real_estate' : 'dealer'
+        setVertical(detectedVertical)
 
         // Fetch the appropriate HTML file
-        const filename = config.vertical === 'real_estate' ? 'realtywyze-terms.html' : 'terms.html'
+        const filename = detectedVertical === 'real_estate' ? 'realtywyze-terms.html' : 'terms.html'
         const response = await fetch(`/${filename}`)
         const html = await response.text()
 

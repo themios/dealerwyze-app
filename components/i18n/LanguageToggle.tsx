@@ -1,6 +1,6 @@
 'use client'
 
-import { usePathname, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { updateLanguagePreference } from '@/app/api/actions/updateLanguagePreference'
 import { setStoredLanguagePreference } from '@/lib/i18n/languageStorage'
@@ -10,7 +10,6 @@ import type { Locale } from '@/i18n.config'
 
 export function LanguageToggle() {
   const router = useRouter()
-  const pathname = usePathname()
   const locale = useLocale() as Locale
   const [mounted, setMounted] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -35,22 +34,9 @@ export function LanguageToggle() {
       // Store preference locally
       setStoredLanguagePreference(newLocale)
 
-      // Build new pathname
-      let newPathname = pathname
-
-      // Remove locale prefix from pathname if present
-      if (pathname.startsWith(`/${locale}/`)) {
-        newPathname = pathname.slice(locale.length + 1)
-      } else if (pathname === `/${locale}`) {
-        newPathname = '/'
-      }
-
-      // Navigate to new locale route
-      if (newLocale === 'en') {
-        router.push(newPathname)
-      } else {
-        router.push(`/${newLocale}${newPathname}`)
-      }
+      // Locale is cookie-based (localePrefix: never) — do not prefix URLs with /es or /en.
+      document.cookie = `NEXT_LOCALE=${newLocale};path=/;max-age=${60 * 60 * 24 * 365};SameSite=Lax`
+      router.refresh()
 
       toast.success('Language updated')
     } catch (error) {

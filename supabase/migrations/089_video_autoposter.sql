@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS video_templates (
   created_at       timestamptz NOT NULL DEFAULT now()
 );
 ALTER TABLE video_templates ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "authenticated_read_video_templates" ON video_templates;
 CREATE POLICY "authenticated_read_video_templates" ON video_templates
   FOR SELECT USING (auth.role() = 'authenticated' AND is_active = true);
 
@@ -37,6 +38,7 @@ CREATE TABLE IF NOT EXISTS org_video_settings (
   updated_at              timestamptz NOT NULL DEFAULT now()
 );
 ALTER TABLE org_video_settings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_video_settings_scope" ON org_video_settings;
 CREATE POLICY "org_video_settings_scope" ON org_video_settings
   FOR ALL USING (org_id = public.get_org_id());
 
@@ -64,6 +66,7 @@ CREATE TABLE IF NOT EXISTS video_renders (
   completed_at        timestamptz
 );
 ALTER TABLE video_renders ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_video_renders_scope" ON video_renders;
 CREATE POLICY "org_video_renders_scope" ON video_renders
   FOR ALL USING (org_id = public.get_org_id());
 
@@ -86,6 +89,7 @@ CREATE TABLE IF NOT EXISTS social_accounts (
   UNIQUE (org_id, platform, platform_account_id)
 );
 ALTER TABLE social_accounts ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_social_accounts_scope" ON social_accounts;
 CREATE POLICY "org_social_accounts_scope" ON social_accounts
   FOR ALL USING (org_id = public.get_org_id());
 
@@ -108,6 +112,7 @@ CREATE TABLE IF NOT EXISTS social_posts (
   created_at          timestamptz NOT NULL DEFAULT now()
 );
 ALTER TABLE social_posts ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_social_posts_scope" ON social_posts;
 CREATE POLICY "org_social_posts_scope" ON social_posts
   FOR ALL USING (org_id = public.get_org_id());
 

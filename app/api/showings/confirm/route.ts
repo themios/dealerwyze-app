@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
       buyerPhone: showing.buyer_phone ?? null,
       buyerEmail: showing.buyer_email ?? null,
       address,
-      confirmedTime,
+      confirmedTime: confirmed_time,
       message: showing.message ?? null,
     })
   } catch (err) {

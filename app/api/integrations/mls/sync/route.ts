@@ -386,13 +386,13 @@ export async function POST(req: NextRequest) {
     // Audit log
     await writeAuditLog({
       action: 'mls_sync_manual',
-      actor_type: 'user',
-      actor_id: profile.id,
-      entity_type: 'listing_batch',
-      org_id: profile.org_id,
+      actorType: 'user',
+      actorId: profile.id,
+      entityType: 'listing_batch',
+      orgId: profile.org_id,
       metadata: {
-        board_id: boardId,
-        listings_synced: listings.length,
+        boardId: boardId,
+        listingsSynced: listings.length,
         created,
         updated,
         errors: syncErrors.length,

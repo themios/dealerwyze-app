@@ -11,5 +11,6 @@ CREATE TABLE IF NOT EXISTS saved_segments (
 
 ALTER TABLE saved_segments ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "org_members_own_segments" ON saved_segments;
 CREATE POLICY "org_members_own_segments" ON saved_segments
   FOR ALL USING (org_id = public.get_org_id());

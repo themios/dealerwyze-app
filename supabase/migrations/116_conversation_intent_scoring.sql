@@ -39,8 +39,8 @@ CREATE INDEX IF NOT EXISTS ai_usage_log_org_date_idx
 
 ALTER TABLE public.ai_usage_log ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "ai_usage_log_select_org"
-  ON public.ai_usage_log
+DROP POLICY IF EXISTS "ai_usage_log_select_org" ON public.ai_usage_log;
+CREATE POLICY "ai_usage_log_select_org" ON public.ai_usage_log
   FOR SELECT
   USING (org_id = get_org_id());
 

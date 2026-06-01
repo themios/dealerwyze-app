@@ -181,9 +181,11 @@ export async function runMlsSync(supabase: any): Promise<{
     // Audit log for compliance
     try {
       await writeAuditLog({
+        orgId: null,
         action: 'mls_sync_job',
-        actor_type: 'system',
-        entity_type: 'listing_batch',
+        actorType: 'user',
+        actorId: null,
+        entityType: 'listing_batch',
         metadata: {
           agents_synced: result.agents_synced,
           total_listings: result.total_listings_fetched,

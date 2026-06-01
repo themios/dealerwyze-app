@@ -167,21 +167,26 @@ function isSuspended(suspendedAt: string | null | undefined): boolean {
   return !!suspendedAt
 }
 
-// next-intl middleware for i18n routing (/en/, /es/, etc.)
+// Cookie-based locale only — no /en/ or /es/ URL prefixes (those collide with app/[slug]).
 const intlMiddleware = createMiddleware({
   locales: i18n.locales,
   defaultLocale: i18n.defaultLocale,
-  localePrefix: 'as-needed',
+  localePrefix: 'never',
 })
+
+function mergeIntlCookies(source: NextResponse, target: NextResponse): NextResponse {
+  source.cookies.getAll().forEach(({ name, value, ...options }) => {
+    target.cookies.set(name, value, options)
+  })
+  return target
+}
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const vertical = resolveVertical(request.headers.get('host') ?? '')
 
-  // Apply next-intl middleware for language routing
-  // This must run before auth checks so paths are correctly routed to /{locale}/...
   const intlResponse = intlMiddleware(request)
-  if (intlResponse) {
+  if (intlResponse.status >= 300 && intlResponse.status < 400) {
     return intlResponse
   }
 
@@ -236,7 +241,7 @@ export async function proxy(request: NextRequest) {
   if (isPublic(pathname)) {
     const pubHeaders = new Headers(request.headers)
     pubHeaders.set('x-vertical', vertical)
-    return NextResponse.next({ request: { headers: pubHeaders } })
+    return mergeIntlCookies(intlResponse, NextResponse.next({ request: { headers: pubHeaders } }))
   }
 
   // Inject pathname + vertical as headers so server layouts can read them via headers()
@@ -279,20 +284,20 @@ export async function proxy(request: NextRequest) {
         .filter(c => c.name.startsWith('sb-'))
         .forEach(c => redirectResponse.cookies.delete(c.name))
     }
-    return redirectResponse
+    return mergeIntlCookies(intlResponse, redirectResponse)
   }
 
   // Redirect authenticated users away from login
   if (pathname === '/login') {
     const url = request.nextUrl.clone()
     url.pathname = '/today'
-    return NextResponse.redirect(url)
+    return mergeIntlCookies(intlResponse, NextResponse.redirect(url))
   }
 
   // Subscription gating for app routes
   if (isAppRoute(pathname)) {
     if (BILLING_EXEMPT.some(p => pathname.startsWith(p))) {
-      return supabaseResponse
+      return mergeIntlCookies(intlResponse, supabaseResponse)
     }
 
     const { data: profile } = await supabase
@@ -315,19 +320,19 @@ export async function proxy(request: NextRequest) {
         if (isSuspended(suspended_at) && !pathname.startsWith('/suspended')) {
           const url = request.nextUrl.clone()
           url.pathname = '/suspended'
-          return NextResponse.redirect(url)
+          return mergeIntlCookies(intlResponse, NextResponse.redirect(url))
         }
 
         if (subscription_status === 'canceled' || isTrialExpired(subscription_status, trial_ends_at ?? null)) {
           const url = request.nextUrl.clone()
           url.pathname = '/settings/billing'
-          return NextResponse.redirect(url)
+          return mergeIntlCookies(intlResponse, NextResponse.redirect(url))
         }
       }
     }
   }
 
-  return supabaseResponse
+  return mergeIntlCookies(intlResponse, supabaseResponse)
 }
 
 export const config = {

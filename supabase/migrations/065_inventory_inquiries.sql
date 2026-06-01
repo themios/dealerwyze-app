@@ -20,7 +20,7 @@ ALTER TABLE public.inventory_inquiries ENABLE ROW LEVEL SECURITY;
 
 -- Dealers can read their own inquiries
 -- No public INSERT policy needed -- API inserts via service client with explicit filters
-CREATE POLICY "org_can_read_inquiries"
-  ON public.inventory_inquiries
+DROP POLICY IF EXISTS "org_can_read_inquiries" ON public.inventory_inquiries;
+CREATE POLICY "org_can_read_inquiries" ON public.inventory_inquiries
   FOR SELECT
   USING (org_id = public.get_org_id());

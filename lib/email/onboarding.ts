@@ -6,7 +6,7 @@
 type V = 'dealer' | 'real_estate'
 
 // Shared email signature block used in every dealer-facing email.
-function sig(appUrl: string, vertical: V = 'dealer'): string {
+export function sig(appUrl: string, vertical: V = 'dealer'): string {
   const brand = vertical === 'real_estate' ? 'RealtyWyze' : 'DealerWyze'
   return `
     <div style="border-top:1px solid #F1F5F9;margin-top:28px;padding-top:20px">
@@ -20,7 +20,7 @@ function sig(appUrl: string, vertical: V = 'dealer'): string {
 }
 
 // Shared footer strip at the bottom of every email.
-function footer(appUrl: string, vertical: V = 'dealer'): string {
+export function footer(appUrl: string, vertical: V = 'dealer'): string {
   const brand = vertical === 'real_estate' ? 'RealtyWyze' : 'DealerWyze'
   return `
     <div style="padding:16px;text-align:center;color:#94A3B8;font-size:11px">
@@ -30,7 +30,7 @@ function footer(appUrl: string, vertical: V = 'dealer'): string {
 }
 
 // Shared "ask for help" CTA used in follow-up emails.
-function helpCta(vertical: V = 'dealer'): string {
+export function helpCta(vertical: V = 'dealer'): string {
   const supportEmail = vertical === 'real_estate' ? 'support@realtywyze.us' : 'support@dealerwyze.com'
   return `
     <div style="text-align:center;margin-top:24px">

@@ -117,7 +117,7 @@ export async function getListings(
         const result = BridgeListingSchema.safeParse(listing)
         return result.success ? result.data : null
       })
-      .filter((listing): listing is BridgeListing => listing !== null)
+      .filter((listing: BridgeListing | null): listing is BridgeListing => listing !== null)
 
     return validListings
   } catch (err) {
@@ -225,7 +225,7 @@ export function parseWebhookPayload(payload: unknown): {
       mls_number: z.string(),
       board_id: z.string(),
       timestamp: z.string().datetime(),
-      data: z.record(z.unknown()),
+      data: z.record(z.string(), z.unknown()),
     })
 
     const result = WebhookPayloadSchema.safeParse(payload)

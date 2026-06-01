@@ -21,24 +21,28 @@ create table if not exists content_drafts (
   updated_at       timestamptz not null default now()
 );
 
-create index content_drafts_org_status_idx on content_drafts (org_id, status);
-create index content_drafts_org_created_idx on content_drafts (org_id, created_at desc);
+create index if not exists content_drafts_org_status_idx on content_drafts (org_id, status);
+create index if not exists content_drafts_org_created_idx on content_drafts (org_id, created_at desc);
 
 alter table content_drafts enable row level security;
 
+DROP POLICY IF EXISTS "org members can select own drafts" ON content_drafts;
 create policy "org members can select own drafts"
   on content_drafts for select
   using (org_id = (select get_org_id()));
 
+DROP POLICY IF EXISTS "org members can insert own drafts" ON content_drafts;
 create policy "org members can insert own drafts"
   on content_drafts for insert
   with check (org_id = (select get_org_id()));
 
+DROP POLICY IF EXISTS "org members can update own drafts" ON content_drafts;
 create policy "org members can update own drafts"
   on content_drafts for update
   using (org_id = (select get_org_id()))
   with check (org_id = (select get_org_id()));
 
+DROP POLICY IF EXISTS "org members can delete own drafts" ON content_drafts;
 create policy "org members can delete own drafts"
   on content_drafts for delete
   using (org_id = (select get_org_id()));

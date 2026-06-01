@@ -3,7 +3,7 @@
 -- Separate from customer CRM. Dealers are tenants/accounts, not leads.
 
 -- Threads: one per conversation context per org
-CREATE TABLE dealer_threads (
+create table if not exists dealer_threads (
   id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id      UUID        NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   subject     TEXT        NOT NULL,
@@ -17,12 +17,12 @@ CREATE TABLE dealer_threads (
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_dealer_threads_org    ON dealer_threads (org_id, updated_at DESC);
-CREATE INDEX idx_dealer_threads_status ON dealer_threads (status, updated_at DESC);
-CREATE INDEX idx_dealer_threads_owner  ON dealer_threads (assigned_to, updated_at DESC);
+create index if not exists idx_dealer_threads_org on dealer_threads (org_id, updated_at DESC);
+create index if not exists idx_dealer_threads_status on dealer_threads (status, updated_at DESC);
+create index if not exists idx_dealer_threads_owner on dealer_threads (assigned_to, updated_at DESC);
 
 -- Messages: inbound and outbound messages within a thread
-CREATE TABLE dealer_messages (
+create table if not exists dealer_messages (
   id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   thread_id   UUID        NOT NULL REFERENCES dealer_threads(id) ON DELETE CASCADE,
   org_id      UUID        NOT NULL,
@@ -41,11 +41,11 @@ CREATE TABLE dealer_messages (
   sent_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_dealer_messages_thread ON dealer_messages (thread_id, sent_at ASC);
-CREATE INDEX idx_dealer_messages_org    ON dealer_messages (org_id, sent_at DESC);
+create index if not exists idx_dealer_messages_thread on dealer_messages (thread_id, sent_at ASC);
+create index if not exists idx_dealer_messages_org on dealer_messages (org_id, sent_at DESC);
 
 -- Tasks: follow-up reminders tied to a dealer or thread
-CREATE TABLE dealer_tasks (
+create table if not exists dealer_tasks (
   id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id      UUID        NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   thread_id   UUID        REFERENCES dealer_threads(id) ON DELETE SET NULL,
@@ -58,9 +58,9 @@ CREATE TABLE dealer_tasks (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_dealer_tasks_org    ON dealer_tasks (org_id, due_at ASC);
-CREATE INDEX idx_dealer_tasks_owner  ON dealer_tasks (assigned_to, due_at ASC);
-CREATE INDEX idx_dealer_tasks_thread ON dealer_tasks (thread_id);
+create index if not exists idx_dealer_tasks_org on dealer_tasks (org_id, due_at ASC);
+create index if not exists idx_dealer_tasks_owner on dealer_tasks (assigned_to, due_at ASC);
+create index if not exists idx_dealer_tasks_thread on dealer_tasks (thread_id);
 
 -- RLS: dealers can read their own threads and messages; platform staff use service role
 ALTER TABLE dealer_threads  ENABLE ROW LEVEL SECURITY;
@@ -68,18 +68,21 @@ ALTER TABLE dealer_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE dealer_tasks    ENABLE ROW LEVEL SECURITY;
 
 -- Dealers read their own threads
+DROP POLICY IF EXISTS dealer_threads_dealer_read ON dealer_threads;
 CREATE POLICY dealer_threads_dealer_read ON dealer_threads
   FOR SELECT USING (
     org_id = (SELECT org_id FROM profiles WHERE id = auth.uid() LIMIT 1)
   );
 
 -- Dealers read their own messages
+DROP POLICY IF EXISTS dealer_messages_dealer_read ON dealer_messages;
 CREATE POLICY dealer_messages_dealer_read ON dealer_messages
   FOR SELECT USING (
     org_id = (SELECT org_id FROM profiles WHERE id = auth.uid() LIMIT 1)
   );
 
 -- Dealers can insert messages (replies) on their own threads, channel = in_app only
+DROP POLICY IF EXISTS dealer_messages_dealer_insert ON dealer_messages;
 CREATE POLICY dealer_messages_dealer_insert ON dealer_messages
   FOR INSERT WITH CHECK (
     org_id      = (SELECT org_id FROM profiles WHERE id = auth.uid() LIMIT 1)
@@ -88,6 +91,7 @@ CREATE POLICY dealer_messages_dealer_insert ON dealer_messages
   );
 
 -- Dealers read their own tasks
+DROP POLICY IF EXISTS dealer_tasks_dealer_read ON dealer_tasks;
 CREATE POLICY dealer_tasks_dealer_read ON dealer_tasks
   FOR SELECT USING (
     org_id = (SELECT org_id FROM profiles WHERE id = auth.uid() LIMIT 1)
@@ -101,6 +105,8 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+DROP TRIGGER IF EXISTS trg_dealer_message_update_thread ON dealer_messages;
 
 CREATE TRIGGER trg_dealer_message_update_thread
   AFTER INSERT ON dealer_messages

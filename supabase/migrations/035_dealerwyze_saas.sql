@@ -44,8 +44,8 @@ CREATE TABLE IF NOT EXISTS org_google_tokens (
 
 ALTER TABLE org_google_tokens ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "org_google_tokens_owner"
-  ON org_google_tokens
+DROP POLICY IF EXISTS "org_google_tokens_owner" ON org_google_tokens;
+CREATE POLICY "org_google_tokens_owner" ON org_google_tokens
   FOR ALL
   USING (org_id IN (
     SELECT org_id FROM profiles WHERE id = auth.uid()

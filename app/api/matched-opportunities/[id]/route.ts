@@ -4,13 +4,13 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const profile = await requireProfile()
-  const client = createClient()
+  const client = await createClient()
 
   try {
-    const { id } = params
+    const { id } = await params
 
     // Fetch with verification of ownership
     const { data, error } = await client
@@ -87,13 +87,13 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const profile = await requireProfile()
-  const client = createClient()
+  const client = await createClient()
 
   try {
-    const { id } = params
+    const { id } = await params
     const { status } = await request.json()
 
     if (!status) {

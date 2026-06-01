@@ -30,5 +30,6 @@ CREATE TABLE IF NOT EXISTS public.rep_archived_orgs (
 
 -- Service role only — reps can only archive via /api/sales/* routes
 ALTER TABLE public.rep_archived_orgs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "service_only_rep_archived_orgs" ON public.rep_archived_orgs;
 CREATE POLICY "service_only_rep_archived_orgs" ON public.rep_archived_orgs
   FOR ALL USING (false);

@@ -24,6 +24,6 @@ CREATE TABLE IF NOT EXISTS bhph_payment_tokens (
   expires_at              TIMESTAMPTZ   NOT NULL DEFAULT (now() + interval '7 days')
 );
 
-CREATE INDEX idx_bhph_payment_tokens_token  ON bhph_payment_tokens (token);
-CREATE INDEX idx_bhph_payment_tokens_org    ON bhph_payment_tokens (org_id, status);
-CREATE INDEX idx_bhph_payment_tokens_cust   ON bhph_payment_tokens (customer_id);
+CREATE INDEX IF NOT EXISTS idx_bhph_payment_tokens_token  ON bhph_payment_tokens (token);
+CREATE INDEX IF NOT EXISTS idx_bhph_payment_tokens_org    ON bhph_payment_tokens (org_id, status);
+CREATE INDEX IF NOT EXISTS idx_bhph_payment_tokens_cust   ON bhph_payment_tokens (customer_id);

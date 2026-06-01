@@ -24,8 +24,8 @@ CREATE INDEX IF NOT EXISTS idx_org_audit_actor   ON org_audit_log (actor_id, cre
 -- Audit integrity: no tenant can insert or modify rows (service role only for writes).
 ALTER TABLE org_audit_log ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "platform_admin_read_audit"
-  ON org_audit_log
+DROP POLICY IF EXISTS "platform_admin_read_audit" ON org_audit_log;
+CREATE POLICY "platform_admin_read_audit" ON org_audit_log
   FOR SELECT
   USING (
     EXISTS (
@@ -33,8 +33,8 @@ CREATE POLICY "platform_admin_read_audit"
     )
   );
 
-CREATE POLICY "org_admin_read_own_audit"
-  ON org_audit_log
+DROP POLICY IF EXISTS "org_admin_read_own_audit" ON org_audit_log;
+CREATE POLICY "org_admin_read_own_audit" ON org_audit_log
   FOR SELECT
   USING (
     org_id IS NOT NULL AND

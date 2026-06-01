@@ -1,4 +1,4 @@
-create table platform_notification_config (
+create table if not exists platform_notification_config (
   id                         uuid primary key default gen_random_uuid(),
   owner_email                text,
   telegram_chat_id           text,
@@ -13,4 +13,9 @@ create table platform_notification_config (
   updated_at                 timestamptz not null default now(),
   updated_by                 uuid references profiles(id) on delete set null
 );
+DO $$
+BEGIN
+  -- Insert default platform_notification_config config if not exists
 insert into platform_notification_config (id) values (gen_random_uuid());
+EXCEPTION WHEN unique_violation THEN NULL;
+END $$;
