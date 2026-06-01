@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { canAccessAdminArea } from '@/lib/auth/platform'
 import { createServiceClient } from '@/lib/supabase/service'
+import { checkAiModelHealth } from '@/lib/ai/healthCheck'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,7 +15,7 @@ export async function GET() {
   // Service role required: platform-level org counts (cross-tenant).
   const supabase = createServiceClient()
 
-  const [{ count: activeOrgs }, { count: activeToday }, { count: openAlerts }] =
+  const [{ count: activeOrgs }, { count: activeToday }, { count: openAlerts }, aiHealth] =
     await Promise.all([
       supabase.from('organizations').select('*', { count: 'exact', head: true })
         .eq('subscription_status', 'active'),
@@ -22,6 +23,7 @@ export async function GET() {
         .gte('last_active_at', new Date(Date.now() - 86400000).toISOString()),
       supabase.from('platform_alerts').select('*', { count: 'exact', head: true })
         .eq('resolved', false),
+      checkAiModelHealth(),
     ])
 
   const sentryToken = process.env.SENTRY_AUTH_TOKEN
@@ -55,6 +57,7 @@ export async function GET() {
       openAlerts: openAlerts ?? 0,
     },
     sentry: { configured: sentryConfigured, org: sentryOrg ?? null, issues: sentryIssues, volume: sentryVolume },
+    ai: { ok: aiHealth.ok, model: aiHealth.model, error: aiHealth.error ?? null },
   })
 }
 

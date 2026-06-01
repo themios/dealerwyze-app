@@ -20,6 +20,7 @@ type SentryVolume = unknown
 type PlatformHealth = {
   internal: { activeOrgs: number; activeToday: number; openAlerts: number }
   sentry: { configured: boolean; org: string | null; issues: SentryIssue[]; volume: SentryVolume[] }
+  ai: { ok: boolean; model: string; error: string | null }
 }
 
 function humanizeAgo(dateStr?: string | null) {
@@ -106,6 +107,23 @@ export default function PlatformHealthPage() {
           {loading ? 'Refreshing…' : 'Refresh'}
         </Button>
       </div>
+
+      {data && !data.ai?.ok && (
+        <div className="animate-pulse rounded-lg border-2 border-red-500 bg-red-50 dark:bg-red-950/40 px-4 py-3 flex items-start gap-3">
+          <span className="text-red-600 text-xl leading-none mt-0.5">⚠</span>
+          <div>
+            <p className="text-sm font-bold text-red-700 dark:text-red-400">AI Model Degraded — Action Required</p>
+            <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">
+              Primary model <code className="font-mono bg-red-100 dark:bg-red-900 px-1 rounded">{data.ai?.model}</code> is unavailable.
+              All AI features are falling back to Claude Haiku.
+              Update <code className="font-mono bg-red-100 dark:bg-red-900 px-1 rounded">AI_MODEL</code> in <code className="font-mono bg-red-100 dark:bg-red-900 px-1 rounded">lib/ai/client.ts</code>.
+            </p>
+            {data.ai?.error && (
+              <p className="text-xs text-red-500 mt-1 font-mono">{data.ai.error}</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {data && !data.sentry.configured && (
         <Card className="border-yellow-300/40 bg-yellow-50 dark:bg-yellow-950/20">
