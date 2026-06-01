@@ -1,6 +1,6 @@
 import OpenAI from 'openai'
 
-export const AI_MODEL = 'google/gemini-2.0-flash-lite-001'
+export const AI_MODEL = 'google/gemini-2.5-flash-lite'
 
 // Lazy singleton: OpenAI-compatible client routed through OpenRouter → Gemini 2.0 Flash Lite.
 // Deferred initialization avoids import-time failures when OPENROUTER_API_KEY is missing (e.g., in tests).
