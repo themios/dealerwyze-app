@@ -26,6 +26,7 @@ import { runShowingReminders } from '@/lib/cron/jobs/showingReminders'
 import { runMatchBuyerListings } from '@/lib/cron/jobs/matchBuyerListings'
 import { runMlsSync } from '@/lib/cron/jobs/mlsSync'
 import { detectShowingNoShows } from '@/lib/cron/jobs/detectShowingNoShows'
+import { checkAiModelHealth } from '@/lib/ai/healthCheck'
 
 export const runtime = 'nodejs'
 export const maxDuration = 55
@@ -101,6 +102,7 @@ export async function GET(req: NextRequest) {
     mlsSync     = await runJob('mlsSync',                   () => runMlsSync(supabase))
     buyerMatches = await runJob('matchBuyerListings',       () => runMatchBuyerListings(supabase))
     noShows     = await runJob('detectShowingNoShows',        () => detectShowingNoShows())
+    await          runJob('aiModelHealth',                    () => checkAiModelHealth().then(r => r.ok ? 'ok' : `degraded: ${r.error}`))
   } finally {
     const anyFailed = Object.values(jobResults).some(v => v !== 'ok')
     await finishCronRun(runId, anyFailed ? 'partial_failure' : 'success', adminResult?.allOrgsCount)

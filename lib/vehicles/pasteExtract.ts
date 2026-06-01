@@ -1,4 +1,4 @@
-import { getAiClient, AI_MODEL } from '@/lib/ai/client'
+import { aiComplete, AI_MODEL } from '@/lib/ai/client'
 import { z } from 'zod'
 
 const CAR_MAKES = [
@@ -455,7 +455,7 @@ export function extractVehicleFromPastedTextHeuristically(text: string): Vehicle
 }
 
 async function extractVehicleFromPastedTextWithAi(text: string): Promise<VehiclePasteExtraction> {
-  const response = await getAiClient().chat.completions.create({
+  const response = await aiComplete({
     model: AI_MODEL,
     max_tokens: 700,
     messages: [

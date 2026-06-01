@@ -1,5 +1,5 @@
 import 'server-only'
-import { getAiClient, AI_MODEL } from '@/lib/ai/client'
+import { aiComplete, AI_MODEL } from '@/lib/ai/client'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { OrgBrandConfig } from './brandConfig'
 
@@ -78,7 +78,7 @@ export async function generateDraftBatch(
     themes?: string[]      // specific themes to use, or all if omitted
   } = {},
 ): Promise<ContentDraft[]> {
-  const client   = getAiClient()
+  // aiComplete is used directly below — no client reference needed
   const count    = options.count ?? 10
   const themes   = options.isBuyerFacing ? BUYER_THEMES : DEALER_THEMES
   const selected = options.themes
@@ -99,7 +99,7 @@ export async function generateDraftBatch(
     }>
 
     try {
-      const response = await client.chat.completions.create({
+      const response = await aiComplete({
         model:      AI_MODEL,
         max_tokens: 4096,
         messages: [

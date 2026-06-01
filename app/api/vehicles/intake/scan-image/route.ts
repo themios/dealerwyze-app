@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
-import { getAiClient, AI_MODEL, imageBlock } from '@/lib/ai/client'
+import { aiComplete, AI_MODEL, imageBlock } from '@/lib/ai/client'
 
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
 const MAX_BYTES = 5 * 1024 * 1024 // 5 MB
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const response = await getAiClient().chat.completions.create({
+    const response = await aiComplete({
       model: AI_MODEL,
       max_tokens: 512,
       messages: [{

@@ -7,7 +7,7 @@
  */
 
 import 'server-only'
-import { getAiClient, AI_MODEL } from '@/lib/ai/client'
+import { aiComplete, AI_MODEL } from '@/lib/ai/client'
 import { sendNotificationEmail } from '@/lib/email/notify'
 import { computeAttritionScore } from '@/lib/admin/attrition'
 import type { createServiceClient } from '@/lib/supabase/service'
@@ -148,7 +148,7 @@ export async function runWeeklyOwnerSummary(
 
   if (process.env.OPENROUTER_API_KEY) {
     try {
-      const msg = await getAiClient().chat.completions.create({
+      const msg = await aiComplete({
         model:      AI_MODEL,
         max_tokens: 600,
         messages: [{
