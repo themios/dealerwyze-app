@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
 import { requirePlatformSuperAdmin } from '@/lib/auth/platform'
 
@@ -7,11 +7,9 @@ type Params = { params: Promise<{ id: string }> }
 
 /** POST /api/admin/transfers/[id]/approve — execute the ownership transfer */
 export async function POST(_req: NextRequest, { params }: Params) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const profile = await requireProfile()
 
-  const denied = await requirePlatformSuperAdmin(user.id)
+  const denied = await requirePlatformSuperAdmin(profile.id)
   if (denied) return denied
 
   const { id: transferId } = await params
@@ -70,7 +68,10 @@ export async function POST(_req: NextRequest, { params }: Params) {
 
   // Sign out old owner globally (non-fatal)
   if (oldOwnerProfile.user_id) {
-    await service.auth.admin.signOut(oldOwnerProfile.user_id, 'global').catch(() => null)
+    await service.auth.admin.signOut(oldOwnerProfile.user_id, 'global').catch((err) => {
+      console.error('[admin/transfers/:id/approve][POST] Failed global signout for old owner:', err)
+      return null
+    })
   }
 
   // 5. Mark transfer complete
@@ -79,7 +80,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
     .from('business_transfers')
     .update({
       status:       'completed',
-      approved_by:  user.id,
+      approved_by:  profile.id,
       approved_at:  now,
       completed_at: now,
     })
@@ -87,7 +88,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
 
   // 6. Audit log
   await service.from('admin_audit_log').insert({
-    admin_user_id: user.id,
+    admin_user_id: profile.id,
     target_org_id: transfer.org_id,
     action:        'transfer_ownership',
     details: {
@@ -102,15 +103,16 @@ export async function POST(_req: NextRequest, { params }: Params) {
 
 /** DELETE /api/admin/transfers/[id]/approve — reject / cancel the transfer */
 export async function DELETE(req: NextRequest, { params }: Params) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const profile = await requireProfile()
 
-  const denied = await requirePlatformSuperAdmin(user.id)
+  const denied = await requirePlatformSuperAdmin(profile.id)
   if (denied) return denied
 
   const { id: transferId } = await params
-  const body = await req.json().catch(() => ({}))
+  const body = await req.json().catch((err) => {
+    console.error('[admin/transfers/:id/approve][DELETE] Failed to parse request body:', err)
+    return {}
+  })
   const reason: string = body.reason ?? 'Transfer not approved.'
 
   const service = createServiceClient()
@@ -129,7 +131,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     .eq('id', transferId)
 
   await service.from('admin_audit_log').insert({
-    admin_user_id: user.id,
+    admin_user_id: profile.id,
     target_org_id: transfer.org_id,
     action:        'reject_transfer',
     details:       { transfer_id: transferId, reason },

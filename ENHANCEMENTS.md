@@ -4,6 +4,36 @@ Shipped product changes with migration pointers and rationale. See also `docs/en
 
 ---
 
+## 2026-06-01 — Hardening sprint: admin auth, error sanitization, timeouts, env docs
+
+- **Category:** Security / Reliability
+- **Migration:** none
+- **Why:** Close high-risk pre-existing gaps before production sign-off (admin route auth consistency, sensitive error leakage, external timeout guards, silent failure visibility, and env documentation).
+- **What was built:**
+  - `app/api/admin/users/route.ts`, `app/api/admin/users/[id]/route.ts`, `app/api/admin/users/[id]/location/route.ts` — moved org-user management routes to `requireProfile()` gate + role checks; removed direct session probing.
+  - `app/api/admin/orgs/[id]/approve/route.ts`, `app/api/admin/transfers/[id]/approve/route.ts`, `app/api/admin/social/callback/[platform]/route.ts`, `app/api/admin/bulk/send-email/route.ts`, `app/api/admin/bulk/send-sms/route.ts` — added explicit profile/platform-superadmin auth enforcement for privileged admin endpoints.
+  - `app/api/admin/users*` and `app/api/admin/orgs/[id]/approve/route.ts` — sanitized 500 responses to generic client-safe messaging and retained internal server logs for diagnosis.
+  - `app/api/twilio/inbound/route.ts` — added timeout wrapper for critical org lookup/RPC claim path and replaced silent catches with contextual error logging.
+  - `app/api/stripe/webhook/route.ts`, `lib/stripe.ts` — added bounded DB-operation timeout wrapper in webhook processing and Stripe client request timeout.
+  - `components/leads/NewLeadCard.tsx`, `app/(app)/today/TodayContent.tsx`, `app/api/admin/transfers/[id]/approve/route.ts` — replaced selected silent-swallow catches with logged handlers.
+  - `.env.example` — added app-local environment template documenting required Supabase/Stripe/Twilio/Resend/platform and optional integration variables.
+
+---
+
+## 2026-06-01 — Mobile hardening pass for tap targets (Task 1.3)
+
+- **Category:** UX / Mobile
+- **Migration:** none
+- **Why:** Several high-traffic controls rendered below the 44x44px touch target baseline, causing missed taps and poor mobile usability.
+- **What was built:**
+  - `app/(app)/today/page.tsx`, `app/(app)/today/TodayContent.tsx`, `components/today/TodoItem.tsx` — increased header icon links and action pills/buttons to `min-h-[44px]`/`min-w-[44px]`.
+  - `components/leads/NewLeadCard.tsx`, `components/leads/VoiceLeadCard.tsx`, `components/leads/EmailFollowUpItem.tsx` — resized primary and secondary lead actions, dropdown options, and dismiss controls to mobile-safe heights.
+  - `components/sms/MessageComposer.tsx` — enlarged variable token insertion buttons for thumb-friendly input.
+  - `components/vehicle/VehicleCard.tsx`, `components/vehicle/VehicleIntakeButton.tsx` — expanded icon/action controls to satisfy touch-target minimums.
+  - `app/(app)/bhph/BhphRecordPayment.tsx`, `app/(app)/bhph/[id]/BhphDetailClient.tsx`, `app/(app)/settings/billing/page.tsx` — normalized compact `size=\"sm\"` actions and utility buttons to 44px minimum tap areas.
+
+---
+
 ## 2026-05-31 — Production migration push (177–215)
 
 - **Category:** Database / DevOps

@@ -145,20 +145,20 @@ export default function EmailFollowUpItem({ activity, onUpdate, hasResponded }: 
 
         <div className="flex gap-2" onClick={e => e.stopPropagation()}>
           {!isSmsFollowup && (
-            <Button size="sm" className="flex-1 h-10" onClick={openSheet} disabled={loading !== null}>
+            <Button size="sm" className="flex-1 h-11 min-h-[44px]" onClick={openSheet} disabled={loading !== null}>
               <Mail className="h-3.5 w-3.5 mr-1.5" />
               Send follow-up
             </Button>
           )}
           {isSmsFollowup && (
-            <Button size="sm" variant="outline" className="flex-1 h-9" disabled>
+            <Button size="sm" variant="outline" className="flex-1 h-11 min-h-[44px]" disabled>
               SMS (manual send from customer page)
             </Button>
           )}
           <Button
             size="sm"
             variant="outline"
-            className="flex-1 h-10 text-xs"
+            className="flex-1 h-11 min-h-[44px] text-xs"
             onClick={handleReplied}
             disabled={loading !== null}
           >
@@ -168,7 +168,7 @@ export default function EmailFollowUpItem({ activity, onUpdate, hasResponded }: 
             <Button
               size="sm"
               variant="outline"
-              className="flex-1 h-9 text-xs border-green-500 text-green-700"
+              className="flex-1 h-11 min-h-[44px] text-xs border-green-500 text-green-700"
               onClick={async () => {
                 setLoading('cancel')
                 await supabase

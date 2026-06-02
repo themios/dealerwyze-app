@@ -1015,10 +1015,10 @@ export default function BhphDetailClient({
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-semibold text-[15px] text-foreground">Payment schedule</h2>
               <div className="flex items-center gap-2">
-                <button type="button" className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">
+                <button type="button" className="text-xs text-muted-foreground hover:text-foreground px-3 py-2.5 min-h-[44px] rounded-md hover:bg-muted transition-colors">
                   All payments
                 </button>
-                <button type="button" className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">
+                <button type="button" className="text-xs text-muted-foreground hover:text-foreground px-3 py-2.5 min-h-[44px] rounded-md hover:bg-muted transition-colors">
                   Export CSV
                 </button>
               </div>
@@ -1075,7 +1075,7 @@ export default function BhphDetailClient({
                     )}
                   </div>
 
-                  <button type="button" className="p-1 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button type="button" className="min-h-[44px] min-w-[44px] p-2.5 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity">
                     <MoreVertical className="h-4 w-4" />
                   </button>
                 </div>
@@ -1246,7 +1246,7 @@ export default function BhphDetailClient({
           <div className="flex gap-2">
             {customer && (
               <Link href={`/customers/${customer.id}?action=send-pay-link`} className="flex-1">
-                <Button variant="outline" size="sm" className="w-full">
+                <Button variant="outline" size="sm" className="w-full h-11 min-h-[44px]">
                   <Link2 className="h-3.5 w-3.5 mr-1.5" />
                   Send pay link
                 </Button>
@@ -1254,7 +1254,7 @@ export default function BhphDetailClient({
             )}
             {customer && (
               <Link href={`/customers/${customer.id}`} className="flex-1">
-                <Button variant="ghost" size="sm" className="w-full text-muted-foreground">
+                <Button variant="ghost" size="sm" className="w-full h-11 min-h-[44px] text-muted-foreground">
                   <History className="h-3.5 w-3.5 mr-1.5" />
                   History
                 </Button>

@@ -11,6 +11,15 @@ import {
 import Stripe from 'stripe'
 import * as Sentry from '@sentry/nextjs'
 
+const STRIPE_DB_TIMEOUT_MS = 10000
+
+async function withDbTimeout<T>(promise: PromiseLike<T>, label: string): Promise<T> {
+  const timeout = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error(`${label} timed out after ${STRIPE_DB_TIMEOUT_MS}ms`)), STRIPE_DB_TIMEOUT_MS)
+  })
+  return Promise.race([Promise.resolve(promise), timeout])
+}
+
 export async function POST(req: NextRequest) {
   return Sentry.startSpan(
     { name: 'stripe.webhook', op: 'http.server' },
@@ -34,9 +43,12 @@ export async function POST(req: NextRequest) {
   const supabase = createServiceClient()
 
   // Durable dedup: insert event_id; unique PK rejects duplicates across all instances.
-  const { error: dedupError } = await supabase
-    .from('processed_stripe_events')
-    .insert({ event_id: event.id })
+  const { error: dedupError } = await withDbTimeout(
+    supabase
+      .from('processed_stripe_events')
+      .insert({ event_id: event.id }),
+    'processed_stripe_events.insert'
+  )
   if (dedupError) {
     // Postgres unique_violation = 23505; any conflict means already processed
     if (dedupError.code === '23505') {
@@ -75,17 +87,23 @@ export async function POST(req: NextRequest) {
             .maybeSingle()
 
           const newCredits = (existing?.render_credits_purchased ?? 0) + credits
-          await supabase.from('org_video_settings').upsert({
-            org_id: orgId,
-            render_credits_purchased: newCredits,
-          }, { onConflict: 'org_id' })
+          await withDbTimeout(
+            supabase.from('org_video_settings').upsert({
+              org_id: orgId,
+              render_credits_purchased: newCredits,
+            }, { onConflict: 'org_id' }),
+            'org_video_settings.upsert'
+          )
 
-          await supabase.from('admin_alerts').insert({
-            org_id:     orgId,
-            alert_type: 'video_pack_purchased',
-            severity:   'info',
-            details:    { credits_added: credits, new_total: newCredits },
-          }).maybeSingle()
+          await withDbTimeout(
+            supabase.from('admin_alerts').insert({
+              org_id:     orgId,
+              alert_type: 'video_pack_purchased',
+              severity:   'info',
+              details:    { credits_added: credits, new_total: newCredits },
+            }).maybeSingle(),
+            'admin_alerts.insert.video_pack_purchased'
+          )
         }
         break
       }
@@ -95,14 +113,20 @@ export async function POST(req: NextRequest) {
         const orgId = session.metadata.org_id
         const topupCents = parseInt(session.metadata.topup_cents ?? '0', 10)
         if (orgId && topupCents > 0) {
-          await supabase.rpc('add_overage_buffer', { p_org_id: orgId, p_cents: topupCents })
+          await withDbTimeout(
+            supabase.rpc('add_overage_buffer', { p_org_id: orgId, p_cents: topupCents }),
+            'add_overage_buffer.rpc'
+          )
           // Log an admin alert so platform can see top-up activity
-          await supabase.from('admin_alerts').insert({
-            org_id:     orgId,
-            alert_type: 'overage_buffer_topup',
-            severity:   'info',
-            details:    { topup_cents: topupCents },
-          }).maybeSingle()
+          await withDbTimeout(
+            supabase.from('admin_alerts').insert({
+              org_id:     orgId,
+              alert_type: 'overage_buffer_topup',
+              severity:   'info',
+              details:    { topup_cents: topupCents },
+            }).maybeSingle(),
+            'admin_alerts.insert.overage_buffer_topup'
+          )
         }
         break
       }
@@ -156,20 +180,23 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      await supabase.from('organizations').update({
-        stripe_subscription_id: sub.id,
-        stripe_price_id: crmPriceId,
-        subscription_status: sub.status,
-        plan: 'active',
-        sms_plan: smsTier ?? tier,
-        sms_quota: smsQuota,
-        current_period_end: (sub as unknown as { current_period_end?: number }).current_period_end
-          ? new Date(((sub as unknown as { current_period_end: number }).current_period_end) * 1000).toISOString()
-          : null,
-        billing_cycle_start: new Date().toISOString().slice(0, 10),
-        billing_cycle_end: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
-        updated_at: new Date().toISOString(),
-      }).eq('id', orgId)
+      await withDbTimeout(
+        supabase.from('organizations').update({
+          stripe_subscription_id: sub.id,
+          stripe_price_id: crmPriceId,
+          subscription_status: sub.status,
+          plan: 'active',
+          sms_plan: smsTier ?? tier,
+          sms_quota: smsQuota,
+          current_period_end: (sub as unknown as { current_period_end?: number }).current_period_end
+            ? new Date(((sub as unknown as { current_period_end: number }).current_period_end) * 1000).toISOString()
+            : null,
+          billing_cycle_start: new Date().toISOString().slice(0, 10),
+          billing_cycle_end: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+          updated_at: new Date().toISOString(),
+        }).eq('id', orgId),
+        'organizations.update.checkout.session.completed'
+      )
       break
     }
 
@@ -200,34 +227,43 @@ export async function POST(req: NextRequest) {
         ? { sms_plan: smsTier ?? tier, sms_quota: smsQuota }
         : {}
 
-      await supabase.from('organizations').update({
-        subscription_status: sub.status,
-        plan: sub.status === 'active' || sub.status === 'trialing' ? 'active' : 'canceled',
-        ...quotaUpdate,
-        current_period_end: (sub as unknown as { current_period_end?: number }).current_period_end
-          ? new Date(((sub as unknown as { current_period_end: number }).current_period_end) * 1000).toISOString()
-          : null,
-        updated_at: new Date().toISOString(),
-      }).eq('id', orgId)
+      await withDbTimeout(
+        supabase.from('organizations').update({
+          subscription_status: sub.status,
+          plan: sub.status === 'active' || sub.status === 'trialing' ? 'active' : 'canceled',
+          ...quotaUpdate,
+          current_period_end: (sub as unknown as { current_period_end?: number }).current_period_end
+            ? new Date(((sub as unknown as { current_period_end: number }).current_period_end) * 1000).toISOString()
+            : null,
+          updated_at: new Date().toISOString(),
+        }).eq('id', orgId),
+        'organizations.update.customer.subscription.updated'
+      )
 
       // Sync storage pack quota to org_settings
       if (storagePack) {
         const packKey = storagePack as '10gb' | '25gb'
-        await supabase.from('org_settings').update({
-          storage_pack: packKey,
-          storage_quota_bytes: STORAGE_PACK_QUOTA[packKey],
-          storage_pack_expires_at: null,
-        }).eq('org_id', orgId)
+        await withDbTimeout(
+          supabase.from('org_settings').update({
+            storage_pack: packKey,
+            storage_quota_bytes: STORAGE_PACK_QUOTA[packKey],
+            storage_pack_expires_at: null,
+          }).eq('org_id', orgId),
+          'org_settings.update.storage_pack'
+        )
       } else if (sub.status !== 'active') {
         // Pack removed or subscription degraded — start 90-day grace
         const { data: settings } = await supabase.from('org_settings')
           .select('storage_pack').eq('org_id', orgId).maybeSingle()
         if (settings?.storage_pack && settings.storage_pack !== 'none') {
           const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()
-          await supabase.from('org_settings').update({
-            storage_pack: 'none',
-            storage_pack_expires_at: expiresAt,
-          }).eq('org_id', orgId)
+          await withDbTimeout(
+            supabase.from('org_settings').update({
+              storage_pack: 'none',
+              storage_pack_expires_at: expiresAt,
+            }).eq('org_id', orgId),
+            'org_settings.update.storage_pack_expiration'
+          )
         }
       }
       break
@@ -249,12 +285,15 @@ export async function POST(req: NextRequest) {
         .eq('id', orgId)
         .single()
 
-      await supabase.from('organizations').update({
-        subscription_status: 'canceled',
-        plan: 'canceled',
-        canceled_at: orgRow?.canceled_at ?? new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }).eq('id', orgId)
+      await withDbTimeout(
+        supabase.from('organizations').update({
+          subscription_status: 'canceled',
+          plan: 'canceled',
+          canceled_at: orgRow?.canceled_at ?? new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }).eq('id', orgId),
+        'organizations.update.customer.subscription.deleted'
+      )
       break
     }
 
@@ -314,10 +353,13 @@ export async function POST(req: NextRequest) {
       const orgId = sub.metadata?.org_id
       if (!orgId) break
 
-      await supabase.from('organizations').update({
-        subscription_status: 'past_due',
-        updated_at: new Date().toISOString(),
-      }).eq('id', orgId)
+      await withDbTimeout(
+        supabase.from('organizations').update({
+          subscription_status: 'past_due',
+          updated_at: new Date().toISOString(),
+        }).eq('id', orgId),
+        'organizations.update.invoice.payment_failed'
+      )
 
       // G28: Dunning email — notify dealer admin of payment failure
       const { data: adminProfile } = await supabase

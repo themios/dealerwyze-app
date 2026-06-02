@@ -18,7 +18,7 @@ export default function VehicleIntakeButton() {
       <Button
         size="sm"
         variant="ghost"
-        className="text-white/70 hover:text-white gap-1"
+        className="min-h-[44px] min-w-[44px] px-3 py-2.5 text-white/70 hover:text-white gap-1"
         onClick={() => router.push('/vehicles/new')}
       >
         <Plus className="h-5 w-5" />
@@ -32,7 +32,7 @@ export default function VehicleIntakeButton() {
       <Button
         size="sm"
         variant="ghost"
-        className="text-white/70 hover:text-white gap-1"
+        className="min-h-[44px] min-w-[44px] px-3 py-2.5 text-white/70 hover:text-white gap-1"
         onClick={() => setOpen(true)}
       >
         <Plus className="h-5 w-5" />

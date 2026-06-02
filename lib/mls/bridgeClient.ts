@@ -18,6 +18,20 @@ import { z } from 'zod'
 const BRIDGE_API_BASE = process.env.BRIDGE_API_BASE || 'https://api.bridgeinteractive.dev/'
 const BRIDGE_API_TIMEOUT = 30000 // 30 seconds
 
+function normalizeSignature(signature: string): string {
+  // Accept both raw hex and "sha256=<hex>" header formats.
+  return signature.startsWith('sha256=') ? signature.slice('sha256='.length) : signature
+}
+
+function timingSafeEqualHex(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let mismatch = 0
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  }
+  return mismatch === 0
+}
+
 /**
  * Schema for Bridge listing response
  * This is a subset of full Bridge response; only fields we use
@@ -200,7 +214,8 @@ export async function validateWebhookSignature(
       .join('')
 
     // Constant-time comparison to prevent timing attacks
-    return signature === computedHex
+    const normalizedSignature = normalizeSignature(signature)
+    return timingSafeEqualHex(normalizedSignature, computedHex)
   } catch (err) {
     console.error('Webhook signature validation error:', err)
     return false

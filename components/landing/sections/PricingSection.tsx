@@ -71,13 +71,9 @@ const voiceFeatures = [
 ]
 
 export default function PricingSection() {
-  // Annual pricing: 10% off monthly rate
+  // PRICING_CANON: See PRICING_COMMERCIAL_TRUTH.md
   const crmMonthly   = 150
   const voiceAddon   = 200
-  const crmAnnual    = +(crmMonthly * 0.9).toFixed(2)          // 135
-  const fullAnnual   = +((crmMonthly + voiceAddon) * 0.9).toFixed(2) // 315
-  const crmSavings   = Math.round(crmMonthly * 12 - crmAnnual * 12)   // 180
-  const fullSavings  = Math.round((crmMonthly + voiceAddon) * 12 - fullAnnual * 12) // 420
 
   return (
     <section id="pricing" className="bg-white py-20 lg:py-28">
@@ -87,7 +83,7 @@ export default function PricingSection() {
             Free forever during beta.
           </h2>
           <p className="text-base" style={{ color: '#6B6355' }}>
-            Everything is free while we build. Growth plan: free now, $150/mo at launch. Pro plan coming soon.
+            Everything is free while we build. Paid plans are Growth ($150/mo) and Pro ($350/mo total, including the $200/mo Voice add-on).
           </p>
         </div>
 
@@ -98,7 +94,7 @@ export default function PricingSection() {
           <div>
             <p className="text-sm font-black" style={{ color: '#9A3412' }}>Beta Program</p>
             <p className="text-sm mt-0.5" style={{ color: '#7C2D12' }}>
-              We're in beta. Everything is free right now: Growth plan ($0), AI features, SMS, video rendering, and more. We'll notify 30 days before paid plans launch. Early adopters keep the free tier forever.
+              We're in beta. Everything is free right now, and we will notify you 30 days before paid billing begins. Paid pricing is Growth ($150/mo) and Pro ($350/mo total with Voice add-on).
             </p>
           </div>
         </div>
@@ -198,7 +194,7 @@ export default function PricingSection() {
             <div className="mb-5">
               <span className="text-xs font-black uppercase tracking-wide px-3 py-1.5 rounded-full"
                 style={{ backgroundColor: 'rgba(13,43,85,0.08)', color: NAVY }}>
-                Coming Soon
+                Available After Beta
               </span>
             </div>
             <h3 className="text-xl font-black mb-1" style={{ color: NAVY }}>Pro</h3>
@@ -211,7 +207,7 @@ export default function PricingSection() {
                 <span className="text-sm pb-1.5" style={{ color: '#6B6355' }}>/mo</span>
               </div>
               <p className="text-xs mt-1" style={{ color: '#9A3412' }}>
-                Coming after beta ends. Growth + AI voice agent ($200/mo add-on).
+                Growth ($150/mo) + Voice add-on ($200/mo) = $350/mo total.
               </p>
             </div>
             <ul className="space-y-2.5 mb-7 mt-4 flex-1">

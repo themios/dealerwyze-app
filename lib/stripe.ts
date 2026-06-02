@@ -4,6 +4,7 @@ import type { PlanTier, SmsTier } from './stripeConstants'
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2026-02-25.clover',
+  timeout: 10000,
 })
 
 // Re-export client-safe constants and types for server use (API routes can use either file)

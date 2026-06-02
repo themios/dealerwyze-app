@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
 import { canManageUsers } from '@/lib/auth/dealerRoles'
 import type { UserRole } from '@/types/index'
@@ -18,22 +18,14 @@ type Params = { params: Promise<{ id: string }> }
 
 /** PATCH /api/admin/users/[id] — change role of a user in this org */
 export async function PATCH(req: NextRequest, { params }: Params) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const { data: callerProfile } = await supabase
-    .from('profiles')
-    .select('role, org_id')
-    .eq('id', user.id)
-    .single()
+  const callerProfile = await requireProfile()
 
   if (!callerProfile || !canManageUsers(callerProfile.role as UserRole)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const { id: targetId } = await params
-  if (targetId === user.id) {
+  if (targetId === callerProfile.id) {
     return NextResponse.json({ error: 'Cannot change your own role' }, { status: 400 })
   }
 
@@ -57,11 +49,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     .update({ role: newRole })
     .eq('id', targetId)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[admin/users/:id][PATCH] Failed updating role:', error)
+    return NextResponse.json({ error: 'An error occurred. Please try again.' }, { status: 500 })
+  }
 
   void writeAuditLog({
     orgId:      callerProfile.org_id,
-    actorId:    user.id,
+    actorId:    callerProfile.id,
     actorType:  'user',
     action:     'role_changed',
     entityType: 'profile',
@@ -69,7 +64,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     metadata:   { from_role: fromRole, to_role: newRole },
   })
 
-  void logOrgAudit({ org_id: callerProfile.org_id, actor_id: user.id, actor_type: 'user',
+  void logOrgAudit({ org_id: callerProfile.org_id, actor_id: callerProfile.id, actor_type: 'user',
     action: 'user_role_changed', details: { target_user_id: targetId, new_role: newRole } })
 
   return NextResponse.json({ success: true, role: newRole })
@@ -77,15 +72,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
 /** POST /api/admin/users/[id] — reactivate a deactivated user */
 export async function POST(req: NextRequest, { params }: Params) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const { data: callerProfile } = await supabase
-    .from('profiles')
-    .select('role, org_id')
-    .eq('id', user.id)
-    .single()
+  const callerProfile = await requireProfile()
 
   if (!callerProfile || !canManageUsers(callerProfile.role as UserRole)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -104,7 +91,10 @@ export async function POST(req: NextRequest, { params }: Params) {
     .update({ deactivated_at: null })
     .eq('id', targetId)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[admin/users/:id][POST] Failed reactivating user:', error)
+    return NextResponse.json({ error: 'An error occurred. Please try again.' }, { status: 500 })
+  }
 
   return NextResponse.json({ success: true })
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
 import { canManageUsers, isDealerAdmin } from '@/lib/auth/dealerRoles'
 import type { UserRole } from '@/types/index'
@@ -10,15 +10,7 @@ type Params = { params: Promise<{ id: string }> }
 
 /** PATCH /api/admin/users/[id]/location — set staff home location (null = none). */
 export async function PATCH(req: NextRequest, { params }: Params) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const { data: callerProfile } = await supabase
-    .from('profiles')
-    .select('role, org_id')
-    .eq('id', user.id)
-    .single()
+  const callerProfile = await requireProfile()
 
   if (!callerProfile || !canManageUsers(callerProfile.role as UserRole)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -72,12 +64,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     .single()
 
   if (error || !updated) {
-    return NextResponse.json({ error: error?.message ?? 'Update failed' }, { status: 500 })
+    console.error('[admin/users/:id/location][PATCH] Failed assigning location:', error)
+    return NextResponse.json({ error: 'An error occurred. Please try again.' }, { status: 500 })
   }
 
   logLocationAudit({
     orgId: callerProfile.org_id,
-    actorId: user.id,
+    actorId: callerProfile.id,
     action: nextLocationId ? 'location_staff_assigned' : 'location_staff_removed',
     entityType: 'profile',
     entityId: targetId,

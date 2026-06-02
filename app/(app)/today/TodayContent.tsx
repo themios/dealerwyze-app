@@ -472,7 +472,9 @@ export default function TodayContent({
         const dismissed = dismissedAtRiskIds.current
         setAtRisk(items.filter(i => !dismissed.has(i.activity_id)))
       })
-      .catch(() => {})
+      .catch((err) => {
+        console.error('[TodayContent] Failed refreshing at-risk queue:', err)
+      })
 
     const dismissed = dismissedIds.current
     const todayRef = new Date()
@@ -974,10 +976,10 @@ export default function TodayContent({
             onClick={() => void runSingleAction(item, button.action)}
             className={
               button.tone === 'danger'
-                ? 'rounded-full bg-destructive px-3 py-1.5 text-xs font-medium text-destructive-foreground'
+                ? 'rounded-full bg-destructive px-3 py-2.5 min-h-[44px] text-xs font-medium text-destructive-foreground'
                 : button.tone === 'primary'
-                  ? 'rounded-full bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground'
-                  : 'rounded-full bg-muted px-3 py-1.5 text-xs font-medium text-foreground'
+                  ? 'rounded-full bg-primary px-3 py-2.5 min-h-[44px] text-xs font-medium text-primary-foreground'
+                  : 'rounded-full bg-muted px-3 py-2.5 min-h-[44px] text-xs font-medium text-foreground'
             }
           >
             {button.label}
@@ -1105,7 +1107,7 @@ export default function TodayContent({
                     onClick={() => void dismissAtRisk(item.activity_id, item.customer_id)}
                     aria-label={`Dismiss ${item.customer_name} from at-risk list`}
                     title="Dismiss"
-                    className="shrink-0 opacity-0 group-hover:opacity-100 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-amber-200/60 dark:hover:bg-amber-800/40 transition-opacity"
+                    className="shrink-0 opacity-0 group-hover:opacity-100 rounded p-2 min-h-[44px] min-w-[44px] text-muted-foreground hover:text-foreground hover:bg-amber-200/60 dark:hover:bg-amber-800/40 transition-opacity"
                   >
                     <X className="h-3.5 w-3.5" aria-hidden />
                   </button>
@@ -1126,7 +1128,7 @@ export default function TodayContent({
             <button
               type="button"
               onClick={() => setFocusOpen(true)}
-              className="inline-flex items-center gap-2 rounded-full bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
+              className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-primary px-3 py-2.5 text-sm font-medium text-primary-foreground"
             >
               <Sparkles className="h-4 w-4" />
               Focus Session
@@ -1173,7 +1175,7 @@ export default function TodayContent({
               <button
                 type="button"
                 onClick={() => void runBulkAction('archive', lowRoiIds, { archiveReason: 'ghost' })}
-                className="rounded-full bg-destructive px-3 py-1.5 text-xs font-medium text-destructive-foreground"
+                className="rounded-full bg-destructive px-3 py-2.5 min-h-[44px] text-xs font-medium text-destructive-foreground"
               >
                 Archive All Low ROI
               </button>

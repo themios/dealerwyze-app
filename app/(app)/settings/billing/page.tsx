@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { CheckCircle, AlertCircle, CreditCard, MessageSquare, Zap, ScanLine, Wallet } from 'lucide-react'
 import { PLAN_LABEL, PLAN_PRICE, SMS_TIER_PRICE, SMS_TIER_LABEL, SMS_TIER_QUOTA, SMS_OVERAGE_RATE, type PlanTier, type SmsTier } from '@/lib/stripeConstants'
 
+// PRICING_CANON: See PRICING_COMMERCIAL_TRUTH.md
 interface BillingStatus {
   plan: string
   subscription_status: string | null
@@ -225,16 +226,16 @@ export default function BillingPage() {
             </p>
           </div>
           {hasStripe ? (
-            <Button size="sm" variant={isPastDue ? 'default' : 'outline'} onClick={handlePortal} disabled={redirecting}>
+            <Button size="sm" className="h-11 min-h-[44px]" variant={isPastDue ? 'default' : 'outline'} onClick={handlePortal} disabled={redirecting}>
               <CreditCard className="h-4 w-4 mr-1.5" />
               {isPastDue ? 'Fix Payment' : 'Manage'}
             </Button>
           ) : (
             <div className="flex flex-col gap-2 items-end">
-              <Button size="sm" variant="outline" onClick={() => handleSubscribe('tier1')} disabled={redirecting}>
+              <Button size="sm" className="h-11 min-h-[44px]" variant="outline" onClick={() => handleSubscribe('tier1')} disabled={redirecting}>
                 Complete CRM — $150/mo
               </Button>
-              <Button size="sm" onClick={() => handleSubscribe('tier2')} disabled={redirecting}>
+              <Button size="sm" className="h-11 min-h-[44px]" onClick={() => handleSubscribe('tier2')} disabled={redirecting}>
                 CRM + Voice AI — $350/mo
               </Button>
             </div>
@@ -293,7 +294,7 @@ export default function BillingPage() {
                     {isCurrentTier ? (
                       <span className="text-xs text-blue-600 font-medium px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 rounded-full">Current</span>
                     ) : (
-                      <Button size="sm" variant="outline" className="h-7 text-xs"
+                      <Button size="sm" variant="outline" className="h-11 min-h-[44px] text-xs"
                         onClick={() => handleSubscribe('tier1', st)} disabled={redirecting}>
                         {hasSms ? 'Switch' : 'Select'}
                       </Button>
@@ -370,7 +371,7 @@ export default function BillingPage() {
                 key={amt}
                 size="sm"
                 variant="outline"
-                className="h-8 text-xs"
+                className="h-11 min-h-[44px] text-xs"
                 onClick={() => handleTopup(amt)}
                 disabled={topupAmount !== null}
               >

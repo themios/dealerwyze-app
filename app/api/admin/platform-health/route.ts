@@ -42,9 +42,17 @@ export async function GET() {
 
     const [issuesRes, statsRes] = await Promise.all([
       fetch(`${base}/issues/?query=is:unresolved&limit=10&sort=date`, { headers })
-        .then(r => r.ok ? r.json() : []).catch(() => []),
+        .then(r => r.ok ? r.json() : [])
+        .catch((err) => {
+          console.error('[admin/platform-health][GET] Failed fetching Sentry issues:', err)
+          return []
+        }),
       fetch(`${base}/stats/?stat=received&resolution=1h&since=${since}`, { headers })
-        .then(r => r.ok ? r.json() : []).catch(() => []),
+        .then(r => r.ok ? r.json() : [])
+        .catch((err) => {
+          console.error('[admin/platform-health][GET] Failed fetching Sentry stats:', err)
+          return []
+        }),
     ])
     sentryIssues = issuesRes
     sentryVolume = statsRes

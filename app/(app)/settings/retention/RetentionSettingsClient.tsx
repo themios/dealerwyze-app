@@ -450,7 +450,7 @@ export default function RetentionSettingsClient({ initialSettings, sequences: in
     } finally {
       setSeeding(s => ({ ...s, [triggerKey]: false }))
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])  
 
   async function handleSave() {
     setSaving(true)

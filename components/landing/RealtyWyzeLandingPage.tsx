@@ -382,12 +382,13 @@ export default function RealtyWyzeLandingPage() {
 
       {/* ── Pricing (Neocortex — rational justification) ── */}
       <section id="pricing" className="py-20 lg:py-28 bg-white">
+        {/* PRICING_CANON: See PRICING_COMMERCIAL_TRUTH.md */}
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-10">
             <p className="text-xs font-black uppercase tracking-widest mb-3" style={{ color: ORANGE }}>Pricing</p>
             <h2 className="text-3xl sm:text-4xl font-black mb-4" style={{ color: NAVY }}>Free forever during beta.</h2>
             <p className="text-gray-600 max-w-xl mx-auto">
-              One closing pays for two years of RealtyWyze. We're in beta and everything is free while we build together.
+              One closing pays for years of RealtyWyze. We're in beta and everything is free while we build together. Paid plans are Growth ($150/mo) and Pro ($350/mo, includes Voice).
             </p>
           </div>
 
@@ -398,7 +399,7 @@ export default function RealtyWyzeLandingPage() {
             <div>
               <p className="text-sm font-black" style={{ color: '#9A3412' }}>Beta Program</p>
               <p className="text-sm mt-0.5" style={{ color: '#7C2D12' }}>
-                We're in beta. Everything is free right now: Growth plan ($0), AI features, SMS, listing videos, and more. We'll notify 30 days before paid plans launch. Early adopters keep the free tier forever.
+                We're in beta. Everything is free right now, and we will notify you 30 days before paid billing begins. Paid pricing is Growth ($150/mo) and Pro ($350/mo, includes Voice).
               </p>
             </div>
           </div>
@@ -534,7 +535,7 @@ export default function RealtyWyzeLandingPage() {
               <div className="mb-5">
                 <span className="text-xs font-black uppercase tracking-wide px-3 py-1.5 rounded-full"
                   style={{ backgroundColor: 'rgba(13,43,85,0.08)', color: NAVY }}>
-                  Coming Soon
+                  Available After Beta
                 </span>
               </div>
               <h3 className="text-xl font-black mb-1" style={{ color: NAVY }}>Pro</h3>
@@ -547,7 +548,7 @@ export default function RealtyWyzeLandingPage() {
                   <span className="text-sm pb-1.5" style={{ color: '#6B6355' }}>/mo</span>
                 </div>
                 <p className="text-xs mt-1" style={{ color: '#6B6355' }}>
-                  Available after beta
+                  Includes the Voice plan at $350/mo total.
                 </p>
               </div>
               <ul className="space-y-2.5 mb-7 mt-4 flex-1">
@@ -692,7 +693,7 @@ export default function RealtyWyzeLandingPage() {
               { q: 'How does the AI voice agent work?', a: 'When a buyer calls and you\'re unavailable, the AI answers, qualifies the caller (what they\'re looking for, timeline, pre-approval status), and creates a follow-up task in your inbox. Buyers always reach a live-feeling response, even when you\'re in a showing.' },
               { q: 'Can I use it with my current email and phone?', a: 'Yes. Connect your Gmail or another email inbox in Settings. RealtyWyze pulls in inquiries from connected inboxes and lets you reply from within the app. Your business phone number is provisioned inside RealtyWyze for two-way texting.' },
               { q: 'How long does setup take?', a: 'Most agents are fully set up in under 10 minutes: connect your inbox, add your listings, provision your phone number. The onboarding wizard walks you through each step. Your Today list starts building from day one.' },
-              { q: 'What does it cost?', a: 'Everything is free during beta. Growth plan is $0 now and becomes $150/mo after beta ends. Pro plan ($350/mo) is coming soon. SMS and voice credits never expire—they roll over month to month. Early adopters get the free tier forever. One closing pays for years of RealtyWyze.' },
+              { q: 'What does it cost?', a: 'Everything is free during beta. Paid pricing is Growth at $150/mo and Pro at $350/mo (includes Voice). SMS and voice credits never expire and roll over month to month. Early adopters keep the free tier forever.' },
             ].map(faq => <FAQItem key={faq.q} {...faq} />)}
           </div>
         </div>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
 import { requirePlatformSuperAdmin } from '@/lib/auth/platform'
 
@@ -7,11 +7,9 @@ type Params = { params: Promise<{ id: string }> }
 
 /** POST /api/admin/orgs/[id]/approve — approve a pending org */
 export async function POST(req: NextRequest, { params }: Params) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const profile = await requireProfile()
 
-  const denied = await requirePlatformSuperAdmin(user.id)
+  const denied = await requirePlatformSuperAdmin(profile.id)
   if (denied) return denied
 
   const { id: orgId } = await params
@@ -19,14 +17,17 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const { error } = await service
     .from('organizations')
-    .update({ approved_at: new Date().toISOString(), approved_by: user.id, rejection_reason: null })
+    .update({ approved_at: new Date().toISOString(), approved_by: profile.id, rejection_reason: null })
     .eq('id', orgId)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[admin/orgs/:id/approve][POST] Failed approving org:', error)
+    return NextResponse.json({ error: 'An error occurred. Please try again.' }, { status: 500 })
+  }
 
   // Log to audit trail
   await service.from('admin_audit_log').insert({
-    admin_user_id: user.id,
+    admin_user_id: profile.id,
     target_org_id: orgId,
     action: 'approve_org',
     details: { approved_at: new Date().toISOString() },
@@ -37,15 +38,16 @@ export async function POST(req: NextRequest, { params }: Params) {
 
 /** DELETE /api/admin/orgs/[id]/approve — reject a pending org */
 export async function DELETE(req: NextRequest, { params }: Params) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const profile = await requireProfile()
 
-  const denied = await requirePlatformSuperAdmin(user.id)
+  const denied = await requirePlatformSuperAdmin(profile.id)
   if (denied) return denied
 
   const { id: orgId } = await params
-  const body = await req.json().catch(() => ({}))
+  const body = await req.json().catch((err) => {
+    console.error('[admin/orgs/:id/approve][DELETE] Failed to parse request body:', err)
+    return {}
+  })
   const reason: string = body.reason ?? 'Application not approved.'
 
   const service = createServiceClient()
@@ -55,10 +57,13 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     .update({ rejection_reason: reason, approved_at: null })
     .eq('id', orgId)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[admin/orgs/:id/approve][DELETE] Failed rejecting org:', error)
+    return NextResponse.json({ error: 'An error occurred. Please try again.' }, { status: 500 })
+  }
 
   await service.from('admin_audit_log').insert({
-    admin_user_id: user.id,
+    admin_user_id: profile.id,
     target_org_id: orgId,
     action: 'reject_org',
     details: { reason },

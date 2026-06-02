@@ -22,9 +22,11 @@ vi.mock('@/lib/supabase/server', () => ({
 vi.mock('@/lib/supabase/service', () => ({
   createServiceClient: () => supabase,
 }))
+vi.mock('@/lib/auth/profile', () => ({
+  requireProfile: vi.fn(),
+}))
 vi.mock('@/lib/auth/platform', () => ({
-  canAccessAdminArea:   vi.fn().mockResolvedValue(true),
-  isPlatformSuperAdmin: vi.fn().mockResolvedValue(false),
+  requirePlatformSuperAdmin: vi.fn(),
 }))
 vi.mock('@/lib/auth/staffSession', () => ({
   buildStaffOrgCookie: vi.fn().mockReturnValue({ name: 'c', value: 'v', path: '/', httpOnly: true }),
@@ -42,13 +44,23 @@ vi.mock('next/headers', () => ({
 }))
 
 import { POST, DELETE } from '@/app/api/admin/impersonate/route'
+import { requireProfile } from '@/lib/auth/profile'
+import { requirePlatformSuperAdmin } from '@/lib/auth/platform'
+
+const mockedRequireProfile = vi.mocked(requireProfile)
+const mockedRequirePlatformSuperAdmin = vi.mocked(requirePlatformSuperAdmin)
 
 describe('impersonation audit_log', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    supabase.auth.getUser = vi.fn().mockResolvedValue({
-      data: { user: { id: 'staff-uid' } }, error: null,
+    mockedRequireProfile.mockResolvedValue({
+      id: 'staff-uid',
+      org_id: 'org-staff',
+      role: 'dealer_admin',
+      display_name: 'Staff User',
+      created_at: new Date().toISOString(),
     })
+    mockedRequirePlatformSuperAdmin.mockResolvedValue(null)
     supabase._table('organizations').single = vi.fn().mockResolvedValue({
       data: { id: 'org-target', name: 'Test Org' }, error: null,
     })

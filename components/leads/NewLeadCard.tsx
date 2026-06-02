@@ -182,7 +182,9 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
           start_at: isoDate,
           duration_min: 30,
         }),
-      }).catch(() => {})
+      }).catch((err) => {
+        console.error('[NewLeadCard] Failed creating calendar follow-up event:', err)
+      })
     }
     setLoading(null)
     setSnoozeExpanded(false)
@@ -268,21 +270,21 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
               </span>
               {hasActiveSeq && (
                 <button
-                  className="text-[11px] px-1.5 py-0.5 rounded text-yellow-700 hover:bg-yellow-500/10 transition-colors"
+                  className="text-[11px] px-2.5 py-2 min-h-[44px] rounded text-yellow-700 hover:bg-yellow-500/10 transition-colors"
                   onClick={() => handleSequenceAction('pause')}
                   disabled={loading !== null}
                 >Pause</button>
               )}
               {hasPausedSeq && (
                 <button
-                  className="text-[11px] px-1.5 py-0.5 rounded text-green-700 hover:bg-green-500/10 transition-colors"
+                  className="text-[11px] px-2.5 py-2 min-h-[44px] rounded text-green-700 hover:bg-green-500/10 transition-colors"
                   onClick={() => handleSequenceAction('resume')}
                   disabled={loading !== null}
                 >Resume</button>
               )}
               {(hasActiveSeq || hasPausedSeq) && (
                 <button
-                  className="text-[11px] px-1.5 py-0.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                  className="text-[11px] px-2.5 py-2 min-h-[44px] rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                   onClick={() => handleSequenceAction('cancel')}
                   disabled={loading !== null}
                 >Stop</button>
@@ -371,7 +373,7 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
               <Car className="h-3 w-3" />
               <span className="truncate">{vehicleName}{priceStr ? ` · ${priceStr}` : ''}</span>
               <button
-                className="text-muted-foreground hover:text-foreground shrink-0"
+                className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center text-muted-foreground hover:text-foreground shrink-0"
                 onClick={() => openCustomer(activity.id, customer.id)}
                 title="Edit vehicle"
               >
@@ -382,7 +384,7 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
             <p className="flex items-center gap-1.5">
               <Car className="h-3 w-3" />
               <button
-                className="text-primary hover:underline"
+                className="inline-flex min-h-[44px] items-center text-primary hover:underline"
                 onClick={() => openCustomer(activity.id, customer.id)}
               >
                 + Add vehicle
@@ -423,13 +425,13 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
               <button
                 onClick={handleSaveAppt}
                 disabled={!apptDatetime || loading !== null}
-                className="flex-1 text-xs font-medium py-1.5 rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                className="flex-1 text-xs font-medium py-2.5 min-h-[44px] rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
               >
                 {loading === 'appt' ? 'Saving…' : 'Confirm'}
               </button>
               <button
                 onClick={() => { setApptOpen(false); setApptError(null) }}
-                className="text-xs px-3 py-1.5 rounded border border-border hover:bg-muted transition-colors"
+                className="text-xs px-3 py-2.5 min-h-[44px] rounded border border-border hover:bg-muted transition-colors"
               >
                 Cancel
               </button>
@@ -442,7 +444,7 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
           {lead.phone && (
             <a
               href={`tel:${lead.phone}`}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 h-10 rounded-lg bg-primary text-primary-foreground text-sm font-semibold transition-colors hover:bg-primary/90"
+              className="flex-1 inline-flex items-center justify-center gap-1.5 h-11 min-h-[44px] rounded-lg bg-primary text-primary-foreground text-sm font-semibold transition-colors hover:bg-primary/90"
             >
               <Phone className="h-3.5 w-3.5" />
               Call
@@ -451,7 +453,7 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
           {customer.primary_phone && (
             <a
               href={`sms:${customer.primary_phone}`}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 h-10 rounded-lg bg-secondary text-secondary-foreground text-sm font-semibold transition-colors hover:bg-secondary/80"
+              className="flex-1 inline-flex items-center justify-center gap-1.5 h-11 min-h-[44px] rounded-lg bg-secondary text-secondary-foreground text-sm font-semibold transition-colors hover:bg-secondary/80"
             >
               <MessageSquare className="h-3.5 w-3.5" />
               Text
@@ -462,14 +464,14 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
         {/* Secondary actions: Schedule, Done, Archive, Follow up, Dismiss */}
         <div className="flex gap-2 items-center flex-wrap" onClick={e => e.stopPropagation()}>
           <button
-            className={`text-xs font-medium py-1 px-2 rounded transition-colors flex items-center gap-1 ${apptSaved ? 'bg-blue-500/10 text-blue-700' : 'text-blue-700 bg-blue-500/10 hover:bg-blue-500/20'}`}
+            className={`text-xs font-medium py-2.5 px-3 min-h-[44px] rounded transition-colors flex items-center gap-1 ${apptSaved ? 'bg-blue-500/10 text-blue-700' : 'text-blue-700 bg-blue-500/10 hover:bg-blue-500/20'}`}
             onClick={() => { setApptOpen(o => !o); setApptSaved(false) }}
             disabled={loading !== null}
           >
             {apptSaved ? <><Check className="h-3 w-3" />Scheduled</> : <><CalendarPlus className="h-3 w-3" />Schedule</>}
           </button>
           <button
-            className="text-xs font-medium text-green-700 bg-green-500/10 hover:bg-green-500/20 py-1 px-2 rounded transition-colors"
+            className="text-xs font-medium text-green-700 bg-green-500/10 hover:bg-green-500/20 py-2.5 px-3 min-h-[44px] rounded transition-colors"
             onClick={async () => {
               onAddressed?.()
               setLoading('done')
@@ -488,7 +490,7 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
 
           <div className="relative ml-auto">
             <button
-              className="text-xs text-muted-foreground hover:text-foreground py-1 px-2 rounded hover:bg-muted flex items-center gap-1 transition-colors"
+              className="text-xs text-muted-foreground hover:text-foreground py-2.5 px-3 min-h-[44px] rounded hover:bg-muted flex items-center gap-1 transition-colors"
               onClick={() => setSnoozeExpanded(v => !v)}
               disabled={loading !== null}
             >
@@ -506,7 +508,7 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
                   <button
                     key={preset}
                     onClick={() => void handleSnooze(snoozePreset(preset))}
-                    className="w-full text-left px-3 py-2 text-xs hover:bg-muted"
+                    className="w-full text-left px-3 py-2.5 min-h-[44px] text-xs hover:bg-muted"
                   >
                     {label}
                   </button>
@@ -525,7 +527,7 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
           </div>
 
           <button
-            className="h-8 text-xs text-muted-foreground hover:text-destructive py-1 px-2 rounded hover:bg-destructive/10 transition-colors"
+            className="h-11 min-h-[44px] text-xs text-muted-foreground hover:text-destructive py-2.5 px-3 rounded hover:bg-destructive/10 transition-colors"
             onClick={async () => {
               setLoading('archive')
               await fetch(`/api/activities/${activity.id}`, {

@@ -1,14 +1,12 @@
 /**
  * Impersonation write_mode gate tests
  *
- * Verifies that write_mode=true requires isPlatformSuperAdmin.
- * Non-superadmins must receive 403 regardless of canAccessAdminArea.
- * Superadmins must be allowed through.
- * write_mode=false must NOT trigger the superadmin check.
+ * Verifies that admin impersonation requires platform superadmin via
+ * requireProfile() + requirePlatformSuperAdmin(profile.id).
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { makeTestClient } from './helpers/testClient'
 
 const { supabase } = makeTestClient()
@@ -21,9 +19,11 @@ vi.mock('@/lib/supabase/server', () => ({
 vi.mock('@/lib/supabase/service', () => ({
   createServiceClient: () => supabase,
 }))
+vi.mock('@/lib/auth/profile', () => ({
+  requireProfile: vi.fn(),
+}))
 vi.mock('@/lib/auth/platform', () => ({
-  canAccessAdminArea:   vi.fn(),
-  isPlatformSuperAdmin: vi.fn(),
+  requirePlatformSuperAdmin: vi.fn(),
 }))
 vi.mock('@/lib/auth/staffSession', () => ({
   buildStaffOrgCookie:  vi.fn().mockReturnValue({ name: 'dsw_staff_org', value: 'tok', path: '/', httpOnly: true }),
@@ -40,11 +40,12 @@ vi.mock('next/headers', () => ({
   cookies: vi.fn().mockResolvedValue({ get: vi.fn() }),
 }))
 
-import { canAccessAdminArea, isPlatformSuperAdmin } from '@/lib/auth/platform'
 import { POST } from '@/app/api/admin/impersonate/route'
+import { requireProfile } from '@/lib/auth/profile'
+import { requirePlatformSuperAdmin } from '@/lib/auth/platform'
 
-const mockedCanAccess   = vi.mocked(canAccessAdminArea)
-const mockedSuperAdmin  = vi.mocked(isPlatformSuperAdmin)
+const mockedRequireProfile = vi.mocked(requireProfile)
+const mockedRequirePlatformSuperAdmin = vi.mocked(requirePlatformSuperAdmin)
 
 function makeReq(body: unknown) {
   return new NextRequest('http://localhost/api/admin/impersonate', {
@@ -58,10 +59,14 @@ describe('impersonation write_mode gate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    supabase.auth.getUser = vi.fn().mockResolvedValue({
-      data: { user: { id: 'staff-uid' } }, error: null,
+    mockedRequireProfile.mockResolvedValue({
+      id: 'staff-uid',
+      org_id: 'org-staff',
+      role: 'dealer_admin',
+      display_name: 'Staff User',
+      created_at: new Date().toISOString(),
     })
-    mockedCanAccess.mockResolvedValue(true)
+    mockedRequirePlatformSuperAdmin.mockResolvedValue(null)
 
     // Default: org found
     supabase._table('organizations').single = vi.fn().mockResolvedValue({
@@ -73,18 +78,19 @@ describe('impersonation write_mode gate', () => {
     )
   })
 
-  it('returns 403 when write_mode=true and user is NOT a superadmin', async () => {
-    mockedSuperAdmin.mockResolvedValue(false)
+  it('returns 403 when profile is not a platform superadmin', async () => {
+    mockedRequirePlatformSuperAdmin.mockResolvedValue(
+      NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    )
 
     const res = await POST(makeReq({ org_id: 'org-target', write_mode: true }))
 
     expect(res.status).toBe(403)
-    const json = await res.json() as { error: string }
-    expect(json.error).toMatch(/superadmin/i)
+    expect(mockedRequirePlatformSuperAdmin).toHaveBeenCalledWith('staff-uid')
   })
 
-  it('returns 200 when write_mode=true and user IS a superadmin', async () => {
-    mockedSuperAdmin.mockResolvedValue(true)
+  it('returns 200 when profile is platform superadmin', async () => {
+    mockedRequirePlatformSuperAdmin.mockResolvedValue(null)
 
     const res = await POST(makeReq({ org_id: 'org-target', write_mode: true }))
 
@@ -93,12 +99,14 @@ describe('impersonation write_mode gate', () => {
     expect(json.write_mode).toBe(true)
   })
 
-  it('does NOT call isPlatformSuperAdmin when write_mode is false', async () => {
-    mockedSuperAdmin.mockResolvedValue(false) // would 403 if incorrectly checked
+  it('enforces platform superadmin even when write_mode is false', async () => {
+    mockedRequirePlatformSuperAdmin.mockResolvedValue(
+      NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    )
 
     const res = await POST(makeReq({ org_id: 'org-target', write_mode: false }))
 
-    expect(res.status).toBe(200)
-    expect(mockedSuperAdmin).not.toHaveBeenCalled()
+    expect(res.status).toBe(403)
+    expect(mockedRequirePlatformSuperAdmin).toHaveBeenCalledWith('staff-uid')
   })
 })

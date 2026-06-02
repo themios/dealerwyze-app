@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPlatformOAuthState } from '@/lib/social/platformOauth'
+import { requireProfile } from '@/lib/auth/profile'
+import { requirePlatformSuperAdmin } from '@/lib/auth/platform'
 import { createServiceClient } from '@/lib/supabase/service'
 
 // SETUP REQUIRED: Add /api/admin/social/callback/facebook to Meta app's
@@ -98,6 +100,10 @@ async function handlePlatformMetaCallback(
 }
 
 export async function GET(req: NextRequest, { params }: RouteParams) {
+  const profile = await requireProfile()
+  const denied = await requirePlatformSuperAdmin(profile.id)
+  if (denied) return denied
+
   const { platform } = await params
   const url = new URL(req.url)
   const state = url.searchParams.get('state')

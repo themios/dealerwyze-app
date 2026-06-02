@@ -169,7 +169,7 @@ export default function VehicleCard({ vehicle, reconStatus, investmentSummary }:
             {hasCostData && (
               <button
                 onClick={() => setCostOpen(o => !o)}
-                className="p-1.5 text-muted-foreground hover:text-primary transition-colors"
+                className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center p-2.5 text-muted-foreground hover:text-primary transition-colors"
                 title="View cost breakdown"
               >
                 {costOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -180,7 +180,7 @@ export default function VehicleCard({ vehicle, reconStatus, investmentSummary }:
             {!isSold && (
               <button
                 onClick={() => setUploadOpen(true)}
-                className="p-1.5 text-muted-foreground hover:text-primary transition-colors"
+                className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center p-2.5 text-muted-foreground hover:text-primary transition-colors"
                 title="Attach document"
               >
                 <Paperclip className="h-4 w-4" />

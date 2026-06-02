@@ -210,13 +210,13 @@ function DetailSheet({ task, onClose, onComplete, onSnooze, onUpdate, onDelete, 
               <>
                 <button
                   onClick={handleUnarchive}
-                  className="flex items-center gap-1 text-xs text-amber-600 font-medium hover:underline"
+                  className="inline-flex min-h-[44px] items-center gap-1 px-2 py-2 text-xs text-amber-600 font-medium hover:underline"
                 >
                   Unarchive
                 </button>
                 <button
                   onClick={() => { onClose(); router.push(`/customers/${task.linked_customer_id}`) }}
-                  className="flex items-center gap-1 text-xs text-muted-foreground font-medium hover:underline"
+                  className="inline-flex min-h-[44px] items-center gap-1 px-2 py-2 text-xs text-muted-foreground font-medium hover:underline"
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
                   View
@@ -246,7 +246,7 @@ function DetailSheet({ task, onClose, onComplete, onSnooze, onUpdate, onDelete, 
                 )}
                 <button
                   onClick={() => { onClose(); router.push(`/customers/${task.linked_customer_id}`) }}
-                  className="flex items-center gap-1 text-xs text-primary font-medium hover:underline"
+                  className="inline-flex min-h-[44px] items-center gap-1 px-2 py-2 text-xs text-primary font-medium hover:underline"
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
                   Open
@@ -275,7 +275,7 @@ function DetailSheet({ task, onClose, onComplete, onSnooze, onUpdate, onDelete, 
           </div>
           <button
             onClick={() => { onClose(); router.push(`/vehicles/${task.linked_vehicle_id}`) }}
-            className="flex items-center gap-1 text-xs text-primary font-medium hover:underline shrink-0 mt-0.5"
+            className="inline-flex min-h-[44px] items-center gap-1 px-2 py-2 text-xs text-primary font-medium hover:underline shrink-0 mt-0.5"
           >
             <ExternalLink className="h-3.5 w-3.5" />
             Open
@@ -299,7 +299,7 @@ function DetailSheet({ task, onClose, onComplete, onSnooze, onUpdate, onDelete, 
           </div>
           <button
             onClick={() => { onClose(); router.push(`/receipts/${task.linked_receipt_id}/review`) }}
-            className="flex items-center gap-1 text-xs text-primary font-medium hover:underline shrink-0 mt-0.5"
+            className="inline-flex min-h-[44px] items-center gap-1 px-2 py-2 text-xs text-primary font-medium hover:underline shrink-0 mt-0.5"
           >
             <ExternalLink className="h-3.5 w-3.5" />
             Open
@@ -327,7 +327,7 @@ function DetailSheet({ task, onClose, onComplete, onSnooze, onUpdate, onDelete, 
           <h2 className="text-base font-semibold leading-snug pr-6">{displayTitle(task.title)}</h2>
           <button
             onClick={onClose}
-            className="text-muted-foreground hover:text-foreground shrink-0 mt-0.5"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center text-muted-foreground hover:text-foreground shrink-0 mt-0.5"
             aria-label="Close"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -357,7 +357,7 @@ function DetailSheet({ task, onClose, onComplete, onSnooze, onUpdate, onDelete, 
           <div className="flex gap-2">
             <button
               onClick={() => handlePriorityToggle('must')}
-              className={`flex-1 rounded-md border py-1.5 text-sm font-medium transition-colors ${
+              className={`flex-1 rounded-md border py-2.5 min-h-[44px] text-sm font-medium transition-colors ${
                 priority === 'must'
                   ? 'bg-destructive text-destructive-foreground border-destructive'
                   : 'bg-background text-muted-foreground border-border hover:border-destructive'
@@ -367,7 +367,7 @@ function DetailSheet({ task, onClose, onComplete, onSnooze, onUpdate, onDelete, 
             </button>
             <button
               onClick={() => handlePriorityToggle('should')}
-              className={`flex-1 rounded-md border py-1.5 text-sm font-medium transition-colors ${
+              className={`flex-1 rounded-md border py-2.5 min-h-[44px] text-sm font-medium transition-colors ${
                 priority === 'should'
                   ? 'bg-muted text-foreground border-border'
                   : 'bg-background text-muted-foreground border-border hover:border-foreground'
@@ -422,7 +422,7 @@ function DetailSheet({ task, onClose, onComplete, onSnooze, onUpdate, onDelete, 
                 })
                 onRemove()
               }}
-              className="w-full rounded-md border border-muted-foreground/30 text-muted-foreground hover:bg-muted/50 py-2 text-sm font-medium transition-colors"
+              className="w-full rounded-md border border-muted-foreground/30 text-muted-foreground hover:bg-muted/50 min-h-[44px] py-2.5 text-sm font-medium transition-colors"
             >
               Archive Customer &amp; Dismiss
             </button>
@@ -430,19 +430,19 @@ function DetailSheet({ task, onClose, onComplete, onSnooze, onUpdate, onDelete, 
           <div className="flex gap-2">
             <button
               onClick={onComplete}
-              className="flex-1 rounded-md bg-green-600 hover:bg-green-700 text-white py-2 text-sm font-medium transition-colors"
+              className="flex-1 rounded-md bg-green-600 hover:bg-green-700 text-white min-h-[44px] py-2.5 text-sm font-medium transition-colors"
             >
               Mark Done
             </button>
             <button
               onClick={onSnooze}
-              className="flex-1 rounded-md bg-blue-600 hover:bg-blue-700 text-white py-2 text-sm font-medium transition-colors"
+              className="flex-1 rounded-md bg-blue-600 hover:bg-blue-700 text-white min-h-[44px] py-2.5 text-sm font-medium transition-colors"
             >
               Snooze 2h
             </button>
             <button
               onClick={handleDelete}
-              className="rounded-md border border-destructive text-destructive hover:bg-destructive/10 px-3 py-2 text-sm font-medium transition-colors"
+              className="rounded-md border border-destructive text-destructive hover:bg-destructive/10 px-3 py-2.5 min-h-[44px] text-sm font-medium transition-colors"
             >
               Delete
             </button>

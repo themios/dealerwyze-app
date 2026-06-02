@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { requireProfile } from '@/lib/auth/profile'
 import { createServiceClient } from '@/lib/supabase/service'
 import { canManageUsers, ROLE_LABELS } from '@/lib/auth/dealerRoles'
 import type { UserRole } from '@/types/index'
@@ -28,18 +28,9 @@ function displayNameFromEmail(email: string): string {
 }
 
 async function requireUserManager() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, org_id')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile || !canManageUsers(profile.role as UserRole)) return null
-  return { user, profile }
+  const profile = await requireProfile()
+  if (!canManageUsers(profile.role as UserRole)) return null
+  return { profile }
 }
 
 /** GET /api/admin/users — list all active members in org with assigned lead counts */
@@ -80,7 +71,10 @@ export async function GET(req: NextRequest) {
       .order('sort_order', { ascending: true }),
   ])
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[admin/users][GET] Failed loading users:', error)
+    return NextResponse.json({ error: 'An error occurred. Please try again.' }, { status: 500 })
+  }
 
   const counts: Record<string, number> = {}
   customerCounts?.forEach(c => {
@@ -108,7 +102,10 @@ export async function POST(req: NextRequest) {
   const auth = await requireUserManager()
   if (!auth) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const body = await req.json().catch(() => ({}))
+  const body = await req.json().catch((err) => {
+    console.error('[admin/users][POST] Failed to parse request body:', err)
+    return {}
+  })
   const {
     email,
     display_name,
@@ -139,7 +136,8 @@ export async function POST(req: NextRequest) {
     })
 
     if (createErr || !created.user) {
-      return NextResponse.json({ error: createErr?.message || 'Failed to create user' }, { status: 500 })
+      console.error('[admin/users][POST] Failed creating auth user:', createErr)
+      return NextResponse.json({ error: 'An error occurred. Please try again.' }, { status: 500 })
     }
 
     const { error: profileErr } = await service.from('profiles').insert({
@@ -150,11 +148,12 @@ export async function POST(req: NextRequest) {
     })
 
     if (profileErr) {
+      console.error('[admin/users][POST] Failed inserting profile after createUser:', profileErr)
       await service.auth.admin.deleteUser(created.user.id)
-      return NextResponse.json({ error: profileErr.message }, { status: 500 })
+      return NextResponse.json({ error: 'An error occurred. Please try again.' }, { status: 500 })
     }
 
-    void logOrgAudit({ org_id: auth.profile.org_id, actor_id: auth.user.id, actor_type: 'user',
+    void logOrgAudit({ org_id: auth.profile.org_id, actor_id: auth.profile.id, actor_type: 'user',
       action: 'user_invited', details: { email, role: assignedRole, method: 'password_create' } })
 
     return NextResponse.json({ id: created.user.id, email, display_name, role: assignedRole })
@@ -177,7 +176,8 @@ export async function POST(req: NextRequest) {
     if (msg.includes('already registered') || msg.includes('already exists')) {
       return NextResponse.json({ error: 'An account with that email already exists.' }, { status: 409 })
     }
-    return NextResponse.json({ error: inviteErr?.message || 'Failed to send invite' }, { status: 500 })
+    console.error('[admin/users][POST] Failed inviteUserByEmail:', inviteErr)
+    return NextResponse.json({ error: 'An error occurred. Please try again.' }, { status: 500 })
   }
 
   const { error: profileErr } = await service.from('profiles').upsert({
@@ -188,8 +188,9 @@ export async function POST(req: NextRequest) {
   }, { onConflict: 'id' })
 
   if (profileErr) {
+    console.error('[admin/users][POST] Failed upserting invited profile:', profileErr)
     await service.auth.admin.deleteUser(invited.user.id)
-    return NextResponse.json({ error: profileErr.message }, { status: 500 })
+    return NextResponse.json({ error: 'An error occurred. Please try again.' }, { status: 500 })
   }
 
   const { data: orgRow } = await service
@@ -206,7 +207,7 @@ export async function POST(req: NextRequest) {
     html: buildTeamInviteEmailHtml(finalDisplayName, APP_URL, orgVertical),
   })
 
-  void logOrgAudit({ org_id: auth.profile.org_id, actor_id: auth.user.id, actor_type: 'user',
+  void logOrgAudit({ org_id: auth.profile.org_id, actor_id: auth.profile.id, actor_type: 'user',
     action: 'user_invited', details: { email, role: assignedRole, method: 'invite_email' } })
 
   return NextResponse.json({ id: invited.user.id, email, display_name: finalDisplayName, role: assignedRole })
@@ -222,7 +223,7 @@ export async function PATCH() {
   for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)]
 
   const service = createServiceClient()
-  await service.from('profiles').update({ invite_code: code }).eq('id', auth.user.id)
+  await service.from('profiles').update({ invite_code: code }).eq('id', auth.profile.id)
 
   return NextResponse.json({ invite_code: code })
 }
@@ -234,7 +235,7 @@ export async function DELETE(req: NextRequest) {
 
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
-  if (id === auth.user.id) return NextResponse.json({ error: 'Cannot deactivate yourself' }, { status: 400 })
+  if (id === auth.profile.id) return NextResponse.json({ error: 'Cannot deactivate yourself' }, { status: 400 })
 
   const service = createServiceClient()
 
@@ -249,20 +250,25 @@ export async function DELETE(req: NextRequest) {
     .update({ deactivated_at: new Date().toISOString() })
     .eq('id', id)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[admin/users][DELETE] Failed deactivating user:', error)
+    return NextResponse.json({ error: 'An error occurred. Please try again.' }, { status: 500 })
+  }
 
   // Audit log the deactivation
   await service.from('admin_audit_log').insert({
     action: 'user_deactivated',
-    admin_user_id: auth.user.id,
+    admin_user_id: auth.profile.id,
     target_org_id: target.org_id,
     details: { deactivated_user_id: id },
   })
-  void logOrgAudit({ org_id: target.org_id, actor_id: auth.user.id, actor_type: 'user',
+  void logOrgAudit({ org_id: target.org_id, actor_id: auth.profile.id, actor_type: 'user',
     action: 'user_deactivated', details: { target_user_id: id } })
 
   // Invalidate all active sessions for this user
-  await service.auth.admin.signOut(id, 'global').catch(() => {})
+  await service.auth.admin.signOut(id, 'global').catch((err) => {
+    console.error('[admin/users][DELETE] Failed global signout after deactivate:', err)
+  })
 
   return NextResponse.json({ success: true })
 }

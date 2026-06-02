@@ -73,7 +73,7 @@ export default function MessageComposer({
               disabled={disabled}
               aria-label={`Insert ${token.label}`}
               onClick={() => insertAtCursor(textareaRef, token.value, value, onChange)}
-              className="shrink-0 text-xs px-2 py-1 rounded-md border bg-muted hover:bg-accent font-mono disabled:opacity-50 disabled:pointer-events-none"
+              className="shrink-0 min-h-[44px] text-xs px-3 py-2.5 rounded-md border bg-muted hover:bg-accent font-mono disabled:opacity-50 disabled:pointer-events-none"
             >
               {token.label}
             </button>

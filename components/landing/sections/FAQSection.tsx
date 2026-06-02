@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import { NAVY, ORANGE } from './_shared'
 
 const faqs = [
+  // PRICING_CANON: See PRICING_COMMERCIAL_TRUTH.md
   {
     q: 'Does this work with Gmail or IMAP?',
     a: 'Yes. DealerWyze connects directly to your Gmail or any IMAP inbox and automatically imports leads into customer records. No manual entry required.',
@@ -26,7 +27,7 @@ const faqs = [
   },
   {
     q: 'Do I need a credit card to sign up?',
-    a: 'No. DealerWyze is free during beta - no credit card required at any point. When paid plans launch, you\'ll have at least 30 days notice and the option to choose a plan or cancel.',
+    a: 'No. DealerWyze is free during beta with no credit card required. Paid plans are Growth ($150/mo) and Pro ($350/mo total, including Voice). We provide at least 30 days notice before paid billing begins.',
   },
   {
     q: 'Can I import my existing customers and leads?',
@@ -46,7 +47,7 @@ const faqs = [
   },
   {
     q: 'Is there an annual discount?',
-    a: 'Yes - 10% off when you pay annually. Growth drops from $150/mo to $135/mo (saving $180/yr). Pro drops from $350/mo to $315/mo (saving $420/yr).',
+    a: 'Current published pricing is monthly: Growth is $150/mo and Pro is $350/mo total (includes Voice).',
   },
   {
     q: 'Is two-way SMS included?',

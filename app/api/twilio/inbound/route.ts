@@ -25,6 +25,7 @@ import * as Sentry from '@sentry/nextjs'
 //   https://dealerwyze.com/api/twilio/inbound
 
 const TWIML_EMPTY = '<Response/>'
+const TWILIO_ROUTE_TIMEOUT_MS = 10000
 
 // TCPA: keywords that trigger opt-out (case-insensitive, exact word)
 const OPT_OUT_KEYWORDS  = new Set(['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT'])
@@ -32,6 +33,13 @@ const OPT_IN_KEYWORDS   = new Set(['START', 'UNSTOP', 'YES'])
 
 function twimlMsg(text: string) {
   return `<Response><Message>${text}</Message></Response>`
+}
+
+async function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  const timeout = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+  })
+  return Promise.race([Promise.resolve(promise), timeout])
 }
 
 export async function POST(req: NextRequest) {
@@ -100,7 +108,11 @@ export async function POST(req: NextRequest) {
   const supabase = createServiceClient()
 
   // Resolve which org this message belongs to (multi-tenant: keyed by "To" number)
-  const orgId = await getOrgIdByPhone(toRaw)
+  const orgId = await withTimeout(
+    getOrgIdByPhone(toRaw),
+    TWILIO_ROUTE_TIMEOUT_MS,
+    'getOrgIdByPhone'
+  )
 
   // Fail-fast: unknown "To" number means no org — return empty TwiML, do not query any data
   if (!orgId) {
@@ -108,18 +120,28 @@ export async function POST(req: NextRequest) {
     return new NextResponse(TWIML_EMPTY, { status: 200, headers: { 'Content-Type': 'text/xml' } })
   }
 
-  // Idempotency check: if this MessageSid was already processed, return 200 immediately
-  if (messageSid) {
-    const { data: alreadyProcessed } = await supabase
-      .from('processed_twilio_messages')
-      .select('message_sid')
-      .eq('message_sid', messageSid)
-      .maybeSingle()
+  // Idempotency claim: atomically claim MessageSid before processing to avoid races.
+  if (messageSid && orgId) {
+    const { data: result, error: rpcError } = await withTimeout(
+      supabase.rpc('claim_twilio_message_sid', {
+        p_message_sid: messageSid,
+        p_org_id: orgId,
+      }),
+      TWILIO_ROUTE_TIMEOUT_MS,
+      'claim_twilio_message_sid'
+    )
 
-    if (alreadyProcessed) {
+    if (rpcError) {
+      console.error('[twilio/inbound] RPC error claiming MessageSid:', {
+        messageSid,
+        error: rpcError.message,
+      })
+      // Continue processing (worst case: duplicate on retry, but rare)
+    } else if (result && result[0]?.is_duplicate) {
       console.log('[twilio/inbound] Duplicate MessageSid (idempotent return):', messageSid)
       return new NextResponse(TWIML_EMPTY, { status: 200, headers: { 'Content-Type': 'text/xml' } })
     }
+    // If result[0]?.is_duplicate === false, continue processing (new message, idempotency claimed)
   }
 
   // ── Dealer command: inbound SMS from the dealer's own cell ─────────────────
@@ -219,18 +241,9 @@ export async function POST(req: NextRequest) {
             name: lead.name,
             phone: lead.phone ?? null,
             source: 'offerup',
-          }).catch(() => {})
-        }
-
-        // Mark this MessageSid as processed before returning
-        if (messageSid && orgId) {
-          try {
-            await supabase
-              .from('processed_twilio_messages')
-              .insert({ message_sid: messageSid, org_id: orgId })
-          } catch (err) {
-            console.error('[twilio/inbound] Failed to mark OfferUp as processed:', err)
-          }
+          }).catch((err) => {
+            console.error('[twilio/inbound] Failed dispatching new_lead webhook:', err)
+          })
         }
 
         const status = isNew ? '✅ New contact created' : '✅ Existing contact updated'
@@ -241,7 +254,10 @@ export async function POST(req: NextRequest) {
       }
 
       // ── Dealer appointment command ────────────────────────────────────────
-      const parsed = await parseDealerAppointment(body, locationNames).catch(() => null)
+      const parsed = await parseDealerAppointment(body, locationNames).catch((err) => {
+        console.error('[twilio/inbound] Failed parsing dealer appointment command:', err)
+        return null
+      })
 
       if (!parsed || !parsed.customer_name) {
         return new NextResponse(
@@ -294,7 +310,9 @@ export async function POST(req: NextRequest) {
           name: parsed.customer_name,
           phone: parsed.customer_phone ?? null,
           source: 'dealer_sms',
-        }).catch(() => {})
+        }).catch((err) => {
+          console.error('[twilio/inbound] Failed dispatching dealer_sms new_lead webhook:', err)
+        })
       }
 
       // Parse appointment datetime
@@ -327,7 +345,9 @@ export async function POST(req: NextRequest) {
         due_at: apptDate?.toISOString() ?? null,
         body: bodyText,
         source: 'dealer_sms',
-      }).catch(() => {})
+      }).catch((err) => {
+        console.error('[twilio/inbound] Failed dispatching appointment_created webhook:', err)
+      })
 
       // Google Calendar event
       if (apptDate && parsed.appointment_datetime) {
@@ -342,18 +362,9 @@ export async function POST(req: NextRequest) {
           ].filter(Boolean).join('\n'),
           location:  locationLabel ?? undefined,
           startIso:  parsed.appointment_datetime,
-        }, orgId).catch(() => {})
-      }
-
-      // Mark this MessageSid as processed before returning
-      if (messageSid && orgId) {
-        try {
-          await supabase
-            .from('processed_twilio_messages')
-            .insert({ message_sid: messageSid, org_id: orgId })
-        } catch (err) {
-          console.error('[twilio/inbound] Failed to mark appointment as processed:', err)
-        }
+        }, orgId).catch((err) => {
+          console.error('[twilio/inbound] Failed creating Google Calendar event:', err)
+        })
       }
 
       // Confirm back to dealer
@@ -434,17 +445,6 @@ export async function POST(req: NextRequest) {
     const optOutReply = tcpaOptOutMsg
       ?? `You have been unsubscribed from ${tcpaBizName} messages. Text START to resubscribe.`
 
-    // Mark this MessageSid as processed before returning
-    if (messageSid && orgId) {
-      try {
-        await supabase
-          .from('processed_twilio_messages')
-          .insert({ message_sid: messageSid, org_id: orgId })
-      } catch (err) {
-        console.error('[twilio/inbound] Failed to mark opt-out as processed:', err)
-      }
-    }
-
     return new NextResponse(
       twimlMsg(optOutReply),
       { status: 200, headers: { 'Content-Type': 'text/xml' } }
@@ -486,26 +486,19 @@ export async function POST(req: NextRequest) {
           title: `${customer.name} confirmed SMS`,
           body:  'They replied YES — you can now text them.',
           url:   `/customers/${customer.id}`,
-        }, orgId).catch(() => {})
+        }, orgId).catch((err) => {
+          console.error('[twilio/inbound] Failed STOP push notification:', err)
+        })
         sendTelegramMessage(
           `<b>SMS consent confirmed</b>\n${customer.name} replied YES — ready to text.`
-        ).catch(() => {})
+        ).catch((err) => {
+          console.error('[twilio/inbound] Failed START telegram notification:', err)
+        })
       }
     }
     const optInReply = isPendingConsent
       ? `Thanks! You're now subscribed to text updates from ${tcpaBizName}. Reply STOP at any time to unsubscribe.`
       : (tcpaOptInMsg ?? `You have been re-subscribed to ${tcpaBizName} messages. Reply STOP at any time to unsubscribe.`)
-
-    // Mark this MessageSid as processed before returning
-    if (messageSid && orgId) {
-      try {
-        await supabase
-          .from('processed_twilio_messages')
-          .insert({ message_sid: messageSid, org_id: orgId })
-      } catch (err) {
-        console.error('[twilio/inbound] Failed to mark opt-in as processed:', err)
-      }
-    }
 
     return new NextResponse(
       twimlMsg(optInReply),
@@ -532,18 +525,9 @@ export async function POST(req: NextRequest) {
       title: `${customer.name} confirmed payment`,
       body:  'They replied PAY - expect them in today.',
       url:   `/customers/${customer.id}`,
-    }, orgId).catch(() => {})
-
-    // Mark this MessageSid as processed before returning
-    if (messageSid && orgId) {
-      try {
-        await supabase
-          .from('processed_twilio_messages')
-          .insert({ message_sid: messageSid, org_id: orgId })
-      } catch (err) {
-        console.error('[twilio/inbound] Failed to mark PAY as processed:', err)
-      }
-    }
+    }, orgId).catch((err) => {
+      console.error('[twilio/inbound] Failed PAY push notification:', err)
+    })
 
     return new NextResponse(
       twimlMsg(`Thanks! We have you confirmed for today. See you soon from ${tcpaBizName}.`),
@@ -584,7 +568,9 @@ export async function POST(req: NextRequest) {
         hour_of_day: new Date().getUTCHours(),
         day_of_week: new Date().getUTCDay(),
       },
-    }).catch(() => {})
+    }).catch((err) => {
+      console.error('[twilio/inbound] Failed emitting message_received event:', err)
+    })
 
     // Stop any active autoresponder sequences — customer replied
     await stopSequenceOnReply({
@@ -596,10 +582,14 @@ export async function POST(req: NextRequest) {
     })
 
     // Increment org SMS usage counter (fire and forget)
-    incrementUsage(customer.user_id, false).catch(() => {})
+    incrementUsage(customer.user_id, false).catch((err) => {
+      console.error('[twilio/inbound] Failed incrementing usage:', err)
+    })
 
     // Thread state transition (fire and forget)
-    transitionThreadState(customer.id, 'inbound_received').catch(() => {})
+    transitionThreadState(customer.id, 'inbound_received').catch((err) => {
+      console.error('[twilio/inbound] Failed updating thread state:', err)
+    })
 
     // Appointment detection
     const hint = detectAppointment(body)
@@ -628,14 +618,16 @@ export async function POST(req: NextRequest) {
         body: notifBody,
         url: `/customers/${customer.id}`,
       }, orgId)
-    } catch {
-      // Non-fatal
+    } catch (err) {
+      console.error('[twilio/inbound] Failed sending lead notification:', err)
     }
 
     sendTelegramMessage(
       `<b>${hint.detected ? '📅 Appt request' : 'Inbound text'}</b> from ${customer.name}\n` +
       (body.length > 160 ? body.slice(0, 157) + '...' : body)
-    ).catch(() => {})
+    ).catch((err) => {
+      console.error('[twilio/inbound] Failed telegram inbound notification:', err)
+    })
 
     enqueueConversationRescore({
       customerId: customer.id,
@@ -648,18 +640,9 @@ export async function POST(req: NextRequest) {
       `<b>Unknown texter</b> - not in your contacts\n` +
       `From: ${fromRaw}\n` +
       `"${body.length > 160 ? body.slice(0, 157) + '...' : body}"`
-    ).catch(() => {})
-  }
-
-  // Mark this MessageSid as processed before returning
-  if (messageSid && orgId) {
-    try {
-      await supabase
-        .from('processed_twilio_messages')
-        .insert({ message_sid: messageSid, org_id: orgId })
-    } catch (err) {
-      console.error('[twilio/inbound] Failed to mark message as processed:', err)
-    }
+    ).catch((err) => {
+      console.error('[twilio/inbound] Failed telegram unknown-texter notification:', err)
+    })
   }
 
   return new NextResponse(TWIML_EMPTY, {

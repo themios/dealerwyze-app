@@ -74,17 +74,17 @@ export default function BhphRecordPayment({
           type="number"
           value={amount}
           onChange={e => setAmount(e.target.value)}
-          className="h-9 text-sm"
+          className="h-11 min-h-[44px] text-sm"
         />
         <Button
           size="sm"
           onClick={recordPayment}
           disabled={isPending}
-          className="flex-shrink-0 bg-[#0D2B55] text-white hover:bg-[#0D2B55]/90"
+          className="flex-shrink-0 h-11 min-h-[44px] bg-[#0D2B55] text-white hover:bg-[#0D2B55]/90"
         >
           {isPending ? '…' : 'Record'}
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => setShowForm(false)} className="flex-shrink-0 text-muted-foreground">
+        <Button size="sm" variant="ghost" onClick={() => setShowForm(false)} className="flex-shrink-0 h-11 min-h-[44px] text-muted-foreground">
           Cancel
         </Button>
       </div>
@@ -96,7 +96,7 @@ export default function BhphRecordPayment({
       {/* Primary: Record Payment */}
       <Button
         size="sm"
-        className="w-full bg-[#0D2B55] text-white hover:bg-[#0D2B55]/90"
+        className="w-full h-11 min-h-[44px] bg-[#0D2B55] text-white hover:bg-[#0D2B55]/90"
         onClick={() => setShowForm(true)}
       >
         <CheckCircle className="h-4 w-4 mr-1.5" />
@@ -109,7 +109,7 @@ export default function BhphRecordPayment({
           <Button
             size="sm"
             variant="outline"
-            className="w-full bg-[#EDE8E0] text-[#0D2B55] border-[#DDD8CF] hover:bg-[#DDD8CF]"
+            className="w-full h-11 min-h-[44px] bg-[#EDE8E0] text-[#0D2B55] border-[#DDD8CF] hover:bg-[#DDD8CF]"
           >
             Send Pay Link
           </Button>
@@ -119,7 +119,7 @@ export default function BhphRecordPayment({
       {/* Ghost: Payment History */}
       {customerId && (
         <Link href={`/customers/${customerId}`} className="block w-full">
-          <Button size="sm" variant="ghost" className="w-full text-muted-foreground text-xs">
+          <Button size="sm" variant="ghost" className="w-full h-11 min-h-[44px] text-muted-foreground text-xs">
             <History className="h-3.5 w-3.5 mr-1.5" />
             Payment History
           </Button>

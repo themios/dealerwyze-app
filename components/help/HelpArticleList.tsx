@@ -36,7 +36,7 @@ export default function HelpArticleList({ article, onBack }: HelpArticleListProp
     return text
       .split('\n\n')
       .map((para, idx) => {
-        let formatted = para
+        const formatted = para
           .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
           .replace(/\*(.*?)\*/g, '<em>$1</em>')
           .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" class="text-primary underline">$1</a>')

@@ -122,14 +122,14 @@ export default function VoiceLeadCard({ call, onUpdate }: VoiceLeadCardProps) {
       <div className="flex gap-2 mb-1" onClick={e => e.stopPropagation()}>
         <a
           href={`tel:${call.from_number}`}
-          className="flex-1 inline-flex items-center justify-center gap-1.5 h-10 rounded-lg bg-primary text-primary-foreground text-sm font-medium transition-colors hover:bg-primary/90"
+          className="flex-1 inline-flex items-center justify-center gap-1.5 h-11 min-h-[44px] rounded-lg bg-primary text-primary-foreground text-sm font-medium transition-colors hover:bg-primary/90"
         >
           <Phone className="h-3.5 w-3.5" />
           Call back
         </a>
         <div className="flex justify-end flex-1">
           <button
-            className="h-10 text-xs text-muted-foreground hover:text-foreground px-3 rounded-lg hover:bg-muted transition-colors border border-border"
+            className="h-11 min-h-[44px] text-xs text-muted-foreground hover:text-foreground px-3 rounded-lg hover:bg-muted transition-colors border border-border"
             onClick={handleDismiss}
             disabled={loading !== null}
           >
