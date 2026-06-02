@@ -5,6 +5,7 @@ import {
   runOrgSocialPublish,
 } from '@/lib/social/runOrgSocialPublish'
 import { autoPostContentRender } from '@/lib/content/autoPostContent'
+import { deliverShowingTourVideoEmail } from '@/lib/showings/confirmationVideo'
 
 export interface RemotionRenderWebhookBody {
   type?: string
@@ -29,7 +30,7 @@ export async function applyRemotionRenderWebhook(
   const { data: row } = await supabase
     .from('video_renders')
     .select(
-      'id, org_id, vehicle_id, auto_post, auto_post_platforms, status, output_url',
+      'id, org_id, vehicle_id, auto_post, auto_post_platforms, status, output_url, showing_request_id',
     )
     .eq('lambda_render_id', renderId)
     .maybeSingle()
@@ -90,6 +91,12 @@ export async function applyRemotionRenderWebhook(
         error_message: null,
       })
       .eq('id', row.id)
+
+    if (row.showing_request_id) {
+      void deliverShowingTourVideoEmail(row.showing_request_id, body.outputUrl).catch((err) => {
+        console.error('[applyRenderWebhook] showing tour email failed:', err)
+      })
+    }
 
     if (row.auto_post && Array.isArray(row.auto_post_platforms) && row.auto_post_platforms.length > 0) {
       const { data: vehicle } = await supabase

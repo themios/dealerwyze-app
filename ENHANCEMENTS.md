@@ -4,6 +4,135 @@ Shipped product changes with migration pointers and rationale. See also `docs/en
 
 ---
 
+## 2026-06-02 — Function access control / anon EXECUTE revoke (Sprint 5 Security)
+
+- **Category:** Security
+- **Migration:** `221_revoke_anon_function_execute.sql`
+- **Why:** Supabase advisor flagged SECURITY DEFINER functions executable by anon PostgREST role; internal RPCs should only be reachable via service_role (cron/webhooks/API routes).
+- **What was built:**
+  - `supabase/migrations/221_revoke_anon_function_execute.sql` — explicit `REVOKE EXECUTE FROM anon` on 43 internal functions; catch-all DO block for remaining secdef functions; `increment_vehicle_views` kept public.
+  - `scripts/test-function-access-control.mjs` — anon 401 vs service_role 200 verification.
+  - `docs/SECURITY_FUNCTION_ACCESS_221.md` — audit classification + test report.
+  - **Live verified:** anon blocked on internal RPCs; service_role cron/webhook paths OK; only `increment_vehicle_views` retains anon EXECUTE.
+
+---
+
+## 2026-06-02 — Pilot setup script + admin feedback (Sprint 5 Task 15)
+
+- **Category:** Operations / UX
+- **Migration:** `220_pilot_feedback.sql`
+- **Why:** Days 30–36 pilot needs one-command org seeding, internal agent debrief capture, and a shared E2E validation checklist.
+- **What was built:**
+  - `scripts/setupPilotOrg.ts` — creates RE org + admin profile + 10–20 Repliers listings + 2 demo buyer profiles; prints book URL and credentials.
+  - `npm run pilot:setup` — wrapper for `tsx scripts/setupPilotOrg.ts`.
+  - `app/(app)/admin/pilot-feedback/page.tsx` — admin-only feedback form (not public to agents).
+  - `app/api/admin/pilot-feedback/route.ts` — GET list / POST create; gated by `canAccessAdminArea`; `PILOT_FEEDBACK_OPEN=false` closes submissions.
+  - `supabase/migrations/220_pilot_feedback.sql` — `pilot_feedback` table.
+  - `components/layout/DesktopSidebar.tsx` — Pilot Feedback nav link.
+  - `CURSOR_BRIEF_PHASE2_SPRINT5_VALIDATION.md` — E2E checklist + pilot success criteria.
+
+---
+
+## 2026-06-02 — Public booking page /book/[slug] (Sprint 5 Task 14)
+
+- **Category:** UX / Integrations
+- **Migration:** none (test org slug set via SQL: `themio-realty`)
+- **Why:** Buyers need a public RealtyWyze URL to request showings without visiting a specific listing VDP.
+- **What was built:**
+  - `app/book/[slug]/page.tsx` — org lookup by slug + `vertical='real_estate'`; 404 when missing.
+  - `app/book/[slug]/BookShowingForm.tsx` — buyer form with listing search, validation, RealtyWyze brand styling.
+  - `lib/showings/loadBookPageData.ts` — server loader for org, agent, MLS listings.
+  - `lib/showings/validateBuyerContact.ts` — email/phone validation helpers.
+  - `proxy.ts` — `/book` added to public prefixes (no auth redirect).
+  - **Live verified:** POST `/api/showings/request` → 201; `showing_requests` row created for Task 14 test buyer.
+
+---
+
+## 2026-06-02 — Remotion Lambda render route + showing video (Sprint 5 Task 13)
+
+- **Category:** Integrations / UX
+- **Migration:** `219_showing_confirmation_video.sql`
+- **Why:** Sprint 5 required org-scoped render submission, Remotion webhook completion, and optional property tour video on showing confirmation.
+- **What was built:**
+  - `app/api/content/render/route.ts` — POST accepts ContentReel props or `vehicle_id`/`template_id`; returns `job_id`; GET polls `content_renders` or `video_renders`.
+  - `app/api/webhooks/remotion/route.ts` — HMAC-validated Remotion Lambda webhook (primary path); `render-complete` delegates to same handler.
+  - `lib/remotion/lambdaConfig.ts` — `REMOTION_LAMBDA_AWS_REGION` / `AWS_REGION`, webhook URL builder.
+  - `lib/remotion/handleRemotionWebhook.ts` — shared webhook POST handler.
+  - `lib/showings/confirmationVideo.ts` — `include_video` on showing confirm; webhook sends buyer tour email when render completes.
+  - `lib/social/applyRenderWebhook.ts` — showing-linked video completion + idempotent duplicate webhooks.
+  - `lib/__tests__/applyRenderWebhook.test.ts` — webhook idempotency + showing email hook tests.
+  - **Live verified:** content render → `job_id`; webhook → `status: complete` + `output_url`; duplicate webhook → `duplicateWebhook: true`; bad signature → 401.
+
+---
+
+## 2026-06-02 — Repliers MLS sync + buyer matcher fixes (Sprint 5 Task 12)
+
+- **Category:** Integrations / Reliability
+- **Migration:** none
+- **Why:** MLS sync route only supported Bridge; Repliers sandbox is the active data source. Buyer matcher queried non-existent `profiles.vertical` / `profiles.email` and wrong listing address column.
+- **What was built:**
+  - `lib/mls/repliersClient.ts` — Repliers listings fetch + response normalization.
+  - `lib/mls/normalizedListing.ts` — shared MLS listing shape + status/DOM helpers.
+  - `lib/mls/upsertMlsListing.ts` — shared upsert for manual sync + cron.
+  - `app/api/integrations/mls/sync/route.ts` — prefers Repliers when `REPLIERS_API_KEY` set; Bridge fallback retained.
+  - `lib/cron/jobs/mlsSync.ts` — daily cron uses Repliers when env key present.
+  - `lib/cron/jobs/matchBuyerListings.ts` — org join for RE agents, `address_line1` mapping, agent email via `getAgentContact`.
+  - `lib/matching/matchListing.ts` — city/state location matching; MLS `Residential` ↔ buyer `single_family` compatibility.
+  - `lib/cron/jobs/matchBuyerListings.ts` — explicit `organizations!profiles_org_id_fkey` join; `hoa_monthly` column (not `hoa_amenities`).
+  - `app/api/integrations/mls/sync/route.ts` — idempotency write via service client (RLS-safe).
+  - **Live verified:** Repliers sync → 5 listings; matcher → 20 `matched_opportunities` including Repliers `ACT8714298` (Austin $369k).
+  - `apollo-crm/.env.example` — documented `REPLIERS_API_BASE` and `REPLIERS_IMAGE_BASE`.
+
+---
+
+## 2026-06-02 — Platform RLS policies + rep analytics view security
+
+- **Category:** Security
+- **Migration:** `218_platform_rls_and_view_security.sql`
+- **Why:** Supabase security audit flagged 8 platform tables with RLS enabled but no policies, and 5 rep analytics views running with owner privileges (SECURITY DEFINER behavior).
+- **What was built:**
+  - `supabase/migrations/218_platform_rls_and_view_security.sql` — added `is_platform_superuser()` helper; recreated 5 rep analytics views with `security_invoker = true`; added SELECT (authenticated) + write (superadmin) RLS policies on 7 platform config tables; superuser-only policies on `platform_social_accounts` to protect OAuth tokens.
+  - `supabase/tests/218_platform_rls_and_view_security.test.sql` — post-migration verification queries for view options and policy counts.
+
+---
+
+## 2026-06-02 — Showing email observability + ops inbox routing
+
+- **Category:** Reliability / Operability
+- **Migration:** none
+- **Why:** Showing-agent notifications needed a stable shared mailbox target and CI-friendly verification against the provider event feed.
+- **What was built:**
+  - `lib/showings/notifyAgentShowingRequest.ts` — changed default agent notification recipient from `sysinfo@dealerwyze.com` to `noreply@realtywyze.us` (overridable via `SHOWINGS_AGENT_NOTIFICATION_TO`).
+  - `lib/showings/notifyAgentShowingRequest.ts` — pinned agent notification sender to `RealtyWyze <noreply@realtywyze.us>` and dashboard link host to `realtywyze.us` (or `REALTYWYZE_APP_URL`) to prevent dealer-domain leakage.
+  - `scripts/verify-showing-emails.mjs` — added Resend API verification script for CI/staging to assert agent + buyer showing emails were emitted in a recent time window.
+
+---
+
+## 2026-06-02 — Showing contact lookup helper refactor (Sprint 4 P1)
+
+- **Category:** Reliability / Maintainability
+- **Migration:** none
+- **Why:** Showing routes used duplicated agent contact lookup logic against auth users, increasing drift risk and inconsistent failure handling.
+- **What was built:**
+  - `lib/showings/getAgentContact.ts` — added reusable service-role helper to fetch agent `{ email, phone }` from `auth.users` via admin API, with consistent null/failure logging behavior.
+  - `app/api/showings/request/route.ts` — replaced inline auth lookup with `getAgentContact(...)` for standardized contact retrieval.
+  - `app/api/showings/confirm/route.ts` — integrated `getAgentContact(...)` to provide resilient `reply_to` routing on buyer confirmation email sends.
+  - `lib/showings/notifyAgentShowingRequest.ts` — routed agent notification emails to `sysinfo@dealerwyze.com` (or `SHOWINGS_AGENT_NOTIFICATION_TO`) for stable ops inbox delivery and consistent alert visibility.
+
+---
+
+## 2026-06-02 — RealtyWyze showing workflow hardening (Sprint 4 P0/P1)
+
+- **Category:** Reliability / Integrations
+- **Migration:** none
+- **Why:** Scoped Sprint 3 validation exposed request-path schema drift and missing buyer confirmation email, which blocked end-to-end showing workflow verification.
+- **What was built:**
+  - `app/api/showings/request/route.ts` — removed invalid `profiles.email`/`profiles.phone` dependency and sourced agent contact info via `supabase.auth.admin.getUserById(...)` to fix false `Agent not found` failures.
+  - `app/api/showings/confirm/route.ts` — added buyer confirmation email send path after successful DB state transition (`status=confirmed`), including org-aware sender context and `platform_email_log` metadata.
+  - `lib/showings/notifyAgentShowingRequest.ts` + `app/api/showings/request/route.ts` — added agent notification email metadata logging (`email_type=showing_request_agent`) and richer request details (buyer email + dashboard confirmation link) while keeping best-effort behavior.
+
+---
+
 ## 2026-06-01 — Hardening sprint: admin auth, error sanitization, timeouts, env docs
 
 - **Category:** Security / Reliability

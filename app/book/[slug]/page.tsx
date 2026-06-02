@@ -1,58 +1,73 @@
-import { Suspense } from 'react'
+import { notFound } from 'next/navigation'
+import type { Metadata } from 'next'
 import { createServiceClient } from '@/lib/supabase/service'
-import BookingForm from './BookingForm'
+import { loadBookPageData, normalizeSlugParam } from '@/lib/showings/loadBookPageData'
+import BookShowingForm from './BookShowingForm'
 
-interface Props {
-  params: Promise<{ slug: string }>
-}
+export const revalidate = 60
 
-export default async function BookingPage({ params }: Props) {
+type Props = { params: Promise<{ slug: string }> }
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
   const supabase = createServiceClient()
+  const data = await loadBookPageData(supabase, normalizeSlugParam(slug))
+  if (!data) return { title: 'Not Found' }
 
-  const { data: org } = await supabase
-    .from('organizations')
-    .select('id, vertical')
-    .eq('slug', slug.toLowerCase().trim())
-    .maybeSingle()
+  return {
+    title: `Book a Showing — ${data.org.name} | RealtyWyze`,
+    description: `Schedule a property showing with ${data.agent?.displayName ?? data.org.name}.`,
+    robots: { index: true, follow: true },
+  }
+}
 
-  const { data: settings } = org
-    ? await supabase
-        .from('org_settings')
-        .select('business_name, booking_enabled')
-        .eq('org_id', org.id)
-        .maybeSingle()
-    : { data: null }
+export default async function BookShowingPage({ params }: Props) {
+  const { slug } = await params
+  const supabase = createServiceClient()
+  const data = await loadBookPageData(supabase, normalizeSlugParam(slug))
 
-  const dealerName = settings?.business_name ?? 'Our Dealership'
-  const enabled    = settings?.booking_enabled ?? false
-  const brandName  = org?.vertical === 'real_estate' ? 'RealtyWyze' : 'DealerWyze'
+  if (!data) notFound()
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4 py-8">
-      <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="bg-gray-900 px-6 py-5">
-            <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">{dealerName}</p>
-            <h1 className="text-white text-xl font-bold">Book a Visit</h1>
-            <p className="text-gray-300 text-sm mt-1">Test drives, questions, or just stopping by</p>
+    <div className="min-h-screen bg-[#F8FAFC]">
+      <header className="border-b border-slate-200 bg-[#0D2B55] px-4 py-5 text-white">
+        <div className="mx-auto flex max-w-lg items-center justify-between">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#F07018]">
+              RealtyWyze
+            </p>
+            <h1 className="text-xl font-bold">Book a showing</h1>
           </div>
-
-          {!enabled ? (
-            <div className="p-8 text-center space-y-2">
-              <p className="text-gray-700 font-medium">Online booking is not available right now.</p>
-              <p className="text-sm text-gray-400">Please call or visit us directly.</p>
-            </div>
-          ) : (
-            <Suspense fallback={<div className="p-8 text-center text-gray-400">Loading...</div>}>
-              <BookingForm slug={slug} />
-            </Suspense>
-          )}
+          <p className="hidden text-sm text-slate-300 sm:block">{data.org.name}</p>
         </div>
-        <p className="text-center text-xs text-gray-400 mt-6">
-          Powered by {brandName}
+      </header>
+
+      <main className="mx-auto max-w-lg px-4 py-8">
+        <p className="mb-6 text-[15px] leading-relaxed text-slate-600">
+          Request a private showing with{' '}
+          <strong className="text-[#0D2B55]">
+            {data.agent?.displayName ?? data.org.name}
+          </strong>
+          . Choose a property, pick your preferred times, and we will confirm by email.
         </p>
-      </div>
+
+        <BookShowingForm
+          orgId={data.org.id}
+          orgName={data.org.name}
+          agent={data.agent}
+          listings={data.listings}
+        />
+
+        <p className="mt-8 text-center text-xs text-slate-400">
+          Powered by{' '}
+          <a
+            href="https://realtywyze.us"
+            className="text-[#F07018] hover:underline"
+          >
+            RealtyWyze
+          </a>
+        </p>
+      </main>
     </div>
   )
 }

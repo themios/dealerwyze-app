@@ -118,7 +118,7 @@ async function isImpersonationBlocked(request: NextRequest): Promise<boolean> {
 // isDealerPublicPath() matches /{slug}/inventory/* — safe because no app route uses 'inventory' as segment[1].
 
 const PUBLIC_PATHS    = ['/', '/login', '/signup', '/privacy', '/terms', '/privacy.html', '/terms.html', '/forgot-password', '/reset-password', '/sms-opt-in']
-const PUBLIC_PREFIXES = ['/auth/', '/api/auth/', '/api/stripe/webhook', '/_next/', '/blog', '/lp', '/robots.txt', '/sitemap.xml']
+const PUBLIC_PREFIXES = ['/auth/', '/api/auth/', '/api/stripe/webhook', '/_next/', '/blog', '/lp', '/book', '/robots.txt', '/sitemap.xml']
 const PUBLIC_FILES    = ['/favicon.ico', '/logo.jpg', '/manifest.json']
 const BILLING_EXEMPT  = ['/settings/billing', '/settings/users', '/pending', '/suspended', '/onboarding']
 

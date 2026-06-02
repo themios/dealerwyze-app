@@ -1,10 +1,16 @@
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { renderMediaOnLambda, AwsRegion } from '@remotion/lambda-client'
+import { renderMediaOnLambda } from '@remotion/lambda-client'
 import type { ContentReelProps } from '@/lib/remotion/types'
 import { generateContentNarration } from './generateContentNarration'
 import { getOrgBrandConfig, applyBrandConfig } from './brandConfig'
 import { getRandomBrandPhoto } from './photoLibrary'
+import {
+  getRemotionAwsRegion,
+  getRemotionLambdaFunctionName,
+  getRemotionServeUrl,
+  getRemotionWebhookConfig,
+} from '@/lib/remotion/lambdaConfig'
 
 interface ContentRenderRequest {
   orgId: string
@@ -40,9 +46,10 @@ export async function renderContentReel(
 
   const renderId = render.id
 
-  const lambdaFunctionName = process.env.REMOTION_LAMBDA_FUNCTION_NAME
-  const awsRegion          = (process.env.AWS_REGION ?? 'us-east-1') as AwsRegion
-  const serveUrl           = process.env.REMOTION_SERVE_URL
+  const lambdaFunctionName = getRemotionLambdaFunctionName()
+  const awsRegion          = getRemotionAwsRegion()
+  const serveUrl           = getRemotionServeUrl()
+  const webhook            = getRemotionWebhookConfig()
 
   const backgroundWork = async () => {
     if (!lambdaFunctionName || !serveUrl) {
@@ -85,12 +92,7 @@ export async function renderContentReel(
         framesPerLambda: 120,
         privacy:    'public',
         outName:    `content/${req.orgId}/${renderId}.mp4`,
-        webhook: process.env.NEXT_PUBLIC_APP_URL
-          ? {
-              url:    `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/render-complete`,
-              secret: process.env.RENDER_WEBHOOK_SECRET ?? '',
-            }
-          : undefined,
+        webhook,
       })
 
       await supabase

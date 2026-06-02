@@ -1,35 +1,26 @@
 /**
  * lib/cron/jobs/mlsSync.ts
  *
- * Daily MLS sync cron job for RealtyWyze
- * Runs at 6 AM UTC (before buyer matching at 7 AM)
- * Syncs MLS listings for all agents with configured MLS boards
- *
- * Flow:
- * 1. Fetch all RE org agents with MLS credentials (bridge_api_key, mls_board_id)
- * 2. For each agent: fetch listings from Bridge API
- * 3. Upsert vehicles with idempotency (mls_number + org_id)
- * 4. Preserve user-set fields (showing_count, notes)
- * 5. Append to price_history only on price change
- * 6. Log all results to mls_sync_log
- * 7. Audit log for compliance
+ * Daily MLS sync cron job for RealtyWyze.
+ * Prefers Repliers when REPLIERS_API_KEY is set; falls back to Bridge per-agent credentials.
  */
 
-import { createServiceClient } from '@/lib/supabase/service'
-import { getListings, BridgeListing } from '@/lib/mls/bridgeClient'
+import { getListings, type BridgeListing } from '@/lib/mls/bridgeClient'
+import type { NormalizedMlsListing } from '@/lib/mls/normalizedListing'
+import { getRepliersListings } from '@/lib/mls/repliersClient'
+import { upsertMlsListing } from '@/lib/mls/upsertMlsListing'
 import { writeAuditLog } from '@/lib/audit/log'
 
 interface AgentConfig {
   id: string
   org_id: string
-  mls_board_id?: string
-  bridge_api_key?: string
-  bridge_agent_id?: string
+  mls_board_id?: string | null
+  bridge_api_key?: string | null
+  bridge_agent_id?: string | null
 }
 
-interface PriceHistoryEntry {
-  price: number
-  date: string
+function bridgeToNormalized(listing: BridgeListing): NormalizedMlsListing {
+  return { ...listing, year_built: null }
 }
 
 export async function runMlsSync(supabase: any): Promise<{
@@ -47,8 +38,9 @@ export async function runMlsSync(supabase: any): Promise<{
     errors: [] as string[],
   }
 
+  const useRepliers = Boolean(process.env.REPLIERS_API_KEY)
+
   try {
-    // Fetch all RE agents with MLS configuration (service role reads org context)
     const { data: agents, error: agentsError } = await supabase
       .from('profiles')
       .select(`
@@ -57,11 +49,10 @@ export async function runMlsSync(supabase: any): Promise<{
         mls_board_id,
         bridge_api_key,
         bridge_agent_id,
-        organizations!inner(vertical)
+        organizations!profiles_org_id_fkey!inner(vertical)
       `)
       .eq('organizations.vertical', 'real_estate')
-      .not('mls_board_id', 'is', null)
-      .not('bridge_api_key', 'is', null)
+      .not('org_id', 'is', null)
 
     if (agentsError) {
       const msg = `Failed to fetch agents: ${agentsError.message}`
@@ -70,37 +61,38 @@ export async function runMlsSync(supabase: any): Promise<{
       return result
     }
 
-    if (!agents || agents.length === 0) {
-      console.log('[mls-sync] No RE agents configured with MLS sync')
+    const reAgents = (agents ?? []).filter((a: AgentConfig) => {
+      if (useRepliers) return true
+      return a.mls_board_id && a.bridge_api_key
+    }) as AgentConfig[]
+
+    if (reAgents.length === 0) {
+      console.log('[mls-sync] No RE agents configured for MLS sync')
       return result
     }
 
-    console.log(`[mls-sync] Starting sync for ${agents.length} agents`)
+    console.log(`[mls-sync] Starting sync for ${reAgents.length} agents (${useRepliers ? 'repliers' : 'bridge'})`)
 
-    // Process each agent's listings
-    for (const agent of agents as AgentConfig[]) {
+    for (const agent of reAgents) {
       try {
-        const boardId = agent.mls_board_id
-        const apiKey = agent.bridge_api_key
-        const agentId = agent.bridge_agent_id || agent.id
         const orgId = agent.org_id
+        const boardId = useRepliers ? 'repliers' : agent.mls_board_id!
+        let listings: NormalizedMlsListing[] = []
 
-        if (!boardId || !apiKey) {
-          console.warn(`[mls-sync] Agent ${agent.id} missing boardId or apiKey`)
-          continue
-        }
-
-        console.log(`[mls-sync] Agent ${agent.id} (org ${orgId}): fetching ${boardId}`)
-
-        // Fetch listings from Bridge API
-        let listings: BridgeListing[] = []
         try {
-          listings = await getListings(agentId, boardId, apiKey)
+          if (useRepliers) {
+            listings = await getRepliersListings({ limit: 25 })
+          } else {
+            const bridgeListings = await getListings(
+              agent.bridge_agent_id || agent.id,
+              agent.mls_board_id!,
+              agent.bridge_api_key!
+            )
+            listings = bridgeListings.map(bridgeToNormalized)
+          }
         } catch (fetchErr) {
           const msg = fetchErr instanceof Error ? fetchErr.message : 'Unknown error'
-          result.errors.push(`Bridge API error for agent ${agent.id}: ${msg}`)
-
-          // Log sync failure
+          result.errors.push(`${useRepliers ? 'Repliers' : 'Bridge'} API error for agent ${agent.id}: ${msg}`)
           await supabase.from('mls_sync_log').insert({
             org_id: orgId,
             agent_id: agent.id,
@@ -111,12 +103,10 @@ export async function runMlsSync(supabase: any): Promise<{
             status: 'failed',
             errors: msg,
           })
-
           continue
         }
 
-        if (!listings || listings.length === 0) {
-          console.log(`[mls-sync] Agent ${agent.id}: no listings found`)
+        if (listings.length === 0) {
           await supabase.from('mls_sync_log').insert({
             org_id: orgId,
             agent_id: agent.id,
@@ -129,23 +119,24 @@ export async function runMlsSync(supabase: any): Promise<{
           continue
         }
 
-        // Upsert each listing
         let agentListingsCreated = 0
         let agentListingsUpdated = 0
         const agentErrors: string[] = []
 
         for (const listing of listings) {
           try {
-            await upsertListing(supabase, listing, orgId)
-            agentListingsCreated++
+            const upsertResult = await upsertMlsListing({
+              supabase,
+              listing,
+              orgId,
+              agentId: agent.id,
+              mlsSource: useRepliers ? 'repliers' : 'bridge',
+            })
+            if (upsertResult.action === 'created') agentListingsCreated++
+            else agentListingsUpdated++
           } catch (err) {
-            // Check if it was an update (conflict) or insert error
-            if (err instanceof Error && err.message.includes('conflict')) {
-              agentListingsUpdated++
-            } else {
-              const msg = err instanceof Error ? err.message : 'Unknown error'
-              agentErrors.push(`${listing.mls_number}: ${msg}`)
-            }
+            const msg = err instanceof Error ? err.message : 'Unknown error'
+            agentErrors.push(`${listing.mls_number}: ${msg}`)
           }
         }
 
@@ -154,8 +145,6 @@ export async function runMlsSync(supabase: any): Promise<{
         result.total_listings_created += agentListingsCreated
         result.total_listings_updated += agentListingsUpdated
 
-        // Log sync result for this agent
-        const status = agentErrors.length === 0 ? 'success' : 'partial'
         await supabase.from('mls_sync_log').insert({
           org_id: orgId,
           agent_id: agent.id,
@@ -163,14 +152,9 @@ export async function runMlsSync(supabase: any): Promise<{
           listings_synced: listings.length,
           listings_created: agentListingsCreated,
           listings_updated: agentListingsUpdated,
-          status,
+          status: agentErrors.length === 0 ? 'success' : 'partial',
           errors: agentErrors.length > 0 ? agentErrors.join('; ') : null,
         })
-
-        console.log(
-          `[mls-sync] Agent ${agent.id}: ${listings.length} listings ` +
-          `(${agentListingsCreated} created, ${agentListingsUpdated} updated)`
-        )
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Unknown error'
         result.errors.push(`Error syncing agent ${agent.id}: ${msg}`)
@@ -178,7 +162,6 @@ export async function runMlsSync(supabase: any): Promise<{
       }
     }
 
-    // Audit log for compliance
     try {
       await writeAuditLog({
         orgId: null,
@@ -187,6 +170,7 @@ export async function runMlsSync(supabase: any): Promise<{
         actorId: null,
         entityType: 'listing_batch',
         metadata: {
+          source: useRepliers ? 'repliers' : 'bridge',
           agents_synced: result.agents_synced,
           total_listings: result.total_listings_fetched,
           created: result.total_listings_created,
@@ -197,12 +181,6 @@ export async function runMlsSync(supabase: any): Promise<{
     } catch (auditErr) {
       console.error('[mls-sync] Audit log error:', auditErr)
     }
-
-    console.log(
-      `[mls-sync] Completed: ${result.agents_synced} agents, ` +
-      `${result.total_listings_fetched} listings ` +
-      `(${result.total_listings_created} created, ${result.total_listings_updated} updated)`
-    )
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error'
     result.errors.push(`Unexpected error in MLS sync: ${msg}`)
@@ -210,131 +188,4 @@ export async function runMlsSync(supabase: any): Promise<{
   }
 
   return result
-}
-
-/**
- * Upsert a single listing with idempotency and conflict handling
- * Uses ON CONFLICT to handle concurrent syncs
- * Preserves user-set fields (showing_count, notes)
- */
-async function upsertListing(
-  supabase: any,
-  listing: BridgeListing,
-  orgId: string
-): Promise<void> {
-  // Fetch existing record if present (for price history + field preservation)
-  const { data: existing } = await supabase
-    .from('vehicles')
-    .select('id, price, price_history, showing_count, notes_seller, notes_agent')
-    .eq('mls_number', listing.mls_number)
-    .eq('org_id', orgId)
-    .single()
-
-  const now = new Date().toISOString()
-
-  // Calculate price history: only append if price changed
-  let priceHistory: PriceHistoryEntry[] = []
-  if (existing?.price_history) {
-    priceHistory = Array.isArray(existing.price_history) ? existing.price_history : []
-  }
-
-  if (listing.price && existing?.price !== listing.price) {
-    priceHistory.push({
-      price: listing.price,
-      date: now,
-    })
-  }
-
-  // Build upsert payload
-  const payload = {
-    org_id: orgId,
-    mls_number: listing.mls_number,
-    mls_board_id: listing.listing_office || 'unknown',
-    mls_synced_at: now,
-    mls_source: 'bridge',
-    listing_status: listing.listing_status,
-    dom: calculateDOM(listing.listing_date),
-    price: listing.price,
-    price_history: priceHistory,
-
-    // RE-specific vehicle mapping
-    year: 0,
-    make: 'RE',
-    model: `${listing.address.city} Property`,
-    stock_no: `MLS-${listing.mls_number}-${Date.now()}`,
-    status: listing.listing_status === 'active' ? 'active' : 'inactive',
-
-    // Address
-    address_line1: listing.address.address_line1,
-    city: listing.address.city,
-    state: listing.address.state,
-    zip: listing.address.zip,
-
-    // Property details
-    bedrooms: listing.bedrooms,
-    bathrooms: listing.bathrooms,
-    sqft: listing.sqft,
-    lot_size: listing.lot_size,
-    description: listing.description,
-    property_type: listing.property_type,
-    import_source: 'bridge_mls',
-
-    // Photos (URLs only; actual download is async)
-    photos: listing.photos.map(p => ({ url: p.url, caption: p.caption })),
-  }
-
-  // Preserve user-set fields
-  if (existing) {
-    if (existing.showing_count !== null && existing.showing_count !== undefined) {
-      (payload as any).showing_count = existing.showing_count
-    }
-    if (existing.notes_seller) {
-      (payload as any).notes_seller = existing.notes_seller
-    }
-    if (existing.notes_agent) {
-      (payload as any).notes_agent = existing.notes_agent
-    }
-  }
-
-  // ON CONFLICT: update only MLS-specific fields, preserve other data
-  // This is the safe pattern for multi-tenant upserts
-  const { error } = await supabase
-    .from('vehicles')
-    .upsert(payload, {
-      onConflict: 'mls_number,org_id',
-      ignoreDuplicates: false,
-    })
-
-  if (error) {
-    // Mark as conflict if it's a duplicate key error
-    if (error.code === '23505' || error.message.includes('conflict')) {
-      const err = new Error('Conflict: listing already exists')
-      ;(err as any).isConflict = true
-      throw err
-    }
-    throw new Error(`Upsert failed: ${error.message}`)
-  }
-
-  // Queue async photo download (no-op for now)
-  if (listing.photos.length > 0) {
-    const photoUrls = listing.photos.map(p => p.url)
-    // TODO: Queue to Redis/Bull/Durable Objects for async processing
-    console.log(`[mls-sync] Queued ${photoUrls.length} photos for ${listing.mls_number}`)
-  }
-}
-
-/**
- * Calculate days on market from listing date
- */
-function calculateDOM(listingDateStr: string | null): number | null {
-  if (!listingDateStr) return null
-  try {
-    const listingDate = new Date(listingDateStr)
-    const now = new Date()
-    const diffMs = now.getTime() - listingDate.getTime()
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-    return diffDays >= 0 ? diffDays : null
-  } catch {
-    return null
-  }
 }

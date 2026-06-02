@@ -15,7 +15,7 @@ import {
   LineChart, GitBranch, UserCog, TicketCheck, ScrollText,
   LogOut, Briefcase, Contact, Heart, Inbox,
   Activity, BarChart3, DatabaseBackup, ArchiveRestore,
-  Clapperboard, MessageCircle, SlidersHorizontal, FileSignature,
+  Clapperboard, MessageCircle, MessageSquare, SlidersHorizontal, FileSignature,
   CalendarDays, DollarSign, HousePlus,
 } from 'lucide-react'
 
@@ -123,6 +123,7 @@ interface AdminNavItem {
 
 // Shared platform section (same for both verticals)
 const ADMIN_NAV_PLATFORM: AdminNavItem[] = [
+  { href: '/admin/pilot-feedback',   label: 'Pilot Feedback',   icon: MessageSquare,  area: 'accounts' },
   { href: '/admin/platform-health',  label: 'Platform Health',  icon: Activity,       area: 'alerts' },
   { href: '/admin/feature-adoption', label: 'Feature Adoption', icon: BarChart3,      area: 'analytics' },
   { href: '/admin/data-recovery',    label: 'Data Recovery',    icon: ArchiveRestore, area: 'accounts' },

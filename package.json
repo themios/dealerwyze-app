@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "pilot:setup": "npx tsx scripts/setupPilotOrg.ts",
     "video:all": "bash scripts/render-preview.sh",
     "video:dark": "bash scripts/render-preview.sh ModernDark",
     "video:bright": "bash scripts/render-preview.sh BrightShowcase",

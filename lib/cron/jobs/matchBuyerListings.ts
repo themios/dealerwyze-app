@@ -11,26 +11,27 @@
 
 import { matchesProfile, type BuyerProfile, type Listing } from '@/lib/matching/matchListing'
 import { sendNotificationEmail } from '@/lib/email/notify'
+import { getAgentContact } from '@/lib/showings/getAgentContact'
 import type { createServiceClient } from '@/lib/supabase/service'
 
 interface Agent {
   id: string
   org_id: string
-  email: string
-  full_name: string
+  display_name: string | null
 }
 
 interface VehicleRow {
   id: string
-  address: string
-  city: string
+  address_line1: string | null
+  city: string | null
+  state: string | null
   bedrooms: number | null
   bathrooms: number | null
   price: number | null
   sqft: number | null
   year_built: number | null
   property_type: string | null
-  hoa_amenities: boolean | null
+  hoa_monthly: number | null
   mls_number: string | null
 }
 
@@ -80,8 +81,8 @@ export async function runMatchBuyerListings(
     // Fetch all RE agents with buyer profiles (service role)
     const { data: agents, error: agentsError } = await supabase
       .from('profiles')
-      .select('id, org_id, email, full_name')
-      .eq('vertical', 'real_estate')
+      .select('id, org_id, display_name, organizations!profiles_org_id_fkey!inner(vertical)')
+      .eq('organizations.vertical', 'real_estate')
       .not('org_id', 'is', null)
       .limit(500)
 
@@ -103,9 +104,8 @@ export async function runMatchBuyerListings(
         const { data: listings, error: listingsError } = await supabase
           .from('vehicles')
           .select(
-            'id, address, city, bedrooms, bathrooms, price, sqft, year_built, property_type, hoa_amenities, mls_number'
+            'id, address_line1, city, state, bedrooms, bathrooms, price, sqft, year_built, property_type, hoa_monthly, mls_number'
           )
-          .eq('user_id', agent.id) // agent_id field
           .eq('org_id', agent.org_id)
           .not('mls_number', 'is', null)
           .gte('mls_synced_at', yesterdayISO)
@@ -153,7 +153,22 @@ export async function runMatchBuyerListings(
         for (const profile of profiles as BuyerProfileRow[]) {
           for (const listing of listings as VehicleRow[]) {
             try {
-              const matches = matchesProfile(listing as Listing, profile as BuyerProfile)
+              const listingForMatch: Listing = {
+                id: listing.id,
+                address: listing.address_line1 ?? listing.city ?? 'Unknown',
+                city: listing.city,
+                state: listing.state,
+                bedrooms: listing.bedrooms,
+                bathrooms: listing.bathrooms,
+                price: listing.price,
+                sqft: listing.sqft,
+                year_built: listing.year_built,
+                property_type: listing.property_type,
+                hoa_amenities:
+                  listing.hoa_monthly != null && Number(listing.hoa_monthly) > 0 ? true : null,
+                mls_number: listing.mls_number,
+              }
+              const matches = matchesProfile(listingForMatch, profile as BuyerProfile)
 
               if (matches) {
                 // Insert match (unique constraint prevents duplicates)
@@ -179,7 +194,7 @@ export async function runMatchBuyerListings(
                 matchesCreated++
                 agentMatches.push({
                   buyerName: profile.buyer_name,
-                  listingAddress: listing.address,
+                  listingAddress: listing.address_line1 ?? listing.city ?? 'Unknown',
                   listingPrice: listing.price,
                   bedroomsBathrooms: `${listing.bedrooms || '?'}bd/${listing.bathrooms || '?'}ba`,
                 })
@@ -200,7 +215,12 @@ export async function runMatchBuyerListings(
         // Queue notification email if there are matches
         if (agentMatches.length > 0) {
           try {
-            await queueMatchNotification(supabase, agent, agentMatches)
+            const contact = await getAgentContact(supabase, agent.id)
+            if (contact?.email) {
+              await queueMatchNotification(supabase, agent, contact.email, agentMatches)
+            } else {
+              console.warn(`[matchBuyerListings] No email for agent ${agent.id}; skipping notification`)
+            }
           } catch (err) {
             console.error(`[matchBuyerListings] Failed to queue notification for agent ${agent.id}:`, err)
           }
@@ -232,6 +252,7 @@ export async function runMatchBuyerListings(
 async function queueMatchNotification(
   supabase: ReturnType<typeof createServiceClient>,
   agent: Agent,
+  agentEmail: string,
   matches: Array<{
     buyerName: string
     listingAddress: string
@@ -256,11 +277,11 @@ async function queueMatchNotification(
 
   // Build email HTML
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://realtywyze.us'
-  const html = buildMatchNotificationHtml(agent.full_name, appUrl, matches)
+  const html = buildMatchNotificationHtml(agent.display_name ?? 'Agent', appUrl, matches)
 
   // Send email
   await sendNotificationEmail({
-    to: agent.email,
+    to: agentEmail,
     subject: `You have ${matches.length} new buyer match${matches.length !== 1 ? 'es' : ''}`,
     html,
     org_id: agent.org_id,

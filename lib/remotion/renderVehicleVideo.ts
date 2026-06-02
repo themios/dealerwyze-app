@@ -3,7 +3,13 @@ import { VehicleVideoProps, OrgVideoSettings, VideoTemplate } from './types'
 import { checkRenderQuota } from './quotaCheck'
 import { selectPhotos, selectTemplate, selectVoice } from './selectDefaults'
 import { generateVehicleNarrationWithVoice } from './generateNarration'
-import { renderMediaOnLambda, AwsRegion } from '@remotion/lambda-client'
+import { renderMediaOnLambda } from '@remotion/lambda-client'
+import {
+  getRemotionAwsRegion,
+  getRemotionLambdaFunctionName,
+  getRemotionServeUrl,
+  getRemotionWebhookConfig,
+} from '@/lib/remotion/lambdaConfig'
 
 interface RenderRequest {
   orgId: string
@@ -16,6 +22,8 @@ interface RenderRequest {
   platforms?: string[]
   /** Optional dealer-written narration script. Skips AI script generation when provided. */
   customScript?: string
+  /** When set, webhook emails buyer a tour link after render completes. */
+  showingRequestId?: string
 }
 
 /**
@@ -161,6 +169,7 @@ export async function renderVehicleVideo(supabase: SupabaseClient, req: RenderRe
       auto_post:            req.autoPost ?? false,
       auto_post_platforms:  req.platforms ?? [],
       custom_script:        customScript ?? null,
+      showing_request_id:   req.showingRequestId ?? null,
     })
     .select('id')
     .single()
@@ -171,9 +180,10 @@ export async function renderVehicleVideo(supabase: SupabaseClient, req: RenderRe
 
   const renderId = render.id
 
-  const lambdaFunctionName = process.env.REMOTION_LAMBDA_FUNCTION_NAME
-  const awsRegion = (process.env.AWS_REGION ?? 'us-east-1') as AwsRegion
-  const serveUrl = process.env.REMOTION_SERVE_URL
+  const lambdaFunctionName = getRemotionLambdaFunctionName()
+  const awsRegion = getRemotionAwsRegion()
+  const serveUrl = getRemotionServeUrl()
+  const webhook = getRemotionWebhookConfig()
 
   // Return the renderId immediately — narration and Lambda run async (same invocation lifetime on Vercel).
   const backgroundWork = async () => {
@@ -215,12 +225,7 @@ export async function renderVehicleVideo(supabase: SupabaseClient, req: RenderRe
           framesPerLambda: 120, // ~11 render workers + 1 orchestrator (Lambda limit raised to 1000)
           privacy: 'public',
           outName: `videos/${req.orgId}/${req.vehicleId}/${renderId}.mp4`,
-          webhook: process.env.NEXT_PUBLIC_APP_URL
-            ? {
-                url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/render-complete`,
-                secret: process.env.RENDER_WEBHOOK_SECRET ?? '',
-              }
-            : undefined,
+          webhook,
         })
 
         await supabase

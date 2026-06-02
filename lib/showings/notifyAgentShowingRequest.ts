@@ -12,6 +12,7 @@ interface NotifyAgentParams {
   agentPhone: string | null
   agentEmail: string | null
   buyerName: string
+  buyerEmail: string
   buyerPhone: string | null
   address: string
   showingId: string
@@ -28,6 +29,7 @@ export async function notifyAgentShowingRequest(
     agentPhone,
     agentEmail,
     buyerName,
+    buyerEmail,
     buyerPhone,
     address,
     showingId,
@@ -45,7 +47,8 @@ export async function notifyAgentShowingRequest(
             .join(', ')
         : 'flexible'
 
-    const smsBody = `New showing request from ${buyerName} for ${address}. Times: ${timesList}. Respond at https://dealerwyze.com/showings/${showingId}`
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://realtywyze.us'
+    const smsBody = `New showing request from ${buyerName} for ${address}. Times: ${timesList}. Respond at ${appUrl}/showings/${showingId}`
 
     try {
       await fetch('/api/twilio/send-sms', {
@@ -63,24 +66,33 @@ export async function notifyAgentShowingRequest(
   }
 
   // Email to agent
-  if (agentEmail) {
+  // RealtyWyze ops routing: send showing-request notifications to the shared inbox.
+  // This avoids dependency on per-profile auth email hygiene for critical alerts.
+  const routedAgentEmail = process.env.SHOWINGS_AGENT_NOTIFICATION_TO || 'noreply@realtywyze.us'
+  if (routedAgentEmail || agentEmail) {
+    const appUrl = process.env.REALTYWYZE_APP_URL || 'https://realtywyze.us'
+    const showingLink = `${appUrl.replace(/\/$/, '')}/showings/${showingId}`
     const emailBody = `Hi ${agentName},
 
 You have a new showing request!
 
-**Buyer:** ${buyerName}${buyerPhone ? `\n**Phone:** ${buyerPhone}` : ''}
+**Buyer:** ${buyerName}
+**Email:** ${buyerEmail}${buyerPhone ? `\n**Phone:** ${buyerPhone}` : ''}
 **Property:** ${address}
 **Preferred times:** ${requestedTimes.length > 0 ? requestedTimes.map((t) => new Date(t).toLocaleString()).join(', ') : 'Flexible'}
 
-Respond at: https://dealerwyze.com/showings/${showingId}
+Review and confirm in dashboard: ${showingLink}
 
 Best regards,
 RealtyWyze`
 
     sendNotificationEmail({
-      to: agentEmail,
+      to: routedAgentEmail || agentEmail!,
       subject: `New Showing Request from ${buyerName}`,
       html: emailBody.replace(/\n/g, '<br/>'),
+      org_id: orgId,
+      email_type: 'showing_request_agent',
+      vertical: 'real_estate',
     }).catch((err) => console.error('Failed to send email to agent:', err))
   }
 }

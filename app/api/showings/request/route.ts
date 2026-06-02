@@ -10,6 +10,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { webLeadLimiter } from '@/lib/rateLimit/upstash'
 import { sendNotificationEmail } from '@/lib/email/notify'
 import { notifyAgentShowingRequest } from '@/lib/showings/notifyAgentShowingRequest'
+import { getAgentContact } from '@/lib/showings/getAgentContact'
 
 const MAX_BODY_BYTES = 8192
 
@@ -99,7 +100,7 @@ export async function POST(req: NextRequest) {
 
   const { data: agent } = await supabase
     .from('profiles')
-    .select('id, email, display_name, org_id, phone')
+    .select('id, display_name, org_id')
     .eq('id', listing.listing_agent_id)
     .eq('org_id', org_id)
     .maybeSingle()
@@ -107,6 +108,11 @@ export async function POST(req: NextRequest) {
   if (!agent) {
     return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
   }
+
+  // Agent contact data is sourced from auth.users (profiles does not store email/phone).
+  const agentContact = await getAgentContact(supabase, agent.id)
+  const agentEmail = agentContact?.email ?? null
+  const agentPhone = agentContact?.phone ?? null
 
   const addressParts = [listing.address_line1, listing.city, listing.state, listing.zip].filter(Boolean)
   const address = addressParts.join(', ')
@@ -143,9 +149,10 @@ export async function POST(req: NextRequest) {
     orgId: org_id,
     agentId: agent.id,
     agentName: agent.display_name || 'Agent',
-    agentPhone: agent.phone ?? null,
-    agentEmail: agent.email ?? null,
+    agentPhone,
+    agentEmail,
     buyerName: buyer_name,
+    buyerEmail: buyer_email,
     buyerPhone: buyer_phone ?? null,
     address,
     showingId: showingRequest.id,

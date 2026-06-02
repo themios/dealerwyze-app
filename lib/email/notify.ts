@@ -45,11 +45,13 @@ export async function sendNotificationEmail({
   reply_to?: string
   vertical?: 'dealer' | 'real_estate'
 }): Promise<{ resendId?: string }> {
-  const key = process.env.RESEND_API_KEY
+  const isRealtyWyze = vertical === 'real_estate'
+  const key = isRealtyWyze ? process.env.REALTYWYZE_RESEND_API_KEY : process.env.RESEND_API_KEY
   if (!key) return {}
 
-  const brandName = vertical === 'real_estate' ? 'RealtyWyze' : 'DealerWyze'
-  const fromAddress = from ?? `${brandName} <noreply@${process.env.RESEND_FROM_DOMAIN ?? 'mail.dealerwyze.com'}>`
+  const brandName = isRealtyWyze ? 'RealtyWyze' : 'DealerWyze'
+  const domain = isRealtyWyze ? (process.env.REALTYWYZE_RESEND_FROM_DOMAIN ?? 'realtywyze.us') : (process.env.RESEND_FROM_DOMAIN ?? 'dealerwyze.com')
+  const fromAddress = from ?? `${brandName} <noreply@${domain}>`
   let resendId: string | undefined
   try {
     const body: {

@@ -27,6 +27,8 @@ export interface BuyerProfile {
 export interface Listing {
   id: string;
   address: string;
+  city?: string | null;
+  state?: string | null;
   bedrooms: number | null;
   bathrooms: number | null;
   price: number | null;
@@ -82,21 +84,25 @@ export function matchesProfile(listing: Listing, profile: BuyerProfile): boolean
     if (listing.year_built > profile.year_built_max) return false;
   }
 
-  // Location: forgiving substring match (case-insensitive)
-  if (profile.location !== null && listing.address !== null) {
-    const profileLocation = profile.location.toLowerCase();
-    const listingAddress = listing.address.toLowerCase();
-    if (!listingAddress.includes(profileLocation)) {
+  // Location: match city/state parts (street address alone rarely contains "Austin, TX")
+  if (profile.location !== null) {
+    const parts = profile.location
+      .toLowerCase()
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean);
+    const haystack = [listing.address, listing.city, listing.state]
+      .filter((value): value is string => Boolean(value))
+      .join(' ')
+      .toLowerCase();
+    if (parts.length > 0 && !parts.every((part) => haystack.includes(part))) {
       return false;
     }
   }
 
   // Property Type
   if (profile.property_type !== 'any' && listing.property_type !== null) {
-    // Allow flexible matching: single_family might be listed as 'Single Family' or similar
-    const profileType = profile.property_type.toLowerCase().replace(/_/g, ' ');
-    const listingType = listing.property_type.toLowerCase().replace(/_/g, ' ');
-    if (!listingType.includes(profileType) && profileType !== 'any') {
+    if (!propertyTypesMatch(profile.property_type, listing.property_type)) {
       return false;
     }
   }
@@ -107,4 +113,20 @@ export function matchesProfile(listing: Listing, profile: BuyerProfile): boolean
   }
 
   return true;
+}
+
+function propertyTypesMatch(profileType: string, listingType: string): boolean {
+  const profileNormalized = profileType.toLowerCase().replace(/_/g, ' ').trim();
+  const listingNormalized = listingType.toLowerCase().replace(/_/g, ' ').trim();
+
+  if (listingNormalized.includes(profileNormalized) || profileNormalized.includes(listingNormalized)) {
+    return true;
+  }
+
+  // MLS feeds often use generic "Residential" for single-family inventory.
+  if (listingNormalized === 'residential') {
+    return ['single family', 'townhouse', 'condo', 'multi family', 'duplex'].includes(profileNormalized);
+  }
+
+  return false;
 }
