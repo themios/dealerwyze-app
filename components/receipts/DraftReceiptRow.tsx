@@ -8,8 +8,10 @@ import { formatRelative } from '@/lib/utils/relativeTime'
 interface DraftReceipt {
   id: string
   status: string
+  entry_type?: string
   vendor_norm: string | null
   vendor_raw: string | null
+  payer?: string | null
   total: number | null
   receipt_date: string | null
   created_at: string
@@ -29,7 +31,9 @@ export default function DraftReceiptRow({ r }: { r: DraftReceipt }) {
   const router = useRouter()
   const [deleting, setDeleting] = useState(false)
 
-  const label = r.vendor_norm ?? r.vendor_raw ?? 'Unknown vendor'
+  const label = r.entry_type === 'income'
+    ? (r.payer ?? 'Unknown payer')
+    : (r.vendor_norm ?? r.vendor_raw ?? 'Unknown vendor')
   const dateStr = r.receipt_date
     ? new Date(r.receipt_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     : formatRelative(r.created_at)

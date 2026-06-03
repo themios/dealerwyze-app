@@ -4,6 +4,53 @@ Shipped product changes with migration pointers and rationale. See also `docs/en
 
 ---
 
+## 2026-06-03 — P&L report dashboard (Bookkeeping Phase 3)
+
+- **Category:** UX / Reporting
+- **Migration:** none
+- **Why:** Dealers and agents need income vs expense visibility by month, category, and vehicle with accountant-ready export.
+- **What was built:**
+  - `lib/receipts/buildPlReport.ts` — aggregates ledger + recon costs + vehicle acquisition into P&L buckets.
+  - `GET /api/receipts/pl` — JSON report with date filters.
+  - `GET /api/receipts/pl/export` — multi-section CSV (summary, by month, category, vehicle).
+  - `app/(app)/receipts/pl/page.tsx`, `components/receipts/PlReportClient.tsx` — Profit & Loss UI with export.
+  - `app/(app)/receipts/ledger/page.tsx` — P&L link in ledger top bar.
+  - Gross profit per vehicle: sale/income minus acquisition, recon checklist, and ledger expenses.
+
+---
+
+## 2026-06-03 — Bank CSV import + auto-reconciled status
+
+- **Category:** Integrations
+- **Migration:** none
+- **Why:** Most banks export CSV; statements should close automatically when nothing is left unmatched.
+- **What was built:**
+  - `lib/receipts/parseBankCsv.ts` — parses Date/Description/Amount and Debit/Credit column layouts.
+  - `lib/receipts/persistBankStatement.ts`, `lib/receipts/reconcileStatus.ts` — shared persist + `maybeMarkStatementReconciled()`.
+  - Upload API accepts `csv_text` (no AI) or PDF/image (AI).
+  - `components/receipts/BankStatementUpload.tsx` — split PDF/Image vs Import CSV buttons.
+  - Resolve/create-entry APIs return `reconciled` flag; sets `bank_statements.status = 'reconciled'` when pending lines and ledger-only are both zero.
+  - `lib/__tests__/parseBankCsv.test.ts` — CSV parser tests.
+
+---
+
+## 2026-06-03 — Bank statement reconciliation (Bookkeeping Phase 2)
+
+- **Category:** Integrations / UX
+- **Migration:** `226_bank_reconciliation.sql` (applied)
+- **Why:** Dealers and agents need to match bank activity against the receipt ledger, not only scan individual receipts.
+- **What was built:**
+  - `supabase/migrations/226_bank_reconciliation.sql` — `bank_statements`, `bank_statement_lines`, `ledger_transactions.bank_cleared`.
+  - `lib/receipts/bankStatementVision.ts` — AI extraction of statement header + transaction rows; `autoMatchLines()` by date ±3 days and amount.
+  - `POST /api/receipts/bank-statements/upload` — upload PDF/image, extract, auto-match, persist lines.
+  - `GET /api/receipts/bank-statements/[id]` — matched / bank-only / ledger-only buckets.
+  - `POST /api/receipts/bank-statements/[id]/resolve` — clear, ignore, match, unmatch per line.
+  - `POST /api/receipts/bank-statements/[id]/create-entry` — create ledger entry from unmatched bank line (no image).
+  - `app/(app)/receipts/reconcile/[id]/` — three-bucket reconciliation UI with create-entry dialog.
+  - `components/receipts/BankStatementUpload.tsx`, `BankStatementRow.tsx` — upload + recent statements on `/receipts`.
+
+---
+
 ## 2026-06-02 — Function access control / anon EXECUTE revoke (Sprint 5 Security)
 
 - **Category:** Security

@@ -4,6 +4,8 @@ import { createClientForRequest } from '@/lib/supabase/forRequest'
 import { requireProfile } from '@/lib/auth/profile'
 import TopBar from '@/components/layout/TopBar'
 import CaptureClient from '@/components/receipts/CaptureClient'
+import BankStatementUpload from '@/components/receipts/BankStatementUpload'
+import BankStatementRow from '@/components/receipts/BankStatementRow'
 import PostedReceiptRow from '@/components/receipts/PostedReceiptRow'
 import DraftReceiptRow from '@/components/receipts/DraftReceiptRow'
 import Link from 'next/link'
@@ -14,13 +16,22 @@ export default async function ReceiptsPage() {
   const profile = await requireProfile()
   const supabase = await createClientForRequest()
 
-  const { data: receipts } = await supabase
-    .from('receipts')
-    .select('id, status, vendor_norm, vendor_raw, total, receipt_date, created_at')
-    .eq('user_id', profile.org_id)
-    .in('status', ['draft_ready', 'posted', 'failed'])
-    .order('created_at', { ascending: false })
-    .limit(30)
+  const [{ data: receipts }, { data: bankStatements }] = await Promise.all([
+    supabase
+      .from('receipts')
+      .select('id, status, entry_type, vendor_norm, vendor_raw, payer, total, receipt_date, created_at')
+      .eq('user_id', profile.org_id)
+      .in('status', ['draft_ready', 'posted', 'failed'])
+      .order('created_at', { ascending: false })
+      .limit(30),
+    supabase
+      .from('bank_statements')
+      .select('id, bank_name, account_last4, statement_start, statement_end, status, created_at')
+      .eq('user_id', profile.org_id)
+      .neq('status', 'failed')
+      .order('created_at', { ascending: false })
+      .limit(5),
+  ])
 
   const drafts = (receipts ?? []).filter(r => r.status === 'draft_ready' || r.status === 'failed')
   const recent = (receipts ?? []).filter(r => r.status === 'posted').slice(0, 5)
@@ -40,6 +51,21 @@ export default async function ReceiptsPage() {
       />
 
       <CaptureClient />
+      <BankStatementUpload />
+
+      {/* Bank statements */}
+      {(bankStatements ?? []).length > 0 && (
+        <div className="px-4 mt-4">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+            Bank Reconciliation
+          </p>
+          <div className="divide-y rounded-xl border bg-card overflow-hidden">
+            {(bankStatements ?? []).map(s => (
+              <BankStatementRow key={s.id} s={s} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Drafts needing review */}
       {drafts.length > 0 && (

@@ -38,15 +38,18 @@ export async function GET(req: NextRequest) {
   }
 
   const lines = [
-    'Date,Vendor,Amount,Tax,Category,QB Account,Vehicle,Stock#,Memo,Tags',
+    'Date,Type,Vendor/Payer,Amount,Tax,Category,QB Account,Vehicle,Stock#,Memo,Tags,Bank Cleared',
     ...(rows ?? []).map(r => {
       const raw  = r.receipt_categories
       const cat  = (Array.isArray(raw)  ? raw[0]  : raw)  as { name: string; qb_account_name: string | null } | null
       const vraw = r.vehicles
       const veh  = (Array.isArray(vraw) ? vraw[0] : vraw) as { stock_no: string; year: number; make: string; model: string } | null
+      const isIncome = r.entry_type === 'income'
+      const party = isIncome ? (r.payer ?? '') : (r.vendor_norm ?? '')
       return [
-        (r.date ?? '').slice(0, 10),   // normalise timestamp → YYYY-MM-DD
-        esc(r.vendor_norm ?? ''),
+        (r.date ?? '').slice(0, 10),
+        isIncome ? 'income' : 'expense',
+        esc(party),
         r.amount_total ?? '',
         r.tax ?? '',
         esc(cat?.name ?? ''),
@@ -55,6 +58,7 @@ export async function GET(req: NextRequest) {
         esc(veh?.stock_no ?? ''),
         esc(r.memo ?? ''),
         esc((r.tags ?? []).join('; ')),
+        r.bank_cleared ? 'yes' : 'no',
       ].join(',')
     }),
   ]

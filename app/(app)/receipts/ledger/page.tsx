@@ -6,7 +6,7 @@ import TopBar from '@/components/layout/TopBar'
 import BackButton from '@/components/layout/BackButton'
 import LedgerClient from '@/components/receipts/LedgerClient'
 import Link from 'next/link'
-import { Camera } from 'lucide-react'
+import { Camera, BarChart3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export default async function LedgerPage() {
@@ -59,12 +59,20 @@ export default async function LedgerPage() {
           </div>
         }
         right={
-          <Link href="/receipts">
-            <Button size="sm" variant="ghost" className="text-xs gap-1">
-              <Camera className="h-4 w-4" />
-              Scan
-            </Button>
-          </Link>
+          <div className="flex items-center gap-1">
+            <Link href="/receipts/pl">
+              <Button size="sm" variant="ghost" className="text-xs gap-1">
+                <BarChart3 className="h-4 w-4" />
+                P&amp;L
+              </Button>
+            </Link>
+            <Link href="/receipts">
+              <Button size="sm" variant="ghost" className="text-xs gap-1">
+                <Camera className="h-4 w-4" />
+                Scan
+              </Button>
+            </Link>
+          </div>
         }
       />
       <LedgerClient
