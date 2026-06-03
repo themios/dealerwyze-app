@@ -7,74 +7,95 @@ export type { Confidence, ScanField, LeadScanResult } from './visionIngestTypes'
 
 // ── Prompts ───────────────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `You are a lead data extraction engine for a CRM (auto dealership or real estate brokerage).
+const SYSTEM_PROMPT = `You are a lead data extraction engine for a used-car dealership CRM.
 CRITICAL: Output ONLY a single raw JSON object. No markdown, no code fences, no explanation.`
 
-const USER_PROMPT = `Extract all car buyer lead information from this input.
+// Shared extraction rules used in both image and text prompts
+const SHARED_RULES = `
+BUYER vs DEALER — CRITICAL:
+- The BUYER is the person interested in purchasing a vehicle. Extract ONLY their info.
+- The DEALER is the business receiving the lead. NEVER extract dealer/dealership info as the buyer.
+- DEALER EMAIL: Any email in the "To:", "Reply-To:", or that belongs to the dealership is NOT the buyer's. Return null if no buyer email exists.
+- DEALER ADDRESS: The dealership's city/state/zip is NOT the buyer's location. Return null if only the dealer address is visible.
+- DEALER PHONE: Any number labeled "Dealer phone", "Our number", or clearly the dealership's line is NOT the buyer's.
 
-Each field must have a "value" and "confidence" ("high" | "medium" | "low").
-Use "low" when you are guessing or the text is unclear. Use null for value when not found.
+NON-LEAD EMAILS — return null for ALL contact fields (including email) if the input is:
+- "Shopper Signals" digest emails (subject contains "Shopper Signals")
+- "Daily Digest", "Weekly Summary", "Lead Reminder", aggregate stats emails
+- Any email where the prominent name/account shown is the DEALERSHIP (e.g., "Apollo Auto", "KM Autos") with no individual buyer
+- A platform admin or marketing email to the dealer with no specific buyer name/phone/email
+- If you cannot identify a buyer's name distinct from the dealership name, return all null
 
-Return ONLY this JSON (no extra text):
-{
-  "first_name":    { "value": "string or null", "confidence": "high|medium|low" },
-  "last_name":     { "value": "string or null", "confidence": "high|medium|low" },
-  "phone":         { "value": "string or null", "confidence": "high|medium|low" },
-  "phone2":        { "value": "string or null", "confidence": "high|medium|low" },
-  "email":         { "value": "string or null", "confidence": "high|medium|low" },
-  "city":          { "value": "string or null", "confidence": "high|medium|low" },
-  "state":         { "value": "string or null", "confidence": "high|medium|low" },
-  "zip":           { "value": "string or null", "confidence": "high|medium|low" },
-  "vehicle_year":  { "value": number or null,   "confidence": "high|medium|low" },
-  "vehicle_make":  { "value": "string or null", "confidence": "high|medium|low" },
-  "vehicle_model": { "value": "string or null", "confidence": "high|medium|low" },
-  "vehicle_trim":  { "value": "string or null", "confidence": "high|medium|low" },
-  "vehicle_vin":   { "value": "string or null", "confidence": "high|medium|low" },
-  "budget":        { "value": number or null,   "confidence": "high|medium|low" },
-  "lead_source":   { "value": "string or null", "confidence": "high|medium|low" },
-  "notes":         { "value": "string or null", "confidence": "high|medium|low" },
-  "urgency":       { "value": "high|normal|low or null", "confidence": "high|medium|low" },
-  "trade_in":      { "value": "short description or null", "confidence": "high|medium|low" },
-  "overall_confidence": "high|medium|low"
-}
+MULTI-LEAD SUMMARY EMAILS (e.g., "LeadAI: 3 New Leads", "New leads"):
+- These summary pages show multiple leads in a list/table
+- Extract only the FIRST individual buyer with the most contact info available
+- If no individual buyer contact info is extractable from the summary page, return all null
 
-RULES:
-- lead_source: detect from visual cues (Facebook Marketplace, CarGurus, AutoTrader, Zillow, Realtor.com, Homes.com, iMessage, handwritten form, etc.)
-- urgency: "high" if buyer says "today", "ASAP", "urgent"; "low" if just browsing
-- trade_in: if buyer mentions a trade, describe it briefly ("2018 Honda Civic, ~80k miles")
-- notes: any buyer comments, questions, or additional info not captured in other fields
-- phone: include dashes/parens as printed; if 10 digits with no formatting, add parens
-- For screenshots: read all visible text including sender names, timestamps if helpful
-- budget: extract as integer (e.g. 25000 from "$25,000" or "25k")`
+FACEBOOK / MESSENGER / OFFERUP CONVERSATIONS:
+- The BUYER is the person who sent the first message inquiring about a vehicle
+- The DEALER account name and email shown as sender/recipient is NOT the buyer
+- If only a first name is visible for the buyer (e.g., "Carl"), use it; leave last_name null and email null
 
-const TEXT_LEAD_PROMPT = `You are a universal lead data extractor for a used-car dealership CRM.
-Extract buyer information from ANY text input — regardless of format or completeness.
+EMAIL REPLY CHAINS (Re: subject lines):
+- In a "Re:" email chain, look at the ORIGINAL message at the bottom for buyer contact info
+- The reply-from address (dealer responding) is NOT the buyer's email
+- If the reply is from the dealer and no buyer email appears in the original message, return email as null
 
-INPUT TYPES you may receive (handle all of them):
-- Lead form pastes: CarGurus, AutoTrader, OfferUp, Facebook, KBB, Craigslist, Autolist, Zillow, Realtor.com, Homes.com
-- Text/iMessage/WhatsApp conversations (identify the BUYER, not the dealer)
-- Verbal referrals typed by staff: "my cousin Maria wants a Camry, 714-555-0000"
-- Reply messages: "Is the 2019 Accord still available? — John 818-555-1234"
-- Handwritten notes transcribed: "Jose Reyes cell 626 555 0000 wants SUV under 20k"
-- Email threads, voicemail transcriptions, social media DMs
-- English, Spanish, or mixed language input
-- Incomplete fragments with only a name and number
+RELAY / SYSTEM EMAILS — treat as null:
+- Platform relay addresses: comm+xxx@carsformalemail.com, noreply@cargurus.com, leads@autotrader.com, etc.
+- Any email address that is clearly auto-generated or a system relay (contains "comm+", "+carsfor", "@carsforsale", etc.)
 
-EXTRACTION RULES:
-- Extract ONLY what is explicitly present — do not invent or guess missing info
-- first_name / last_name: split the buyer's full name; if only one word given, put it in first_name
-- phone: digits only, 10 digits, strip country code (+1). Example: "(951) 427-9675" → "9514279675"
-- vehicle_*: the vehicle the buyer is INTERESTED IN BUYING (not their trade-in)
-- trade_in: brief description of vehicle they want to trade ("2018 Civic EX ~80k miles"), or null
-- lead_source: infer from context → "CarGurus" | "AutoTrader" | "OfferUp" | "Facebook" | "KBB" | "Autolist" | "Carsforsale" | "Zillow" | "Realtor.com" | "Homes.com" | "open_house" | "text" | "email" | "referral" | "other"
-- urgency: "high" if buyer says "today", "ASAP", "right now", "urgent"; "low" if just browsing
-- notes: capture buyer's comments, questions, budget hints, special requests — anything not in other fields
-- overall_confidence: "high" = extracted name + (phone or email); "medium" = partial contact info; "low" = mostly guessing
+PLACEHOLDER VALUES — treat as null:
+- "N/A", "Customer did not specify", "Not provided", "Not specified", "Unknown", "—", "None", "n/a" → return null for that field
 
-CONFIDENCE per field: "high" = explicitly stated; "medium" = inferred with reasonable certainty; "low" = uncertain or guessed
+FIELD LABELS — strip them:
+- "First Name: John" → "John"; "Phone: (714) 555-1234" → "7145551234"
+- Never include the label text in the value
 
-Return ONLY this JSON — no markdown, no code fences, no commentary:
-{
+NAME:
+- Split full name into first_name / last_name; one word only → first_name, last_name null
+- Normalize ALL CAPS to Title Case: "ALEX SOLIS" → "Alex" / "Solis"; "gloria ruiz" → "Gloria" / "Ruiz"
+- Strip titles: Mr., Mrs., Dr., etc.
+
+PHONE:
+- 10 digits only, no formatting, no country code. "(323) 548-8594" → "3235488594"
+- Phone leads: the prominent callback number IS the buyer's phone
+
+EMAIL:
+- Extract ONLY a buyer email that is explicitly associated with the buyer in the lead body (e.g., "Email: buyer@gmail.com", or "buyer@gmail.com has inquired about your listing")
+- Do NOT extract emails from: email headers (From:, To:, CC:, Reply-To:), Gmail/Outlook footers, dealer reply signatures, or any address that belongs to the business/dealership
+- If the buyer's first name is null, email must also be null
+- Null if: only header/footer email visible, relay address, noreply, system address, or dealer address
+
+CITY / STATE / ZIP:
+- Buyer's location only, often labeled "Location:" or shown in their profile section
+- Do NOT use the dealership's address
+
+VEHICLE:
+- The car the buyer is inquiring about or wants to BUY
+- Do not confuse with their trade-in
+
+BUDGET:
+- Integer only (25000 from "$25,000" or "25k")
+- Listed vehicle price is valid if buyer is inquiring about it
+- Do NOT use dealer cost, invoice, or vague estimates
+
+LEAD SOURCE — use these exact values:
+- "CarGurus" | "AutoTrader" | "OfferUp" | "Facebook" | "KBB" | "Autolist" | "Carsforsale" | "Zillow" | "Realtor.com" | "Homes.com" | "open_house" | "text" | "email" | "referral" | "other"
+- IMPORTANT: KBB (Kelley Blue Book) leads are often delivered via AutoTrader email infrastructure — if "KBB" or "Kelley Blue Book" appears anywhere in the content or subject, use "KBB" not "AutoTrader"
+- "Autotrader Shopper Lead Reminder" emails are AutoTrader leads even if they say "reminder"
+
+URGENCY:
+- "high" if buyer says "today", "ASAP", "right now", "urgent", or it's a direct phone call lead
+- "low" if browsing or no timeline
+- "normal" otherwise
+
+OVERALL CONFIDENCE:
+- "high" = name + (phone or personal email)
+- "medium" = partial contact info
+- "low" = guessing or not a real buyer lead`
+
+const JSON_SHAPE = `{
   "first_name":    { "value": "string or null", "confidence": "high|medium|low" },
   "last_name":     { "value": "string or null", "confidence": "high|medium|low" },
   "phone":         { "value": "10-digit string or null", "confidence": "high|medium|low" },
@@ -95,6 +116,25 @@ Return ONLY this JSON — no markdown, no code fences, no commentary:
   "trade_in":      { "value": "short description or null", "confidence": "high|medium|low" },
   "overall_confidence": "high|medium|low"
 }`
+
+const USER_PROMPT = `Extract car buyer lead information from this image or screenshot.
+Return ONLY this JSON (no extra text):
+${JSON_SHAPE}
+${SHARED_RULES}`
+
+const TEXT_LEAD_PROMPT = `Extract car buyer lead information from this text input.
+
+INPUT TYPES (handle all):
+- Lead form pastes: CarGurus, AutoTrader, OfferUp, Facebook, KBB, Craigslist, Autolist
+- Email forwards from lead platforms
+- Text/iMessage/WhatsApp conversations
+- Verbal referrals: "my cousin Maria wants a Camry, 714-555-0000"
+- Handwritten notes: "Jose Reyes cell 626 555 0000 wants SUV under 20k"
+- English, Spanish, or mixed language
+
+Return ONLY this JSON — no markdown, no code fences, no commentary:
+${JSON_SHAPE}
+${SHARED_RULES}`
 
 // ── JSON extractor ────────────────────────────────────────────────────────────
 
