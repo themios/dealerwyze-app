@@ -1,6 +1,10 @@
 -- Migration 224: Seed income categories for all existing orgs, split by vertical
 -- DealerWyze (dealer) and RealtyWyze (real_estate) get different income categories.
 -- Uses ON CONFLICT DO NOTHING so safe to re-run.
+--
+-- NOTE: receipt_categories.user_id has a FK to auth.users(id). After migration 038a
+-- organizations.id became a free UUID, so we only seed for orgs whose id still exists
+-- in auth.users (all real signup orgs — the FK was enforced at creation time for them).
 
 -- ── DealerWyze income categories ──────────────────────────────────────────────
 INSERT INTO receipt_categories (user_id, name, category_type, requires_vehicle, is_default, sort_order)
@@ -23,6 +27,7 @@ CROSS JOIN (VALUES
 ) AS c(name, requires_vehicle, sort_order)
 WHERE o.vertical = 'dealer'
   AND o.id != '00000000-0000-0000-0000-000000000001'
+  AND EXISTS (SELECT 1 FROM auth.users u WHERE u.id = o.id)
 ON CONFLICT (user_id, category_type, name) DO NOTHING;
 
 -- ── RealtyWyze income categories ──────────────────────────────────────────────
@@ -43,4 +48,5 @@ CROSS JOIN (VALUES
 ) AS c(name, requires_vehicle, sort_order)
 WHERE o.vertical = 'real_estate'
   AND o.id != '00000000-0000-0000-0000-000000000001'
+  AND EXISTS (SELECT 1 FROM auth.users u WHERE u.id = o.id)
 ON CONFLICT (user_id, category_type, name) DO NOTHING;
