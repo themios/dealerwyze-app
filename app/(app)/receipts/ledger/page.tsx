@@ -20,7 +20,7 @@ export default async function LedgerPage() {
     await Promise.all([
       supabase
         .from('ledger_transactions')
-        .select('id, date, vendor_norm, amount_total, tax, memo, tags, vehicle_id, category_id, receipt_id, created_at')
+        .select('id, date, entry_type, vendor_norm, payer, amount_total, tax, memo, tags, vehicle_id, category_id, receipt_id, created_at')
         .eq('user_id', profile.org_id)
         .eq('status', 'posted')
         .order('date', { ascending: false })

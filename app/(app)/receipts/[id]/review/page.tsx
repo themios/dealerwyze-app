@@ -39,11 +39,14 @@ export default async function ReviewPage({
   const renderNow = new Date()
   const ninetyDaysAgo = new Date(renderNow.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString()
 
+  const entryType = (receipt.entry_type as string | null) === 'income' ? 'income' : 'expense'
+
   const [{ data: categories }, { data: lotVehicles }, { data: soldVehicles }] = await Promise.all([
     supabase
       .from('receipt_categories')
       .select('id, name, requires_vehicle, sort_order')
       .eq('user_id', profile.org_id)
+      .eq('category_type', entryType)
       .order('sort_order'),
     supabase
       .from('vehicles')
@@ -69,7 +72,7 @@ export default async function ReviewPage({
           <div className="flex items-center gap-2">
             <BackButton href="/receipts" />
             <h1 className="text-lg font-semibold">
-              {receipt.status === 'posted' ? 'Posted Receipt' : 'Review Receipt'}
+              {receipt.status === 'posted' ? 'Posted Entry' : entryType === 'income' ? 'Review Income' : 'Review Receipt'}
             </h1>
           </div>
         }

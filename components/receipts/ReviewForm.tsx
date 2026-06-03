@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   CheckCircle, ChevronDown, ChevronUp, AlertTriangle,
-  Loader2, BookmarkCheck, Car, Search, X, ZoomIn, Copy,
+  Loader2, BookmarkCheck, Car, Search, X, ZoomIn, Copy, TrendingUp,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -38,8 +38,13 @@ interface Top3Item {
 
 interface ReceiptData {
   id: string
+  entry_type: 'expense' | 'income'
   vendor_raw: string | null
   vendor_norm: string | null
+  payer: string | null
+  check_number: string | null
+  payment_method: string | null
+  reference_number: string | null
   receipt_date: string | null
   total: number | null
   tax: number | null
@@ -47,7 +52,7 @@ interface ReceiptData {
   location_raw: string | null
   payment_hint: string | null
   ai_json: {
-    top3: Top3Item[]
+    top3?: Top3Item[]
     recommended_category_id: string | null
     requires_vehicle: boolean
     data_quality_flags: string[]
@@ -229,6 +234,7 @@ function VehiclePicker({
 export default function ReviewForm({ receipt, categories, lotVehicles, soldVehicles }: Props) {
   const router = useRouter()
   const ai = receipt.ai_json
+  const isIncome = receipt.entry_type === 'income'
 
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(
     ai?.recommended_category_id ?? categories[0]?.id ?? ''
@@ -245,10 +251,16 @@ export default function ReviewForm({ receipt, categories, lotVehicles, soldVehic
   const [imageExpanded, setImageExpanded] = useState(true)
   const [lightboxOpen, setLightboxOpen] = useState(false)
 
-  // Editable receipt fields
+  // Editable receipt fields (expense)
   const [vendor, setVendor] = useState(receipt.vendor_norm ?? receipt.vendor_raw ?? '')
   const [receiptDate, setReceiptDate] = useState(receipt.receipt_date ?? '')
   const [total, setTotal] = useState(receipt.total != null ? String(receipt.total) : '')
+
+  // Editable income fields
+  const [payer, setPayer] = useState(receipt.payer ?? '')
+  const [checkNumber, setCheckNumber] = useState(receipt.check_number ?? '')
+  const [paymentMethod, setPaymentMethod] = useState(receipt.payment_method ?? '')
+  const [referenceNumber, setReferenceNumber] = useState(receipt.reference_number ?? '')
 
   async function saveField(field: 'vendor_norm' | 'receipt_date' | 'total', value: string) {
     await fetch(`/api/receipts/${receipt.id}`, {
@@ -260,7 +272,7 @@ export default function ReviewForm({ receipt, categories, lotVehicles, soldVehic
 
   const selectedCategory = categories.find(c => c.id === selectedCategoryId)
   const requiresVehicle = selectedCategory?.requires_vehicle ?? false
-  const top3 = ai?.top3 ?? []
+  const top3 = isIncome ? [] : (ai?.top3 ?? [])
   const flags = ai?.data_quality_flags ?? []
   const allVehicles = [...lotVehicles, ...soldVehicles]
   const selectedVehicle = allVehicles.find(v => v.id === vehicleId)
@@ -281,6 +293,12 @@ export default function ReviewForm({ receipt, categories, lotVehicles, soldVehic
           memo: memo.trim() || undefined,
           vehicle_id: vehicleId,
           save_vendor_rule: saveRule,
+          ...(isIncome && {
+            payer: payer.trim() || undefined,
+            payment_method: paymentMethod || undefined,
+            check_number: checkNumber.trim() || undefined,
+            reference_number: referenceNumber.trim() || undefined,
+          }),
         }),
       })
       const data = await res.json()
@@ -393,43 +411,121 @@ export default function ReviewForm({ receipt, categories, lotVehicles, soldVehic
         </>
       )}
 
+      {/* Income badge */}
+      {isIncome && (
+        <div className="flex items-center gap-2 rounded-lg bg-green-50 border border-green-200 dark:bg-green-950/20 dark:border-green-800 px-3 py-2">
+          <TrendingUp className="h-4 w-4 text-green-600 flex-shrink-0" />
+          <p className="text-sm font-medium text-green-700 dark:text-green-400">Income Entry</p>
+        </div>
+      )}
+
       {/* Extracted data — editable */}
       <div className="rounded-xl border bg-card divide-y">
-        <div className="px-4 py-2.5 flex items-center gap-3">
-          <span className="text-sm text-muted-foreground w-14 shrink-0">Vendor</span>
-          <input
-            type="text"
-            value={vendor}
-            onChange={e => setVendor(e.target.value)}
-            onBlur={() => saveField('vendor_norm', vendor)}
-            placeholder="Enter vendor name"
-            className="flex-1 text-sm font-medium bg-transparent outline-none border-b border-transparent focus:border-primary/50 transition-colors placeholder:text-muted-foreground/50 text-right"
-          />
-        </div>
-        <div className="px-4 py-2.5 flex items-center gap-3">
-          <span className="text-sm text-muted-foreground w-14 shrink-0">Date</span>
-          <input
-            type="date"
-            value={receiptDate}
-            onChange={e => setReceiptDate(e.target.value)}
-            onBlur={() => saveField('receipt_date', receiptDate)}
-            className="flex-1 text-sm font-medium bg-transparent outline-none border-b border-transparent focus:border-primary/50 transition-colors text-right"
-          />
-        </div>
-        {receipt.subtotal != null && (
+        {isIncome ? (
+          <>
+            <div className="px-4 py-2.5 flex items-center gap-3">
+              <span className="text-sm text-muted-foreground w-20 shrink-0">From (Payer)</span>
+              <input
+                type="text"
+                value={payer}
+                onChange={e => setPayer(e.target.value)}
+                placeholder="Buyer or customer name"
+                className="flex-1 text-sm font-medium bg-transparent outline-none border-b border-transparent focus:border-primary/50 transition-colors placeholder:text-muted-foreground/50 text-right"
+              />
+            </div>
+            <div className="px-4 py-2.5 flex items-center gap-3">
+              <span className="text-sm text-muted-foreground w-20 shrink-0">Date</span>
+              <input
+                type="date"
+                value={receiptDate}
+                onChange={e => setReceiptDate(e.target.value)}
+                onBlur={() => saveField('receipt_date', receiptDate)}
+                className="flex-1 text-sm font-medium bg-transparent outline-none border-b border-transparent focus:border-primary/50 transition-colors text-right"
+              />
+            </div>
+            <div className="px-4 py-2.5 flex items-center gap-3">
+              <span className="text-sm text-muted-foreground w-20 shrink-0">Method</span>
+              <select
+                value={paymentMethod}
+                onChange={e => setPaymentMethod(e.target.value)}
+                className="flex-1 text-sm font-medium bg-transparent outline-none text-right"
+              >
+                <option value="">— Select —</option>
+                <option value="check">Personal Check</option>
+                <option value="cashiers_check">Cashier&apos;s Check / Money Order</option>
+                <option value="cash">Cash</option>
+                <option value="wire">Wire Transfer</option>
+                <option value="zelle">Zelle</option>
+                <option value="venmo">Venmo</option>
+                <option value="ach">ACH / Direct Deposit</option>
+                <option value="card">Card</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            {(paymentMethod === 'check' || paymentMethod === 'cashiers_check') && (
+              <div className="px-4 py-2.5 flex items-center gap-3">
+                <span className="text-sm text-muted-foreground w-20 shrink-0">Check #</span>
+                <input
+                  type="text"
+                  value={checkNumber}
+                  onChange={e => setCheckNumber(e.target.value)}
+                  placeholder="e.g. 1042"
+                  className="flex-1 text-sm font-medium bg-transparent outline-none border-b border-transparent focus:border-primary/50 transition-colors placeholder:text-muted-foreground/50 text-right font-mono"
+                />
+              </div>
+            )}
+            {(paymentMethod === 'wire' || paymentMethod === 'ach') && (
+              <div className="px-4 py-2.5 flex items-center gap-3">
+                <span className="text-sm text-muted-foreground w-20 shrink-0">Reference #</span>
+                <input
+                  type="text"
+                  value={referenceNumber}
+                  onChange={e => setReferenceNumber(e.target.value)}
+                  placeholder="Wire/ACH reference"
+                  className="flex-1 text-sm font-medium bg-transparent outline-none border-b border-transparent focus:border-primary/50 transition-colors placeholder:text-muted-foreground/50 text-right font-mono"
+                />
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="px-4 py-2.5 flex items-center gap-3">
+            <span className="text-sm text-muted-foreground w-14 shrink-0">Vendor</span>
+            <input
+              type="text"
+              value={vendor}
+              onChange={e => setVendor(e.target.value)}
+              onBlur={() => saveField('vendor_norm', vendor)}
+              placeholder="Enter vendor name"
+              className="flex-1 text-sm font-medium bg-transparent outline-none border-b border-transparent focus:border-primary/50 transition-colors placeholder:text-muted-foreground/50 text-right"
+            />
+          </div>
+        )}
+        {!isIncome && (
+          <div className="px-4 py-2.5 flex items-center gap-3">
+            <span className="text-sm text-muted-foreground w-14 shrink-0">Date</span>
+            <input
+              type="date"
+              value={receiptDate}
+              onChange={e => setReceiptDate(e.target.value)}
+              onBlur={() => saveField('receipt_date', receiptDate)}
+              className="flex-1 text-sm font-medium bg-transparent outline-none border-b border-transparent focus:border-primary/50 transition-colors text-right"
+            />
+          </div>
+        )}
+        {!isIncome && receipt.subtotal != null && (
           <div className="px-4 py-2.5 flex justify-between items-baseline">
             <span className="text-sm text-muted-foreground">Subtotal</span>
             <span className="text-sm">${Number(receipt.subtotal).toFixed(2)}</span>
           </div>
         )}
-        {receipt.tax != null && (
+        {!isIncome && receipt.tax != null && (
           <div className="px-4 py-2.5 flex justify-between items-baseline">
             <span className="text-sm text-muted-foreground">Tax</span>
             <span className="text-sm">${Number(receipt.tax).toFixed(2)}</span>
           </div>
         )}
         <div className="px-4 py-2.5 flex items-center gap-3">
-          <span className="text-sm text-muted-foreground w-14 shrink-0">Total</span>
+          <span className="text-sm text-muted-foreground w-14 shrink-0">{isIncome ? 'Amount' : 'Total'}</span>
           <div className="flex-1 flex items-center justify-end gap-1">
             <span className="text-sm text-muted-foreground">$</span>
             <input
@@ -540,7 +636,7 @@ export default function ReviewForm({ receipt, categories, lotVehicles, soldVehic
               requiresVehicle ? 'text-amber-700 dark:text-amber-400' : 'text-foreground'
             }`}>
               <Car className="h-4 w-4" />
-              Assign to Vehicle
+              {isIncome ? 'Link to Vehicle / Listing' : 'Assign to Vehicle'}
               {requiresVehicle && <span className="text-xs font-normal text-amber-600">(required)</span>}
             </p>
             {!requiresVehicle && (
@@ -589,14 +685,14 @@ export default function ReviewForm({ receipt, categories, lotVehicles, soldVehic
         <Input
           id="memo"
           className="mt-1.5"
-          placeholder="e.g. Brake pads for Stock C-205"
+          placeholder={isIncome ? 'e.g. Sale of 2015 Sonata, Stock C-205' : 'e.g. Brake pads for Stock C-205'}
           value={memo}
           onChange={e => setMemo(e.target.value)}
         />
       </div>
 
-      {/* Save vendor rule */}
-      {receipt.vendor_norm && (
+      {/* Save vendor rule — expense only */}
+      {!isIncome && receipt.vendor_norm && (
         <button
           onClick={() => setSaveRule(s => !s)}
           className={`w-full flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${

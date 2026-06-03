@@ -10,13 +10,14 @@ export async function GET(req: NextRequest) {
   const dateFrom = searchParams.get('date_from')
   const dateTo = searchParams.get('date_to')
   const categoryId = searchParams.get('category_id')
+  const entryType = searchParams.get('entry_type') // 'income' | 'expense' | null (all)
   const search = searchParams.get('search')
 
   let query = supabase
     .from('ledger_transactions')
     .select(`
       *,
-      receipt_categories(name, qb_account_name)
+      receipt_categories(name, qb_account_name, category_type)
     `)
     .eq('user_id', profile.org_id)
     .order('date', { ascending: false })
@@ -25,9 +26,29 @@ export async function GET(req: NextRequest) {
   if (dateFrom) query = query.gte('date', dateFrom)
   if (dateTo) query = query.lte('date', dateTo)
   if (categoryId) query = query.eq('category_id', categoryId)
-  if (search) query = query.ilike('vendor_norm', `%${search}%`)
+  if (entryType === 'income' || entryType === 'expense') query = query.eq('entry_type', entryType)
+  if (search) {
+    // Search across vendor (expense) and payer (income)
+    query = query.or(`vendor_norm.ilike.%${search}%,payer.ilike.%${search}%,memo.ilike.%${search}%`)
+  }
 
   const { data: transactions } = await query
 
-  return NextResponse.json({ transactions: transactions ?? [] })
+  // Compute totals for the filtered result set
+  const totalIncome = (transactions ?? [])
+    .filter(t => t.entry_type === 'income')
+    .reduce((sum, t) => sum + (Number(t.amount_total) || 0), 0)
+
+  const totalExpenses = (transactions ?? [])
+    .filter(t => t.entry_type !== 'income')
+    .reduce((sum, t) => sum + (Number(t.amount_total) || 0), 0)
+
+  return NextResponse.json({
+    transactions: transactions ?? [],
+    totals: {
+      income: totalIncome,
+      expenses: totalExpenses,
+      net: totalIncome - totalExpenses,
+    },
+  })
 }

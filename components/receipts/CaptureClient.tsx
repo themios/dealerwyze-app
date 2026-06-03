@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Camera, Upload, Loader2, X } from 'lucide-react'
+import { Camera, Upload, Loader2, X, TrendingUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 async function resizeImage(
@@ -40,8 +40,10 @@ export default function CaptureClient() {
   const router = useRouter()
   const cameraRef = useRef<HTMLInputElement>(null)
   const uploadRef = useRef<HTMLInputElement>(null)
+  const incomeRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<AbortController | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [uploadingLabel, setUploadingLabel] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   function handleCancel() {
@@ -51,8 +53,9 @@ export default function CaptureClient() {
     setError(null)
   }
 
-  async function handleFile(file: File) {
+  async function handleFile(file: File, entryType: 'expense' | 'income' = 'expense') {
     setUploading(true)
+    setUploadingLabel(entryType === 'income' ? 'Reading payment document…' : 'Reading receipt…')
     setError(null)
     const ctrl = new AbortController()
     abortRef.current = ctrl
@@ -65,6 +68,7 @@ export default function CaptureClient() {
           image_base64: base64,
           mime_type: mimeType,
           filename: file.name,
+          entry_type: entryType,
         }),
         signal: ctrl.signal,
       })
@@ -89,7 +93,7 @@ export default function CaptureClient() {
         className="hidden"
         onChange={e => {
           const f = e.target.files?.[0]
-          if (f) handleFile(f)
+          if (f) handleFile(f, 'expense')
           e.target.value = ''
         }}
       />
@@ -100,7 +104,18 @@ export default function CaptureClient() {
         className="hidden"
         onChange={e => {
           const f = e.target.files?.[0]
-          if (f) handleFile(f)
+          if (f) handleFile(f, 'expense')
+          e.target.value = ''
+        }}
+      />
+      <input
+        ref={incomeRef}
+        type="file"
+        accept="image/*,application/pdf"
+        className="hidden"
+        onChange={e => {
+          const f = e.target.files?.[0]
+          if (f) handleFile(f, 'income')
           e.target.value = ''
         }}
       />
@@ -109,8 +124,8 @@ export default function CaptureClient() {
         <div className="flex items-center gap-3 rounded-xl bg-primary/10 border border-primary/20 p-4">
           <Loader2 className="h-5 w-5 animate-spin text-primary flex-shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-primary">Reading receipt…</p>
-            <p className="text-xs text-muted-foreground">AI is extracting and classifying</p>
+            <p className="text-sm font-semibold text-primary">{uploadingLabel}</p>
+            <p className="text-xs text-muted-foreground">AI is extracting details</p>
           </div>
           <Button
             size="sm"
@@ -123,23 +138,37 @@ export default function CaptureClient() {
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3">
-          <Button
-            size="lg"
-            className="h-16 flex-col gap-1.5 text-sm bg-[#F07018] hover:bg-[#d95e10] text-white"
-            onClick={() => cameraRef.current?.click()}
-          >
-            <Camera className="h-6 w-6" />
-            Snap Receipt
-          </Button>
+        <div className="space-y-2">
+          {/* Expense row */}
+          <div className="grid grid-cols-2 gap-3">
+            <Button
+              size="lg"
+              className="h-16 flex-col gap-1.5 text-sm bg-[#F07018] hover:bg-[#d95e10] text-white"
+              onClick={() => cameraRef.current?.click()}
+            >
+              <Camera className="h-6 w-6" />
+              Snap Receipt
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              className="h-16 flex-col gap-1.5 text-sm"
+              onClick={() => uploadRef.current?.click()}
+            >
+              <Upload className="h-5 w-5" />
+              Upload File
+            </Button>
+          </div>
+
+          {/* Income button */}
           <Button
             size="lg"
             variant="outline"
-            className="h-16 flex-col gap-1.5 text-sm"
-            onClick={() => uploadRef.current?.click()}
+            className="w-full h-14 flex items-center justify-center gap-2 text-sm border-green-300 text-green-700 hover:bg-green-50 dark:border-green-700 dark:text-green-400 dark:hover:bg-green-950/20"
+            onClick={() => incomeRef.current?.click()}
           >
-            <Upload className="h-5 w-5" />
-            Upload File
+            <TrendingUp className="h-5 w-5" />
+            Add Income (check, wire, Zelle…)
           </Button>
         </div>
       )}

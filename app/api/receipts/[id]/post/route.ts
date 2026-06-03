@@ -16,6 +16,11 @@ export async function POST(
     vehicle_id?: string | null
     tags?: string[]
     save_vendor_rule?: boolean
+    // Income-specific overrides (user may correct AI extraction in review)
+    payer?: string | null
+    payment_method?: string | null
+    check_number?: string | null
+    reference_number?: string | null
   }
 
   if (!body.category_id) {
@@ -35,6 +40,17 @@ export async function POST(
   }
 
   const txDate = receipt.receipt_date ?? new Date().toISOString().slice(0, 10)
+  const isIncome = receipt.entry_type === 'income'
+
+  // If user corrected income fields in review, persist them back to the receipt
+  if (isIncome) {
+    await supabase.from('receipts').update({
+      payer: body.payer ?? receipt.payer,
+      payment_method: body.payment_method ?? receipt.payment_method,
+      check_number: body.check_number ?? receipt.check_number,
+      reference_number: body.reference_number ?? receipt.reference_number,
+    }).eq('id', id)
+  }
 
   const { data: transaction, error: txErr } = await supabase
     .from('ledger_transactions')
@@ -42,9 +58,14 @@ export async function POST(
       user_id: profile.org_id,
       receipt_id: id,
       date: txDate,
-      vendor_norm: receipt.vendor_norm ?? receipt.vendor_raw,
+      entry_type: isIncome ? 'income' : 'expense',
+      // Expense fields
+      vendor_norm: isIncome ? null : (receipt.vendor_norm ?? receipt.vendor_raw),
+      tax: isIncome ? null : receipt.tax,
+      // Income fields
+      payer: isIncome ? (body.payer ?? receipt.payer) : null,
+      // Shared
       amount_total: receipt.total,
-      tax: receipt.tax,
       category_id: body.category_id,
       memo: body.memo ?? null,
       vehicle_id: body.vehicle_id ?? null,
@@ -61,11 +82,10 @@ export async function POST(
     )
   }
 
-  // Mark receipt as posted
   await supabase.from('receipts').update({ status: 'posted' }).eq('id', id)
 
-  // Optionally save vendor rule for future auto-classification
-  if (body.save_vendor_rule && receipt.vendor_norm) {
+  // Save vendor rule for expense entries only
+  if (!isIncome && body.save_vendor_rule && receipt.vendor_norm) {
     await supabase.from('vendor_rules').upsert(
       {
         user_id: profile.org_id,

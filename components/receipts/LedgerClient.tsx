@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import { useState, useMemo } from 'react'
 import { toast } from 'sonner'
-import { Download, Search, X, Car, Pencil, Check, Loader2, Trash2, ArrowUpDown, Receipt, ExternalLink } from 'lucide-react'
+import { Download, Search, X, Car, Pencil, Check, Loader2, Trash2, ArrowUpDown, Receipt, ExternalLink, TrendingUp, TrendingDown } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -28,7 +28,9 @@ interface Vehicle {
 interface Transaction {
   id: string
   date: string
+  entry_type: 'expense' | 'income'
   vendor_norm: string | null
+  payer: string | null
   amount_total: number | null
   tax: number | null
   memo: string | null
@@ -37,7 +39,7 @@ interface Transaction {
   category_id: string | null
   receipt_id: string | null
   created_at: string
-  receipt_categories?: { name: string }[] | { name: string } | null
+  receipt_categories?: { name: string; category_type?: string }[] | { name: string; category_type?: string } | null
   vehicles?: VehicleJoin[] | VehicleJoin | null
 }
 
@@ -364,6 +366,7 @@ export default function LedgerClient({
   const [transactions, setTransactions] = useState(initial)
   const [search, setSearch] = useState('')
   const [filterCat, setFilterCat] = useState('')
+  const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [editing, setEditing] = useState<Transaction | null>(null)
@@ -383,13 +386,14 @@ export default function LedgerClient({
 
   const filtered = useMemo(() => {
     const result = transactions.filter(t => {
-      const vendor = (t.vendor_norm ?? '').toLowerCase()
+      const vendor = (t.vendor_norm ?? t.payer ?? '').toLowerCase()
       const memo = (t.memo ?? '').toLowerCase()
       const veh = getVehicle(t, allVehicles)
       const vehText = veh ? `${veh.year} ${veh.make} ${veh.model} ${veh.stock_no}`.toLowerCase() : ''
       const q = search.toLowerCase()
 
       if (search && !vendor.includes(q) && !memo.includes(q) && !vehText.includes(q)) return false
+      if (filterType !== 'all' && (t.entry_type ?? 'expense') !== filterType) return false
       if (filterCat && getCatName(t, categories) !== filterCat) return false
       const txDate = (t.date ?? '').slice(0, 10)
       if (filterMonth && !txDate.startsWith(filterMonth)) return false
@@ -412,8 +416,10 @@ export default function LedgerClient({
     return result
   }, [transactions, search, filterCat, filterMonth, dateFrom, dateTo, sortBy, categories, allVehicles])
 
-  const totalAmount = filtered.reduce((sum, t) => sum + (t.amount_total ?? 0), 0)
-  const hasFilters = search || filterCat || dateFrom || dateTo || filterMonth
+  const totalIncome = filtered.filter(t => t.entry_type === 'income').reduce((sum, t) => sum + (t.amount_total ?? 0), 0)
+  const totalExpenses = filtered.filter(t => t.entry_type !== 'income').reduce((sum, t) => sum + (t.amount_total ?? 0), 0)
+  const netAmount = totalIncome - totalExpenses
+  const hasFilters = search || filterCat || dateFrom || dateTo || filterMonth || filterType !== 'all'
 
   function handleSaved(updated: Transaction) {
     setTransactions(prev => prev.map(t => t.id === updated.id ? { ...t, ...updated } : t))
@@ -455,6 +461,25 @@ export default function LedgerClient({
             <X className="h-4 w-4 text-muted-foreground" />
           </button>
         )}
+      </div>
+
+      {/* Income / Expense / All tabs */}
+      <div className="grid grid-cols-3 gap-1 bg-muted rounded-lg p-1">
+        {(['all', 'income', 'expense'] as const).map(type => (
+          <button
+            key={type}
+            onClick={() => { setFilterType(type); setFilterCat('') }}
+            className={`flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              filterType === type
+                ? 'bg-background shadow-sm text-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {type === 'income' && <TrendingUp className="h-3 w-3 text-green-500" />}
+            {type === 'expense' && <TrendingDown className="h-3 w-3 text-red-400" />}
+            {type === 'all' ? 'All' : type.charAt(0).toUpperCase() + type.slice(1)}
+          </button>
+        ))}
       </div>
 
       {/* Month + Sort row */}
@@ -520,20 +545,38 @@ export default function LedgerClient({
       )}
 
       {/* Summary bar */}
-      <div className="flex items-center justify-between py-2 border-b">
-        <div>
-          <span className="text-sm font-semibold">{filtered.length} transactions</span>
+      <div className="rounded-xl border bg-card px-4 py-3 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">{filtered.length} entries</span>
           {hasFilters && (
             <button
-              onClick={() => { setSearch(''); setFilterCat(''); setDateFrom(''); setDateTo(''); setFilterMonth('') }}
-              className="ml-2 text-xs text-primary"
+              onClick={() => { setSearch(''); setFilterCat(''); setDateFrom(''); setDateTo(''); setFilterMonth(''); setFilterType('all') }}
+              className="text-xs text-primary"
             >
-              Clear
+              Clear filters
             </button>
           )}
         </div>
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div>
+            <p className="text-xs text-muted-foreground">Income</p>
+            <p className="text-sm font-bold text-green-600">+${totalIncome.toFixed(2)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Expenses</p>
+            <p className="text-sm font-bold text-red-500">-${totalExpenses.toFixed(2)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Net</p>
+            <p className={`text-sm font-bold ${netAmount >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+              {netAmount >= 0 ? '+' : ''}{netAmount.toFixed(2)}
+            </p>
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center justify-between py-1">
+        <div />
         <div className="flex items-center gap-2">
-          <span className="text-sm font-bold">${totalAmount.toFixed(2)}</span>
           <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={exportCsv}>
             <Download className="h-3 w-3" />
             CSV
@@ -547,7 +590,7 @@ export default function LedgerClient({
           {transactions.length === 0 ? (
             <>
               <p className="text-sm font-medium">No ledger entries yet</p>
-              <p className="text-xs mt-1">Post receipts from the Receipts tab to see expenses here.</p>
+              <p className="text-xs mt-1">Post receipts and income documents to see them here.</p>
             </>
           ) : (
             <p className="text-sm">No transactions match your filters</p>
@@ -557,12 +600,16 @@ export default function LedgerClient({
         <div className="divide-y rounded-xl border bg-card overflow-hidden">
           {filtered.map(t => {
             const veh = getVehicle(t, allVehicles)
+            const isIncome = t.entry_type === 'income'
             return (
-              <div key={t.id} className="flex items-start gap-3 px-4 py-3">
+              <div key={t.id} className={`flex items-start gap-3 px-4 py-3 ${isIncome ? 'bg-green-50/30 dark:bg-green-950/10' : ''}`}>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">
-                    {t.vendor_norm ?? 'Unknown vendor'}
-                  </p>
+                  <div className="flex items-center gap-1.5">
+                    {isIncome && <TrendingUp className="h-3.5 w-3.5 text-green-500 flex-shrink-0" />}
+                    <p className="text-sm font-medium truncate">
+                      {isIncome ? (t.payer ?? 'Unknown payer') : (t.vendor_norm ?? 'Unknown vendor')}
+                    </p>
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     {getCatName(t, categories)}{t.memo ? ` · ${t.memo}` : ''}
                   </p>
@@ -575,8 +622,8 @@ export default function LedgerClient({
                 </div>
                 <div className="flex items-start gap-2 flex-shrink-0">
                   <div className="text-right" suppressHydrationWarning>
-                    <p className="text-sm font-semibold">
-                      {t.amount_total != null ? `$${Number(t.amount_total).toFixed(2)}` : '—'}
+                    <p className={`text-sm font-semibold ${isIncome ? 'text-green-600' : ''}`}>
+                      {isIncome ? '+' : ''}{t.amount_total != null ? `$${Number(t.amount_total).toFixed(2)}` : '—'}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {new Date(t.date + 'T12:00:00').toLocaleDateString('en-US', {
