@@ -49,6 +49,14 @@ export async function processGmailHistory(
   const supabase = createServiceClient()
   const auth = buildOAuthClient(refreshToken)
   const gmail = google.gmail({ version: 'v1', auth })
+  
+  const { data: org } = await supabase
+    .from('organizations')
+    .select('vertical')
+    .eq('id', orgId)
+    .maybeSingle()
+  const vertical = org?.vertical ?? 'dealer'
+  
   const { data: settings } = await supabase
     .from('org_settings')
     .select('lead_source_email_matchers')
@@ -239,16 +247,21 @@ export async function processGmailHistory(
         leads++
       }
     } else {
-      // Try specialized RealtyWyze parsers first
-      let parsedLead = parseZillowLead(subject, body, fromEmail)
-      if (!parsedLead) {
-        parsedLead = parseRealtorComLead(subject, body, fromEmail)
-      }
-      if (!parsedLead) {
-        parsedLead = parseBoomtownLead(subject, body, fromEmail)
-      }
-      // Fall back to generic parser
-      if (!parsedLead) {
+      // Route to vertical-specific parsers — verticals do NOT interact
+      let parsedLead: ReturnType<typeof parseAnyLead> = null
+      
+      if (vertical === 'real_estate') {
+        // RealtyWyze only: Zillow, Realtor.com, Boomtown
+        parsedLead = parseZillowLead(subject, body, fromEmail)
+        if (!parsedLead) {
+          parsedLead = parseRealtorComLead(subject, body, fromEmail)
+        }
+        if (!parsedLead) {
+          parsedLead = parseBoomtownLead(subject, body, fromEmail)
+        }
+        // RealtyWyze: NO fallback to parseAnyLead (dealer sources)
+      } else {
+        // DealerWyze only: CarGurus, AutoTrader, KBB, Autolist, Carsforsale, OfferUp, Facebook
         parsedLead = parseAnyLead(subject, body, fromEmail)
       }
 

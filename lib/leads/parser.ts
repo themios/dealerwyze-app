@@ -85,6 +85,28 @@ export function parseCarGurusLead(subject: string, textBody: string): ParsedLead
   const lastName = field(textBody, 'Last Name')
   if (!firstName) return null
 
+  const comments = extractComments(textBody)
+  const commentParts: string[] = [comments]
+
+  // Extract Shopper Insights for richer contact info
+  const likelihood = field(textBody, 'Likelihood to buy')
+  const timeInMarket = field(textBody, 'Estimated Time in Market')
+  const priceRange = field(textBody, 'Price Range')
+  const preferredColors = field(textBody, 'Preferred Colors')
+  const maxMileage = field(textBody, 'Max Mileage')
+
+  if (likelihood || timeInMarket || priceRange || preferredColors || maxMileage) {
+    const insights: string[] = []
+    if (likelihood) insights.push(`Likelihood: ${likelihood}`)
+    if (timeInMarket) insights.push(`Time in market: ${timeInMarket}`)
+    if (priceRange) insights.push(`Budget: ${priceRange}`)
+    if (preferredColors) insights.push(`Colors: ${preferredColors}`)
+    if (maxMileage) insights.push(`Max mileage: ${maxMileage}`)
+    if (insights.length > 0) {
+      commentParts.push(`Shopper Insights: ${insights.join(' | ')}`)
+    }
+  }
+
   return {
     name: `${firstName} ${lastName}`.trim(),
     email: emailField(textBody, 'Email'),
@@ -93,7 +115,7 @@ export function parseCarGurusLead(subject: string, textBody: string): ParsedLead
     vehicle: field(textBody, 'Vehicle'),
     vin: field(textBody, 'VIN'),
     listed_price: parsePrice(field(textBody, 'Listed Price')),
-    comments: extractComments(textBody),
+    comments: commentParts.filter(Boolean).join('\n\n'),
     source: 'cargurus',
     raw_text: textBody,
   }
