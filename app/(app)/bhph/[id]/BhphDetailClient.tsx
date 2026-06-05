@@ -44,6 +44,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { PaymentMobileCard } from '@/components/bhph/PaymentMobileCard'
+import { AlwaysVisibleActionButton } from '@/components/shared/AlwaysVisibleActionButton'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 
 // ── Types ──────────────────────────────────────────────────────
@@ -1234,9 +1235,9 @@ export default function BhphDetailClient({
                     )}
                   </div>
 
-                  <button type="button" className="min-h-[44px] min-w-[44px] p-2.5 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                  <AlwaysVisibleActionButton aria-label="Schedule payment">
                     <MoreVertical className="h-4 w-4" />
-                  </button>
+                  </AlwaysVisibleActionButton>
                 </div>
               ))}
             </div>
