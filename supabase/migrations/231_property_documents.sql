@@ -4,7 +4,7 @@
 create table property_documents (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references organizations(id) on delete cascade,
-  property_id uuid references listings(id) on delete set null,
+  property_id uuid references properties(id) on delete set null,
   file_path text not null,
   file_name text not null,
   mime_type text,

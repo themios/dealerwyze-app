@@ -4,7 +4,7 @@
 create table property_pricing_analysis (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references organizations(id) on delete cascade,
-  listing_id uuid references listings(id) on delete set null,
+  property_id uuid references properties(id) on delete set null,
   analysis_json jsonb not null,
   aggressive_price numeric,
   suggested_price numeric,
@@ -16,7 +16,7 @@ create table property_pricing_analysis (
 
 -- Indexes
 create index idx_property_pricing_analysis_org_id on property_pricing_analysis(org_id);
-create index idx_property_pricing_analysis_listing_id on property_pricing_analysis(listing_id);
+create index idx_property_pricing_analysis_property_id on property_pricing_analysis(property_id);
 create index idx_property_pricing_analysis_created_at on property_pricing_analysis(created_at desc);
 
 -- RLS: Users can only see analyses from their org
