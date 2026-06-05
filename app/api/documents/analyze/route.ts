@@ -120,10 +120,11 @@ export async function POST(req: NextRequest) {
       .insert({
         property_id: propertyId,
         org_id: profile.org_id,
-        filename,
+        file_name: filename,
         mime_type: mimeType,
-        storage_key: storageKey,
+        file_path: storageKey,
         summary: summary ?? null,
+        uploaded_by: profile.id,
       })
       .select('*')
       .single()

@@ -17,9 +17,7 @@ export async function summarizePropertyDoc(
   if (!process.env.OPENROUTER_API_KEY) return null
 
   const SUPPORTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
-  const isPdf   = mimeType === 'application/pdf'
-  const isImage = SUPPORTED_IMAGE_TYPES.has(mimeType)
-  if (!isImage && !isPdf) return null
+  if (!SUPPORTED_IMAGE_TYPES.has(mimeType)) return null
 
   try {
     const storage = createServiceClient()
@@ -83,9 +81,7 @@ export async function analyzePropertyDoc(
   if (!process.env.OPENROUTER_API_KEY) return null
 
   const SUPPORTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
-  const isPdf   = mimeType === 'application/pdf'
-  const isImage = SUPPORTED_IMAGE_TYPES.has(mimeType)
-  if (!isImage && !isPdf) return null
+  if (!SUPPORTED_IMAGE_TYPES.has(mimeType)) return null
 
   try {
     const storage = createServiceClient()

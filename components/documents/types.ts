@@ -5,18 +5,19 @@
 
 export interface PropertyDocument {
   id: string
-  property_id: string
+  property_id: string | null
   org_id: string
-  filename: string
+  file_name: string
+  file_path: string
   mime_type: string
-  storage_key: string
   summary: string | null
+  uploaded_by: string | null
   created_at: string
   updated_at: string
 }
 
 export interface DocumentSummaryResult {
-  filename: string
+  file_name: string
   summary: string | null
   error?: string | null
 }
@@ -25,7 +26,6 @@ export const SUPPORTED_DOCUMENT_TYPES = new Set([
   'image/jpeg',
   'image/png',
   'image/webp',
-  'application/pdf',
 ])
 
 export const MAX_DOCUMENT_SIZE = 5 * 1024 * 1024 // 5MB
