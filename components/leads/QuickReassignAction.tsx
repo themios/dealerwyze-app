@@ -49,7 +49,8 @@ function UserInitial({ name }: { name: string }) {
 /**
  * Quick reassign action that adapts to viewport:
  * - Mobile (<768px): Bottom sheet with list
- * - Desktop (≥768px): Dropdown menu
+ * - Tablet (768px–1023px): Side sheet (right) with list
+ * - Desktop (≥1024px): Dropdown menu
  *
  * Reduces clicks from modal → picker → save (4 clicks) to sheet/dropdown tap (2 clicks).
  */
@@ -61,6 +62,7 @@ export function QuickReassignAction({
   trigger,
 }: Props) {
   const isMobile = useMediaQuery('(max-width: 767px)')
+  const isTablet = useMediaQuery('(min-width: 768px) and (max-width: 1023px)')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [reassigning, setReassigning] = useState(false)
@@ -87,7 +89,7 @@ export function QuickReassignAction({
     </Button>
   )
 
-  if (isMobile) {
+  if (isMobile || isTablet) {
     return (
       <>
         <div onClick={() => setSheetOpen(true)}>
@@ -95,7 +97,10 @@ export function QuickReassignAction({
         </div>
 
         <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-          <SheetContent side="bottom" className="max-h-[60vh] rounded-t-lg">
+          <SheetContent
+            side={isMobile ? 'bottom' : 'right'}
+            className={isMobile ? 'max-h-[60vh] rounded-t-lg' : 'max-w-sm'}
+          >
             <SheetHeader>
               <SheetTitle>Reassign lead</SheetTitle>
               <SheetDescription>
@@ -103,7 +108,7 @@ export function QuickReassignAction({
               </SheetDescription>
             </SheetHeader>
 
-            <div className="mt-4 space-y-2">
+            <div className={isMobile ? 'mt-4 space-y-2' : 'mt-6 space-y-2 pr-4'}>
               {availableUsers.map(user => (
                 <button
                   key={user.id}
