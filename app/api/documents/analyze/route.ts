@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
-import { summarizePropertyDoc } from '@/lib/documents/summarizePropertyDoc'
 import { SUPPORTED_DOCUMENT_TYPES, MAX_DOCUMENT_SIZE } from '@/components/documents/types'
 
 export const maxDuration = 60
@@ -111,10 +110,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Analyze document with Claude vision (returns null on failure)
-    const summary = await summarizePropertyDoc(storageKey, 'property-documents', mimeType)
-
-    // Create document record
+    // Create document record (no AI analysis, just storage)
     const { data: document, error: insertErr } = await supabase
       .from('property_documents')
       .insert({
@@ -123,7 +119,6 @@ export async function POST(req: NextRequest) {
         file_name: filename,
         mime_type: mimeType,
         file_path: storageKey,
-        summary: summary ?? null,
         uploaded_by: profile.id,
       })
       .select('*')
