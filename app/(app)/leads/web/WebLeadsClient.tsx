@@ -220,7 +220,7 @@ function LeadCard({
               <button
                 onClick={importLead}
                 disabled={busy}
-                className="w-full sm:w-auto inline-flex items-center justify-center sm:justify-start gap-1.5 h-10 sm:h-8 px-3 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                className="w-full sm:w-auto inline-flex items-center justify-center sm:justify-start gap-1.5 h-10 sm:h-8 min-h-[44px] sm:min-h-auto px-3 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
               >
                 <UserPlus className="h-3.5 w-3.5" aria-hidden />
                 Import as Lead
@@ -229,7 +229,7 @@ function LeadCard({
               <button
                 onClick={importLead}
                 disabled={busy}
-                className="w-full sm:w-auto inline-flex items-center justify-center sm:justify-start gap-1.5 h-10 sm:h-8 px-3 rounded-md text-xs font-medium border border-border bg-background hover:bg-muted disabled:opacity-50 transition-colors"
+                className="w-full sm:w-auto inline-flex items-center justify-center sm:justify-start gap-1.5 h-10 sm:h-8 min-h-[44px] sm:min-h-auto px-3 rounded-md text-xs font-medium border border-border bg-background hover:bg-muted disabled:opacity-50 transition-colors"
               >
                 <UserPlus className="h-3.5 w-3.5" aria-hidden />
                 Re-import
@@ -240,7 +240,7 @@ function LeadCard({
               <button
                 onClick={() => patch('archived')}
                 disabled={busy}
-                className="w-full sm:w-auto inline-flex items-center justify-center sm:justify-start gap-1.5 h-10 sm:h-8 px-3 rounded-md text-xs font-medium border border-border bg-background hover:bg-muted disabled:opacity-50 transition-colors"
+                className="w-full sm:w-auto inline-flex items-center justify-center sm:justify-start gap-1.5 h-10 sm:h-8 min-h-[44px] sm:min-h-auto px-3 rounded-md text-xs font-medium border border-border bg-background hover:bg-muted disabled:opacity-50 transition-colors"
               >
                 <Archive className="h-3.5 w-3.5" aria-hidden />
                 Archive
@@ -249,7 +249,7 @@ function LeadCard({
               <button
                 onClick={() => patch('new')}
                 disabled={busy}
-                className="w-full sm:w-auto inline-flex items-center justify-center sm:justify-start gap-1.5 h-10 sm:h-8 px-3 rounded-md text-xs font-medium border border-border bg-background hover:bg-muted disabled:opacity-50 transition-colors"
+                className="w-full sm:w-auto inline-flex items-center justify-center sm:justify-start gap-1.5 h-10 sm:h-8 min-h-[44px] sm:min-h-auto px-3 rounded-md text-xs font-medium border border-border bg-background hover:bg-muted disabled:opacity-50 transition-colors"
               >
                 <RotateCcw className="h-3.5 w-3.5" aria-hidden />
                 Restore
@@ -262,13 +262,13 @@ function LeadCard({
                 <button
                   onClick={remove}
                   disabled={busy}
-                  className="w-full sm:w-auto inline-flex items-center justify-center sm:justify-start h-10 sm:h-8 px-3 rounded-md text-xs font-medium bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 transition-colors"
+                  className="w-full sm:w-auto inline-flex items-center justify-center sm:justify-start h-10 sm:h-8 min-h-[44px] sm:min-h-auto px-3 rounded-md text-xs font-medium bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 transition-colors"
                 >
                   Confirm
                 </button>
                 <button
                   onClick={() => setConfirmDelete(false)}
-                  className="w-full sm:w-auto inline-flex items-center justify-center sm:justify-start h-10 sm:h-8 px-3 rounded-md text-xs border border-border bg-background hover:bg-muted transition-colors"
+                  className="w-full sm:w-auto inline-flex items-center justify-center sm:justify-start h-10 sm:h-8 min-h-[44px] sm:min-h-auto px-3 rounded-md text-xs border border-border bg-background hover:bg-muted transition-colors"
                 >
                   Cancel
                 </button>
@@ -277,7 +277,7 @@ function LeadCard({
               <button
                 onClick={() => setConfirmDelete(true)}
                 disabled={busy}
-                className="w-full sm:w-auto inline-flex items-center justify-center sm:justify-start gap-1.5 h-10 sm:h-8 px-3 rounded-md text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-50 transition-colors"
+                className="w-full sm:w-auto inline-flex items-center justify-center sm:justify-start gap-1.5 h-10 sm:h-8 min-h-[44px] sm:min-h-auto px-3 rounded-md text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-50 transition-colors"
               >
                 <Trash2 className="h-3.5 w-3.5" aria-hidden />
                 Delete
