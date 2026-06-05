@@ -64,7 +64,11 @@ function formatHeader(view: ViewMode, current: Date) {
 }
 
 export default function CalendarPage() {
-  const [view, setView] = useState<ViewMode>('month')
+  // Default to 'day' view on mobile (more readable), 'month' on desktop
+  const [view, setView] = useState<ViewMode>(() => {
+    if (typeof window === 'undefined') return 'month'
+    return window.innerWidth < 768 ? 'day' : 'month'
+  })
   const [current, setCurrent] = useState(new Date())
   const [events, setEvents] = useState<CalEvent[]>([])
   const [addOpen, setAddOpen] = useState(false)
@@ -173,14 +177,14 @@ export default function CalendarPage() {
       />
 
       {/* View switcher + navigation */}
-      <div className="flex items-center justify-between px-4 py-2 border-b flex-shrink-0">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-2 border-b flex-shrink-0 gap-2 sm:gap-0">
         <div className="flex gap-1">
           {(['month', 'week', 'day'] as ViewMode[]).map(v => (
             <Button
               key={v}
               variant={view === v ? 'default' : 'ghost'}
               size="sm"
-              className="text-xs h-7 px-2 capitalize"
+              className="text-xs h-10 sm:h-7 min-h-[44px] sm:min-h-auto px-2 capitalize min-w-[44px] sm:min-w-auto"
               onClick={() => {
                 setView(v)
                 track({ event: 'calendar_viewed', props: { view: v } })
@@ -190,18 +194,18 @@ export default function CalendarPage() {
             </Button>
           ))}
         </div>
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => navigate(-1)} title={`Previous ${view}`}>
+        <div className="flex items-center gap-1 w-full sm:w-auto">
+          <Button variant="ghost" size="sm" className="h-10 sm:h-7 min-h-[44px] sm:min-h-auto w-10 sm:w-7 min-w-[44px] sm:min-w-auto p-0" onClick={() => navigate(-1)} title={`Previous ${view}`}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="text-xs font-medium min-w-0 text-center px-1 truncate max-w-[140px]" suppressHydrationWarning>
+          <span className="text-xs font-medium min-w-0 text-center px-1 truncate flex-1 sm:flex-none" suppressHydrationWarning>
             {formatHeader(view, current)}
           </span>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => navigate(1)} title={`Next ${view}`}>
+          <Button variant="ghost" size="sm" className="h-10 sm:h-7 min-h-[44px] sm:min-h-auto w-10 sm:w-7 min-w-[44px] sm:min-w-auto p-0" onClick={() => navigate(1)} title={`Next ${view}`}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-        <Button variant="ghost" size="sm" className="text-xs h-7 px-2" onClick={() => setCurrent(new Date())}>
+        <Button variant="ghost" size="sm" className="text-xs h-10 sm:h-7 min-h-[44px] sm:min-h-auto px-2 w-full sm:w-auto" onClick={() => setCurrent(new Date())}>
           Today
         </Button>
       </div>
@@ -353,33 +357,35 @@ function DayView({ events, onAdd }: {
   }
 
   return (
-    <div className="px-4 py-3 space-y-2">
-      {events.map(e => (
-        <div key={e.id} className={cn('flex gap-3 p-3 rounded-lg border', e.completed_at && 'opacity-50')}>
-          <div className={cn('w-1.5 rounded-full flex-shrink-0 self-stretch', TYPE_COLOR[e.type] || 'bg-gray-400')} />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-medium capitalize">
-                {e.type === 'sms' ? 'Text' : e.type}
-              </span>
-              <span className="text-xs text-muted-foreground flex-shrink-0">{formatTime(e.due_at)}</span>
-            </div>
-            {e.customer && (
-              <Link href={`/customers/${e.customer.id}`} className="text-xs text-primary mt-0.5 block hover:underline">
-                {e.customer.name}
-              </Link>
-            )}
-            {e.body && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{e.body}</p>}
-            {e.completed_at && <p className="text-xs text-green-600 mt-1">Completed</p>}
-          </div>
+    <div className="px-4 py-3 space-y-2 pb-6">
+      {events.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">
+          <p className="text-sm mb-3">No events scheduled</p>
         </div>
-      ))}
-      <button
-        onClick={onAdd}
-        className="w-full py-2.5 rounded-lg border border-dashed text-sm text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors"
-      >
-        + Add appointment
-      </button>
+      ) : (
+        <>
+          {events.map(e => (
+            <div key={e.id} className={cn('flex gap-3 p-3 rounded-lg border', e.completed_at && 'opacity-50')}>
+              <div className={cn('w-1.5 rounded-full flex-shrink-0 self-stretch', TYPE_COLOR[e.type] || 'bg-gray-400')} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium capitalize">
+                    {e.type === 'sms' ? 'Text' : e.type}
+                  </span>
+                  <span className="text-xs text-muted-foreground flex-shrink-0">{formatTime(e.due_at)}</span>
+                </div>
+                {e.customer && (
+                  <Link href={`/customers/${e.customer.id}`} className="text-xs text-primary mt-0.5 block hover:underline">
+                    {e.customer.name}
+                  </Link>
+                )}
+                {e.body && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{e.body}</p>}
+                {e.completed_at && <p className="text-xs text-green-600 mt-1">Completed</p>}
+              </div>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   )
 }
