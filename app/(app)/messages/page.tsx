@@ -1,16 +1,17 @@
-import dynamic from 'next/dynamic'
+import nextDynamic from 'next/dynamic'
 import { Suspense } from 'react'
 import { requireProfile } from '@/lib/auth/profile'
 import PushRegistration from '@/components/push/PushRegistration'
 import { Loader2 } from 'lucide-react'
 
-const MessagesClient = dynamic(() => import('./MessagesClient'), {
+export const dynamic = 'force-dynamic'
+
+const MessagesClient = nextDynamic(() => import('./MessagesClient'), {
   loading: () => (
     <div className="flex justify-center items-center h-screen">
       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
     </div>
   ),
-  ssr: false
 })
 
 export default async function MessagesPage() {

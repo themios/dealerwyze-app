@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic'
 
-import dynamic from 'next/dynamic'
+import nextDynamic from 'next/dynamic'
 import { Suspense } from 'react'
 import { redirect, notFound } from 'next/navigation'
 import { createClientForRequest } from '@/lib/supabase/forRequest'
@@ -11,13 +11,13 @@ import { ensureBhphContractFinance } from '@/lib/bhph/ensureContractFinance'
 import type { UserRole } from '@/types/index'
 import { Loader2 } from 'lucide-react'
 
-const BhphDetailClient = dynamic(() => import('./BhphDetailClient'), {
+
+const BhphDetailClient = nextDynamic(() => import('./BhphDetailClient'), {
   loading: () => (
     <div className="flex justify-center items-center min-h-96">
       <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
     </div>
   ),
-  ssr: false
 })
 
 interface Props {
