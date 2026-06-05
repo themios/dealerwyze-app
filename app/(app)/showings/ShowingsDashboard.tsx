@@ -188,7 +188,7 @@ export default function ShowingsDashboard({
                   sr.requested_time_1 || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
                 handleConfirm(sr.id, time)
               }}
-              className="rounded text-xs px-2.5 py-1.5 bg-green-600 text-white hover:bg-green-700 transition-colors disabled:opacity-50"
+              className="rounded text-xs lg:text-xs h-10 lg:h-8 min-h-[44px] lg:min-h-auto px-2.5 py-1.5 lg:py-1.5 lg:px-2.5 bg-green-600 text-white hover:bg-green-700 transition-colors disabled:opacity-50 w-full lg:w-auto"
             >
               Confirm
             </button>
@@ -196,13 +196,13 @@ export default function ShowingsDashboard({
               type="button"
               disabled={statusUpdating[sr.id]}
               onClick={() => handleDecline(sr.id)}
-              className="rounded text-xs px-2.5 py-1.5 border border-input bg-background hover:bg-accent transition-colors disabled:opacity-50"
+              className="rounded text-xs lg:text-xs h-10 lg:h-8 min-h-[44px] lg:min-h-auto px-2.5 py-1.5 lg:py-1.5 lg:px-2.5 border border-input bg-background hover:bg-accent transition-colors disabled:opacity-50 w-full lg:w-auto"
             >
               Decline
             </button>
             <Link
               href={`/showings/${sr.id}`}
-              className="rounded text-xs px-2.5 py-1.5 border border-input hover:bg-accent transition-colors"
+              className="rounded text-xs lg:text-xs h-10 lg:h-8 min-h-[44px] lg:min-h-auto px-2.5 py-1.5 lg:py-1.5 lg:px-2.5 border border-input hover:bg-accent transition-colors inline-flex items-center justify-center w-full lg:w-auto"
             >
               Full workflow
             </Link>
@@ -212,7 +212,7 @@ export default function ShowingsDashboard({
           <button
             type="button"
             onClick={() => setFeedbackModalOpen(sr.id)}
-            className="rounded text-xs px-2.5 py-1.5 bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+            className="rounded text-xs lg:text-xs h-10 lg:h-8 min-h-[44px] lg:min-h-auto px-2.5 py-1.5 lg:py-1.5 lg:px-2.5 bg-blue-600 text-white hover:bg-blue-700 transition-colors w-full lg:w-auto"
           >
             Collect feedback
           </button>
@@ -301,7 +301,7 @@ export default function ShowingsDashboard({
             key={tab.value}
             type="button"
             onClick={() => setFilter(tab.value)}
-            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+            className={`px-4 py-2 lg:py-2 h-10 lg:h-8 min-h-[44px] lg:min-h-auto text-sm lg:text-sm font-medium transition-colors border-b-2 flex items-center ${
               filter === tab.value
                 ? 'border-primary text-primary'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -385,11 +385,11 @@ export default function ShowingsDashboard({
                     <button
                       type="button"
                       onClick={() => selectShowing(sr.id, true)}
-                      className="w-full text-left px-4 py-3 hover:bg-muted/50"
+                      className="w-full text-left px-4 py-3 lg:py-3 min-h-[44px] hover:bg-muted/50 flex flex-col justify-center"
                     >
                       <p className="font-medium text-sm">{sr.buyer_name}</p>
                       <p className="text-xs text-muted-foreground">{listingAddress(sr.listing)}</p>
-                      <Badge className={`${STATUS_BADGE_CLASS[sr.status]} mt-1 text-[10px]`}>
+                      <Badge className={`${STATUS_BADGE_CLASS[sr.status]} mt-1 text-[10px] w-fit`}>
                         {STATUS_LABELS[sr.status]}
                       </Badge>
                     </button>
