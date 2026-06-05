@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation'
 import { Customer } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { Phone, CheckSquare, Square, X, UserCheck, Archive, ArchiveRestore, ArrowUp, ArrowDown, Paperclip, ChevronRight, Flame } from 'lucide-react'
+import { Phone, CheckSquare, Square, X, UserCheck, Archive, ArchiveRestore, ArrowUp, ArrowDown, Paperclip, ChevronRight, Flame, MessageSquare, Mail } from 'lucide-react'
 import { formatPhone, leadAgeBadge, lastContactBadge } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { LEAD_STATE_CONFIG, LEAD_STATES, type LeadState } from '@/lib/leads/states'
@@ -16,6 +16,7 @@ import { LEAD_INTENT_TIER_LABELS, LEAD_INTENT_TIER_STYLES, type LeadIntentFlag, 
 import CustomerQuickUploadSheet from './CustomerQuickUploadSheet'
 import { AssigneeBadge } from '@/components/leads/AssigneeBadge'
 import { isMultiLocationFromCount } from '@/lib/locations/uiRules'
+import { AlwaysVisibleActionButton } from '@/components/shared/AlwaysVisibleActionButton'
 
 /** Left-edge strip: how recently this lead had any logged activity (call, SMS, email, etc.). */
 function getActivityUrgency(lastActivityAt: string | null | undefined): {
@@ -833,7 +834,7 @@ export default function CustomersListClient({
               return (
                 <motion.div
                   key={customer.id}
-                  className="relative flex items-center hover:bg-accent/40 transition-colors select-none"
+                  className="relative flex flex-col lg:flex-row lg:items-center hover:bg-accent/40 transition-colors select-none"
                   variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.16, 1, 0.3, 1] } } }}
                   onPointerDown={() => startLongPress(customer.id)}
                   onPointerUp={cancelLongPress}
@@ -842,11 +843,13 @@ export default function CustomersListClient({
                 >
                   {/* Activity urgency strip (see legend above list) */}
                   <div
-                    className={`absolute left-0 top-0 bottom-0 w-1.5 ${urgency.stripClass}`}
+                    className={`absolute left-0 top-0 bottom-0 w-1.5 lg:bottom-0 ${urgency.stripClass}`}
                     title={urgency.stripTitle}
                   />
-                  <Link href={`/customers/${customer.id}`} className="flex items-center gap-3 pl-5 pr-2 py-2.5 flex-1 min-w-0">
-                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs flex-shrink-0">
+
+                  {/* Main card content */}
+                  <Link href={`/customers/${customer.id}`} className="flex items-start gap-3 pl-5 pr-2 py-2.5 flex-1 min-w-0 lg:flex lg:items-center">
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs flex-shrink-0 lg:h-8 lg:w-8">
                       {initials}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -879,13 +882,78 @@ export default function CustomersListClient({
                       )}
                     </div>
 
-                    <div className="flex flex-col items-end gap-1 flex-shrink-0" suppressHydrationWarning>
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0 lg:ml-auto" suppressHydrationWarning>
                       <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${ageBadge.cls}`}>{ageBadge.label}</span>
                       <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${contactBadge.cls}`}>{contactBadge.label}</span>
                     </div>
                   </Link>
-                  <div
-                    className="pr-1 flex-shrink-0"
+
+                  {/* Mobile action buttons (always visible on mobile, hidden on desktop) */}
+                  <div className="flex lg:hidden items-center gap-1 px-2 pb-2.5">
+                    <AlwaysVisibleActionButton
+                      onClick={e => { e.stopPropagation(); router.push(`/messages?customer_id=${customer.id}`) }}
+                      title="Send message"
+                      aria-label={`Send message to ${customer.name}`}
+                    >
+                      <MessageSquare className="h-5 w-5" />
+                    </AlwaysVisibleActionButton>
+                    <AlwaysVisibleActionButton
+                      onClick={e => { e.stopPropagation(); setUploadCustomerId(customer.id) }}
+                      title="Attach document"
+                      aria-label={`Attach document for ${customer.name}`}
+                    >
+                      <Paperclip className="h-5 w-5" />
+                    </AlwaysVisibleActionButton>
+                    <div className="flex-1 min-w-0" />
+                    <div
+                      onPointerDown={e => { e.stopPropagation(); cancelLongPress() }}
+                      className="flex-shrink-0"
+                    >
+                      <AssigneeBadge
+                        assignee={customer.assignee ?? null}
+                        members={members}
+                        customerId={customer.id}
+                        canReassign={canReassignLeads}
+                        onReassigned={(newId, name) => handleAssigneeReassigned(customer.id, newId, name)}
+                        orgOwner={orgOwner}
+                        leadLocationId={customer.location_id}
+                        isMultiLocation={isMultiLocation}
+                      />
+                    </div>
+                    {showArchived ? (
+                      <button
+                        type="button"
+                        onPointerDown={e => { e.stopPropagation(); cancelLongPress() }}
+                        onClick={e => { e.stopPropagation(); void handleUnarchive(customer.id) }}
+                        className="lg:hidden text-green-600 dark:text-green-400 p-2 flex-shrink-0"
+                        title="Restore to active leads"
+                        aria-label={`Restore ${customer.name} to active leads`}
+                      >
+                        <ArchiveRestore className="h-4 w-4" aria-hidden />
+                      </button>
+                    ) : (
+                      archiveConfirm === customer.id ? (
+                        <div className="lg:hidden flex items-center gap-1 pr-1 flex-shrink-0">
+                          <button onClick={e => { e.stopPropagation(); handleArchive(customer.id) }} className="text-xs text-destructive font-medium px-1.5">Archive</button>
+                          <button onClick={e => { e.stopPropagation(); setArchiveConfirm(null); setArchiveReason('') }} className="text-muted-foreground p-1" title="Cancel">
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onPointerDown={e => { e.stopPropagation(); cancelLongPress() }}
+                          onClick={e => { e.stopPropagation(); setArchiveConfirm(customer.id) }}
+                          className="lg:hidden text-muted-foreground p-2 flex-shrink-0"
+                          title="Archive"
+                        >
+                          <Archive className="h-4 w-4" />
+                        </button>
+                      )
+                    )}
+                  </div>
+
+                  {/* Desktop action buttons (hidden on mobile) */}
+                  <div className="hidden lg:flex lg:items-center lg:gap-1 lg:pr-1 flex-shrink-0"
                     onPointerDown={e => { e.stopPropagation(); cancelLongPress() }}
                   >
                     <AssigneeBadge
@@ -900,9 +968,9 @@ export default function CustomersListClient({
                     />
                   </div>
                   <button
+                    className="hidden lg:block text-muted-foreground hover:text-primary p-2 flex-shrink-0"
                     onPointerDown={e => { e.stopPropagation(); cancelLongPress() }}
                     onClick={e => { e.stopPropagation(); setUploadCustomerId(customer.id) }}
-                    className="text-muted-foreground hover:text-primary p-2 flex-shrink-0"
                     title="Attach document"
                   >
                     <Paperclip className="h-3.5 w-3.5" />
@@ -910,9 +978,9 @@ export default function CustomersListClient({
                   {showArchived ? (
                     <button
                       type="button"
+                      className="hidden lg:block text-muted-foreground hover:text-green-600 dark:hover:text-green-400 p-2 pr-3 flex-shrink-0"
                       onPointerDown={e => { e.stopPropagation(); cancelLongPress() }}
                       onClick={e => { e.stopPropagation(); void handleUnarchive(customer.id) }}
-                      className="text-muted-foreground hover:text-green-600 dark:hover:text-green-400 p-2 pr-3 flex-shrink-0"
                       title="Restore to active leads"
                       aria-label={`Restore ${customer.name} to active leads`}
                     >
@@ -920,7 +988,7 @@ export default function CustomersListClient({
                     </button>
                   ) : (
                     archiveConfirm === customer.id ? (
-                      <div className="flex items-center gap-1 pr-2 flex-shrink-0">
+                      <div className="hidden lg:flex items-center gap-1 pr-2 flex-shrink-0">
                         <input
                           type="text"
                           placeholder="Reason (optional)"
@@ -936,9 +1004,9 @@ export default function CustomersListClient({
                       </div>
                     ) : (
                       <button
+                        className="hidden lg:block text-muted-foreground hover:text-foreground p-2 pr-3 flex-shrink-0"
                         onPointerDown={e => { e.stopPropagation(); cancelLongPress() }}
                         onClick={e => { e.stopPropagation(); setArchiveConfirm(customer.id) }}
-                        className="text-muted-foreground hover:text-foreground p-2 pr-3 flex-shrink-0"
                         title="Archive"
                       >
                         <Archive className="h-3.5 w-3.5" />
