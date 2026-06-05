@@ -1,7 +1,32 @@
+import DOMPurify from 'isomorphic-dompurify'
+
 const ALLOWED_TAGS = new Set(['p', 'br', 'strong', 'em', 'a', 'img'])
 const ALLOWED_ATTRS: Record<string, Set<string>> = {
   a:   new Set(['href']),
   img: new Set(['src', 'alt', 'width', 'height']),
+}
+
+const TRUSTED_ALLOWED_TAGS = [
+  'p', 'br', 'strong', 'em', 'a', 'img',
+  'table', 'thead', 'tbody', 'tr', 'td', 'th',
+  'div', 'span', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+]
+
+const TRUSTED_ALLOWED_ATTR: Record<string, string[]> = {
+  a: ['href', 'name', 'target', 'rel'],
+  img: ['src', 'alt', 'width', 'height'],
+  td: ['colspan', 'rowspan'],
+  th: ['colspan', 'rowspan'],
+}
+
+function sanitizeWithDOMPurify(input: string): string {
+  const purifyOptions: any = {
+    ALLOWED_TAGS: TRUSTED_ALLOWED_TAGS,
+    ALLOWED_ATTR: TRUSTED_ALLOWED_ATTR,
+    ALLOW_DATA_ATTR: false,
+  }
+  const result = DOMPurify.sanitize(input, purifyOptions)
+  return typeof result === 'string' ? result : result.toString()
 }
 
 function stripDangerousAttrs(tag: string, attrs: string): string {
@@ -36,14 +61,19 @@ function sanitizeMarkup(input: string): string {
   return out
 }
 
-export function sanitizeEmailSignatureHtml(input: string | null | undefined): string {
+export function sanitizeEmailSignatureHtml(input: string | null | undefined, trustHtml: boolean = false): string {
   const value = input?.trim()
   if (!value) return ''
+
+  if (trustHtml) {
+    return sanitizeWithDOMPurify(value).trim()
+  }
+
   return sanitizeMarkup(value).trim()
 }
 
-export function stripHtmlToText(input: string | null | undefined): string {
-  const sanitized = sanitizeEmailSignatureHtml(input)
+export function stripHtmlToText(input: string | null | undefined, trustHtml: boolean = false): string {
+  const sanitized = sanitizeEmailSignatureHtml(input, trustHtml)
   if (!sanitized) return ''
 
   return sanitized
@@ -54,6 +84,11 @@ export function stripHtmlToText(input: string | null | undefined): string {
     .replace(/<a\s+[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, '$2 ($1)')
     .replace(/<img[^>]*alt="([^"]*)"[^>]*>/gi, '$1 ')
     .replace(/<img[^>]*>/gi, '')
+    // Preserve table structure: convert table cells to pipe-separated values
+    .replace(/<\/td>\s*<td>/gi, ' | ')
+    .replace(/<\/th>\s*<th>/gi, ' | ')
+    .replace(/<\/td>\s*<\/tr>\s*<tr>\s*<td>/gi, '\n')
+    .replace(/<\/th>\s*<\/tr>\s*<tr>\s*<th>/gi, '\n')
     .replace(/<\/?p>/gi, '')
     .replace(/<[^>]+>/g, '')
     .replace(/\n{3,}/g, '\n\n')

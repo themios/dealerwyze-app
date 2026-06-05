@@ -120,7 +120,7 @@ export async function sendSequenceEmail(
   const [{ data: orgSettings }, { data: customerVehicle }] = await Promise.all([
     supabase
       .from('org_settings')
-      .select('email_signature')
+      .select('email_signature, allow_trusted_html_signature')
       .eq('org_id', orgId)
       .maybeSingle(),
     supabase
@@ -150,10 +150,11 @@ export async function sendSequenceEmail(
   )
   const resolvedBody    = substituteVars(body, vars)
 
-  const signature = sanitizeEmailSignatureHtml(orgSettings?.email_signature ?? null)
+  const trustHtml = orgSettings?.allow_trusted_html_signature ?? false
+  const signature = sanitizeEmailSignatureHtml(orgSettings?.email_signature ?? null, trustHtml)
   const htmlBody  = buildEmailHtml(resolvedBody, signature)
   const plainText = signature
-    ? `${resolvedBody}\n\n--\n${stripHtmlToText(signature)}`
+    ? `${resolvedBody}\n\n--\n${stripHtmlToText(signature, trustHtml)}`
     : resolvedBody
 
   const fromAddress = account.email ?? account.imap_user ?? ''
