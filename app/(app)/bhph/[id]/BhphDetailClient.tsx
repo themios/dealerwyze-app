@@ -43,6 +43,8 @@ import {
   History, Link2, DollarSign, MoreVertical, ChevronDown,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { PaymentMobileCard } from '@/components/bhph/PaymentMobileCard'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -615,6 +617,7 @@ function ConfirmManualPaymentSheet({
 function PaymentHistorySection({ contractId, reloadToken }: { contractId: string; reloadToken: number }) {
   const [entries, setEntries] = useState<BhphPaymentLedgerEntry[] | null>(null)
   const [failed, setFailed] = useState(false)
+  const isMobile = useMediaQuery('(max-width: 767px)')
 
   useEffect(() => {
     let cancelled = false
@@ -660,40 +663,60 @@ function PaymentHistorySection({ contractId, reloadToken }: { contractId: string
           <p className="px-2 py-4 text-sm text-muted-foreground">No payments recorded yet.</p>
         )}
         {entries && entries.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  <th className="px-2 py-2">Date</th>
-                  <th className="px-2 py-2 text-right">Amount</th>
-                  <th className="px-2 py-2 text-right">Interest</th>
-                  <th className="px-2 py-2 text-right">Principal</th>
-                  <th className="px-2 py-2 text-right">Balance after</th>
-                  <th className="px-2 py-2">Type</th>
-                  <th className="px-2 py-2">Notes</th>
-                </tr>
-              </thead>
-              <tbody>
+          <>
+            {/* Mobile: card stack layout */}
+            {isMobile ? (
+              <div className="space-y-1 px-1">
                 {entries.map(row => (
-                  <tr key={row.id} className="border-b border-border/80 last:border-0">
-                    <td className="px-2 py-2 whitespace-nowrap">{formatDateShort(row.payment_date)}</td>
-                    <td className="px-2 py-2 text-right tabular-nums">{fmt(row.amount_paid)}</td>
-                    <td className="px-2 py-2 text-right tabular-nums">{fmt(row.interest_portion)}</td>
-                    <td className="px-2 py-2 text-right tabular-nums">{fmt(row.principal_portion)}</td>
-                    <td className="px-2 py-2 text-right tabular-nums">{fmt(row.principal_balance_after)}</td>
-                    <td className="px-2 py-2">
-                      <span className={`inline-flex text-[10px] font-semibold px-2 py-0.5 rounded-full ${ledgerTypeBadgeClass(row.payment_type)}`}>
-                        {ledgerTypeLabel(row.payment_type)}
-                      </span>
-                    </td>
-                    <td className="px-2 py-2 max-w-[140px] truncate text-muted-foreground" title={row.notes ?? undefined}>
-                      {truncNote(row.notes, 48)}
-                    </td>
-                  </tr>
+                  <PaymentMobileCard
+                    key={row.id}
+                    entry={row}
+                    formatDateShort={formatDateShort}
+                    fmt={fmt}
+                    ledgerTypeBadgeClass={ledgerTypeBadgeClass}
+                    ledgerTypeLabel={ledgerTypeLabel}
+                    truncNote={truncNote}
+                  />
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </div>
+            ) : (
+              /* Desktop: table layout */
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px] text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      <th className="px-2 py-2">Date</th>
+                      <th className="px-2 py-2 text-right">Amount</th>
+                      <th className="px-2 py-2 text-right">Interest</th>
+                      <th className="px-2 py-2 text-right">Principal</th>
+                      <th className="px-2 py-2 text-right">Balance after</th>
+                      <th className="px-2 py-2">Type</th>
+                      <th className="px-2 py-2">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {entries.map(row => (
+                      <tr key={row.id} className="border-b border-border/80 last:border-0">
+                        <td className="px-2 py-2 whitespace-nowrap">{formatDateShort(row.payment_date)}</td>
+                        <td className="px-2 py-2 text-right tabular-nums">{fmt(row.amount_paid)}</td>
+                        <td className="px-2 py-2 text-right tabular-nums">{fmt(row.interest_portion)}</td>
+                        <td className="px-2 py-2 text-right tabular-nums">{fmt(row.principal_portion)}</td>
+                        <td className="px-2 py-2 text-right tabular-nums">{fmt(row.principal_balance_after)}</td>
+                        <td className="px-2 py-2">
+                          <span className={`inline-flex text-[10px] font-semibold px-2 py-0.5 rounded-full ${ledgerTypeBadgeClass(row.payment_type)}`}>
+                            {ledgerTypeLabel(row.payment_type)}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2 max-w-[140px] truncate text-muted-foreground" title={row.notes ?? undefined}>
+                          {truncNote(row.notes, 48)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
       </div>
     </details>
