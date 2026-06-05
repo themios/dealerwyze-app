@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import DocumentList from '@/components/documents/DocumentList'
 import DocumentUploadModal from '@/components/documents/DocumentUploadModal'
 import PricingAnalysisButton from '@/components/pricing/PricingAnalysisButton'
+import PricingAnalysisModal from '@/components/pricing/PricingAnalysisModal'
 import { Button } from '@/components/ui/button'
 import { FileUp } from 'lucide-react'
 import type { PropertyDocument } from '@/components/documents/types'
@@ -14,6 +15,7 @@ interface Props {
 
 export default function ListingDetailsPanel({ listingId }: Props) {
   const [showDocUpload, setShowDocUpload] = useState(false)
+  const [showPricingModal, setShowPricingModal] = useState(false)
   const [documents, setDocuments] = useState<PropertyDocument[]>([])
   const [isLoadingDocs, setIsLoadingDocs] = useState(true)
 
@@ -73,7 +75,14 @@ export default function ListingDetailsPanel({ listingId }: Props) {
       {/* Pricing Analysis Section */}
       <div className="mb-6 border-t border-border pt-4">
         <h2 className="text-sm font-semibold text-foreground mb-3">Pricing Analysis</h2>
-        <PricingAnalysisButton listingId={listingId} />
+        <PricingAnalysisButton
+          onClick={() => setShowPricingModal(true)}
+        />
+        <PricingAnalysisModal
+          open={showPricingModal}
+          onOpenChange={setShowPricingModal}
+          propertyId={listingId}
+        />
       </div>
     </>
   )
