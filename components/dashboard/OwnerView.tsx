@@ -98,17 +98,24 @@ export default function OwnerView({ stats }: Props) {
   const healthColor = healthScore >= 75 ? '#3D9926' : healthScore >= 50 ? '#F5A623' : '#FF5436'
 
   return (
-    <div className="hidden lg:block px-6 pt-2 pb-6">
+    <div className="px-4 sm:px-6 pt-2 pb-6">
       {/* Section label */}
       <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-3">
         Owner Overview
       </p>
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
 
         {/* ── Card 1: Dealer Health ──────────────────────────────── */}
-        <Link href="/analytics" className="col-span-1 rounded-xl border border-border bg-card p-5 flex flex-col items-center justify-center gap-3 hover:bg-accent transition-colors block">
-          <HealthRing score={healthScore} />
+        <Link href="/analytics" className="col-span-1 rounded-xl border border-border bg-card p-4 sm:p-5 flex flex-col items-center justify-center gap-3 hover:bg-accent transition-colors block">
+          <div className="hidden sm:block">
+            <HealthRing score={healthScore} />
+          </div>
+          <div className="block sm:hidden text-center">
+            <div className="inline-flex items-center justify-center h-16 w-16 rounded-full border-4 border-border flex-shrink-0 mb-2">
+              <span className="text-2xl font-black text-foreground" style={{ fontFamily: "'Barlow Semi Condensed', sans-serif" }}>{healthScore}</span>
+            </div>
+          </div>
           <div className="text-center">
             <p className="text-sm font-semibold" style={{ color: healthColor }}>{healthLabel}</p>
             <p className="text-[10px] text-muted-foreground mt-0.5">Response · Tasks · Activity</p>
@@ -123,7 +130,7 @@ export default function OwnerView({ stats }: Props) {
         </Link>
 
         {/* ── Card 2: Leads & Response ───────────────────────────── */}
-        <Link href="/customers" className="col-span-1 rounded-xl border border-border bg-card p-5 hover:bg-accent transition-colors block">
+        <Link href="/customers" className="col-span-1 rounded-xl border border-border bg-card p-4 sm:p-5 hover:bg-accent transition-colors block">
           <div className="flex items-center gap-2 mb-3">
             <Users className="h-4 w-4 text-orange-500" />
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Leads</p>
@@ -143,7 +150,7 @@ export default function OwnerView({ stats }: Props) {
         </Link>
 
         {/* ── Card 3: Inventory ─────────────────────────────────── */}
-        <Link href="/vehicles" className="col-span-1 rounded-xl border border-border bg-card p-5 hover:bg-accent transition-colors block">
+        <Link href="/vehicles" className="col-span-1 rounded-xl border border-border bg-card p-4 sm:p-5 hover:bg-accent transition-colors block">
           <div className="flex items-center gap-2 mb-3">
             <Car className="h-4 w-4 text-orange-500" />
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Inventory</p>
@@ -171,7 +178,7 @@ export default function OwnerView({ stats }: Props) {
         </Link>
 
         {/* ── Card 4: BHPH Portfolio ────────────────────────────── */}
-        <Link href="/bhph" className="col-span-1 rounded-xl border border-border bg-card p-5 hover:bg-accent transition-colors block">
+        <Link href="/bhph" className="col-span-1 rounded-xl border border-border bg-card p-4 sm:p-5 hover:bg-accent transition-colors block">
           <div className="flex items-center gap-2 mb-3">
             <CreditCard className="h-4 w-4 text-orange-500" />
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">BHPH</p>
