@@ -4,19 +4,21 @@ import { useState } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { Sparkles, Flame, Trophy, ChevronRight } from 'lucide-react'
+import { Sparkles, Flame, Trophy, ChevronRight, Home, Users, MessageSquare, CalendarDays } from 'lucide-react'
 import DealerScoreTile from '@/components/dashboard/DealerScoreTile'
 import StatTile from '@/components/dashboard/StatTile'
 import QuickActionGrid from '@/components/dashboard/QuickActionGrid'
 import OwnerView from '@/components/dashboard/OwnerView'
 import type { DashboardStats } from '@/lib/dashboard/computeStats'
 import UpcomingAppointmentsList from '@/components/appointments/UpcomingAppointmentsList'
+import { cn } from '@/lib/utils'
 
 const DealerBriefClient = dynamic(() => import('@/components/today/DealerBriefClient'), { ssr: false })
 
 interface Props {
   stats: DashboardStats
   isOwner?: boolean
+  isRE?: boolean
 }
 
 function formatResponseTime(seconds: number | null): string {
@@ -49,8 +51,9 @@ function formatRevenue(n: number): string {
   return `$${n.toLocaleString()}`
 }
 
-export default function DashboardClient({ stats, isOwner }: Props) {
+export default function DashboardClient({ stats, isOwner, isRE: isREProp }: Props) {
   const [briefOpen, setBriefOpen] = useState(false)
+  const isRE = isREProp ?? false
   const { today, leads, inventory, bhph, gamification, org_name, upcoming_appointments } = stats
   const totalUrgent = today.urgent_leads + today.appt_requests
 
@@ -89,7 +92,7 @@ export default function DashboardClient({ stats, isOwner }: Props) {
                 <span className="text-orange-500 font-semibold">{today.urgent_leads} lead{today.urgent_leads !== 1 ? 's' : ''}</span>
               )}
               {today.appt_requests > 0 && (
-                <span className="text-amber-500 font-semibold">{today.appt_requests} appt{today.appt_requests !== 1 ? 's' : ''}</span>
+                <span className="text-amber-500 font-semibold">{today.appt_requests} {isRE ? 'showing' : 'appt'}{today.appt_requests !== 1 ? 's' : ''}</span>
               )}
               {today.tasks_due_today > 0 && (
                 <span className="text-muted-foreground">{today.tasks_due_today} task{today.tasks_due_today !== 1 ? 's' : ''} due</span>
@@ -104,6 +107,26 @@ export default function DashboardClient({ stats, isOwner }: Props) {
           </div>
         </div>
       </Link>
+
+      {/* Mobile pinned shortcuts (hidden on desktop) */}
+      <div className="lg:hidden px-4 grid grid-cols-4 gap-2">
+        <Link href="/today" className="flex flex-col items-center gap-1.5 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors min-h-[70px] justify-center">
+          <Home className="h-5 w-5 text-foreground" />
+          <span className="text-xs font-medium text-center">Today</span>
+        </Link>
+        <Link href="/customers" className="flex flex-col items-center gap-1.5 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors min-h-[70px] justify-center">
+          <Users className="h-5 w-5 text-foreground" />
+          <span className="text-xs font-medium text-center">Leads</span>
+        </Link>
+        <Link href={isRE ? "/showings" : "/calendar"} className="flex flex-col items-center gap-1.5 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors min-h-[70px] justify-center">
+          <CalendarDays className="h-5 w-5 text-foreground" />
+          <span className="text-xs font-medium text-center">{isRE ? 'Showings' : 'Calendar'}</span>
+        </Link>
+        <Link href="/messages" className="flex flex-col items-center gap-1.5 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors min-h-[70px] justify-center">
+          <MessageSquare className="h-5 w-5 text-foreground" />
+          <span className="text-xs font-medium text-center">Messages</span>
+        </Link>
+      </div>
 
       {/* ── LAYER 2: Limbic — Streak + Goals + Wins ──────────────── */}
       <div className="px-4 space-y-3">
@@ -124,7 +147,7 @@ export default function DashboardClient({ stats, isOwner }: Props) {
               <div>
                 <p className="text-lg font-black text-green-600 leading-none">{gamification.wins_this_week}</p>
                 <p className="text-[10px] text-muted-foreground leading-tight">
-                  {gamification.wins_this_week === 1 ? 'deal' : 'deals'} this week
+                  {isRE ? 'closing' : 'deal'}{gamification.wins_this_week === 1 ? '' : 's'} this week
                   {gamification.revenue_this_week > 0 ? ` · ${formatRevenue(gamification.revenue_this_week)}` : ''}
                 </p>
               </div>
@@ -189,18 +212,38 @@ export default function DashboardClient({ stats, isOwner }: Props) {
           alert={today.urgent_leads > 0 ? `${today.urgent_leads} waiting` : undefined}
         />
 
-        {/* BHPH tile */}
-        <StatTile
-          href="/bhph"
-          title="BHPH"
-          primary={bhph.active_loans}
-          primarySub="loans"
-          stats={[
-            { label: 'Due this week', value: bhph.due_this_week, color: bhph.due_this_week > 0 ? 'amber' : 'default' },
-            { label: 'Overdue', value: bhph.overdue, color: bhph.overdue > 0 ? 'red' : 'green' },
-          ]}
-          alert={bhph.overdue > 0 ? `$${bhph.overdue_amount.toLocaleString()} past due` : undefined}
-        />
+        {/* BHPH tile (dealers) / Showings tile (RE) */}
+        {!isRE ? (
+          <StatTile
+            href="/bhph"
+            title="BHPH"
+            primary={bhph.active_loans}
+            primarySub="loans"
+            stats={[
+              { label: 'Due this week', value: bhph.due_this_week, color: bhph.due_this_week > 0 ? 'amber' : 'default' },
+              { label: 'Overdue', value: bhph.overdue, color: bhph.overdue > 0 ? 'red' : 'green' },
+            ]}
+            alert={bhph.overdue > 0 ? `$${bhph.overdue_amount.toLocaleString()} past due` : undefined}
+          />
+        ) : (
+          <StatTile
+            href="/showings"
+            title="Showings"
+            primary={upcoming_appointments.length}
+            primarySub="scheduled"
+            stats={[
+              { label: 'Today', value: upcoming_appointments.filter(a => {
+                const today = new Date().toDateString()
+                return new Date(a.due_at).toDateString() === today
+              }).length, color: 'default' },
+              { label: 'This week', value: upcoming_appointments.filter(a => {
+                const now = new Date()
+                const d = new Date(a.due_at)
+                return d >= now && d < new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+              }).length, color: 'green' },
+            ]}
+          />
+        )}
       </div>
 
       <div className="px-4">
@@ -211,16 +254,18 @@ export default function DashboardClient({ stats, isOwner }: Props) {
         />
       </div>
 
-      {/* Inventory tile — full width */}
+      {/* Inventory/Listings tile — full width */}
       <div className="px-4">
         <Link href="/vehicles">
           <div className="rounded-xl border border-border bg-card hover:bg-accent transition-colors p-4">
-            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-2">Inventory</p>
+            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-2">
+              {isRE ? 'Listings' : 'Inventory'}
+            </p>
             <div className="flex items-end gap-3 mb-3">
               <span className="text-3xl font-black text-foreground">{inventory.available_count}</span>
               <span className="text-xs text-muted-foreground mb-1">available</span>
               {inventory.staging_count > 0 && (
-                <span className="text-xs text-amber-500 mb-1">{inventory.staging_count} staging</span>
+                <span className="text-xs text-amber-500 mb-1">{inventory.staging_count} {isRE ? 'pending' : 'staging'}</span>
               )}
               {inventory.avg_days !== null && (
                 <span className="text-xs text-muted-foreground mb-1 ml-auto">{inventory.avg_days}d avg</span>
@@ -245,13 +290,13 @@ export default function DashboardClient({ stats, isOwner }: Props) {
                   </div>
                   <div className="flex gap-3 mt-1.5">
                     {inventory.overpriced > 0 && (
-                      <span className="text-[10px] text-red-400">{inventory.overpriced} overpriced</span>
+                      <span className="text-[10px] text-red-400">{inventory.overpriced} {isRE ? 'overvalued' : 'overpriced'}</span>
                     )}
                     {inventory.at_market > 0 && (
-                      <span className="text-[10px] text-green-400">{inventory.at_market} priced right</span>
+                      <span className="text-[10px] text-green-400">{inventory.at_market} market rate</span>
                     )}
                     {inventory.underpriced > 0 && (
-                      <span className="text-[10px] text-blue-400">{inventory.underpriced} below market</span>
+                      <span className="text-[10px] text-blue-400">{inventory.underpriced} {isRE ? 'undervalued' : 'below market'}</span>
                     )}
                     {inventory.unchecked > 0 && (
                       <span className="text-[10px] text-white/25">{inventory.unchecked} unchecked</span>
@@ -274,7 +319,7 @@ export default function DashboardClient({ stats, isOwner }: Props) {
             <Sparkles className="h-5 w-5 text-orange-500 flex-shrink-0" />
             <div>
               <p className="text-sm font-semibold text-foreground">Morning Brief</p>
-              <p className="text-xs text-muted-foreground">Your AI dealer insight — tap to read</p>
+              <p className="text-xs text-muted-foreground">Your AI {isRE ? 'agent' : 'dealer'} insight — tap to read</p>
             </div>
             <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto" />
           </div>
