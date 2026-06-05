@@ -326,7 +326,7 @@ export default function ShowingsDashboard({
         </div>
       ) : (
         <div className="rounded-lg border bg-card overflow-hidden min-h-[520px] flex flex-col">
-          <div className="hidden lg:flex flex-1 min-h-0">
+          <div className="hidden md:flex flex-1 min-h-0">
             {/* List column */}
             <div className="w-[min(100%,340px)] shrink-0 border-r overflow-y-auto max-h-[70vh]">
               <ul className="divide-y">
@@ -377,7 +377,7 @@ export default function ShowingsDashboard({
           </div>
 
           {/* Mobile: list or dossier */}
-          <div className="lg:hidden flex flex-col flex-1 min-h-0">
+          <div className="md:hidden flex flex-col flex-1 min-h-0">
             {!mobileDossierOpen ? (
               <ul className="divide-y overflow-y-auto">
                 {filtered.map((sr) => (
