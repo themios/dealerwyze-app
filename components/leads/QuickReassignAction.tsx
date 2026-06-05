@@ -15,14 +15,12 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 
 interface User {
   id: string
   name: string
   email: string
-  avatar_url?: string
 }
 
 interface Props {
@@ -31,6 +29,21 @@ interface Props {
   onReassign: (userId: string) => Promise<void>
   isLoading?: boolean
   trigger?: React.ReactNode
+}
+
+function getUserInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
+function UserInitial({ name }: { name: string }) {
+  return (
+    <div className="h-8 w-8 flex-shrink-0 rounded-full bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground">
+      {getUserInitials(name)}
+    </div>
+  )
 }
 
 /**
@@ -98,10 +111,7 @@ export function QuickReassignAction({
                   disabled={reassigning || isLoading}
                   className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors disabled:opacity-50"
                 >
-                  <Avatar className="h-10 w-10 flex-shrink-0">
-                    <AvatarImage src={user.avatar_url} alt={user.name} />
-                    <AvatarFallback>{user.name.charAt(0).toUpperCase()}</AvatarFallback>
-                  </Avatar>
+                  <UserInitial name={user.name} />
                   <div className="text-left min-w-0 flex-1">
                     <p className="text-sm font-medium">{user.name}</p>
                     <p className="text-xs text-muted-foreground truncate">{user.email}</p>
@@ -127,11 +137,8 @@ export function QuickReassignAction({
               Current
             </div>
             <DropdownMenuItem disabled>
-              <Avatar className="h-8 w-8 mr-2 flex-shrink-0">
-                <AvatarImage src={currentUser.avatar_url} alt={currentUser.name} />
-                <AvatarFallback>{currentUser.name.charAt(0).toUpperCase()}</AvatarFallback>
-              </Avatar>
-              <div className="text-left">
+              <UserInitial name={currentUser.name} />
+              <div className="text-left ml-2">
                 <p className="text-sm font-medium">{currentUser.name}</p>
                 <p className="text-xs text-muted-foreground">{currentUser.email}</p>
               </div>
@@ -150,11 +157,8 @@ export function QuickReassignAction({
                 onClick={() => handleReassign(user.id)}
                 disabled={reassigning || isLoading}
               >
-                <Avatar className="h-8 w-8 mr-2 flex-shrink-0">
-                  <AvatarImage src={user.avatar_url} alt={user.name} />
-                  <AvatarFallback>{user.name.charAt(0).toUpperCase()}</AvatarFallback>
-                </Avatar>
-                <div className="text-left">
+                <UserInitial name={user.name} />
+                <div className="text-left ml-2">
                   <p className="text-sm font-medium">{user.name}</p>
                   <p className="text-xs text-muted-foreground">{user.email}</p>
                 </div>

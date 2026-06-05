@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { Button, type ButtonProps } from '@/components/ui/button'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 /**
@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils'
  */
 export const AlwaysVisibleActionButton = React.forwardRef<
   HTMLButtonElement,
-  ButtonProps & { 'aria-label'?: string }
+  React.ComponentProps<'button'> & { 'aria-label'?: string }
 >(({ className, children, ...props }, ref) => (
   <Button
     ref={ref}
