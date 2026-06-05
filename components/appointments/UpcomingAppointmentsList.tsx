@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { memo } from 'react'
 import { CalendarClock, ChevronRight } from 'lucide-react'
 
 export interface UpcomingAppointmentItem {
@@ -32,7 +33,8 @@ function dayLabel(iso: string): string {
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
-export default function UpcomingAppointmentsList({ title, appointments, compact = false }: Props) {
+// Memoize to prevent re-renders when parent updates but appointments haven't changed
+export default memo(function UpcomingAppointmentsList({ title, appointments, compact = false }: Props) {
   if (appointments.length === 0) return null
 
   return (
@@ -70,4 +72,4 @@ export default function UpcomingAppointmentsList({ title, appointments, compact 
       </div>
     </div>
   )
-}
+})

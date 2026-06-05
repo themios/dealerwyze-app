@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import Link from 'next/link'
 import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Clock, Car, CreditCard, Users } from 'lucide-react'
 import type { DashboardStats } from '@/lib/dashboard/computeStats'
@@ -85,7 +86,8 @@ function formatTime(s: number | null) {
   return m === 0 ? `${s}s` : `${m}m`
 }
 
-export default function OwnerView({ stats }: Props) {
+// Memoize to avoid re-renders when parent updates
+const OwnerView = memo(function OwnerView({ stats }: Props) {
   const { today, leads, inventory, bhph, gamification } = stats
 
   const responseColor = leads.avg_response_seconds === null ? undefined
@@ -240,4 +242,6 @@ export default function OwnerView({ stats }: Props) {
       )}
     </div>
   )
-}
+})
+
+export default OwnerView

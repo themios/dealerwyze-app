@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import Link from 'next/link'
 import {
   Search, CalendarDays, BarChart2, BookUser,
@@ -20,7 +21,8 @@ const LINKS = [
 const tileCls = 'flex flex-col items-center gap-1.5 p-3 rounded-xl border border-border bg-card hover:bg-accent active:bg-accent/80 transition-colors'
 const labelCls = 'text-[10px] font-medium text-muted-foreground text-center leading-tight'
 
-export default function QuickActionGrid() {
+// Memoize to avoid re-renders when parent updates
+export default memo(function QuickActionGrid() {
   return (
     <div className="grid grid-cols-3 gap-2 px-4">
       {/* Import Lead — self-contained dialog with its own trigger */}
@@ -61,4 +63,4 @@ export default function QuickActionGrid() {
       </Link>
     </div>
   )
-}
+})

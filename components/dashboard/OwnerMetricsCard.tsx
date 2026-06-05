@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { memo } from 'react'
 import { cn } from '@/lib/utils'
 
 interface Metric {
@@ -24,7 +24,8 @@ interface Props {
  * On tablet: 2 columns
  * On desktop: 2-3 columns
  */
-export function OwnerMetricsCard({ title, metrics, className }: Props) {
+// Memoize to prevent re-renders when parent updates
+export const OwnerMetricsCard = memo(function OwnerMetricsCard({ title, metrics, className }: Props) {
   return (
     <div className={cn('rounded-lg border border-border bg-card p-4', className)}>
       <h3 className="text-sm font-semibold text-foreground mb-4">{title}</h3>
@@ -55,4 +56,4 @@ export function OwnerMetricsCard({ title, metrics, className }: Props) {
       </div>
     </div>
   )
-}
+})

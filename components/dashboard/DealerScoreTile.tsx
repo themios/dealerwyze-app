@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import Link from 'next/link'
 
 interface Props {
@@ -37,7 +38,8 @@ function urgencyLine(urgentLeads: number, tasksOverdue: number, respondedToday: 
   return parts.join(' and ')
 }
 
-export default function DealerScoreTile({ score, urgentLeads, tasksOverdue, respondedToday, openLeads }: Props) {
+// Memoize to avoid re-renders when parent updates
+export default memo(function DealerScoreTile({ score, urgentLeads, tasksOverdue, respondedToday, openLeads }: Props) {
   const totalUrgent = urgentLeads + tasksOverdue
   return (
     <Link href="/today">
@@ -70,4 +72,4 @@ export default function DealerScoreTile({ score, urgentLeads, tasksOverdue, resp
       </div>
     </Link>
   )
-}
+})

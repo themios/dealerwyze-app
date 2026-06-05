@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import Link from 'next/link'
 
 interface StatRow {
@@ -55,7 +56,8 @@ function TileContent({ title, primary, primarySub, stats, alert, footer }: Omit<
   )
 }
 
-export default function StatTile(props: Props) {
+// Memoize to avoid re-renders when parent updates
+export default memo(function StatTile(props: Props) {
   const { href, fullWidth, onClick, ...rest } = props
   const cls = `rounded-xl border border-border bg-card hover:bg-accent active:bg-accent/80 transition-colors cursor-pointer ${fullWidth ? 'w-full' : ''}`
 
@@ -71,4 +73,4 @@ export default function StatTile(props: Props) {
       <TileContent {...rest} />
     </Link>
   )
-}
+})
