@@ -10,6 +10,7 @@ import { Sparkles, X } from 'lucide-react'
 import { Activity, VoiceCall, type Customer } from '@/types'
 import type { SequenceStatus } from '@/components/leads/NewLeadCard'
 import { useVertical } from '@/hooks/useVertical'
+import { AlwaysVisibleActionButton } from '@/components/shared/AlwaysVisibleActionButton'
 import { createClient } from '@/lib/supabase/client'
 import { shouldShowAddressedActivity } from '@/lib/utils'
 import {
@@ -1102,15 +1103,14 @@ export default function TodayContent({
                     {item.customer_name}
                   </Link>
                   <span className="shrink-0 text-xs text-muted-foreground">{item.reason}</span>
-                  <button
-                    type="button"
+                  <AlwaysVisibleActionButton
                     onClick={() => void dismissAtRisk(item.activity_id, item.customer_id)}
                     aria-label={`Dismiss ${item.customer_name} from at-risk list`}
                     title="Dismiss"
-                    className="shrink-0 opacity-0 group-hover:opacity-100 rounded p-2 min-h-[44px] min-w-[44px] text-muted-foreground hover:text-foreground hover:bg-amber-200/60 dark:hover:bg-amber-800/40 transition-opacity"
+                    className="shrink-0 bg-amber-200/40 dark:bg-amber-800/40 hover:bg-amber-200/60 dark:hover:bg-amber-800/60"
                   >
                     <X className="h-3.5 w-3.5" aria-hidden />
-                  </button>
+                  </AlwaysVisibleActionButton>
                 </li>
               ))}
             </ul>
