@@ -1,10 +1,11 @@
 -- Property Pricing Analysis table for RealtyWyze feature (Sprint 4)
 -- Stores CMA (Comparative Market Analysis) and pricing recommendations
+-- Note: property_id is stored as text UUID for now; will reference properties table after RealtyWyze launch
 
 create table property_pricing_analysis (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references organizations(id) on delete cascade,
-  property_id uuid references properties(id) on delete set null,
+  property_id uuid,
   analysis_json jsonb not null,
   aggressive_price numeric,
   suggested_price numeric,

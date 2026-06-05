@@ -1,10 +1,11 @@
 -- Property Documents table for RealtyWyze feature (Sprint 2)
 -- Stores inspection reports, appraisals, disclosures with auto-generated summaries
+-- Note: property_id is stored as text UUID for now; will reference properties table after RealtyWyze launch
 
 create table property_documents (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references organizations(id) on delete cascade,
-  property_id uuid references properties(id) on delete set null,
+  property_id uuid,
   file_path text not null,
   file_name text not null,
   mime_type text,
