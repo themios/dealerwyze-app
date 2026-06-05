@@ -26,6 +26,7 @@ export const SUPPORTED_DOCUMENT_TYPES = new Set([
   'image/jpeg',
   'image/png',
   'image/webp',
+  'application/pdf',
 ])
 
 export const MAX_DOCUMENT_SIZE = 5 * 1024 * 1024 // 5MB

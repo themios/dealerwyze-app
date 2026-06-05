@@ -16,8 +16,8 @@ export async function summarizePropertyDoc(
 ): Promise<string | null> {
   if (!process.env.OPENROUTER_API_KEY) return null
 
-  const SUPPORTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
-  if (!SUPPORTED_IMAGE_TYPES.has(mimeType)) return null
+  const SUPPORTED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf'])
+  if (!SUPPORTED_TYPES.has(mimeType)) return null
 
   try {
     const storage = createServiceClient()
@@ -80,8 +80,8 @@ export async function analyzePropertyDoc(
 } | null> {
   if (!process.env.OPENROUTER_API_KEY) return null
 
-  const SUPPORTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
-  if (!SUPPORTED_IMAGE_TYPES.has(mimeType)) return null
+  const SUPPORTED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf'])
+  if (!SUPPORTED_TYPES.has(mimeType)) return null
 
   try {
     const storage = createServiceClient()
