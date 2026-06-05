@@ -80,9 +80,10 @@ export default function EmbeddedCalendarPanel({ refreshKey = 0, className }: Pro
           <Button
             type="button"
             variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0"
+            size="icon"
+            className="h-10 w-10 min-h-[44px] min-w-[44px]"
             onClick={() => setCurrent((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))}
+            aria-label="Previous month"
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -92,9 +93,10 @@ export default function EmbeddedCalendarPanel({ refreshKey = 0, className }: Pro
           <Button
             type="button"
             variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0"
+            size="icon"
+            className="h-10 w-10 min-h-[44px] min-w-[44px]"
             onClick={() => setCurrent((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1))}
+            aria-label="Next month"
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
