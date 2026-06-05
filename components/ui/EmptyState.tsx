@@ -23,13 +23,13 @@ export default function EmptyState({ icon: Icon, title, description, action, cla
       <p className="font-medium text-sm text-foreground">{title}</p>
       {description && <p className="text-xs mt-1">{description}</p>}
       {action && (
-        <div className="mt-4">
+        <div className="mt-4 max-w-xs mx-auto px-4">
           {action.href ? (
             <Link href={action.href}>
-              <Button variant="outline" size="sm">{action.label}</Button>
+              <Button variant="outline" className="w-full h-12 lg:h-auto lg:w-auto">{action.label}</Button>
             </Link>
           ) : (
-            <Button variant="outline" size="sm" onClick={action.onClick}>{action.label}</Button>
+            <Button variant="outline" onClick={action.onClick} className="w-full h-12 lg:h-auto lg:w-auto">{action.label}</Button>
           )}
         </div>
       )}
