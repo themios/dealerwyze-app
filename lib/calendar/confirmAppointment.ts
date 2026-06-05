@@ -75,7 +75,7 @@ export async function confirmAppointment(
   }
 
   const identity = await getLeadOutboundIdentity(orgId, customerId, supabase)
-  const dealerName = identity.name?.trim() || 'the dealership'
+  const orgName = identity.name?.trim() || 'your organization'
 
   // 4. Send customer confirmation - non-blocking
   sendAppointmentNotification({
@@ -85,7 +85,7 @@ export async function confirmAppointment(
     customerPhone,
     customerEmail,
     appointmentIso: new Date(datetimeIso).toISOString(),
-    dealerName,
+    orgName,
     calendarUrl,
     type: 'confirmation',
   }).catch((err) =>

@@ -1,8 +1,7 @@
 'use client'
 
-
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import TopBar from '@/components/layout/TopBar'
 import { Button } from '@/components/ui/button'
@@ -14,19 +13,20 @@ import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { useVertical } from '@/hooks/useVertical'
 
-export default function NewCustomerPage() {
+function NewCustomerForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
   const { vertical } = useVertical()
   const isRe = vertical === 'real_estate'
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
-    name: '',
+    name: searchParams.get('name') ?? '',
     interested_in: '',
     lead_source: '',
-    primary_phone: '',
+    primary_phone: searchParams.get('phone') ?? '',
     secondary_phone: '',
-    email: '',
+    email: searchParams.get('email') ?? '',
     notes: '',
     zip_code: '',
   })
@@ -217,5 +217,13 @@ export default function NewCustomerPage() {
         </Button>
       </form>
     </div>
+  )
+}
+
+export default function NewCustomerPage() {
+  return (
+    <Suspense fallback={<div className="p-4 text-muted-foreground">Loading…</div>}>
+      <NewCustomerForm />
+    </Suspense>
   )
 }

@@ -1,6 +1,7 @@
 import type { ParsedLead } from './parser'
 import type { LeadScanResult } from './visionIngestTypes'
 import { normalizePhone } from '@/lib/utils/phone'
+import { sanitizeEmail, sanitizeParsedLeadContact } from './sanitizeLeadFields'
 
 function cleanInline(value: string | null | undefined): string {
   return (value ?? '').replace(/\s+/g, ' ').trim()
@@ -10,16 +11,16 @@ function cleanMultiline(value: string | null | undefined): string {
   return (value ?? '').trim()
 }
 
-function extractEmail(value: string | null | undefined): string {
-  const match = cleanInline(value).match(/[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}/)
-  return match?.[0]?.toLowerCase() ?? ''
-}
-
 export function scanResultToParsedLead(scan: LeadScanResult): ParsedLead {
   const firstName = cleanInline(scan.first_name.value)
   const lastName = cleanInline(scan.last_name.value)
-  const name = `${firstName} ${lastName}`.trim() || 'Unknown'
-  const email = extractEmail(scan.email.value)
+  const { name, email } = sanitizeParsedLeadContact({
+    firstName,
+    lastName,
+    email: scan.email.value,
+  })
+  const resolvedName = name === 'Unknown' ? 'Unknown' : name
+  const resolvedEmail = sanitizeEmail(scan.email.value) || email
   // Only persist digits that form a valid 10-digit US number. Never put `name` in `phone`:
   // ingest dedupes by normalizePhone(lead.phone); a bogus "phone" of the person's name
   // normalizes to "" and falsely matches every customer with a blank phone.
@@ -54,8 +55,8 @@ export function scanResultToParsedLead(scan: LeadScanResult): ParsedLead {
   else if (src.includes('carsforsale')) source = 'carsforsale'
 
   return {
-    name,
-    email,
+    name: resolvedName,
+    email: resolvedEmail,
     phone,
     zip,
     vehicle: vehicleParts,

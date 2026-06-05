@@ -44,6 +44,11 @@ export function canTransition(from: PipelineStatus, to: PipelineStatus): boolean
   return VALID_TRANSITIONS[from].includes(to)
 }
 
+/** Terminal stages cannot be advanced and should not block a new transaction. */
+export function isTerminalPipelineStatus(status: PipelineStatus): boolean {
+  return VALID_TRANSITIONS[status].length === 0
+}
+
 export function isSaleStatus(status: PipelineStatus): boolean {
   return SALE_STAGES.includes(status) || status === 'fallen_through'
 }
@@ -101,3 +106,15 @@ export interface Transaction {
   created_at:          string
   updated_at:          string | null
 }
+
+/** Newest open (non-terminal) transaction for a listing, or null if all are closed out. */
+export function pickActiveTransaction(txns: Transaction[]): Transaction | null {
+  const open = txns.filter(t => !isTerminalPipelineStatus(t.pipeline_status))
+  if (open.length === 0) return null
+  return [...open].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  )[0]
+}
+
+/** @deprecated Use pickActiveTransaction — alias for stale dev bundles after rename */
+export const pickActive = pickActiveTransaction

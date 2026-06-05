@@ -1,9 +1,11 @@
 /**
  * Notify agent when a new showing request arrives.
- * Sends SMS and logs as activity.
+ * SMS (Twilio), email (Resend), and Telegram alert.
  */
 import { createServiceClient } from '@/lib/supabase/service'
 import { sendNotificationEmail } from '@/lib/email/notify'
+import { sendTelegramMessage } from '@/lib/notifications/telegram'
+import { sendTwilioSms, toE164Us } from '@/lib/bhph/twilioOutbound'
 
 interface NotifyAgentParams {
   orgId: string
@@ -19,12 +21,9 @@ interface NotifyAgentParams {
   requestedTimes: string[]
 }
 
-export async function notifyAgentShowingRequest(
-  params: NotifyAgentParams
-) {
+export async function notifyAgentShowingRequest(params: NotifyAgentParams) {
   const {
     orgId,
-    agentId,
     agentName,
     agentPhone,
     agentEmail,
@@ -36,63 +35,72 @@ export async function notifyAgentShowingRequest(
     requestedTimes,
   } = params
 
+  const timesList =
+    requestedTimes.length > 0
+      ? requestedTimes.map((t) => new Date(t).toLocaleString('en-US')).join(', ')
+      : 'flexible'
+
+  const appUrl = (process.env.REALTYWYZE_APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://realtywyze.us').replace(
+    /\/$/,
+    '',
+  )
+  const showingLink = `${appUrl}/showings/${showingId}`
+
   const supabase = createServiceClient()
+  const { data: settings } = await supabase
+    .from('org_settings')
+    .select('dealer_cell_number')
+    .eq('org_id', orgId)
+    .maybeSingle()
 
-  // SMS to agent
-  if (agentPhone) {
-    const timesList =
-      requestedTimes.length > 0
-        ? requestedTimes
-            .map((t) => new Date(t).toLocaleString())
-            .join(', ')
-        : 'flexible'
+  const smsTargets = new Set<string>()
+  const agentE164 = agentPhone ? toE164Us(agentPhone) : null
+  if (agentE164) smsTargets.add(agentE164)
+  const orgCell = settings?.dealer_cell_number ? toE164Us(settings.dealer_cell_number) : null
+  if (orgCell) smsTargets.add(orgCell)
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://realtywyze.us'
-    const smsBody = `New showing request from ${buyerName} for ${address}. Times: ${timesList}. Respond at ${appUrl}/showings/${showingId}`
+  const smsBody = `RealtyWyze: New showing request from ${buyerName} for ${address}. Times: ${timesList}. Open: ${showingLink}`
 
+  for (const to of smsTargets) {
     try {
-      await fetch('/api/twilio/send-sms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: agentPhone,
-          body: smsBody,
-          org_id: orgId,
-        }),
-      })
+      await sendTwilioSms(to, smsBody)
     } catch (err) {
-      console.error('Failed to send SMS to agent:', err)
+      console.error('Failed to send SMS for showing request:', err)
     }
   }
 
-  // Email to agent
-  // RealtyWyze ops routing: send showing-request notifications to the shared inbox.
-  // This avoids dependency on per-profile auth email hygiene for critical alerts.
-  const routedAgentEmail = process.env.SHOWINGS_AGENT_NOTIFICATION_TO || 'noreply@realtywyze.us'
-  if (routedAgentEmail || agentEmail) {
-    const appUrl = process.env.REALTYWYZE_APP_URL || 'https://realtywyze.us'
-    const showingLink = `${appUrl.replace(/\/$/, '')}/showings/${showingId}`
+  const notifyTo = agentEmail || process.env.SHOWINGS_AGENT_NOTIFICATION_TO
+  if (notifyTo) {
     const emailBody = `Hi ${agentName},
 
-You have a new showing request!
+You have a new showing request on your public listing.
 
 **Buyer:** ${buyerName}
 **Email:** ${buyerEmail}${buyerPhone ? `\n**Phone:** ${buyerPhone}` : ''}
 **Property:** ${address}
-**Preferred times:** ${requestedTimes.length > 0 ? requestedTimes.map((t) => new Date(t).toLocaleString()).join(', ') : 'Flexible'}
+**Preferred times:** ${timesList}
 
-Review and confirm in dashboard: ${showingLink}
+Review and confirm in your dashboard: ${showingLink}
 
 Best regards,
 RealtyWyze`
 
     sendNotificationEmail({
-      to: routedAgentEmail || agentEmail!,
-      subject: `New Showing Request from ${buyerName}`,
+      to: notifyTo,
+      subject: `New showing request — ${address}`,
       html: emailBody.replace(/\n/g, '<br/>'),
       org_id: orgId,
       email_type: 'showing_request_agent',
       vertical: 'real_estate',
     }).catch((err) => console.error('Failed to send email to agent:', err))
   }
+
+  void sendTelegramMessage(
+    `<b>New Showing Request</b>\n` +
+      `<b>${buyerName}</b> — ${address}\n` +
+      (buyerPhone ? `Phone: ${buyerPhone}\n` : '') +
+      `Email: ${buyerEmail}\n` +
+      `Times: ${timesList}\n` +
+      `<a href="${showingLink}">Open in RealtyWyze</a>`,
+  ).catch(() => {})
 }

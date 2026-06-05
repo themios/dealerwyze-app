@@ -190,6 +190,14 @@ export async function processVoiceCall(params: VoiceCallParams): Promise<void> {
       .eq('call_sid', call_sid)
 
     // 5. Generate AI summary from VAPI transcript (always run — VAPI structured data is unreliable)
+    // Fetch org vertical for vertical-aware AI extraction
+    const { data: org } = await supabase
+      .from('organizations')
+      .select('vertical')
+      .eq('id', org_id)
+      .maybeSingle()
+    const vertical = (org?.vertical ?? 'dealer') as 'dealer' | 'real_estate'
+
     let finalName    = name
     let finalVehicle = vehicle
     let finalPhone   = callbackPhone
@@ -201,6 +209,7 @@ export async function processVoiceCall(params: VoiceCallParams): Promise<void> {
         phone:      displayPhone,
         timeline,
         transcript: transcript || activityBody,
+        vertical,
       })
 
       if (summary) {

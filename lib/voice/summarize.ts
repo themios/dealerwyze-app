@@ -14,8 +14,14 @@ export interface VoiceSummaryJson {
   confidence_score:            number
 }
 
-const SYSTEM_PROMPT = `You are a CRM data extractor for a used-car dealership.
+function getSystemPrompt(vertical: 'dealer' | 'real_estate'): string {
+  if (vertical === 'real_estate') {
+    return `You are a CRM data extractor for a real estate brokerage.
 Output ONLY a single raw JSON object matching the exact schema provided. No markdown, no code fences, no extra keys.`
+  }
+  return `You are a CRM data extractor for a used-car dealership.
+Output ONLY a single raw JSON object matching the exact schema provided. No markdown, no code fences, no extra keys.`
+}
 
 /**
  * Generate a structured summary of a voice call using gathered step data.
@@ -28,12 +34,14 @@ export async function generateVoiceSummary(input: {
   timeline:      string
   transcript:    string
   locationNames?: string[]   // org location names for hint
+  vertical?:     'dealer' | 'real_estate'
 }): Promise<VoiceSummaryJson | null> {
   const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) return null
 
   const { default: Groq } = await import('groq-sdk')
   const groq = new Groq({ apiKey })
+  const vertical = input.vertical ?? 'dealer'
 
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -44,14 +52,17 @@ export async function generateVoiceSummary(input: {
     ? `Possible locations: ${input.locationNames.map(n => `"${n}"`).join(', ')}. Use one of these exact strings if matched, else null.`
     : 'string or null (location name if mentioned, else null)'
 
-  const userPrompt = `You are analyzing a call between a customer and a car dealership's virtual receptionist.
+  const propertyLabel = vertical === 'real_estate' ? 'property' : 'vehicle'
+  const businessType = vertical === 'real_estate' ? "a real estate agent or brokerage's virtual receptionist" : "a car dealership's virtual receptionist"
+
+  const userPrompt = `You are analyzing a call between a client and ${businessType}.
 Extract structured lead data. Return STRICT JSON only. No commentary, no markdown.
 If information is missing use null. Do NOT guess or invent details.
 Today is ${today} (Pacific Time). Use this to resolve relative dates like "tomorrow", "Saturday", "next week" into ISO datetime strings (format: "YYYY-MM-DD HH:mm").
 
 Call data:
 - Caller name: "${input.name}"
-- Vehicle mentioned: "${input.vehicle}"
+- ${vertical === 'real_estate' ? 'Property' : 'Vehicle'} mentioned: "${input.vehicle}"
 - Callback phone: "${input.phone}"
 - Timeline/appointment: "${input.timeline}"
 - Full transcript: "${input.transcript}"
@@ -79,7 +90,7 @@ Return exactly this JSON structure:
     temperature:     0.1,
     response_format: { type: 'json_object' },
     messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: getSystemPrompt(vertical) },
       { role: 'user',   content: userPrompt },
     ],
   })

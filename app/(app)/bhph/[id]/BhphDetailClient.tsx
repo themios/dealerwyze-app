@@ -24,8 +24,20 @@ import {
 } from '@/components/ui/sheet'
 import TopBar from '@/components/layout/TopBar'
 import type { PaymentFrequency } from '@/lib/bhph/schedule'
+import {
+  computeBhphOutstandingBalance,
+  computeBhphPaidPercent,
+  financedPrincipalAmount,
+  totalCollectedTowardContract,
+} from '@/lib/bhph/balance'
 import type { BhphPaymentLedgerEntry } from '@/types/index'
 import DeferredPaymentManager, { type DeferredPaymentRow } from './DeferredPaymentManager'
+import BhphGpsDevicePanel from '@/components/bhph/BhphGpsDevicePanel'
+import BhphContractTermsPanel from '@/components/bhph/BhphContractTermsPanel'
+import BhphInterestPayoffPanel from '@/components/bhph/BhphInterestPayoffPanel'
+import type { BhphGpsDeviceFields } from '@/lib/bhph/gpsDevice'
+import { formatAprFromStored, interestRateStoredToDecimal } from '@/lib/bhph/contractTerms'
+import { computeBhphPaymentAllocation } from '@/lib/bhph/interestAllocation'
 import {
   CheckCircle, AlertTriangle, ChevronLeft, Phone, Mail,
   History, Link2, DollarSign, MoreVertical, ChevronDown,
@@ -48,12 +60,17 @@ interface Account {
   sms_consent: boolean
   email_consent: boolean
   notes: string | null
+  gps_vendor: string | null
+  gps_device_id: string | null
+  gps_installed_at: string | null
+  gps_notes: string | null
   status: string
   customer_email: string | null
   interest_rate?: number
   principal_balance?: number | null
   total_interest_paid?: number
   last_payment_date?: string | null
+  created_at?: string
   payment_method_type?: string | null
   bank_verification_status?: string | null
   stripe_payment_method_id?: string | null
@@ -97,10 +114,9 @@ function fmt(n: number | null | undefined) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-function formatAprRate(rate: number | undefined) {
-  if (rate == null || rate <= 0) return 'None'
-  const pct = rate * 100
-  return `${pct.toFixed(2)}% APR`
+function contractCreatedYmd(createdAt: string | undefined): string {
+  if (!createdAt) return localTodayYmd()
+  return createdAt.slice(0, 10)
 }
 
 function localTodayYmd() {
@@ -207,8 +223,8 @@ function buildSchedule(acct: Account) {
   const freq = (acct.payment_frequency ?? 'monthly') as PaymentFrequency
   const anchor = acct.payment_day_anchor ?? undefined
   const pmtAmount = acct.monthly_payment
-  const loanAmount = acct.loan_amount ?? 0
-  const totalPayments = loanAmount > 0 ? Math.ceil(loanAmount / pmtAmount) : 24
+  const financed = financedPrincipalAmount(acct) ?? acct.loan_amount ?? 0
+  const totalPayments = financed > 0 ? Math.ceil(financed / pmtAmount) : 24
   const paymentsMade = Math.floor((acct.total_paid ?? 0) / pmtAmount)
 
   const dates: string[] = []
@@ -258,12 +274,20 @@ function RecordPaymentSheet({
   accountId,
   defaultAmount,
   onRecorded,
+  interestRateAnnual,
+  principalBalance,
+  lastPaymentDate,
+  contractCreatedDate,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
   accountId: string
   defaultAmount: number
   onRecorded: () => void
+  interestRateAnnual: number
+  principalBalance: number | null
+  lastPaymentDate: string | null
+  contractCreatedDate: string
 }) {
   const [paymentDate, setPaymentDate] = useState(() => localTodayYmd())
   const [amount, setAmount] = useState(() => String(defaultAmount))
@@ -278,6 +302,23 @@ function RecordPaymentSheet({
   } | null>(null)
   const [pending, startTransition] = useTransition()
   const router = useRouter()
+
+  const previewAmt = parseFloat(amount)
+  const allocationPreview =
+    Number.isFinite(previewAmt) &&
+    previewAmt > 0 &&
+    /^\d{4}-\d{2}-\d{2}$/.test(paymentDate) &&
+    interestRateAnnual > 0 &&
+    principalBalance != null
+      ? computeBhphPaymentAllocation({
+          paymentAmount: previewAmt,
+          paymentDate,
+          interestRateAnnual,
+          principalBalance,
+          lastPaymentDate,
+          contractCreatedDate,
+        })
+      : null
 
   function submit() {
     setError(null)
@@ -383,6 +424,27 @@ function RecordPaymentSheet({
                 className="h-11 tabular-nums"
               />
             </div>
+            {allocationPreview && (
+              <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Estimated allocation ({formatAprFromStored(interestRateAnnual)})
+                </p>
+                <p className="text-foreground tabular-nums">
+                  Interest: {fmt(allocationPreview.interestPortion)} · Principal:{' '}
+                  {fmt(allocationPreview.principalPortion)} · Balance after:{' '}
+                  {fmt(allocationPreview.principalBalanceAfter)}
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  {allocationPreview.daysSinceLast} day(s) since last accrual start
+                </p>
+              </div>
+            )}
+            {interestRateAnnual <= 0 && principalBalance != null && (
+              <p className="text-xs text-amber-700 dark:text-amber-300">
+                No interest rate on this contract — payment applies entirely to principal. Use Edit
+                terms to set APR.
+              </p>
+            )}
             <div className="space-y-1.5">
               <Label>Payment type</Label>
               <Select value={paymentType} onValueChange={v => setPaymentType(v as PayType)}>
@@ -647,6 +709,7 @@ export default function BhphDetailClient({
   canRecordManualPayment,
   defaultAchMethod,
 }: Props) {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const [recordOpen, setRecordOpen] = useState(false)
   const [recordSheetKey, setRecordSheetKey] = useState(0)
@@ -704,20 +767,15 @@ export default function BhphDetailClient({
   const daysUntilNext = Math.round((nextDue.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
   const isOverdue = daysUntilNext < 0
 
-  const balance =
-    acct.principal_balance != null
-      ? Math.max(0, acct.principal_balance)
-      : acct.loan_amount != null
-        ? Math.max(0, acct.loan_amount - (acct.total_paid ?? 0))
-        : null
+  const balance = computeBhphOutstandingBalance(acct)
+  const paidPct = computeBhphPaidPercent(acct)
+  const collected = totalCollectedTowardContract(acct)
+  const financedForSchedule = financedPrincipalAmount(acct)
 
-  const paidPct = acct.loan_amount && acct.loan_amount > 0
-    ? Math.min(100, Math.round(((acct.total_paid ?? 0) / acct.loan_amount) * 100))
-    : 0
-
-  const totalPayments = acct.loan_amount && acct.monthly_payment
-    ? Math.ceil(acct.loan_amount / acct.monthly_payment)
-    : null
+  const totalPayments =
+    financedForSchedule && acct.monthly_payment
+      ? Math.ceil(financedForSchedule / acct.monthly_payment)
+      : null
   const paymentsMade = acct.monthly_payment
     ? Math.floor((acct.total_paid ?? 0) / acct.monthly_payment)
     : null
@@ -727,14 +785,25 @@ export default function BhphDetailClient({
     .filter(row => row.status === 'scheduled')
     .reduce((sum, row) => sum + row.amount, 0)
 
+  const deferredBalanceRemaining = Math.max(
+    0,
+    Math.round(
+      ((acct.required_down_payment ?? 0) - (acct.down_payment ?? 0)) * 100,
+    ) / 100,
+  )
+
   const vehicleLabel = vehicle
     ? `${vehicle.year} ${vehicle.make} ${vehicle.model}`
     : 'Unknown vehicle'
 
   const isOnTrack = !isOverdue
   const recentReminderLog = reminderLog.slice(0, 6)
-  const interestRate = acct.interest_rate ?? 0
+  const interestRateDecimal = interestRateStoredToDecimal(acct.interest_rate)
   const totalInterestPaid = acct.total_interest_paid ?? 0
+  const principalForAllocation =
+    acct.principal_balance != null
+      ? Math.max(0, acct.principal_balance)
+      : balance
 
   return (
     <div className="min-h-screen bg-background">
@@ -753,7 +822,14 @@ export default function BhphDetailClient({
         onOpenChange={setRecordOpen}
         accountId={acct.id}
         defaultAmount={acct.monthly_payment}
-        onRecorded={() => setLedgerReload(k => k + 1)}
+        onRecorded={() => {
+          setLedgerReload(k => k + 1)
+          router.refresh()
+        }}
+        interestRateAnnual={interestRateDecimal}
+        principalBalance={principalForAllocation}
+        lastPaymentDate={acct.last_payment_date ?? null}
+        contractCreatedDate={contractCreatedYmd(acct.created_at)}
       />
 
       {/* Mobile TopBar */}
@@ -853,6 +929,25 @@ export default function BhphDetailClient({
           {/* Loan summary + down payment */}
           <div className="px-4 lg:px-6 py-4 space-y-3">
 
+            <BhphContractTermsPanel
+              contractId={acct.id}
+              initial={{
+                interest_rate: acct.interest_rate ?? null,
+                monthly_payment: acct.monthly_payment,
+                payment_frequency: acct.payment_frequency,
+                payment_day_anchor: acct.payment_day_anchor,
+                notes: acct.notes,
+              }}
+              readOnly={!canRecordManualPayment}
+            />
+
+            <BhphInterestPayoffPanel
+              key={ledgerReload}
+              contractId={acct.id}
+              interestRate={acct.interest_rate}
+              canManage={canRecordManualPayment}
+            />
+
             <div className="bg-card border border-border rounded-[10px] p-4">
               <div className="flex items-center justify-between mb-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Loan summary</p>
@@ -870,22 +965,23 @@ export default function BhphDetailClient({
                 <div>
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Interest rate</p>
                   <p className="text-sm font-semibold text-foreground tabular-nums">
-                    {formatAprRate(interestRate)}
+                    {formatAprFromStored(acct.interest_rate)}
                   </p>
                 </div>
-                {acct.principal_balance != null && (
+                {balance != null && (
                   <div>
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Current principal balance</p>
                     <p className="text-sm font-semibold text-foreground tabular-nums">
-                      {fmt(acct.principal_balance)}
+                      {fmt(balance)}
                     </p>
                   </div>
                 )}
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Total interest paid</p>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Interest paid (total)</p>
                   <p className="text-sm font-semibold text-foreground tabular-nums">
                     {fmt(totalInterestPaid)}
                   </p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">See Interest &amp; payoff for YTD</p>
                 </div>
               </div>
 
@@ -899,7 +995,7 @@ export default function BhphDetailClient({
                 <div>
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Paid</p>
                   <p className="text-xl font-[family-name:var(--font-display)] font-bold text-green-600 dark:text-green-400">
-                    {fmt(acct.total_paid)}
+                    {fmt(collected)}
                   </p>
                 </div>
                 <div>
@@ -926,10 +1022,36 @@ export default function BhphDetailClient({
                   </p>
                 </>
               )}
+              {canRecordManualPayment && acct.status === 'active' && (
+                <Button
+                  type="button"
+                  className="w-full mt-3 bg-[var(--brand-orange)] hover:bg-[var(--brand-orange)]/90 text-white font-semibold lg:hidden"
+                  onClick={openRecordPayment}
+                >
+                  <DollarSign className="h-4 w-4 mr-1.5" />
+                  Record payment
+                </Button>
+              )}
             </div>
 
             <div className="bg-card border border-border rounded-[10px] p-4 space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Payment method</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Payment method</p>
+                {canRecordManualPayment && acct.status === 'active' && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="bg-[var(--brand-orange)] hover:bg-[var(--brand-orange)]/90 text-white shrink-0"
+                    onClick={openRecordPayment}
+                  >
+                    <DollarSign className="h-3.5 w-3.5 mr-1" />
+                    Record payment
+                  </Button>
+                )}
+              </div>
+              {acct.status === 'paid_off' && (
+                <p className="text-sm text-green-700 dark:text-green-400 font-medium">Contract paid off</p>
+              )}
               {acct.payment_method_type === 'ach' && acct.bank_verification_status === 'verified' && (
                 <p className="text-sm text-foreground">
                   Bank{defaultAchMethod?.bank_name ? `: ${defaultAchMethod.bank_name}` : ''}
@@ -965,6 +1087,16 @@ export default function BhphDetailClient({
                 </p>
               )}
             </div>
+
+            <BhphGpsDevicePanel
+              contractId={acct.id}
+              initial={{
+                gps_vendor: acct.gps_vendor,
+                gps_device_id: acct.gps_device_id,
+                gps_installed_at: acct.gps_installed_at,
+                gps_notes: acct.gps_notes,
+              } satisfies BhphGpsDeviceFields}
+            />
 
             {acct.down_payment > 0 && (
               <div className="bg-card border border-border rounded-[10px] p-4 flex items-center justify-between">
@@ -1003,7 +1135,11 @@ export default function BhphDetailClient({
           </div>
 
           <div className="px-4 lg:px-6 pb-4">
-            <DeferredPaymentManager contractId={acct.id} rows={deferredPayments} />
+            <DeferredPaymentManager
+              contractId={acct.id}
+              rows={deferredPayments}
+              deferredBalanceRemaining={deferredBalanceRemaining}
+            />
           </div>
 
           <div className="px-4 lg:px-6">
@@ -1129,19 +1265,28 @@ export default function BhphDetailClient({
               <div className="flex items-center gap-2 mb-2">
                 <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
                 <p className="text-sm font-semibold text-red-600 dark:text-red-400">
-                  {Math.abs(daysUntilNext)} payment{Math.abs(daysUntilNext) !== 1 ? 's' : ''} overdue
+                  {Math.abs(daysUntilNext)} day{Math.abs(daysUntilNext) !== 1 ? 's' : ''} overdue
                 </p>
               </div>
               <p className="text-xs text-muted-foreground mb-3">
                 {fmt(acct.monthly_payment)} payment is {Math.abs(daysUntilNext)} days past due.
                 Try a pay link or phone reminder.
               </p>
-              <Button
-                size="sm"
-                className="w-full bg-red-600 hover:bg-red-700 text-white"
-              >
-                Start collection
-              </Button>
+              {canRecordManualPayment && acct.status === 'active' ? (
+                <Button
+                  size="sm"
+                  className="w-full bg-red-600 hover:bg-red-700 text-white"
+                  onClick={openRecordPayment}
+                >
+                  Record payment
+                </Button>
+              ) : customer ? (
+                <Link href={`/customers/${customer.id}?action=send-pay-link`} className="block">
+                  <Button size="sm" variant="outline" className="w-full">
+                    Send pay link
+                  </Button>
+                </Link>
+              ) : null}
             </div>
           )}
 

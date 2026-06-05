@@ -11,6 +11,7 @@ import { CONSENT_DISCLOSURE } from '@/lib/bhph/schedule'
 import { canAccessBhph } from '@/lib/auth/dealerRoles'
 import { deliverPulseSurvey } from '@/lib/pulse/deliver'
 import { recordDealIntentOutcome } from '@/lib/leads/dealLearning'
+import { BhphGpsPatchSchema, hasGpsDeviceRecorded } from '@/lib/bhph/gpsDevice'
 import type { UserRole } from '@/types/index'
 
 export async function POST(req: NextRequest) {
@@ -42,6 +43,10 @@ export async function POST(req: NextRequest) {
     email_consent,
     notes,
     annual_interest_rate_percent,
+    gps_vendor,
+    gps_device_id,
+    gps_installed_at,
+    gps_notes,
   } = body
 
   if (!vehicle_id || !sold_price) {
@@ -84,7 +89,22 @@ export async function POST(req: NextRequest) {
     interestRateDecimal = Math.min(100, Math.max(0, pct)) / 100
   }
 
-  const { error: finalizeError } = await supabase.rpc('finalize_bhph_sale_with_deferred', {
+  const gpsPatchParsed =
+    finance_type === 'bhph'
+      ? BhphGpsPatchSchema.safeParse({
+          gps_vendor,
+          gps_device_id,
+          gps_installed_at,
+          gps_notes,
+        })
+      : null
+
+  if (gpsPatchParsed && !gpsPatchParsed.success) {
+    const msg = gpsPatchParsed.error.issues[0]?.message ?? 'Invalid GPS device fields'
+    return NextResponse.json({ error: msg }, { status: 400 })
+  }
+
+  const { data: finalizeResult, error: finalizeError } = await supabase.rpc('finalize_bhph_sale_with_deferred', {
     p_org_id: orgId,
     p_vehicle_id: vehicle_id,
     p_customer_id: customer_id || null,
@@ -93,7 +113,12 @@ export async function POST(req: NextRequest) {
     p_finance_company: finance_company || null,
     p_down_payment: finance_type === 'bhph' ? actualDownValue : null,
     p_required_down_payment: finance_type === 'bhph' ? requiredDownValue || null : null,
-    p_loan_amount: finance_type === 'bhph' && loan_amount ? parseFloat(loan_amount) : null,
+    p_loan_amount:
+      finance_type === 'bhph'
+        ? loan_amount
+          ? parseFloat(String(loan_amount))
+          : parseFloat(String(sold_price))
+        : null,
     p_monthly_payment: finance_type === 'bhph' && monthly_payment ? parseFloat(monthly_payment) : null,
     p_payment_frequency: finance_type === 'bhph' ? payment_frequency ?? 'monthly' : null,
     p_payment_day: finance_type === 'bhph' ? parseInt(payment_day) || 1 : null,
@@ -113,6 +138,36 @@ export async function POST(req: NextRequest) {
   if (finalizeError) {
     console.error('[bhph/create] finalize_bhph_sale_with_deferred:', finalizeError.message)
     return NextResponse.json({ error: 'Could not save sale' }, { status: 500 })
+  }
+
+  if (finance_type === 'bhph' && gpsPatchParsed?.success) {
+    const gpsFields = gpsPatchParsed.data
+    if (hasGpsDeviceRecorded(gpsFields)) {
+      const bhphId =
+        finalizeResult &&
+        typeof finalizeResult === 'object' &&
+        finalizeResult !== null &&
+        'bhph_id' in finalizeResult
+          ? String((finalizeResult as { bhph_id: string }).bhph_id)
+          : null
+
+      if (bhphId) {
+        const { error: gpsErr } = await supabase
+          .from('bhph_payments')
+          .update({
+            gps_vendor: gpsFields.gps_vendor,
+            gps_device_id: gpsFields.gps_device_id,
+            gps_installed_at: gpsFields.gps_installed_at,
+            gps_notes: gpsFields.gps_notes,
+          })
+          .eq('id', bhphId)
+          .eq('user_id', orgId)
+
+        if (gpsErr) {
+          console.error('[bhph/create] gps update:', gpsErr.message)
+        }
+      }
+    }
   }
 
   if (customer_id) {

@@ -8,6 +8,12 @@
  */
 
 import { ParsedLead } from './parser'
+import {
+  buildFullName,
+  sanitizeEmail,
+  sanitizePersonName,
+  stripFieldLabel,
+} from './sanitizeLeadFields'
 
 /**
  * Parse a Boomtown CRM forward email
@@ -35,8 +41,15 @@ export function parseBoomtownLead(
   const bodyText = textBody
 
   // Extract using flexible patterns (CRM forwards vary widely)
-  const buyerName = extractField(bodyText, ['Buyer', 'Prospect', 'Contact', 'Name'], '')
-  const buyerEmail = extractField(bodyText, ['Email', 'Buyer Email', 'Contact Email'], '')
+  const firstName = extractField(bodyText, ['First Name'], '')
+  const lastName = extractField(bodyText, ['Last Name', 'Last'], '')
+  const buyerNameFromParts = buildFullName(firstName, lastName)
+  const buyerName =
+    buyerNameFromParts ||
+    extractField(bodyText, ['Buyer', 'Prospect', 'Contact', 'Name'], '')
+  const buyerEmail = sanitizeEmail(
+    extractField(bodyText, ['Email', 'Buyer Email', 'Contact Email'], ''),
+  )
   const buyerPhone = extractField(bodyText, ['Phone', 'Mobile', 'Contact Phone', 'Telephone'], '')
   const property = extractField(
     bodyText,
@@ -54,11 +67,15 @@ export function parseBoomtownLead(
   const zip = extractZip(property)
 
   // If we found agent name but no buyer name, use agent as source
-  const finalName = buyerName || extractNameFromEmail(buyerEmail) || agentName || 'CRM Lead'
+  const finalName =
+    sanitizePersonName(buyerName) ||
+    extractNameFromEmail(buyerEmail) ||
+    sanitizePersonName(agentName) ||
+    'CRM Lead'
 
   return {
     name: finalName,
-    email: buyerEmail || '',
+    email: buyerEmail,
     phone: cleanPhone(buyerPhone) || '',
     zip: zip || '',
     vehicle: property || '',
@@ -75,24 +92,34 @@ export function parseBoomtownLead(
  * Helper: Extract a field value from email body
  * Looks for patterns like "Field: value" or "Field\nvalue"
  */
+function escapeLabel(label: string): string {
+  return label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 function extractField(text: string, labels: string[], defaultValue: string = ''): string {
   for (const label of labels) {
-    // Try pattern: "Label: value"
-    const colonMatch = text.match(new RegExp(`${label}\\s*:\\s*([^\\n]+)`, 'i'))
+    const escaped = escapeLabel(label)
+    // Line-start only for short labels like "Name" so we don't match inside "First Name:"
+    const linePrefix = label === 'Name' ? '(?:^|\\n)\\s*' : ''
+    const colonMatch = text.match(
+      new RegExp(`${linePrefix}${escaped}\\s*:\\s*([^\\n]+)`, 'im'),
+    )
     if (colonMatch) {
-      return colonMatch[1].trim()
+      return stripFieldLabel(colonMatch[1].trim())
     }
 
-    // Try pattern: "Label\nvalue"
-    const newlineMatch = text.match(new RegExp(`${label}\\s*\\n\\s*([^\\n]+)`, 'i'))
+    const newlineMatch = text.match(
+      new RegExp(`${linePrefix}${escaped}\\s*\\n\\s*([^\\n]+)`, 'im'),
+    )
     if (newlineMatch) {
-      return newlineMatch[1].trim()
+      return stripFieldLabel(newlineMatch[1].trim())
     }
 
-    // Try pattern: "Label = value"
-    const equalsMatch = text.match(new RegExp(`${label}\\s*=\\s*([^\\n]+)`, 'i'))
+    const equalsMatch = text.match(
+      new RegExp(`${linePrefix}${escaped}\\s*=\\s*([^\\n]+)`, 'im'),
+    )
     if (equalsMatch) {
-      return equalsMatch[1].trim()
+      return stripFieldLabel(equalsMatch[1].trim())
     }
   }
   return defaultValue

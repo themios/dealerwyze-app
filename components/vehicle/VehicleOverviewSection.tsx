@@ -144,12 +144,13 @@ export default function VehicleOverviewSection({
         <p className="text-xs text-muted-foreground mt-1">
           {isRe ? (
             <>
-              Buyers see this on your listing site as short sections. AI can be wrong; edit every line. Put disclosure
-              reports, inspection reports, or floor plans in{' '}
-              <span className="font-medium text-foreground">Website documents</span> above (summarized for AI and shown
-              on the listing). Private documents go in{' '}
-              <span className="font-medium text-foreground">Private files</span> -- not used for the website. Or paste
-              plain text below.
+              Buyer-facing marketing copy for your public listing — short, positive sections. Regenerate pulls verified
+              area context (city, subdivision, school district, MLS remarks, and public Wikipedia summaries when
+              available) and will not invent landmarks or parks. AI can still be wrong; edit every line. Put caveats,
+              inspection issues, or negotiation notes in{' '}
+              <span className="font-medium text-foreground">Realtor notes (internal)</span> below (never shown to buyers).
+              For richer location copy, ensure MLS remarks and subdivision/school fields are filled. Disclosures and floor
+              plans go in <span className="font-medium text-foreground">Website documents</span> above.
             </>
           ) : (
             <>
@@ -180,21 +181,21 @@ export default function VehicleOverviewSection({
           onChange={e => setDescription(e.target.value)}
           rows={12}
           placeholder={isRe
-            ? "Example format (blank line between sections):\n\n✨ Why it stands out\nCorner lot. Newly remodeled kitchen.\nOpen concept main floor.\n\n🏡 Property highlights\n3 bed / 2 bath. 1,850 sqft.\nAttached 2-car garage.\n\n📞 Next step\nSchedule a showing today."
+            ? "Example (blank line between sections):\n\n✨ Property highlights\nLevel homesite on Pearidge Road with road frontage.\nAffordable entry point in the Bostic area.\n\n📍 Location & setting\nQuiet McDowell County setting with access to Marion amenities.\n\n📞 Schedule a showing\nWalk the lot and explore your build or investment plans."
             : "Example format (blank line between sections):\n\n✨ Why it stands out\nLow miles for the year.\nGreat commuter MPG.\n\n🛡️ History\nClean title. One owner in notes.\n\n📞 Next step\nCall today to schedule a test drive."
           }
           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono leading-relaxed min-h-[200px]"
         />
         <p className="text-[10px] text-muted-foreground">
           After each section title, use <span className="font-medium text-foreground">one full sentence per line</span>
-          . Messy paste? Use <span className="font-medium text-foreground">Smart sections</span> — AI reflows line breaks
-          without changing facts (save after you verify).
+          . Messy paste? <span className="font-medium text-foreground">Smart sections</span> reformats for buyers and strips
+          agent-only warnings (save after you verify).
         </p>
       </div>
 
       <div className="space-y-1.5">
         <label htmlFor={`overview-enrich-${vehicleId}`} className="text-xs font-medium text-foreground">
-          Notes for AI only (not on website)
+          {isRe ? 'Realtor notes (internal — not on website)' : 'Notes for AI only (not on website)'}
         </label>
         <textarea
           id={`overview-enrich-${vehicleId}`}
@@ -202,7 +203,7 @@ export default function VehicleOverviewSection({
           onChange={e => setEnrichment(e.target.value)}
           rows={5}
           placeholder={isRe
-            ? "Paste disclosure text, inspection report bullets, or agent notes. Used when you click Regenerate. Buyers never see this field."
+            ? "Listing concerns, seller motivation, inspection issues, disclosure caveats, or negotiation notes. Used when you Regenerate or Smart sections — never published to buyers. For area facts buyers should see (parks, landmarks, neighborhood character), add them to MLS remarks on the listing or Website documents — AI only states what is verified."
             : "Paste Carfax/Autocheck/KBB text, auction announcements, or inspection bullets. Used when you click Regenerate. Shoppers never see this field."
           }
           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm leading-relaxed"

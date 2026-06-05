@@ -1,6 +1,7 @@
 import 'server-only'
 import { aiComplete, AI_MODEL } from '@/lib/ai/client'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Vertical } from '@/lib/vertical'
 import type { OrgBrandConfig } from './brandConfig'
 
 export interface ContentDraft {
@@ -36,7 +37,36 @@ const BUYER_THEMES = [
   { theme: 'local_community',    tags: ['lot', 'exterior'],    label: 'Local Community' },
 ]
 
-function buildSystemPrompt(config: OrgBrandConfig, isBuyerFacing: boolean): string {
+const RE_AGENT_THEMES = [
+  { theme: 'lead_generation',    tags: ['community', 'listing'],    label: 'Lead Generation' },
+  { theme: 'listing_showcase',   tags: ['property', 'home'],   label: 'Listing Showcase' },
+  { theme: 'market_insights',    tags: ['market', 'data'],    label: 'Market Insights' },
+  { theme: 'home_buying_tips',   tags: ['buyers', 'process'], label: 'Home Buying Tips' },
+  { theme: 'platform_spotlight', tags: ['tools', 'features'],   label: 'RealtyWyze Platform' },
+]
+
+const HOMEBUYER_THEMES = [
+  { theme: 'home_buying_basics',  tags: ['buyer', 'process'],    label: 'Home Buying Made Simple' },
+  { theme: 'mortgage_financing',   tags: ['financing', 'rates'], label: 'Mortgage & Financing' },
+  { theme: 'property_spotlight',  tags: ['listing', 'home'],            label: 'Property Spotlights' },
+  { theme: 'neighborhood_guides', tags: ['community', 'local'],   label: 'Neighborhood Guides' },
+  { theme: 'seller_tips',    tags: ['selling', 'market'],    label: 'Home Selling Tips' },
+]
+
+function buildSystemPrompt(config: OrgBrandConfig, isBuyerFacing: boolean, vertical: Vertical = 'dealer'): string {
+  if (vertical === 'real_estate') {
+    if (isBuyerFacing) {
+      return `You generate short-form social media video scripts for ${config.brand_name} (${config.brand_handle}), a real estate team.
+Audience: home buyers and sellers — first-time homebuyers, seasoned investors, people anxious about the process. They are skeptical of agents.
+Voice: warm, local, knowledgeable, trustworthy. Speak to their concerns about fair pricing and honest guidance.
+Never use high-pressure language or fake urgency.`
+    }
+    return `You generate short-form social media video scripts for ${config.brand_name} (${config.brand_handle}), a CRM platform for real estate agents and brokers.
+Audience: real estate professionals and brokers. They are busy, skeptical of software promises.
+Voice: direct, peer-to-peer, market-aware. Name their pain points exactly.
+Never use corporate buzzwords or vague promises.`
+  }
+
   if (isBuyerFacing) {
     return `You generate short-form social media video scripts for ${config.brand_name} (${config.brand_handle}), a used-car dealership.
 Audience: used-car buyers — first-timers, budget-conscious, credit-challenged. They are skeptical of dealers.
@@ -76,11 +106,20 @@ export async function generateDraftBatch(
     count?: number         // total drafts to generate (default 10)
     isBuyerFacing?: boolean
     themes?: string[]      // specific themes to use, or all if omitted
+    vertical?: Vertical
   } = {},
 ): Promise<ContentDraft[]> {
   // aiComplete is used directly below — no client reference needed
   const count    = options.count ?? 10
-  const themes   = options.isBuyerFacing ? BUYER_THEMES : DEALER_THEMES
+  const vertical = options.vertical ?? 'dealer'
+  let themes
+
+  if (vertical === 'real_estate') {
+    themes = options.isBuyerFacing ? HOMEBUYER_THEMES : RE_AGENT_THEMES
+  } else {
+    themes = options.isBuyerFacing ? BUYER_THEMES : DEALER_THEMES
+  }
+
   const selected = options.themes
     ? themes.filter(t => options.themes!.includes(t.theme))
     : themes
@@ -103,7 +142,7 @@ export async function generateDraftBatch(
         model:      AI_MODEL,
         max_tokens: 4096,
         messages: [
-          { role: 'system', content: buildSystemPrompt(config, options.isBuyerFacing ?? false) },
+          { role: 'system', content: buildSystemPrompt(config, options.isBuyerFacing ?? false, vertical) },
           { role: 'user', content: buildUserPrompt(theme, config, batchSize) },
         ],
       })

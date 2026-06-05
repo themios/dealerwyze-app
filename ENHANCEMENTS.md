@@ -4,6 +4,346 @@ Shipped product changes with migration pointers and rationale. See also `docs/en
 
 ---
 
+## 2026-06-03 — BHPH future-date payoff quote
+
+- **Category:** UX / Finance
+- **Migration:** none
+- **Why:** Dealers need to tell customers the exact payoff amount on a planned future date (e.g. pay off in five days), including extra accrued interest.
+- **What was built:**
+  - `components/bhph/BhphInterestPayoffPanel.tsx` — payoff date picker, Calculate payoff, breakdown, copy quote for customer; compares to payoff today.
+  - `app/api/bhph/[id]/payoff/route.ts` — validates `asOf` (already supported); rejects past dates.
+  - `lib/__tests__/bhph/ledgerReplay.test.ts` — future-date accrual test.
+
+---
+
+## 2026-06-03 — BHPH org-wide interest and principal repair
+
+- **Category:** Bug fix / Finance
+- **Migration:** `230_bhph_principal_seed_all.sql`
+- **Why:** One-off fixes for a single contract were not enough; every active BHPH account with APR must seed principal, replay stale ledger rows, and allocate interest on new payments consistently.
+- **What was built:**
+  - `lib/bhph/contractFinance.ts`, `lib/bhph/ensureContractFinance.ts` — detect missing principal / $0-interest ledger rows; seed + replay.
+  - `app/api/bhph/[id]/payment/route.ts` — ensures finance state before `record_bhph_manual_payment`.
+  - `app/(app)/bhph/[id]/page.tsx` — silent auto-repair on contract open.
+  - `app/api/bhph/repair-ledger/route.ts` — `POST` repairs all active interest-bearing contracts for the org.
+  - `supabase/migrations/230_bhph_principal_seed_all.sql` — batch-seed null `principal_balance` on active APR contracts.
+  - `lib/__tests__/bhph/contractFinance.test.ts` — repair detection tests.
+
+---
+
+## 2026-06-03 — BHPH interest allocation, YTD totals, and payoff quotes
+
+- **Category:** UX / Finance
+- **Migration:** none
+- **Why:** Payments recorded before APR was set showed $0 interest; dealers need YTD interest paid, accurate ledger splits, and a payoff figure for customers.
+- **What was built:**
+  - `lib/bhph/ledgerReplay.ts`, `lib/bhph/applyLedgerReplay.ts`, `lib/bhph/payoff.ts` — replay ledger with daily simple interest; payoff = principal + accrued to date.
+  - `app/api/bhph/[id]/rebuild-ledger/route.ts` — recalculate all payment rows.
+  - `app/api/bhph/[id]/payoff/route.ts` — payoff quote + YTD interest from ledger.
+  - `components/bhph/BhphInterestPayoffPanel.tsx` — YTD/total interest, payoff today, copy quote, Recalculate button.
+  - Saving contract terms with APR auto-runs ledger replay; new payments use RPC allocation when rate and principal are set.
+
+---
+
+## 2026-06-03 — BHPH contract terms editor + interest allocation
+
+- **Category:** UX / Bug fix
+- **Migration:** `229_bhph_interest_rate_normalize.sql`
+- **Why:** Contracts showed “None” for APR when rate was unset or stored wrong; payments did not accrue interest; dealers could not fix terms after sale.
+- **What was built:**
+  - `lib/bhph/contractTerms.ts` — percent ↔ decimal normalization, PATCH field builders.
+  - `components/bhph/BhphContractTermsPanel.tsx` — edit APR %, payment amount, frequency, due day on contract detail.
+  - `app/api/bhph/[id]/route.ts` — PATCH financing terms + GPS; seeds `principal_balance` when enabling interest.
+  - `app/(app)/bhph/[id]/BhphDetailClient.tsx` — correct APR display; payment sheet shows interest/principal preview.
+  - `supabase/migrations/229_bhph_interest_rate_normalize.sql` — fix legacy `interest_rate > 1` rows.
+  - `lib/__tests__/bhph/contractTerms.test.ts` — rate parsing tests.
+
+---
+
+## 2026-06-03 — BHPH balance includes down payment
+
+- **Category:** Bug fix
+- **Migration:** `228_bhph_principal_after_down.sql`
+- **Why:** Outstanding balance used full `loan_amount` minus installments only; down payment collected at sale was not subtracted (e.g. $6770.81 − $800 = $5970.81 instead of $4470.81).
+- **What was built:**
+  - `lib/bhph/balance.ts` — canonical balance, paid %, and legacy principal correction.
+  - `supabase/migrations/228_bhph_principal_after_down.sql` — seed `principal_balance` as contract total − down; repair active contracts.
+  - `app/(app)/bhph/[id]/BhphDetailClient.tsx`, `app/(app)/bhph/page.tsx` — use shared balance helpers; “Paid” shows down + installments.
+  - `app/api/bhph/create/route.ts`, `components/vehicle/MarkSoldSheet.tsx` — default contract total from sale price; clearer label.
+
+---
+
+## 2026-06-03 — Lead email extraction: Boomtown labels + Gemini sanitization
+
+- **Category:** Integrations / Bug fix
+- **Migration:** none
+- **Why:** CRM/Boomtown forwards labeled fields (`First Name: Alex`) were stored as the customer name (`First Name: Corey`), consent SMS said “Hi First!”, and emails were duplicated (`user@gmail.com [user@gmail.com]`).
+- **What was built:**
+  - `lib/leads/sanitizeLeadFields.ts` — strip field labels, dedupe emails, build full names, safe first name for templates.
+  - `lib/leads/parseBoomtown.ts` — read `First Name` / `Last Name` lines; line-anchored `Name:` regex; sanitized email.
+  - `lib/leads/visionIngest.ts` — stronger Gemini prompt rules for labeled CRM fields and single-email output.
+  - `lib/leads/scanResultToParsedLead.ts` — post-process AI scan through sanitizers.
+  - `lib/leads/ingest.ts`, `lib/leads/parseLabeledPaste.ts`, `lib/sms/sendConsent.ts` — sanitize on ingest and consent SMS.
+  - `lib/__tests__/leads/sanitizeLeadFields.test.ts` — regression tests for name/email parsing.
+
+---
+
+## 2026-06-03 — BHPH payment recording fix (ledger + deferred errors)
+
+- **Category:** Bug fix / UX
+- **Migration:** none
+- **Why:** List-page “Record Payment” updated `total_paid` in the browser only (no ledger), so Payment History stayed empty and principal balances did not move. Deferred “Add installment” returned 409 with no user-visible error.
+- **What was built:**
+  - `app/(app)/bhph/BhphRecordPayment.tsx` — uses `POST /api/bhph/[id]/payment` (same RPC as contract detail); toasts on success/failure.
+  - `app/(app)/bhph/page.tsx` — balance uses `principal_balance` when tracked.
+  - `app/(app)/bhph/[id]/DeferredPaymentManager.tsx` — surfaces API errors; hides add form when no deferred down room.
+  - `app/(app)/bhph/[id]/BhphDetailClient.tsx` — passes remaining deferred down balance into manager.
+
+---
+
+## 2026-06-03 — BHPH GPS device tracking
+
+- **Category:** UX / Operations
+- **Migration:** `227_bhph_gps_device.sql`
+- **Why:** Dealers install starter-interrupt/GPS units on BHPH units and need vendor, device ID, and install date on the contract.
+- **What was built:**
+  - `supabase/migrations/227_bhph_gps_device.sql` — `gps_vendor`, `gps_device_id`, `gps_installed_at`, `gps_notes` on `bhph_payments`.
+  - `lib/bhph/gpsDevice.ts` — validation helpers and vendor presets.
+  - `app/api/bhph/[id]/route.ts` — PATCH to update GPS fields on an existing contract.
+  - `app/api/bhph/create/route.ts` — optional GPS fields when marking sold BHPH.
+  - `components/bhph/BhphGpsDevicePanel.tsx` — view/edit panel on contract detail.
+  - `app/(app)/bhph/[id]/BhphDetailClient.tsx` — GPS section on BHPH account page.
+  - `components/vehicle/MarkSoldSheet.tsx` — optional GPS fields at sale (install date defaults to today).
+
+---
+
+## 2026-06-03 — Production build: Node heap + Supabase vertical type fixes
+
+- **Category:** DevOps / Reliability
+- **Migration:** none
+- **Why:** `npm run build` OOM'd during TypeScript (~4GB default heap on ~1,300 files); conditional Supabase `.select()` for dealer vs real estate broke `tsc`.
+- **What was built:**
+  - `package.json` — `build` sets `NODE_OPTIONS='--max-old-space-size=8192'`.
+  - `app/api/vehicles/[id]/ai-description/route.ts` — split RE/dealer vehicle queries; branch-specific prompt typing.
+  - `app/api/vehicles/[id]/reanalyze/route.ts` — same split-query pattern; dealer field casts for `buildDealerReanalyzePrompt`.
+  - `lib/vehicles/listingOverviewPrompts.ts` — `DEALER_AI_DESCRIPTION_SELECT` constant.
+  - `app/(app)/showings/ShowingsDashboard.tsx` — export `ShowingRequestStatus` for dossier panel.
+
+---
+
+## 2026-06-03 — Showings master–detail dossier (buyer + property)
+
+- **Category:** UX
+- **Migration:** none
+- **Why:** Agents preparing for showings need buyer and listing context in one place, not separate pages.
+- **What was built:**
+  - `components/showings/ShowingDossierPanel.tsx` — side-by-side buyer and property dossier with links to full CRM/listing.
+  - `app/(app)/showings/ShowingsDashboard.tsx` — inbox-style split view (list + dossier); mobile drill-down; `?showing=` URL state.
+  - `app/(app)/showings/page.tsx` — richer listing fields + CRM customer batch load for matched buyers.
+
+---
+
+## 2026-06-03 — SaaS 15-email autoresponder (every 2 days, per-agent customize)
+
+- **Category:** Integrations / UX
+- **Migration:** `226_saas_email_autoresponder.sql`
+- **Why:** All seats need a shared, proven email nurture new leads can run automatically; each agent must edit their own copy; replies must pause the sequence and alert the assigned rep, with resume available later.
+- **What was built:**
+  - `lib/sequences/saasEmailAutoresponderContent.ts` — 15 touches on days 0–28 (dealer + real estate copy); variables `{firstName}`, `{dealerName}`, `{agentName}`.
+  - `lib/sequences/ensureSaasEmailAutoresponder.ts` — org default + per-agent clone (`slug: saas_email_nurture`); wires `auto_respond_email_sequence_id`.
+  - `lib/sequences/notifyRealtorSequenceReply.ts` — email to assigned agent on reply.
+  - `lib/sequences/stopSequenceOnReply.ts` — task assigned to rep, timeline note, realtor notification.
+  - `app/api/sequences/ensure-saas-email/route.ts` — ensure org + personal copies.
+  - `app/(app)/settings/automation/` — “Customize my email autoresponder” link; auto-seed on page load.
+  - `lib/leads/ingest.ts` — auto-respond uses agent copy when lead is assigned.
+
+---
+
+## 2026-06-03 — Showings buyer → customer links + listing quick actions (team-wide)
+
+- **Category:** UX
+- **Migration:** none
+- **Why:** Property addresses were clickable on Showings but buyers were not; listing detail needed fast updates for team interest, showing instructions, and internal realtor notes.
+- **What was built:**
+  - `lib/customers/resolveCustomerByContact.ts` — match customers by phone/email; `customerImportSearchParams` for prefill URLs.
+  - `app/(app)/showings/page.tsx`, `ShowingsDashboard.tsx`, `showings/[id]/page.tsx`, `ShowingRequestDetail.tsx`, `ShowingFeedbackModal.tsx` — buyer links to `/customers/{id}` or **Add to CRM** with query prefill.
+  - `app/(app)/customers/new/page.tsx` — reads `name`, `phone`, `email` from URL (Web Leads / showings import).
+  - `components/listings/ListingQuickActions.tsx` — team interest, showing instructions, realtor notes on listing detail.
+  - `app/api/vehicles/[id]/route.ts` — PATCH merges `listing_interest` into `market_data_json`.
+  - `app/(app)/listings/[id]/page.tsx` — renders quick actions panel.
+
+---
+
+## 2026-06-03 — Showing calendar sync + embedded month calendar on Showings / Web Leads
+
+- **Category:** UX / Integrations
+- **Migration:** none
+- **Why:** Confirmed showings did not appear on `/calendar`; Showings and Web Leads were list-only with no schedule view.
+- **What was built:**
+  - `lib/showings/syncConfirmedShowingToCalendar.ts` — confirmed buyer requests create CRM `activities` + Google Calendar via `createCalendarEvent` (refresh token path).
+  - `app/api/showings/confirm/route.ts` — uses sync helper instead of broken raw Gmail token API.
+  - `app/api/showings/route.ts` — scheduled listing showings always insert calendar activities.
+  - `app/api/calendar/unified-events/route.ts` — merged feed (activities, confirmed requests, scheduled showings).
+  - `components/calendar/EmbeddedCalendarPanel.tsx` — month strip on **Showings** and **Web Leads**; full **Calendar** page uses same API.
+  - Backfilled activities for existing confirmed `showing_requests`.
+
+---
+
+## 2026-06-03 — Public showing requests → web leads, notifications, RealtyWyze email
+
+- **Category:** Integrations / UX / Bug fix
+- **Migration:** none
+- **Why:** Website “Schedule a Showing” only wrote `showing_requests` (not Web Leads), buyer email used DealerWyze From address, agent SMS used broken relative fetch, and sidebar badge counted all inquiries not unseen `new`.
+- **What was built:**
+  - `lib/showings/recordShowingWebLead.ts` — `inventory_inquiries` (status `new`) + Today `appointment` activity + dealer SMS/Telegram.
+  - `app/api/showings/request/route.ts` — records web lead; buyer/agent email `vertical: 'real_estate'`.
+  - `lib/showings/notifyAgentShowingRequest.ts` — Twilio SMS to agent + org cell; agent email (not noreply); Telegram.
+  - `lib/vdp/notifyDealer.ts` — RealtyWyze copy for RE orgs.
+  - `app/api/leads/web/count/route.ts` — badge = `status = 'new'` only; red badge in sidebar.
+  - `app/api/showings/pending-count/route.ts` + `DesktopSidebar` — red badge on Showings nav.
+  - `lib/email/notify.ts` — RE emails use RealtyWyze From even when only `RESEND_API_KEY` is set.
+
+---
+
+## 2026-06-03 — Platform/lifetime orgs skip AI reanalyze cooldown
+
+- **Category:** Billing / UX
+- **Migration:** none
+- **Why:** Platform accounts (e.g. RealtyWyze pilot) should not hit the 4-hour “Reanalysis available after…” gate.
+- **What was built:**
+  - `app/api/vehicles/[id]/reanalyze/route.ts` — skip cooldown when org `plan` is `lifetime` or `platform`.
+  - `scripts/grantUnlimitedOrg.ts` — ops script to set lifetime + clear `ai_last_analyzed_at` by email.
+
+---
+
+## 2026-06-03 — RE listing AI: verified area & location context
+
+- **Category:** Integrations / UX
+- **Migration:** none
+- **Why:** Buyers need familiar area context (municipality, county, schools, rural vs commercial character) without invented landmarks or neighborhood hype.
+- **What was built:**
+  - `lib/listings/areaContext.ts` — builds verified area facts from listing fields, MLS `agent_notes`, optional Wikipedia summary; caches in `market_data_json.areaContext` (30 days).
+  - `lib/vehicles/listingOverviewPrompts.ts` — location grounding rules; `areaContextBlock` on regenerate and marketplace bullets; `agent_notes` on RE selects.
+  - `app/api/vehicles/[id]/reanalyze/route.ts` — resolves area context, injects into prompt, persists cache on regenerate.
+  - `app/api/vehicles/[id]/ai-description/route.ts` — same area block for RE bullets.
+  - `components/vehicle/VehicleOverviewSection.tsx` — explains verified area sources and how to enrich MLS remarks.
+
+---
+
+## 2026-06-03 — RE public overview: buyer-facing AI copy + Realtor notes
+
+- **Category:** UX / Integrations
+- **Migration:** none
+- **Why:** Regenerate and Smart sections produced agent-briefing copy (missing data warnings, "ask the seller") that repelled buyers on public listing pages.
+- **What was built:**
+  - `lib/vehicles/listingOverviewPrompts.ts` — `RE_BUYER_VOICE_RULES`; public facts exclude internal agent notes; Smart sections rewrites for buyers and strips warnings.
+  - `app/api/vehicles/[id]/reanalyze/route.ts` — MLS/notes only in internal realtor context, not public facts block.
+  - `components/vehicle/VehicleOverviewSection.tsx` — "Realtor notes (internal)" label and buyer-marketing guidance.
+
+---
+
+## 2026-06-03 — Messages tab vertical branding (RealtyWyze)
+
+- **Category:** UX
+- **Migration:** none
+- **Why:** RE orgs saw DealerWyze copy on `/messages` (subtitle, empty state, composer placeholders, platform sender label).
+- **What was built:**
+  - `app/(app)/messages/MessagesClient.tsx` — `useVertical().brandName` for all user-facing strings.
+  - `app/api/dealer-inbox/threads/[threadId]/route.ts` — platform sender display name from org vertical.
+
+---
+
+## 2026-06-03 — Transaction panel + commissions summary fixes
+
+- **Category:** Bug fix
+- **Migration:** none
+- **Why:** Listing transactions tab crashed with `pickActive is not defined` after rename; `/commissions` returned 500 because summary query selected nonexistent `profiles.full_name`.
+- **What was built:**
+  - `components/transactions/TransactionPanel.tsx` — import `pickActiveTransaction as pickActive`.
+  - `lib/transactions/types.ts` — `pickActive` alias export for dev HMR compatibility.
+  - `app/api/transactions/summary/route.ts` — use `profiles.display_name`, explicit `vehicles!vehicle_id` join.
+
+---
+
+## 2026-06-03 — Schedule showing: client picker vs open house
+
+- **Category:** UX
+- **Migration:** none
+- **Why:** Agents scheduling a showing on a listing had no way to link an existing customer; open houses should not require a client.
+- **What was built:**
+  - `app/(app)/listings/[id]/ShowingTimeline.tsx` — showing type (Client showing / Open house), customer search picker via `/api/customers/search`.
+  - `app/api/showings/route.ts` — `showing_kind`, require `contact_id` for client showings, verify client in org; GCal titles for open house vs named client.
+
+---
+
+## 2026-06-03 — RE listing AI prompts + public site chrome
+
+- **Category:** Integrations / UX
+- **Migration:** none
+- **Why:** RealtyWyze public pages showed vehicle/dealer copy (mileage, “Vehicle Overview”, “View inventory”, DealerWyze footer) because `reanalyze` and `overview/reflow` always used dealer prompts and empty automotive fields.
+- **What was built:**
+  - `lib/vehicles/listingOverviewPrompts.ts` — shared RE vs dealer prompts, property field blocks, forbidden vehicle language in RE paths.
+  - `app/api/vehicles/[id]/reanalyze/route.ts` — org vertical; RE selects address/MLS/beds/baths/sqft/lot; property overview sections.
+  - `app/api/vehicles/[id]/overview/reflow/route.ts` — RE reflow rewrites stray vehicle/dealer wording.
+  - `app/api/vehicles/[id]/ai-description/route.ts` — RE marketplace bullets use full property context.
+  - `components/dealer-public/DealerPublicChrome.tsx` — `listings` nav, brokerage footer, RealtyWyze powered-by when RE.
+  - `app/[slug]/layout.tsx` — passes vertical chrome + RealEstateAgent JSON-LD.
+  - `components/dealer-public/PublicVehicleOverview.tsx` — `variant="real_estate"` disclaimer.
+  - `app/[slug]/listings/[id]/page.tsx` — sectioned overview via `parseOverviewSections`.
+- **Follow-up:** Regenerate overview on each listing in CRM (Website tab → **Regenerate with AI**) to replace stale vehicle text already saved in `ai_description`.
+
+---
+
+## 2026-06-03 — Transaction panel: new txn after cancelled lease
+
+- **Category:** Bug fix / UX
+- **Migration:** none
+- **Why:** Cancelled lease transactions were treated as “active” (`pickActive` ignored `cancelled`), blocking Create and trapping Edit in a loop.
+- **What was built:**
+  - `lib/transactions/types.ts` — `isTerminalPipelineStatus()`, `pickActiveTransaction()`.
+  - `components/transactions/TransactionPanel.tsx` — terminal-only state shows “Create New Transaction” + history list.
+  - `lib/__tests__/transactionPickActive.test.ts` — regression tests.
+
+---
+
+## 2026-06-03 — Public RE listing pages (proxy + sitemap + query fix)
+
+- **Category:** Bug fix / Integrations
+- **Migration:** none
+- **Why:** Public listing URLs failed: middleware blocked `/{slug}/listings/*` (login redirect), and detail page selected nonexistent `vehicles.description` (Postgres 42703 → 404).
+- **What was built:**
+  - `proxy.ts` — treat `/{slug}/listings` as public (same as inventory).
+  - `app/[slug]/page.tsx` — RE orgs redirect to `/{slug}/listings`.
+  - `app/sitemap.ts` — RE sitemap URLs use `/listings` and listing UUID paths.
+  - `app/[slug]/listings/[id]/page.tsx` — use `ai_description` / `notes` only (no `description` column).
+
+---
+
+## 2026-06-03 — Lease end date auto-calculation fix
+
+- **Category:** Bug fix / UX
+- **Migration:** none
+- **Why:** Lease end date stayed blank after move-in + term were entered; `useEffect` + `toISOString()` was unreliable and `readOnly` date inputs often hide values in browsers.
+- **What was built:**
+  - `lib/transactions/leaseDates.ts` — `computeLeaseEndDate()` with timezone-safe YMD math.
+  - `components/transactions/TransactionForm.tsx` — recalc on field change; submit fallback; disabled end-date field.
+  - `lib/__tests__/leaseDates.test.ts` — unit tests.
+
+---
+
+## 2026-06-03 — Showing confirm datetime validation fix
+
+- **Category:** Integrations / Bug fix
+- **Migration:** none
+- **Why:** Confirming a showing returned 400 because Supabase timestamptz strings (`+00:00`) fail Zod `.datetime()`; only strict `Z` offsets passed.
+- **What was built:**
+  - `lib/showings/isoDateTime.ts` — parse any JS date string, normalize to UTC ISO.
+  - `app/api/showings/confirm/route.ts`, `request/route.ts`, `propose/route.ts` — use `isoDateTime` schema.
+  - `ShowingRequestDetail.tsx`, `ShowingsDashboard.tsx` — send `toISOString()` in request bodies.
+  - `TodayContent.tsx` — `height: auto` on brand logo `Image` to silence Next.js aspect-ratio warning.
+
+---
+
 ## 2026-06-03 — P&L report dashboard (Bookkeeping Phase 3)
 
 - **Category:** UX / Reporting

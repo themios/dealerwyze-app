@@ -1,6 +1,7 @@
 import 'server-only'
 import { aiComplete, AI_MODEL } from '@/lib/ai/client'
 import type { ContentReelProps } from '@/lib/remotion/types'
+import type { Vertical } from '@/lib/vertical'
 
 const PLATFORM_RULES: Record<string, string> = {
   instagram: 'Max 2200 chars. Hook in first 8 words (truncated after). 8-15 hashtags at end. End with: "Comment [KEYWORD] for more."',
@@ -11,15 +12,39 @@ const PLATFORM_RULES: Record<string, string> = {
   threads:   'Max 500 chars. Short, conversational, opinionated. Single sharp insight. 0-3 hashtags.',
 }
 
-const SYSTEM_PROMPT = `You write platform-optimized social media captions for DealerWyze, a CRM platform for used-car dealers.
+const DEALER_SYSTEM_PROMPT = `You write platform-optimized social media captions for DealerWyze, a CRM platform for used-car dealers.
 Voice: direct, dealer-savvy, no corporate fluff. Speak to dealer owners and GMs.
 Output ONLY the caption text. No preamble, no quotes around it, no explanation.`
+
+const RE_SYSTEM_PROMPT = `You write platform-optimized social media captions for RealtyWyze, a CRM platform for real estate agents and brokers.
+Voice: professional, agent-focused, market-aware. Speak to real estate professionals and agencies.
+Output ONLY the caption text. No preamble, no quotes around it, no explanation.`
+
+function getSystemPrompt(vertical: Vertical): string {
+  return vertical === 'real_estate' ? RE_SYSTEM_PROMPT : DEALER_SYSTEM_PROMPT
+}
+
+const DEALER_HASHTAGS: Record<string, string> = {
+  instagram: '#dealerwyze #usedcardealers #cardealership #autodealer #dealerlife',
+  tiktok: '#dealerwyze #cardealership #fyp',
+}
+
+const RE_HASHTAGS: Record<string, string> = {
+  instagram: '#realtywyze #realestateprofessional #realestateagent #realestatemarketing #homesales',
+  tiktok: '#realtywyze #realestate #realestateagent #homeselling #realestatemarketing',
+}
+
+function getHashtags(vertical: Vertical, platform: string): string {
+  const hashtagMap = vertical === 'real_estate' ? RE_HASHTAGS : DEALER_HASHTAGS
+  return hashtagMap[platform] ?? ''
+}
 
 export async function generateContentCaption(
   props: ContentReelProps,
   platform: string,
+  vertical: Vertical = 'dealer',
 ): Promise<string> {
-  if (!process.env.OPENROUTER_API_KEY) return buildFallbackCaption(props, platform)
+  if (!process.env.OPENROUTER_API_KEY) return buildFallbackCaption(props, platform, vertical)
 
   const rules = PLATFORM_RULES[platform] ?? PLATFORM_RULES.instagram
   const slidesSummary = props.slides
@@ -31,7 +56,7 @@ export async function generateContentCaption(
       model:      AI_MODEL,
       max_tokens: 600,
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: getSystemPrompt(vertical) },
         { role: 'user', content: `Write a ${platform} caption for this content reel.
 
 Topic: ${props.topic}
@@ -52,14 +77,12 @@ Platform rules: ${rules}` },
     console.error('[captionGenerator] AI call failed:', err)
   }
 
-  return buildFallbackCaption(props, platform)
+  return buildFallbackCaption(props, platform, vertical)
 }
 
-function buildFallbackCaption(props: ContentReelProps, platform: string): string {
+function buildFallbackCaption(props: ContentReelProps, platform: string, vertical: Vertical = 'dealer'): string {
   const headlines = props.slides.map((s, i) => `${i + 1}. ${s.headline}`).join('\n')
   const base = `${props.topic}\n\n${headlines}\n\n${props.ctaText}\n\n${props.brandHandle}`
-  if (platform === 'instagram') return base + '\n\n#dealerwyze #usedcardealers #cardealership #autodealer #dealerlife'
-  if (platform === 'tiktok')   return base + '\n\n#dealerwyze #cardealership #fyp'
-  if (platform === 'linkedin') return base
-  return base
+  const hashtags = getHashtags(vertical, platform)
+  return hashtags ? base + '\n\n' + hashtags : base
 }

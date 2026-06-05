@@ -44,6 +44,22 @@ function InboxUnreadBadge() {
   )
 }
 
+function ShowingsBadge() {
+  const [count, setCount] = useState(0)
+  useEffect(() => {
+    fetch('/api/showings/pending-count')
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { count?: number } | null) => setCount(d?.count ?? 0))
+      .catch(() => {})
+  }, [])
+  if (!count) return null
+  return (
+    <span className="ml-auto min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 leading-none">
+      {count > 99 ? '99+' : count}
+    </span>
+  )
+}
+
 function WebLeadsBadge() {
   const [count, setCount] = useState(0)
   useEffect(() => {
@@ -54,7 +70,7 @@ function WebLeadsBadge() {
   }, [])
   if (!count) return null
   return (
-    <span className="ml-auto min-w-[18px] h-[18px] bg-green-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 leading-none">
+    <span className="ml-auto min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 leading-none">
       {count > 99 ? '99+' : count}
     </span>
   )
@@ -380,7 +396,7 @@ function DealerSidebar({ orgName, role, isPlatformAdmin }: { orgName?: string | 
   // RE-only nav items — only added when vertical === 'real_estate'
   const reNav: DealerNavItem[] = vertical === 'real_estate'
     ? [
-        { href: '/showings',    label: 'Showings',    icon: CalendarDays },
+        { href: '/showings',    label: 'Showings',    icon: CalendarDays, badge: 'showings' as const },
         { href: '/commissions', label: 'Commissions', icon: DollarSign },
       ]
     : []
@@ -434,6 +450,7 @@ function DealerSidebar({ orgName, role, isPlatformAdmin }: { orgName?: string | 
               <Icon className="h-4.5 w-4.5 shrink-0" />
               {label}
               {badge === 'webleads' && <WebLeadsBadge />}
+              {badge === 'showings' && <ShowingsBadge />}
               {badge === 'inbox' && <InboxUnreadBadge />}
               {href === '/admin' && isPlatformAdmin && <AdminPanelBadge />}
             </Link>

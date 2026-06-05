@@ -3,8 +3,10 @@ export const dynamic = 'force-dynamic'
 import { Suspense } from 'react'
 import { redirect, notFound } from 'next/navigation'
 import { createClientForRequest } from '@/lib/supabase/forRequest'
+import { createServiceClient } from '@/lib/supabase/service'
 import { requireProfile } from '@/lib/auth/profile'
-import { canAccessBhph } from '@/lib/auth/dealerRoles'
+import { canAccessBhph, canRecordBhphPayment } from '@/lib/auth/dealerRoles'
+import { ensureBhphContractFinance } from '@/lib/bhph/ensureContractFinance'
 import type { UserRole } from '@/types/index'
 import BhphDetailClient from './BhphDetailClient'
 
@@ -23,6 +25,7 @@ export default async function BhphDetailPage({ params }: Props) {
     .from('bhph_payments')
     .select(`
       *,
+      created_at,
       vehicle:vehicles(id, year, make, model, stock_no, vin),
       customer:customers(id, name, primary_phone, email, sms_opt_out)
     `)
@@ -31,6 +34,29 @@ export default async function BhphDetailPage({ params }: Props) {
     .maybeSingle()
 
   if (!acct) notFound()
+
+  try {
+    const service = createServiceClient()
+    const repaired = await ensureBhphContractFinance(service, id, profile.org_id)
+    if (repaired.ok && repaired.repaired) {
+      const { data: refreshed } = await supabase
+        .from('bhph_payments')
+        .select(`
+          *,
+          created_at,
+          vehicle:vehicles(id, year, make, model, stock_no, vin),
+          customer:customers(id, name, primary_phone, email, sms_opt_out)
+        `)
+        .eq('id', id)
+        .eq('user_id', profile.org_id)
+        .maybeSingle()
+      if (refreshed) {
+        Object.assign(acct, refreshed)
+      }
+    }
+  } catch (e) {
+    console.error('[bhph/detail] auto finance repair:', e)
+  }
 
   // Fetch recent reminder log for payment history context
   const { data: reminderLog } = await supabase
@@ -47,8 +73,7 @@ export default async function BhphDetailPage({ params }: Props) {
     .eq('user_id', profile.org_id)
     .order('due_date', { ascending: true })
 
-  const canRecordManualPayment =
-    profile.role === 'dealer_admin' || profile.role === 'dealer_manager'
+  const canRecordManualPayment = canRecordBhphPayment(profile.role as UserRole)
 
   const { data: achMethodRow } = await supabase
     .from('bhph_payment_methods')

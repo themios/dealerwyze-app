@@ -1,15 +1,25 @@
 import type { OverviewSection } from '@/lib/vehicles/overviewSections'
 
-export default function PublicVehicleOverview({ sections }: { sections: OverviewSection[] }) {
+export default function PublicVehicleOverview({
+  sections,
+  variant = 'dealer',
+}: {
+  sections: OverviewSection[]
+  variant?: 'dealer' | 'real_estate'
+}) {
   if (sections.length === 0) return null
+
+  const isRe = variant === 'real_estate'
+  const heading = isRe ? 'About this property' : 'Overview'
+  const disclaimer = isRe
+    ? 'From the listing agent — verify in person'
+    : 'From the dealer — confirm important details in person'
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4">
       <div className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:justify-between mb-4">
-        <h2 className="font-semibold text-gray-700 text-sm uppercase tracking-wide">Overview</h2>
-        <p className="text-[10px] text-gray-500">
-          From the dealer — confirm important details in person
-        </p>
+        <h2 className="font-semibold text-gray-700 text-sm uppercase tracking-wide">{heading}</h2>
+        <p className="text-[10px] text-gray-500">{disclaimer}</p>
       </div>
       <div className="divide-y divide-gray-100">
         {sections.map((sec, i) => {

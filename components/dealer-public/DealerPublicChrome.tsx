@@ -37,18 +37,28 @@ function telHref(phone: string): string {
   return `tel:+${digits}`
 }
 
+export type PublicCatalogSegment = 'inventory' | 'listings'
+
 export default function DealerPublicChrome({
   contact,
   children,
+  catalogSegment = 'inventory',
+  poweredBy = { label: 'DealerWyze', href: 'https://dealerwyze.com' },
+  footerOrgLabel = 'Dealer',
 }: {
   contact: DealerPublicContact
   children: ReactNode
+  /** RE brokerages use /listings; dealers use /inventory */
+  catalogSegment?: PublicCatalogSegment
+  poweredBy?: { label: string; href: string }
+  footerOrgLabel?: string
 }) {
   const logoUrl = contact.logoSrc?.trim()
     ? contact.logoSrc
     : absoluteUrl(DEALER_THEME_DEFAULT_LOGO_PATH)
 
-  const invHref = `/${contact.slug}/inventory`
+  const catalogLabel = catalogSegment === 'listings' ? 'listings' : 'inventory'
+  const invHref = `/${contact.slug}/${catalogSegment}`
   const phones = [contact.phone, contact.secondaryPhone].filter(
     (p, i, arr) => p && arr.indexOf(p) === i,
   ) as string[]
@@ -69,7 +79,7 @@ export default function DealerPublicChrome({
         href="#dealer-main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-[var(--dp-navy)] focus:px-3 focus:py-2 focus:text-sm focus:text-white"
       >
-        Skip to inventory
+        Skip to {catalogLabel}
       </a>
 
       <header className="border-b border-[var(--dp-gold)]/30 bg-[var(--dp-navy)] text-white shadow-lg">
@@ -98,14 +108,14 @@ export default function DealerPublicChrome({
           </Link>
 
           <nav
-            aria-label="Dealer website"
+            aria-label={catalogSegment === 'listings' ? 'Brokerage website' : 'Dealer website'}
             className="flex flex-wrap items-center gap-2 sm:justify-end"
           >
             <Link
               href={invHref}
               className="rounded-md border border-[var(--dp-gold)]/60 bg-[var(--dp-navy-light)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--dp-navy-light)]/80 transition-colors"
             >
-              View inventory
+              View {catalogLabel}
             </Link>
             {contact.showAboutInNav ? (
               <Link
@@ -208,7 +218,7 @@ export default function DealerPublicChrome({
             </div>
             <div>
               <h2 className="font-[family-name:var(--font-dp-display)] text-sm font-semibold uppercase tracking-wider text-[var(--dp-navy)]">
-                Dealer
+                {footerOrgLabel}
               </h2>
               <p className="mt-2 text-sm text-[var(--dp-ink)]/85">{contact.displayName}</p>
               {contact.establishedYear ? (
@@ -252,12 +262,12 @@ export default function DealerPublicChrome({
             <p>
               <span className="text-[var(--dp-ink)]/40">Powered by </span>
               <a
-                href="https://dealerwyze.com"
+                href={poweredBy.href}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-medium text-[var(--dp-navy)]/70 hover:text-[var(--dp-navy)] hover:underline"
               >
-                DealerWyze
+                {poweredBy.label}
               </a>
             </p>
           </div>

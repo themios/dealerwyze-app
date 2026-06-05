@@ -5,12 +5,13 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { isoDateTime } from '@/lib/showings/isoDateTime'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 
 const Schema = z.object({
   showing_id: z.string().uuid(),
-  proposed_time: z.string().datetime(),
+  proposed_time: isoDateTime,
 })
 
 export async function POST(req: NextRequest) {

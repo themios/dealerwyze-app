@@ -89,6 +89,26 @@ export default function CalendarPage() {
       end.setHours(23, 59, 59)
     }
 
+    const params = new URLSearchParams({
+      from: start.toISOString(),
+      to: end.toISOString(),
+    })
+    const res = await fetch(`/api/calendar/unified-events?${params}`)
+    if (res.ok) {
+      const data = (await res.json()) as {
+        events?: Array<{ id: string; title: string; subtitle: string | null; start: string }>
+      }
+      setEvents(
+        (data.events ?? []).map((e) => ({
+          id: e.id,
+          type: 'appointment',
+          body: e.subtitle ? `${e.title}\n${e.subtitle}` : e.title,
+          due_at: e.start,
+        })),
+      )
+      return
+    }
+
     const { data } = await supabase
       .from('activities')
       .select('id, type, body, due_at, completed_at, customer:customers(id, name)')
@@ -103,47 +123,8 @@ export default function CalendarPage() {
   }, [view, current, supabase])
 
   useEffect(() => {
-    let cancelled = false
-
-    async function loadInitialEvents() {
-      let start: Date
-      let end: Date
-      if (view === 'month') {
-        start = new Date(current.getFullYear(), current.getMonth(), 1)
-        end = new Date(current.getFullYear(), current.getMonth() + 1, 0, 23, 59, 59)
-      } else if (view === 'week') {
-        start = startOfWeek(current)
-        end = addDays(start, 6)
-        end.setHours(23, 59, 59)
-      } else {
-        start = new Date(current)
-        start.setHours(0, 0, 0, 0)
-        end = new Date(current)
-        end.setHours(23, 59, 59)
-      }
-
-      const { data } = await supabase
-        .from('activities')
-        .select('id, type, body, due_at, completed_at, customer:customers(id, name)')
-        .eq('type', 'appointment')
-        .is('customer_sequence_id', null)
-        .not('due_at', 'is', null)
-        .gte('due_at', start.toISOString())
-        .lte('due_at', end.toISOString())
-        .order('due_at', { ascending: true })
-
-      const normalizedEvents = ((data ?? []) as Array<CalEvent & { customer?: CalEvent['customer'] | CalEvent['customer'][] }>).map(event => ({
-        ...event,
-        customer: Array.isArray(event.customer) ? event.customer[0] : event.customer,
-      }))
-      if (!cancelled) setEvents(normalizedEvents)
-    }
-
-    void loadInitialEvents()
-    return () => {
-      cancelled = true
-    }
-  }, [current, supabase, view])
+    void loadEvents()
+  }, [loadEvents])
 
   // Reload when tab regains focus — catches appointments added from another screen
   useEffect(() => {

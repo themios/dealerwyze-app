@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import type { Transaction, TransactionType } from '@/lib/transactions/types'
+import { computeLeaseEndDate } from '@/lib/transactions/leaseDates'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useEffect, useRef } from 'react'
 
@@ -96,23 +97,18 @@ export default function TransactionForm({ vehicleId, agentId, transaction, onSav
     }, 250)
   }, [customerQuery])
 
-  // Auto-calculate lease end date from move-in + term
-  useEffect(() => {
-    if (form.move_in_date && form.lease_term_months) {
-      const months = parseInt(form.lease_term_months, 10)
-      if (months > 0) {
-        const moveIn = new Date(form.move_in_date + 'T00:00:00')
-        const endDate = new Date(moveIn.getFullYear(), moveIn.getMonth() + months, moveIn.getDate())
-        const isoEnd = endDate.toISOString().split('T')[0]
-        setForm(p => ({ ...p, lease_end_date: isoEnd }))
-      }
-    }
-  }, [form.move_in_date, form.lease_term_months])
-
   const isEdit = Boolean(transaction?.id)
 
+  function withLeaseEndDate(next: FormState): FormState {
+    if (next.transaction_type !== 'lease') return next
+    return {
+      ...next,
+      lease_end_date: computeLeaseEndDate(next.move_in_date, next.lease_term_months),
+    }
+  }
+
   function upd(k: keyof FormState, v: string) {
-    setForm(p => ({ ...p, [k]: v }))
+    setForm(p => withLeaseEndDate({ ...p, [k]: v }))
   }
 
   function fieldClass(field: string) {
@@ -152,11 +148,15 @@ export default function TransactionForm({ vehicleId, agentId, transaction, onSav
     }
 
     if (isLease) {
+      const leaseEnd =
+        form.lease_end_date ||
+        computeLeaseEndDate(form.move_in_date, form.lease_term_months) ||
+        null
       payload.monthly_rent      = form.monthly_rent      ? parseFloat(form.monthly_rent)      : null
       payload.security_deposit  = form.security_deposit  ? parseFloat(form.security_deposit)  : null
       payload.lease_term_months = form.lease_term_months ? parseInt(form.lease_term_months)   : null
       payload.move_in_date      = form.move_in_date      || null
-      payload.lease_end_date    = form.lease_end_date    || null
+      payload.lease_end_date    = leaseEnd
     } else {
       payload.offer_amount        = form.offer_amount        ? parseFloat(form.offer_amount)     : null
       payload.offer_date          = form.offer_date          || null
@@ -203,7 +203,12 @@ export default function TransactionForm({ vehicleId, agentId, transaction, onSav
       {!isEdit && (
         <div className="space-y-1">
           <Label>Transaction Type</Label>
-          <Select value={form.transaction_type} onValueChange={v => upd('transaction_type', v as TransactionType)}>
+          <Select
+            value={form.transaction_type}
+            onValueChange={v => {
+              setForm(p => withLeaseEndDate({ ...p, transaction_type: v as TransactionType }))
+            }}
+          >
             <SelectTrigger className="h-10">
               <SelectValue />
             </SelectTrigger>
@@ -308,8 +313,17 @@ export default function TransactionForm({ vehicleId, agentId, transaction, onSav
           </div>
           <div className="space-y-1">
             <Label htmlFor="lease_end_date">Lease End Date <span className="text-muted-foreground text-xs">(auto-calculated)</span></Label>
-            <Input id="lease_end_date" type="date" value={form.lease_end_date} readOnly
-              className="bg-muted/50 cursor-not-allowed" />
+            <Input
+              id="lease_end_date"
+              type="date"
+              value={form.lease_end_date}
+              disabled
+              tabIndex={-1}
+              className="bg-muted/50"
+            />
+            {!form.lease_end_date && form.move_in_date && form.lease_term_months && (
+              <p className="text-xs text-muted-foreground">Enter move-in date and lease term to calculate end date.</p>
+            )}
           </div>
         </div>
       )}

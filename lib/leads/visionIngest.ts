@@ -48,21 +48,30 @@ RELAY / SYSTEM EMAILS — treat as null:
 PLACEHOLDER VALUES — treat as null:
 - "N/A", "Customer did not specify", "Not provided", "Not specified", "Unknown", "—", "None", "n/a" → return null for that field
 
-FIELD LABELS — strip them:
-- "First Name: John" → "John"; "Phone: (714) 555-1234" → "7145551234"
-- Never include the label text in the value
+FIELD LABELS — strip them completely (CRITICAL):
+- The label is NOT part of the value. Wrong: first_name="First Name: Alex". Right: first_name="Alex".
+- "First Name: John" → first_name "John" (NOT "First Name: John", NOT "First")
+- "Last Name: De Asis" → last_name "De Asis"
+- "Email: buyer@gmail.com" → email "buyer@gmail.com" only
+- "Phone: (714) 555-1234" → "7145551234"
+- Boomtown / CRM forwards often use separate lines: First Name / Last Name / Email / Phone — read each line independently
 
 NAME:
-- Split full name into first_name / last_name; one word only → first_name, last_name null
+- When both "First Name" and "Last Name" lines exist, put given name in first_name and family name in last_name
+- "First Name: Alex" + "Last Name: De Asis" → first_name "Alex", last_name "De Asis" (full name Alex De Asis)
+- Split full names on one line into first_name / last_name; one word only → first_name, last_name null
 - Normalize ALL CAPS to Title Case: "ALEX SOLIS" → "Alex" / "Solis"; "gloria ruiz" → "Gloria" / "Ruiz"
 - Strip titles: Mr., Mrs., Dr., etc.
+- NEVER return the words "First", "Name", "Last", or "Email" as field values
 
 PHONE:
 - 10 digits only, no formatting, no country code. "(323) 548-8594" → "3235488594"
 - Phone leads: the prominent callback number IS the buyer's phone
 
 EMAIL:
-- Extract ONLY a buyer email that is explicitly associated with the buyer in the lead body (e.g., "Email: buyer@gmail.com", or "buyer@gmail.com has inquired about your listing")
+- Return exactly ONE email string — never duplicate the same address (wrong: "campcorey33@gmail.com [campcorey33@gmail.com]")
+- If two different addresses appear (e.g. truncated "r@yahoo.com" and "alexdeasisjr@yahoo.com"), return the complete buyer address (longer local part)
+- Extract ONLY a buyer email explicitly associated with the buyer in the lead body (e.g., "Email: buyer@gmail.com")
 - Do NOT extract emails from: email headers (From:, To:, CC:, Reply-To:), Gmail/Outlook footers, dealer reply signatures, or any address that belongs to the business/dealership
 - If the buyer's first name is null, email must also be null
 - Null if: only header/footer email visible, relay address, noreply, system address, or dealer address

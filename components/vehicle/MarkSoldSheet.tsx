@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { CONSENT_DISCLOSURE } from '@/lib/bhph/schedule'
+import { localTodayYmd } from '@/lib/bhph/gpsDevice'
 import { FileText, ExternalLink, Trash2, X, ArrowRight, CheckCircle, MinusCircle, Star, Heart, Archive } from 'lucide-react'
 
 interface Props {
@@ -51,6 +52,10 @@ const INITIAL_FORM = {
   email_consent: false,
   notes: '',
   annual_interest_rate_percent: '',
+  gps_vendor: '',
+  gps_device_id: '',
+  gps_installed_at: '',
+  gps_notes: '',
 }
 
 export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }: Props) {
@@ -173,8 +178,25 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
   const [error, setError] = useState('')
 
   function update(field: string, value: string | boolean) {
-    setForm(p => ({ ...p, [field]: value }))
+    setForm(p => {
+      const next = { ...p, [field]: value }
+      if (
+        field === 'sold_price' &&
+        typeof value === 'string' &&
+        p.finance_type === 'bhph' &&
+        !String(p.loan_amount).trim()
+      ) {
+        next.loan_amount = value
+      }
+      return next
+    })
   }
+
+  useEffect(() => {
+    if (form.finance_type === 'bhph' && !form.gps_installed_at) {
+      setForm(p => ({ ...p, gps_installed_at: localTodayYmd() }))
+    }
+  }, [form.finance_type, form.gps_installed_at])
 
   function addDeferredRow() {
     setDeferredRows(prev => [...prev, { due_date: '', amount: '', notes: '' }])
@@ -504,9 +526,12 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label>Loan amount (principal)</Label>
+                  <Label>Purchase / contract total</Label>
                   <Input type="number" placeholder="10000" value={form.loan_amount}
                     onChange={e => update('loan_amount', e.target.value)} className="h-11" />
+                  <p className="text-xs text-muted-foreground">
+                    Amount financed = contract total minus collected down payment.
+                  </p>
                 </div>
                 <div className="space-y-1.5">
                   <Label>Deferred Balance</Label>
@@ -623,6 +648,58 @@ export default function MarkSoldSheet({ vehicleId, vehicleLabel, open, onClose }
                     ))}
                   </div>
                 )}
+              </div>
+
+              {/* GPS device (optional) */}
+              <div className="space-y-3 border-t pt-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">GPS device (optional)</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5 col-span-2 sm:col-span-1">
+                    <Label>Vendor</Label>
+                    <Input
+                      placeholder="PassTime, GPS Trackit…"
+                      value={form.gps_vendor}
+                      onChange={e => update('gps_vendor', e.target.value)}
+                      className="h-11"
+                      list="mark-sold-gps-vendors"
+                    />
+                    <datalist id="mark-sold-gps-vendors">
+                      <option value="PassTime" />
+                      <option value="GPS Trackit" />
+                      <option value="Spireon" />
+                      <option value="CalAmp" />
+                      <option value="Ituran" />
+                    </datalist>
+                  </div>
+                  <div className="space-y-1.5 col-span-2 sm:col-span-1">
+                    <Label>GPS / device ID</Label>
+                    <Input
+                      placeholder="Serial or account #"
+                      value={form.gps_device_id}
+                      onChange={e => update('gps_device_id', e.target.value)}
+                      className="h-11 font-mono text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Date installed</Label>
+                    <Input
+                      type="date"
+                      value={form.gps_installed_at}
+                      onChange={e => update('gps_installed_at', e.target.value)}
+                      className="h-11"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Device notes</Label>
+                  <Textarea
+                    placeholder="Install location, tech name, etc."
+                    value={form.gps_notes}
+                    onChange={e => update('gps_notes', e.target.value)}
+                    rows={2}
+                    className="resize-none"
+                  />
+                </div>
               </div>
 
               {/* Reminders section */}

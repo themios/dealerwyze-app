@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
+import { ensureOrgSaasEmailAutoresponder } from '@/lib/sequences/ensureSaasEmailAutoresponder'
 import { seedStarterSequences } from '@/lib/sequences/seedStarterSequences'
 import { createClient } from '@/lib/supabase/server'
 
@@ -13,11 +14,13 @@ export async function POST() {
   const profile = await requireProfile()
   const supabase = await createClient()
 
-  // Check first so we can return a helpful message in the UI
+  await ensureOrgSaasEmailAutoresponder(profile.org_id, supabase)
+
   const { count } = await supabase
     .from('sequences')
     .select('id', { count: 'exact', head: true })
     .eq('org_id', profile.org_id)
+    .neq('slug', 'saas_email_nurture')
 
   if ((count ?? 0) > 0) {
     return NextResponse.json(

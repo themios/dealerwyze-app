@@ -1,23 +1,38 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
+import EmbeddedCalendarPanel from '@/components/calendar/EmbeddedCalendarPanel'
+import ShowingDossierPanel, {
+  type ShowingCustomerDossier,
+} from '@/components/showings/ShowingDossierPanel'
 import { ShowingFeedbackModal } from './ShowingFeedbackModal'
-import { useShowingsTranslations } from '@/lib/i18n/useWaveTranslations'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type ShowingRequestStatus = 'pending' | 'confirmed' | 'declined' | 'no_show' | 'closed'
+export type ShowingRequestStatus = 'pending' | 'confirmed' | 'declined' | 'no_show' | 'closed'
 
-interface ShowingListing {
+export interface ShowingListing {
   id: string
   address_line1: string | null
   city: string | null
   state: string | null
   zip: string | null
+  price?: number | null
+  bedrooms?: number | null
+  bathrooms?: number | null
+  sqft?: number | null
+  property_type?: string | null
+  mls_number?: string | null
+  status?: string | null
+  showing_instructions?: string | null
+  agent_notes?: string | null
+  overview_enrichment_text?: string | null
+  listing_interest?: string | null
 }
 
 export interface ShowingRequest {
@@ -26,6 +41,7 @@ export interface ShowingRequest {
   buyer_name: string
   buyer_email: string
   buyer_phone: string | null
+  customer_id?: string | null
   requested_time_1: string | null
   requested_time_2: string | null
   requested_time_3: string | null
@@ -107,15 +123,23 @@ function isNoShow(sr: ShowingRequest): boolean {
 
 interface ShowingsDashboardProps {
   initialShowings: ShowingRequest[]
+  customersById: Record<string, ShowingCustomerDossier>
 }
 
-export default function ShowingsDashboard({ initialShowings }: ShowingsDashboardProps) {
-  const t = useShowingsTranslations()
+export default function ShowingsDashboard({
+  initialShowings,
+  customersById,
+}: ShowingsDashboardProps) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [showings, setShowings] = useState<ShowingRequest[]>(initialShowings)
   const [filter, setFilter] = useState<FilterTab>('all')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [mobileDossierOpen, setMobileDossierOpen] = useState(false)
   const [feedbackModalOpen, setFeedbackModalOpen] = useState<string | null>(null)
   const [statusUpdating, setStatusUpdating] = useState<Record<string, boolean>>({})
   const [updateError, setUpdateError] = useState<Record<string, string>>({})
+  const [calendarRefreshKey, setCalendarRefreshKey] = useState(0)
 
   // Filter by tab
   const filtered = showings.filter((sr) => {
@@ -127,6 +151,79 @@ export default function ShowingsDashboard({ initialShowings }: ShowingsDashboard
     return true
   })
 
+  const selectedShowing = useMemo(
+    () => filtered.find((s) => s.id === selectedId) ?? filtered[0] ?? null,
+    [filtered, selectedId],
+  )
+
+  useEffect(() => {
+    const fromUrl = searchParams.get('showing')
+    if (fromUrl && filtered.some((s) => s.id === fromUrl)) {
+      setSelectedId(fromUrl)
+      setMobileDossierOpen(true)
+    }
+  }, [searchParams, filtered])
+
+  function selectShowing(id: string, openMobile = true) {
+    setSelectedId(id)
+    if (openMobile) setMobileDossierOpen(true)
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('showing', id)
+    router.replace(`/showings?${params.toString()}`, { scroll: false })
+  }
+
+  function renderShowingActions(sr: ShowingRequest) {
+    const showFeedbackBtn =
+      sr.status === 'confirmed' && sr.confirmed_time && new Date(sr.confirmed_time) < new Date()
+
+    return (
+      <>
+        {sr.status === 'pending' && (
+          <>
+            <button
+              type="button"
+              disabled={statusUpdating[sr.id]}
+              onClick={() => {
+                const time =
+                  sr.requested_time_1 || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+                handleConfirm(sr.id, time)
+              }}
+              className="rounded text-xs px-2.5 py-1.5 bg-green-600 text-white hover:bg-green-700 transition-colors disabled:opacity-50"
+            >
+              Confirm
+            </button>
+            <button
+              type="button"
+              disabled={statusUpdating[sr.id]}
+              onClick={() => handleDecline(sr.id)}
+              className="rounded text-xs px-2.5 py-1.5 border border-input bg-background hover:bg-accent transition-colors disabled:opacity-50"
+            >
+              Decline
+            </button>
+            <Link
+              href={`/showings/${sr.id}`}
+              className="rounded text-xs px-2.5 py-1.5 border border-input hover:bg-accent transition-colors"
+            >
+              Full workflow
+            </Link>
+          </>
+        )}
+        {showFeedbackBtn && (
+          <button
+            type="button"
+            onClick={() => setFeedbackModalOpen(sr.id)}
+            className="rounded text-xs px-2.5 py-1.5 bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+          >
+            Collect feedback
+          </button>
+        )}
+        {updateError[sr.id] && (
+          <p className="w-full text-xs text-red-600">{updateError[sr.id]}</p>
+        )}
+      </>
+    )
+  }
+
   async function handleConfirm(showingId: string, confirmedTime: string) {
     setStatusUpdating((prev) => ({ ...prev, [showingId]: true }))
     setUpdateError((prev) => ({ ...prev, [showingId]: '' }))
@@ -134,7 +231,10 @@ export default function ShowingsDashboard({ initialShowings }: ShowingsDashboard
       const res = await fetch('/api/showings/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ showing_id: showingId, confirmed_time: confirmedTime }),
+        body: JSON.stringify({
+          showing_id: showingId,
+          confirmed_time: new Date(confirmedTime).toISOString(),
+        }),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
@@ -149,6 +249,7 @@ export default function ShowingsDashboard({ initialShowings }: ShowingsDashboard
             : s
         )
       )
+      setCalendarRefreshKey((k) => k + 1)
     } catch {
       setUpdateError((prev) => ({ ...prev, [showingId]: 'Confirmation failed' }))
     } finally {
@@ -191,6 +292,8 @@ export default function ShowingsDashboard({ initialShowings }: ShowingsDashboard
 
   return (
     <div className="space-y-4">
+      <EmbeddedCalendarPanel refreshKey={calendarRefreshKey} />
+
       {/* Filter tabs */}
       <div className="flex flex-wrap gap-1.5 border-b">
         {FILTER_TABS.map((tab) => (
@@ -212,7 +315,7 @@ export default function ShowingsDashboard({ initialShowings }: ShowingsDashboard
         </span>
       </div>
 
-      {/* List */}
+      {/* Master–detail dossier */}
       {filtered.length === 0 ? (
         <div className="rounded-lg border bg-card p-6 text-center">
           <p className="text-sm text-muted-foreground">
@@ -222,112 +325,113 @@ export default function ShowingsDashboard({ initialShowings }: ShowingsDashboard
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {filtered.map((sr) => {
-            const addr = listingAddress(sr.listing)
-            const showFeedbackBtn = sr.status === 'confirmed' && sr.confirmed_time && new Date(sr.confirmed_time) < new Date()
-
-            return (
-              <div key={sr.id} className="rounded-lg border bg-card p-4 space-y-3">
-                {/* Header: buyer, property, status */}
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <p className="font-semibold text-foreground">{sr.buyer_name}</p>
-                    <Link
-                      href={`/listings/${sr.listing_id}`}
-                      className="text-sm text-primary hover:underline block truncate"
-                    >
-                      {addr}
-                    </Link>
-                    <p className="text-xs text-muted-foreground">
-                      {sr.buyer_email}
-                      {sr.buyer_phone ? ` · ${sr.buyer_phone}` : ''}
-                    </p>
-                  </div>
-                  <Badge className={`${STATUS_BADGE_CLASS[sr.status]} shrink-0`}>
-                    {STATUS_LABELS[sr.status]}
-                  </Badge>
-                </div>
-
-                {/* Times */}
-                {sr.status === 'pending' && (
-                  <div className="text-sm bg-muted p-2 rounded space-y-1">
-                    <p className="font-medium text-muted-foreground">Requested times:</p>
-                    <ul className="text-xs text-foreground space-y-0.5">
-                      {sr.requested_time_1 && <li>1. {formatDateTime(sr.requested_time_1)}</li>}
-                      {sr.requested_time_2 && <li>2. {formatDateTime(sr.requested_time_2)}</li>}
-                      {sr.requested_time_3 && <li>3. {formatDateTime(sr.requested_time_3)}</li>}
-                    </ul>
-                    {sr.message && <p className="text-xs italic text-muted-foreground mt-2">Message: {sr.message}</p>}
-                  </div>
-                )}
-
-                {sr.status === 'confirmed' && sr.confirmed_time && (
-                  <div className="text-sm bg-muted p-2 rounded">
-                    <p className="font-medium text-muted-foreground">Confirmed for:</p>
-                    <p className="text-foreground">{formatDateTime(sr.confirmed_time)}</p>
-                  </div>
-                )}
-
-                {/* Actions */}
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {sr.status === 'pending' && (
-                    <>
+        <div className="rounded-lg border bg-card overflow-hidden min-h-[520px] flex flex-col">
+          <div className="hidden lg:flex flex-1 min-h-0">
+            {/* List column */}
+            <div className="w-[min(100%,340px)] shrink-0 border-r overflow-y-auto max-h-[70vh]">
+              <ul className="divide-y">
+                {filtered.map((sr) => {
+                  const isSelected = selectedShowing?.id === sr.id
+                  return (
+                    <li key={sr.id}>
                       <button
                         type="button"
-                        disabled={statusUpdating[sr.id]}
-                        onClick={() => {
-                          const time = sr.requested_time_1 || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-                          handleConfirm(sr.id, time)
-                        }}
-                        className="rounded text-xs px-2 py-1 bg-green-600 text-white hover:bg-green-700 transition-colors disabled:opacity-50"
+                        onClick={() => selectShowing(sr.id, false)}
+                        className={`w-full text-left px-3 py-3 transition-colors hover:bg-muted/50 ${
+                          isSelected ? 'bg-muted/60 border-l-2 border-l-[#F07018]' : ''
+                        }`}
                       >
-                        Confirm
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-medium text-sm truncate">{sr.buyer_name}</p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {listingAddress(sr.listing)}
+                            </p>
+                          </div>
+                          <Badge
+                            className={`${STATUS_BADGE_CLASS[sr.status]} shrink-0 text-[10px] px-1.5`}
+                          >
+                            {STATUS_LABELS[sr.status]}
+                          </Badge>
+                        </div>
                       </button>
-                      <button
-                        type="button"
-                        disabled={statusUpdating[sr.id]}
-                        onClick={() => handleDecline(sr.id)}
-                        className="rounded text-xs px-2 py-1 border border-input bg-background hover:bg-accent transition-colors disabled:opacity-50"
-                      >
-                        Decline
-                      </button>
-                    </>
-                  )}
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+            {/* Dossier column */}
+            <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+              {selectedShowing ? (
+                <ShowingDossierPanel
+                  showing={selectedShowing}
+                  customer={
+                    selectedShowing.customer_id
+                      ? customersById[selectedShowing.customer_id] ?? null
+                      : null
+                  }
+                  actions={renderShowingActions(selectedShowing)}
+                />
+              ) : null}
+            </div>
+          </div>
 
-                  {showFeedbackBtn && (
+          {/* Mobile: list or dossier */}
+          <div className="lg:hidden flex flex-col flex-1 min-h-0">
+            {!mobileDossierOpen ? (
+              <ul className="divide-y overflow-y-auto">
+                {filtered.map((sr) => (
+                  <li key={sr.id}>
                     <button
                       type="button"
-                      onClick={() => setFeedbackModalOpen(sr.id)}
-                      className="rounded text-xs px-2 py-1 bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                      onClick={() => selectShowing(sr.id, true)}
+                      className="w-full text-left px-4 py-3 hover:bg-muted/50"
                     >
-                      Collect Feedback
+                      <p className="font-medium text-sm">{sr.buyer_name}</p>
+                      <p className="text-xs text-muted-foreground">{listingAddress(sr.listing)}</p>
+                      <Badge className={`${STATUS_BADGE_CLASS[sr.status]} mt-1 text-[10px]`}>
+                        {STATUS_LABELS[sr.status]}
+                      </Badge>
                     </button>
-                  )}
-
-                  <Link
-                    href={`/listings/${sr.listing_id}`}
-                    className="ml-auto text-xs text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    View listing →
-                  </Link>
-                </div>
-
-                {/* Error display */}
-                {updateError[sr.id] && <p className="text-xs text-red-600">{updateError[sr.id]}</p>}
-
-                {/* Feedback modal */}
-                {feedbackModalOpen === sr.id && (
-                  <ShowingFeedbackModal
-                    showing={sr}
-                    onClose={() => setFeedbackModalOpen(null)}
-                    onSubmitted={() => handleFeedbackSubmitted(sr.id)}
-                  />
-                )}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="flex flex-col flex-1 min-h-0">
+                <button
+                  type="button"
+                  className="shrink-0 px-4 py-2 text-sm text-primary border-b text-left hover:bg-muted/30"
+                  onClick={() => {
+                    setMobileDossierOpen(false)
+                    const params = new URLSearchParams(searchParams.toString())
+                    params.delete('showing')
+                    const q = params.toString()
+                    router.replace(q ? `/showings?${q}` : '/showings', { scroll: false })
+                  }}
+                >
+                  ← All requests
+                </button>
+                <ShowingDossierPanel
+                  showing={selectedShowing}
+                  customer={
+                    selectedShowing.customer_id
+                      ? customersById[selectedShowing.customer_id] ?? null
+                      : null
+                  }
+                  actions={renderShowingActions(selectedShowing)}
+                />
               </div>
-            )
-          })}
+            )}
+          </div>
         </div>
+      )}
+
+      {feedbackModalOpen && selectedShowing && feedbackModalOpen === selectedShowing.id && (
+        <ShowingFeedbackModal
+          showing={selectedShowing}
+          onClose={() => setFeedbackModalOpen(null)}
+          onSubmitted={() => handleFeedbackSubmitted(selectedShowing.id)}
+        />
       )}
     </div>
   )

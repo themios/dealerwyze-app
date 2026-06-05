@@ -15,7 +15,7 @@ interface NotifyInput {
   customerPhone:  string
   customerEmail:  string
   appointmentIso: string   // ISO datetime of appointment
-  dealerName:     string
+  orgName:        string   // Organization name (dealer or agency/agent)
   calendarUrl:    string | null
   type:           'confirmation' | 'reminder'
 }
@@ -30,7 +30,7 @@ function formatDateTime(iso: string): string {
 export async function sendAppointmentNotification(input: NotifyInput): Promise<void> {
   const {
     orgId, customerId, customerPhone, customerEmail, customerName,
-    appointmentIso, dealerName, calendarUrl, type,
+    appointmentIso, orgName, calendarUrl, type,
   } = input
 
   const supabase = createServiceClient()
@@ -38,8 +38,8 @@ export async function sendAppointmentNotification(input: NotifyInput): Promise<v
   const calendarLine  = calendarUrl ? `\nCalendar invite: ${calendarUrl}` : ''
 
   const smsBody = type === 'confirmation'
-    ? `Hi ${customerName}, your appointment with ${dealerName} is confirmed for ${formattedTime}.${calendarLine} Reply STOP to opt out.`
-    : `Hi ${customerName}, reminder: your appointment with ${dealerName} is tomorrow at ${formattedTime}. Reply STOP to opt out.`
+    ? `Hi ${customerName}, your appointment at ${orgName} is confirmed for ${formattedTime}.${calendarLine} Reply STOP to opt out.`
+    : `Hi ${customerName}, reminder: your appointment at ${orgName} is tomorrow at ${formattedTime}. Reply STOP to opt out.`
 
   // ── SMS ──────────────────────────────────────────────────────────────────────
   if (customerPhone) {
@@ -103,12 +103,12 @@ export async function sendAppointmentNotification(input: NotifyInput): Promise<v
 
     if (!custRow?.unsubscribe_email) {
       const subject = type === 'confirmation'
-        ? `Your appointment at ${dealerName} is confirmed`
-        : `Reminder: your appointment at ${dealerName} is tomorrow`
+        ? `Your appointment at ${orgName} is confirmed`
+        : `Reminder: your appointment at ${orgName} is tomorrow`
 
       const htmlBody = `<!DOCTYPE html><html><body style="font-family:sans-serif;font-size:15px;color:#111;max-width:600px;margin:0 auto;padding:16px">
 <p>Hi ${customerName},</p>
-<p>${type === 'confirmation' ? 'Your appointment is confirmed' : 'This is a reminder about your upcoming appointment'} at ${dealerName}.</p>
+<p>${type === 'confirmation' ? 'Your appointment is confirmed' : 'This is a reminder about your upcoming appointment'} at ${orgName}.</p>
 <p><strong>Date &amp; Time:</strong> ${formattedTime}</p>
 ${calendarUrl ? `<p><a href="${calendarUrl}">View calendar invite</a></p>` : ''}
 <p>See you then!</p>
@@ -133,7 +133,7 @@ ${calendarUrl ? `<p><a href="${calendarUrl}">View calendar invite</a></p>` : ''}
 
           // Build RFC 2822 MIME message
           const mime = [
-            `From: "${dealerName}" <${account.email}>`,
+            `From: "${orgName}" <${account.email}>`,
             `To: ${customerEmail}`,
             `Subject: ${subject}`,
             'MIME-Version: 1.0',

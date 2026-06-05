@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
+import { ensureAgentSaasEmailAutoresponder } from '@/lib/sequences/ensureSaasEmailAutoresponder'
 import { seedStarterSequences } from '@/lib/sequences/seedStarterSequences'
 
 export async function POST(req: NextRequest) {
@@ -23,6 +24,7 @@ export async function POST(req: NextRequest) {
     // Auto-seed starter sequences so Automation settings picker is pre-populated.
     // Non-blocking — failure here must not block dashboard redirect.
     seedStarterSequences(profile.org_id, supabase).catch(() => {})
+    ensureAgentSaasEmailAutoresponder(profile.org_id, profile.id, supabase).catch(() => {})
   } else if (typeof body.step === 'number' && body.step >= 0 && body.step <= 5) {
     updatePayload.onboarding_step = body.step
   } else {

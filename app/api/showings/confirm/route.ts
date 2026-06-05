@@ -7,9 +7,11 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { isoDateTime } from '@/lib/showings/isoDateTime'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
-import { createShowingCalendarEvent } from '@/lib/google-calendar/createShowingEvent'
+import { syncConfirmedShowingToCalendar } from '@/lib/showings/syncConfirmedShowingToCalendar'
+import { sendTwilioSms, toE164Us } from '@/lib/bhph/twilioOutbound'
 import {
   resolveShowingConfirmationVideo,
   sendShowingConfirmationEmail,
@@ -17,7 +19,7 @@ import {
 
 const Schema = z.object({
   showing_id: z.string().uuid(),
-  confirmed_time: z.string().datetime(),
+  confirmed_time: isoDateTime,
   include_video: z.boolean().optional().default(false),
   template_id: z.string().uuid().optional(),
 })
@@ -82,19 +84,21 @@ export async function POST(req: NextRequest) {
 
   let calendarEventId: string | null = null
   try {
-    calendarEventId = await createShowingCalendarEvent({
+    const synced = await syncConfirmedShowingToCalendar({
+      supabase,
       orgId,
-      agentId: showing.agent_id,
+      listingId: showing.listing_id,
       showingRequestId: showing.id,
       buyerName: showing.buyer_name,
+      buyerEmail: showing.buyer_email,
       buyerPhone: showing.buyer_phone ?? null,
-      buyerEmail: showing.buyer_email ?? null,
       address,
       confirmedTime: confirmed_time,
       message: showing.message ?? null,
     })
+    calendarEventId = synced.googleCalendarEventId
   } catch (err) {
-    console.error('Failed to create calendar event:', err)
+    console.error('Failed to sync showing to calendar:', err)
   }
 
   const { error: updateError } = await supabase
@@ -158,15 +162,10 @@ export async function POST(req: NextRequest) {
       ? `Great! Your showing is confirmed for ${new Date(confirmed_time).toLocaleString()} at ${address}. Tour video: ${videoUrl}`
       : `Great! Your showing is confirmed for ${new Date(confirmed_time).toLocaleString()}. We'll meet you at ${address}.`
 
-    fetch('/api/twilio/send-sms', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        to: showing.buyer_phone,
-        body: smsBody,
-        org_id: orgId,
-      }),
-    }).catch((err) => console.error('Failed to send SMS:', err))
+    const buyerE164 = toE164Us(showing.buyer_phone)
+    if (buyerE164) {
+      sendTwilioSms(buyerE164, smsBody).catch((err) => console.error('Failed to send SMS:', err))
+    }
   }
 
   return NextResponse.json(

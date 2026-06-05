@@ -10,6 +10,10 @@ import TopBar from '@/components/layout/TopBar'
 import Link from 'next/link'
 import { MessageSquare, Mail } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
+import {
+  computeBhphOutstandingBalance,
+  computeBhphPaidPercent,
+} from '@/lib/bhph/balance'
 import BhphRecordPayment from './BhphRecordPayment'
 import type { PaymentFrequency } from '@/lib/bhph/schedule'
 
@@ -20,6 +24,7 @@ interface BhphAccount {
   loan_amount: number | null
   down_payment: number | null
   total_paid: number | null
+  principal_balance: number | null
   payment_frequency: PaymentFrequency
   next_due_date: string
   sms_consent: boolean
@@ -117,12 +122,8 @@ export default async function BhphPage() {
             const freqLabel = acct.payment_frequency === 'weekly' ? 'Weekly'
               : acct.payment_frequency === 'biweekly' ? 'Bi-weekly' : 'Monthly'
 
-            const paidPct = acct.loan_amount && acct.loan_amount > 0
-              ? Math.min(100, Math.round(((acct.total_paid ?? 0) / acct.loan_amount) * 100))
-              : 0
-            const balance = acct.loan_amount
-              ? Math.max(0, acct.loan_amount - (acct.total_paid ?? 0))
-              : null
+            const paidPct = computeBhphPaidPercent(acct)
+            const balance = computeBhphOutstandingBalance(acct)
 
             return (
               <div
@@ -227,13 +228,7 @@ export default async function BhphPage() {
                 <BhphRecordPayment
                   accountId={acct.id}
                   monthlyPayment={acct.monthly_payment}
-                  paymentFrequency={(acct.payment_frequency ?? 'monthly') as PaymentFrequency}
-                  paymentDayAnchor={acct.payment_day_anchor ?? acct.payment_day_of_month ?? 1}
-                  currentDueDate={acct.next_due_date}
-                  loanAmount={acct.loan_amount}
-                  totalPaid={acct.total_paid ?? 0}
                   customerId={acct.customer?.id}
-                  accountBalance={balance}
                 />
 
                 {acct.notes && (

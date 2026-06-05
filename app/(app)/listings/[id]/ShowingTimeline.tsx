@@ -1,8 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -33,6 +35,15 @@ interface ShowingRow {
   created_at: string
   contact: ShowingContact | null
   agent: ShowingAgent | null
+}
+
+type ShowingKind = 'client' | 'open_house'
+
+interface SelectedClient {
+  id: string
+  name: string
+  primary_phone: string | null
+  email: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -93,8 +104,43 @@ export default function ShowingTimeline({
   const [scheduleDate, setScheduleDate] = useState('')
   const [scheduleTime, setScheduleTime] = useState('')
   const [scheduleNotes, setScheduleNotes] = useState('')
+  const [showingKind, setShowingKind] = useState<ShowingKind>('client')
+  const [selectedClient, setSelectedClient] = useState<SelectedClient | null>(null)
+  const [clientSearch, setClientSearch] = useState('')
+  const [clientResults, setClientResults] = useState<SelectedClient[]>([])
+  const [clientSearchOpen, setClientSearchOpen] = useState(false)
+  const clientSearchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [scheduleSubmitting, setScheduleSubmitting] = useState(false)
   const [scheduleError, setScheduleError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (showingKind !== 'client' || clientSearch.length < 2) {
+      setClientResults([])
+      return
+    }
+    if (clientSearchDebounce.current) clearTimeout(clientSearchDebounce.current)
+    clientSearchDebounce.current = setTimeout(async () => {
+      const res = await fetch(
+        `/api/customers/search?q=${encodeURIComponent(clientSearch)}&limit=8`,
+      )
+      if (res.ok) setClientResults(await res.json())
+    }, 250)
+    return () => {
+      if (clientSearchDebounce.current) clearTimeout(clientSearchDebounce.current)
+    }
+  }, [clientSearch, showingKind])
+
+  function resetScheduleForm() {
+    setScheduleDate('')
+    setScheduleTime('')
+    setScheduleNotes('')
+    setShowingKind('client')
+    setSelectedClient(null)
+    setClientSearch('')
+    setClientResults([])
+    setClientSearchOpen(false)
+    setScheduleError(null)
+  }
 
   // Feedback note state — keyed by showing id
   const [feedbackOpen, setFeedbackOpen] = useState<Record<string, boolean>>({})
@@ -159,6 +205,11 @@ export default function ShowingTimeline({
       return
     }
 
+    if (showingKind === 'client' && !selectedClient) {
+      setScheduleError('Select a client from your customer list, or choose Open house.')
+      return
+    }
+
     const scheduledAt = new Date(`${scheduleDate}T${scheduleTime}`).toISOString()
     if (new Date(scheduledAt) <= new Date()) {
       setScheduleError('Showing must be scheduled in the future.')
@@ -173,6 +224,8 @@ export default function ShowingTimeline({
         body: JSON.stringify({
           listing_id: listingId,
           scheduled_at: scheduledAt,
+          showing_kind: showingKind,
+          contact_id: showingKind === 'client' ? selectedClient?.id : undefined,
           notes: scheduleNotes || undefined,
         }),
       })
@@ -182,9 +235,7 @@ export default function ShowingTimeline({
         return
       }
       setShowScheduleForm(false)
-      setScheduleDate('')
-      setScheduleTime('')
-      setScheduleNotes('')
+      resetScheduleForm()
       await fetchShowings()
     } catch {
       setScheduleError('Failed to schedule showing. Please try again.')
@@ -243,8 +294,11 @@ export default function ShowingTimeline({
         <Button
           size="sm"
           onClick={() => {
-            setShowScheduleForm(v => !v)
-            setScheduleError(null)
+            setShowScheduleForm(v => {
+              if (v) resetScheduleForm()
+              else setScheduleError(null)
+              return !v
+            })
           }}
         >
           {showScheduleForm ? 'Cancel' : 'Schedule Showing'}
@@ -281,6 +335,106 @@ export default function ShowingTimeline({
           className="rounded-lg border bg-card p-4 space-y-3"
         >
           <p className="text-sm font-semibold">Schedule a Showing</p>
+
+          <fieldset className="space-y-2">
+            <legend className="text-xs font-medium text-muted-foreground">Showing type</legend>
+            <div className="flex flex-wrap gap-4">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name="showing-kind"
+                  checked={showingKind === 'client'}
+                  onChange={() => {
+                    setShowingKind('client')
+                    setScheduleError(null)
+                  }}
+                  className="accent-primary"
+                />
+                Client showing
+              </label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name="showing-kind"
+                  checked={showingKind === 'open_house'}
+                  onChange={() => {
+                    setShowingKind('open_house')
+                    setSelectedClient(null)
+                    setClientSearch('')
+                    setClientResults([])
+                    setScheduleError(null)
+                  }}
+                  className="accent-primary"
+                />
+                Open house
+              </label>
+            </div>
+          </fieldset>
+
+          {showingKind === 'client' && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Client</Label>
+              {selectedClient ? (
+                <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{selectedClient.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {[selectedClient.primary_phone, selectedClient.email].filter(Boolean).join(' · ') ||
+                        'No phone or email on file'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="shrink-0 text-xs text-muted-foreground hover:text-foreground ml-2"
+                    onClick={() => {
+                      setSelectedClient(null)
+                      setClientSearch('')
+                    }}
+                  >
+                    Change
+                  </button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <Input
+                    placeholder="Search customers by name or phone…"
+                    value={clientSearch}
+                    onChange={e => {
+                      setClientSearch(e.target.value)
+                      setClientSearchOpen(true)
+                    }}
+                    onFocus={() => setClientSearchOpen(true)}
+                    onBlur={() => setTimeout(() => setClientSearchOpen(false), 150)}
+                    className="h-9 text-sm"
+                    autoComplete="off"
+                  />
+                  {clientSearchOpen && clientResults.length > 0 && (
+                    <div className="absolute z-50 w-full top-full mt-1 bg-popover border rounded-lg shadow-lg overflow-hidden">
+                      {clientResults.map(c => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors border-b last:border-b-0"
+                          onMouseDown={() => {
+                            setSelectedClient(c)
+                            setClientSearch('')
+                            setClientResults([])
+                            setClientSearchOpen(false)
+                          }}
+                        >
+                          <span className="font-medium">{c.name}</span>
+                          {c.primary_phone ? (
+                            <span className="text-muted-foreground ml-2 text-xs">{c.primary_phone}</span>
+                          ) : null}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1">Date</label>
@@ -310,7 +464,11 @@ export default function ShowingTimeline({
               onChange={e => setScheduleNotes(e.target.value)}
               rows={2}
               maxLength={2000}
-              placeholder="Buyer name, access code, instructions…"
+              placeholder={
+                showingKind === 'open_house'
+                  ? 'Access instructions, signage, refreshments…'
+                  : 'Access code, lockbox, special instructions…'
+              }
               className="w-full rounded border border-input bg-background px-2 py-1.5 text-sm resize-none"
             />
           </div>
@@ -325,7 +483,10 @@ export default function ShowingTimeline({
               type="button"
               size="sm"
               variant="ghost"
-              onClick={() => { setShowScheduleForm(false); setScheduleError(null) }}
+              onClick={() => {
+                setShowScheduleForm(false)
+                resetScheduleForm()
+              }}
             >
               Cancel
             </Button>
@@ -358,7 +519,7 @@ export default function ShowingTimeline({
                   <div className="space-y-0.5">
                     <p className="text-sm font-medium">{formatDateTime(showing.scheduled_at)}</p>
                     <p className="text-xs text-muted-foreground">
-                      {showing.contact?.name ?? 'No contact'} &middot; {showing.agent?.full_name ?? 'No agent'}
+                      {showing.contact?.name ?? 'Open house'} &middot; {showing.agent?.full_name ?? 'No agent'}
                     </p>
                   </div>
                   <Badge className={STATUS_BADGE_CLASS[showing.status]}>

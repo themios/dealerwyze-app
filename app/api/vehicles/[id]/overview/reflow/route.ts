@@ -3,6 +3,10 @@ import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 import { canAccessLedger } from '@/lib/auth/dealerRoles'
 import { assertCanUseFeature, BillingError } from '@/lib/billing/assertFeature'
+import {
+  buildDealerReflowPrompt,
+  buildReReflowPrompt,
+} from '@/lib/vehicles/listingOverviewPrompts'
 import Groq from 'groq-sdk'
 
 export const maxDuration = 30
@@ -34,6 +38,13 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const supabase = await createClient()
 
+  const { data: org } = await supabase
+    .from('organizations')
+    .select('vertical')
+    .eq('id', profile.org_id)
+    .maybeSingle()
+  const isRe = org?.vertical === 'real_estate'
+
   const { data: vehicle } = await supabase
     .from('vehicles')
     .select('id, ai_description, status')
@@ -42,8 +53,12 @@ export async function POST(req: NextRequest, { params }: Params) {
     .maybeSingle()
 
   if (!vehicle) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  if (vehicle.status === 'sold') {
-    return NextResponse.json({ error: 'Cannot reflow sold vehicle' }, { status: 400 })
+  const terminalStatus = isRe ? 'closed' : 'sold'
+  if (vehicle.status === terminalStatus) {
+    return NextResponse.json(
+      { error: isRe ? 'Cannot reflow closed listing' : 'Cannot reflow sold vehicle' },
+      { status: 400 },
+    )
   }
 
   let source = vehicle.ai_description?.trim() ?? ''
@@ -62,25 +77,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) return NextResponse.json({ error: 'AI not configured' }, { status: 503 })
 
-  const prompt = `You fix website copy layout for a used vehicle dealer. Your job is ONLY to reorganize the text below into a skimmable format.
-
-RULES (critical):
-- Do NOT add, remove, or change facts, numbers, prices, mileage, trim names, or claims. Same meaning only.
-- Do NOT invent history, accidents, or title status.
-- 3–5 sections, each separated by ONE completely blank line (double newline).
-- Each section: Line 1 = short title, optional emoji at the start, max 8 words, no period at end.
-- Every following line in that section = exactly ONE complete English sentence: capital letter start, subject + predicate, ends with . or ! or ?
-- NEVER put a phrase, clause, or list item alone on its own line (e.g. do not put "Bluetooth connectivity" on its own unless it is a full sentence like "Bluetooth connectivity is included.").
-- NEVER break a sentence across two lines. If a thought needs two sentences, use two lines.
-- Combine related ideas into clear sentences rather than many tiny fragments.
-- Plain text only: no markdown, no # headers, no bullet characters at line starts.
-- No em dashes.
-- Last section title should invite action (e.g. "📞 Next step" or "Come see it") with 1–2 short sentences.
-
-SOURCE TEXT TO REWRITE:
----
-${source.slice(0, 14_000)}
----`
+  const prompt = isRe ? buildReReflowPrompt(source) : buildDealerReflowPrompt(source)
 
   let description: string
   try {

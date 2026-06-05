@@ -122,14 +122,17 @@ const PUBLIC_PREFIXES = ['/auth/', '/api/auth/', '/api/stripe/webhook', '/_next/
 const PUBLIC_FILES    = ['/favicon.ico', '/logo.jpg', '/manifest.json']
 const BILLING_EXEMPT  = ['/settings/billing', '/settings/users', '/pending', '/suspended', '/onboarding']
 
-// Public dealer inventory pages: /{slug}/inventory[/*] and /{slug}/sitemap.xml
-// Segments[1] must be 'inventory' to avoid colliding with any existing app routes.
-// All known CRM first-segments (today, vehicles, customers, settings, etc.) never
-// use 'inventory' as their second segment, so this pattern is safe.
+// Public org websites: /{slug}/inventory[/*] (dealer), /{slug}/listings[/*] (real estate), sitemap
+// Segment[1] is never a CRM app route (today, vehicles, etc.) — only the org slug is dynamic.
 function isDealerPublicPath(pathname: string): boolean {
   const segments = pathname.split('/').filter(Boolean)
   if (segments.length < 2) return false
-  return segments[1] === 'inventory' || /^\/[^/]+\/sitemap\.xml$/.test(pathname)
+  const section = segments[1]
+  return (
+    section === 'inventory' ||
+    section === 'listings' ||
+    /^\/[^/]+\/sitemap\.xml$/.test(pathname)
+  )
 }
 
 function isPublic(pathname: string): boolean {

@@ -46,7 +46,9 @@ export async function sendNotificationEmail({
   vertical?: 'dealer' | 'real_estate'
 }): Promise<{ resendId?: string }> {
   const isRealtyWyze = vertical === 'real_estate'
-  const key = isRealtyWyze ? process.env.REALTYWYZE_RESEND_API_KEY : process.env.RESEND_API_KEY
+  const key =
+    (isRealtyWyze ? process.env.REALTYWYZE_RESEND_API_KEY : null) ??
+    process.env.RESEND_API_KEY
   if (!key) return {}
 
   const brandName = isRealtyWyze ? 'RealtyWyze' : 'DealerWyze'

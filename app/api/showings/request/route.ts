@@ -6,11 +6,13 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { isoDateTime } from '@/lib/showings/isoDateTime'
 import { createServiceClient } from '@/lib/supabase/service'
 import { webLeadLimiter } from '@/lib/rateLimit/upstash'
 import { sendNotificationEmail } from '@/lib/email/notify'
 import { notifyAgentShowingRequest } from '@/lib/showings/notifyAgentShowingRequest'
 import { getAgentContact } from '@/lib/showings/getAgentContact'
+import { recordShowingWebLead } from '@/lib/showings/recordShowingWebLead'
 
 const MAX_BODY_BYTES = 8192
 
@@ -20,7 +22,7 @@ const Schema = z.object({
   buyer_name: z.string().min(1).max(120).trim(),
   buyer_email: z.string().email().max(200).trim(),
   buyer_phone: z.string().max(30).trim().optional(),
-  requested_times: z.array(z.string().datetime()).max(3).optional(), // ISO 8601 timestamps
+  requested_times: z.array(isoDateTime).max(3).optional(),
   message: z.string().max(2000).trim().optional(),
   source_url: z.string().url().max(500).optional(),
 })
@@ -80,7 +82,7 @@ export async function POST(req: NextRequest) {
   // Verify org is real_estate vertical
   const { data: org } = await supabase
     .from('organizations')
-    .select('id, name, public_inventory_enabled, vertical')
+    .select('id, name, public_inventory_enabled, vertical, website_contact_email')
     .eq('id', org_id)
     .eq('vertical', 'real_estate')
     .eq('public_inventory_enabled', true)
@@ -144,6 +146,20 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  await recordShowingWebLead({
+    supabase,
+    orgId: org_id,
+    listingId: listing_id,
+    showingRequestId: showingRequest.id,
+    buyerName: buyer_name,
+    buyerEmail: buyer_email,
+    buyerPhone: buyer_phone ?? null,
+    address,
+    requestedTimes: requested_times ?? [],
+    message: message ?? null,
+    sourceUrl: source_url ?? null,
+  }).catch((err) => console.error('Failed to record showing web lead:', err))
+
   // Notify agent using helper
   notifyAgentShowingRequest({
     orgId: org_id,
@@ -185,6 +201,10 @@ ${org.name}`
     to: buyer_email,
     subject: buyerEmailSubject,
     html: buyerEmailBody.replace(/\n/g, '<br/>'),
+    org_id: org_id,
+    email_type: 'showing_request_buyer',
+    vertical: 'real_estate',
+    reply_to: org.website_contact_email ?? undefined,
   }).catch((err) => console.error('Failed to send email to buyer:', err))
 
   return NextResponse.json(

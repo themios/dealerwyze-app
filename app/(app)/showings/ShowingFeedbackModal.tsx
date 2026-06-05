@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { X } from 'lucide-react'
 import type { ShowingRequest } from './ShowingsDashboard'
 
@@ -68,7 +69,15 @@ export function ShowingFeedbackModal({ showing, onClose, onSubmitted }: ShowingF
 
         {/* Showing details */}
         <div className="bg-muted p-3 rounded text-sm">
-          <p className="font-medium text-foreground">{showing.buyer_name}</p>
+          <p className="font-medium text-foreground">
+            {showing.customer_id ? (
+              <Link href={`/customers/${showing.customer_id}`} className="text-primary hover:underline">
+                {showing.buyer_name}
+              </Link>
+            ) : (
+              showing.buyer_name
+            )}
+          </p>
           <p className="text-muted-foreground">{showing.listing?.address_line1}</p>
         </div>
 

@@ -3,6 +3,21 @@ import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 import { canAccessLedger } from '@/lib/auth/dealerRoles'
 import { assertCanUseFeature, BillingError } from '@/lib/billing/assertFeature'
+import {
+  formatAreaContextForPrompt,
+  mergeAreaContextIntoMarketJson,
+  resolveAreaContextForListing,
+  type AreaContextListingInput,
+} from '@/lib/listings/areaContext'
+import {
+  buildDealerReanalyzePrompt,
+  buildPropertyDetailsBlock,
+  buildReReanalyzePrompt,
+  DEALER_REANALYZE_SELECT,
+  formatPropertyLabel,
+  RE_REANALYZE_SELECT,
+  type ReListingFields,
+} from '@/lib/vehicles/listingOverviewPrompts'
 import Groq from 'groq-sdk'
 
 export const maxDuration = 30
@@ -32,26 +47,46 @@ export async function POST(_req: NextRequest, { params }: Params) {
 
   const supabase = await createClient()
 
-  const { data: vehicle } = await supabase
-    .from('vehicles')
-    .select(
-      'id, year, make, model, trim, color, mileage, price, notes, status, market_data_json, voice_summary, overview_enrichment_text, ai_last_analyzed_at',
-    )
-    .eq('id', id)
-    .eq('user_id', profile.org_id)
+  const { data: org } = await supabase
+    .from('organizations')
+    .select('vertical, plan')
+    .eq('id', profile.org_id)
     .maybeSingle()
 
+  const isRe = org?.vertical === 'real_estate'
+  const plan = (org?.plan ?? 'free').toLowerCase()
+  const skipReanalyzeCooldown = plan === 'lifetime' || plan === 'platform'
+
+  const { data: vehicle } = isRe
+    ? await supabase
+        .from('vehicles')
+        .select(RE_REANALYZE_SELECT)
+        .eq('id', id)
+        .eq('user_id', profile.org_id)
+        .maybeSingle()
+    : await supabase
+        .from('vehicles')
+        .select(DEALER_REANALYZE_SELECT)
+        .eq('id', id)
+        .eq('user_id', profile.org_id)
+        .maybeSingle()
+
   if (!vehicle) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  if (vehicle.status === 'sold') {
-    return NextResponse.json({ error: 'Cannot reanalyze sold vehicle' }, { status: 400 })
+
+  const terminalStatus = isRe ? 'closed' : 'sold'
+  if (vehicle.status === terminalStatus) {
+    return NextResponse.json(
+      { error: isRe ? 'Cannot reanalyze closed listing' : 'Cannot reanalyze sold vehicle' },
+      { status: 400 },
+    )
   }
 
-  if (vehicle.ai_last_analyzed_at) {
+  if (!skipReanalyzeCooldown && vehicle.ai_last_analyzed_at) {
     const ageHours =
       (Date.now() - new Date(vehicle.ai_last_analyzed_at).getTime()) / 3_600_000
     if (ageHours < COOLDOWN_HOURS) {
       const availableAt = new Date(
-        new Date(vehicle.ai_last_analyzed_at).getTime() + COOLDOWN_HOURS * 3_600_000
+        new Date(vehicle.ai_last_analyzed_at).getTime() + COOLDOWN_HOURS * 3_600_000,
       )
       return NextResponse.json(
         {
@@ -61,7 +96,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
           })}`,
           retry_at: availableAt.toISOString(),
         },
-        { status: 429 }
+        { status: 429 },
       )
     }
   }
@@ -70,23 +105,36 @@ export async function POST(_req: NextRequest, { params }: Params) {
   if (!apiKey) return NextResponse.json({ error: 'AI not configured' }, { status: 503 })
 
   type MarketData = {
-    /** Serp / JSON sources may store FMV as number or numeric string */
     fairMarketPrice?: number | string
     topProblems?: string[]
     marketIntelReport?: string
   }
   const mi = (vehicle.market_data_json ?? {}) as MarketData
-  const vehicleLabel = [vehicle.year, vehicle.make, vehicle.model, vehicle.trim]
-    .filter(Boolean)
-    .join(' ')
 
   const docContext = vehicle.voice_summary
-    ? `\n\nUploaded document summaries (from dealer files — verify):\n${vehicle.voice_summary}`
+    ? isRe
+      ? `\n\nUploaded document summaries (disclosures, inspections, floor plans — verify):\n${vehicle.voice_summary}`
+      : `\n\nUploaded document summaries (from dealer files — verify):\n${vehicle.voice_summary}`
     : ''
 
-  const enrichmentContext = vehicle.overview_enrichment_text?.trim()
-    ? `\n\nDealer-pasted reference text (Carfax/Autocheck/KBB/etc. — verify accuracy, do not invent facts):\n${vehicle.overview_enrichment_text.trim().slice(0, 12_000)}`
-    : ''
+  const enrichmentContext = isRe
+    ? (() => {
+        const reVehicle = vehicle as ReListingFields & {
+          overview_enrichment_text?: string | null
+        }
+        const reInternalNotes = [reVehicle.notes?.trim(), reVehicle.overview_enrichment_text?.trim()]
+          .filter(Boolean)
+          .join('\n\n')
+        return reInternalNotes
+          ? `\n\nINTERNAL realtor notes (for your eyes only — never publish warnings or deficiencies; use only verified positive facts in the public overview):\n${reInternalNotes.slice(0, 12_000)}`
+          : ''
+      })()
+    : (() => {
+        const dealerVehicle = vehicle as { overview_enrichment_text?: string | null }
+        return dealerVehicle.overview_enrichment_text?.trim()
+          ? `\n\nDealer-pasted reference text (Carfax/Autocheck/KBB/etc. — verify accuracy, do not invent facts):\n${dealerVehicle.overview_enrichment_text.trim().slice(0, 12_000)}`
+          : ''
+      })()
 
   const fmvNum =
     typeof mi.fairMarketPrice === 'number' && !Number.isNaN(mi.fairMarketPrice)
@@ -96,44 +144,68 @@ export async function POST(_req: NextRequest, { params }: Params) {
         : NaN
   const fmvPhrase =
     Number.isFinite(fmvNum) && fmvNum > 0
-      ? `\n\nFair market value for this vehicle is approximately $${Math.round(fmvNum).toLocaleString('en-US')}.`
+      ? isRe
+        ? `\n\nEstimated market value is approximately $${Math.round(fmvNum).toLocaleString('en-US')}.`
+        : `\n\nFair market value for this vehicle is approximately $${Math.round(fmvNum).toLocaleString('en-US')}.`
       : ''
 
   const marketContext = mi.marketIntelReport
     ? `\n\nMarket intelligence:\n${mi.marketIntelReport.slice(0, 1500)}`
     : fmvPhrase
 
-  const problemsContext = mi.topProblems?.length
-    ? `\n\nKnown considerations: ${mi.topProblems.slice(0, 3).join('; ')}.`
-    : ''
+  const problemsContext =
+    !isRe && mi.topProblems?.length
+      ? `\n\nKnown considerations: ${mi.topProblems.slice(0, 3).join('; ')}.`
+      : ''
 
-  const prompt = `Write the PUBLIC website overview for a ${vehicleLabel}. Output will be split into short sections for mobile shoppers who skim — not a long paragraph.
+  let areaContextForCache: Awaited<ReturnType<typeof resolveAreaContextForListing>> = null
 
-Vehicle details:
-- Mileage: ${vehicle.mileage ? vehicle.mileage.toLocaleString() + ' miles' : 'not listed'}
-- Color: ${vehicle.color ?? 'not specified'}
-- Price: ${vehicle.price ? '$' + vehicle.price.toLocaleString() : 'call for price'}
-- Dealer notes: ${vehicle.notes ?? 'none'}
-${marketContext}${problemsContext}${docContext}${enrichmentContext}
-
-STRICT OUTPUT FORMAT (plain text only):
-- 3–5 sections, separated by ONE completely blank line between sections.
-- Each section starts with ONE title line: optional emoji, then a short punchy title (max 8 words). Example: "✨ Why it stands out"
-- After the title: 2–5 lines. EVERY line must be ONE complete English sentence (clear subject + predicate, starts with a capital letter, ends with . ! or ?).
-- NEVER put a phrase, clause, or equipment name alone on its own line (wrong: "Bluetooth connectivity" as its own line). Fold list-like features into full sentences.
-- NEVER break one sentence across two lines. If you need more detail, write a second sentence on the next line.
-- Honest and transparent — if history is unknown, say so. Do not invent accidents or title brands.
-- Use document summaries and pasted reference only for facts they actually state.
-- Last section: simple call to action (e.g. "📞 Next step") with 1–2 short sentences.
-- No em dashes. No markdown, no "#" headers, no leading "-" bullets.`
+  let prompt: string
+  if (isRe) {
+    const reVehicle = vehicle as ReListingFields & { agent_notes?: string | null }
+    areaContextForCache = await resolveAreaContextForListing(reVehicle as AreaContextListingInput)
+    const areaContextBlock = formatAreaContextForPrompt(areaContextForCache)
+    prompt = buildReReanalyzePrompt({
+      propertyLabel: formatPropertyLabel(reVehicle),
+      detailsBlock: buildPropertyDetailsBlock(reVehicle),
+      areaContextBlock,
+      marketContext,
+      docContext,
+      enrichmentContext,
+    })
+  } else {
+    const dealerVehicle = vehicle as {
+      year?: number | null
+      make?: string | null
+      model?: string | null
+      trim?: string | null
+      mileage?: number | null
+      color?: string | null
+      price?: number | null
+      notes?: string | null
+    }
+    const vehicleLabel = [dealerVehicle.year, dealerVehicle.make, dealerVehicle.model, dealerVehicle.trim]
+      .filter(Boolean)
+      .join(' ')
+    prompt = buildDealerReanalyzePrompt({
+      vehicleLabel,
+      mileage: dealerVehicle.mileage ?? null,
+      color: dealerVehicle.color ?? null,
+      price: dealerVehicle.price ?? null,
+      notes: dealerVehicle.notes ?? null,
+      marketContext,
+      problemsContext,
+      docContext,
+      enrichmentContext,
+    })
+  }
 
   let description: string
   try {
     const groq = new Groq({ apiKey })
     const response = await groq.chat.completions.create({
-      // llama-3.1-70b-versatile was decommissioned 2025-01-24 (Groq)
       model: process.env.GROQ_VEHICLE_MODEL ?? 'llama-3.3-70b-versatile',
-      max_tokens: 500,
+      max_tokens: isRe ? 700 : 500,
       messages: [{ role: 'user', content: prompt }],
     })
     description = response.choices[0]?.message?.content?.trim() ?? ''
@@ -157,9 +229,21 @@ STRICT OUTPUT FORMAT (plain text only):
   }
 
   const analyzedAt = new Date().toISOString()
+  const updatePayload: {
+    ai_description: string
+    ai_last_analyzed_at: string
+    market_data_json?: Record<string, unknown>
+  } = { ai_description: description, ai_last_analyzed_at: analyzedAt }
+  if (isRe && areaContextForCache) {
+    updatePayload.market_data_json = mergeAreaContextIntoMarketJson(
+      vehicle.market_data_json,
+      areaContextForCache,
+    )
+  }
+
   const { error: updateErr } = await supabase
     .from('vehicles')
-    .update({ ai_description: description, ai_last_analyzed_at: analyzedAt })
+    .update(updatePayload)
     .eq('id', id)
     .eq('user_id', profile.org_id)
 

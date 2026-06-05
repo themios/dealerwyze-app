@@ -72,11 +72,16 @@ export default function DealerBrief() {
         setCommandCenter(null)
       }
       if (briefRes.ok) {
-        setData(await briefRes.json())
+        const brief = (await briefRes.json()) as BriefingResponse & { no_brief?: boolean }
+        if (brief.no_brief || !brief.report_json) {
+          setData(null)
+          setNoBriefYet(true)
+        } else {
+          setData(brief)
+        }
       } else {
         setData(null)
-        if (briefRes.status === 404) setNoBriefYet(true)
-        else setError(await briefRes.text())
+        setError(await briefRes.text())
       }
     } catch (e) {
       setError(String(e))

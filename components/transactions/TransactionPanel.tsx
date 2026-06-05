@@ -6,7 +6,12 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Paperclip, Loader2, FileText, Image } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
-import type { Transaction, PipelineStatus } from '@/lib/transactions/types'
+import {
+  type Transaction,
+  type PipelineStatus,
+  isTerminalPipelineStatus,
+  pickActiveTransaction as pickActive,
+} from '@/lib/transactions/types'
 import TransactionStageBar from './TransactionStageBar'
 import TransactionForm from './TransactionForm'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -40,11 +45,8 @@ function formatDate(value: string | null | undefined) {
   }).format(new Date(value))
 }
 
-/** Pick the single most-relevant transaction to show prominently. */
-function pickActive(txns: Transaction[]): Transaction | null {
-  // Prefer non-fallen, non-closed in created_at desc order; else the first
-  const live = txns.find(t => t.pipeline_status !== 'fallen_through' && t.pipeline_status !== 'closed')
-  return live ?? txns[0] ?? null
+function terminalStatusLabel(status: PipelineStatus): string {
+  return status.replace(/_/g, ' ')
 }
 
 export default function TransactionPanel({ vehicleId, isAdmin, agentId, currentUserIsAuthority, brokerName }: Props) {
@@ -243,7 +245,41 @@ export default function TransactionPanel({ vehicleId, isAdmin, agentId, currentU
   }
 
   const active = pickActive(transactions)
-  const others = transactions.filter(t => t.id !== active?.id)
+  const others = active
+    ? transactions.filter(t => t.id !== active.id)
+    : transactions
+
+  // All transactions are terminal (cancelled, expired, closed, etc.) — offer a fresh start
+  if (!active && transactions.length > 0) {
+    const latest = transactions[0]
+    return (
+      <div className="space-y-3">
+        <div className="rounded-lg border bg-card p-6 text-center space-y-3">
+          <p className="text-sm text-muted-foreground">
+            The latest transaction on this listing is{' '}
+            <span className="font-medium capitalize">{terminalStatusLabel(latest.pipeline_status)}</span>.
+            Start a new one to track the next deal.
+          </p>
+          <Button size="sm" onClick={() => setMode('create')}>Create New Transaction</Button>
+        </div>
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Previous transactions</p>
+          {others.map(t => (
+            <div key={t.id} className="rounded-lg border bg-card px-3 py-2 text-xs flex items-center justify-between gap-2">
+              <span className="font-mono">{t.transaction_number ?? t.id.slice(0, 8)}</span>
+              <span className="capitalize text-muted-foreground">{terminalStatusLabel(t.pipeline_status)}</span>
+              {t.monthly_rent != null && (
+                <span className="tabular-nums">{formatCurrency(t.monthly_rent)}/mo</span>
+              )}
+              {t.offer_amount != null && (
+                <span className="tabular-nums">{formatCurrency(t.offer_amount)}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   // --- Edit mode ---
   if (mode === 'edit' && active) {
@@ -425,7 +461,7 @@ export default function TransactionPanel({ vehicleId, isAdmin, agentId, currentU
           </Dialog>
 
           {/* Stage-specific notes */}
-          {active.pipeline_status !== 'closed' && active.pipeline_status !== 'fallen_through' && (
+          {!isTerminalPipelineStatus(active.pipeline_status) && (
             <div className="space-y-1.5">
               <p className="text-xs text-muted-foreground font-medium">
                 Add a note for this stage ({active.pipeline_status.replace(/_/g, ' ')})
@@ -598,12 +634,6 @@ export default function TransactionPanel({ vehicleId, isAdmin, agentId, currentU
         </div>
       )}
 
-      {/* Allow creating additional transactions (e.g. after fallen through) */}
-      {!transactions.some(t => t.pipeline_status !== 'fallen_through' && t.pipeline_status !== 'closed') && (
-        <Button size="sm" variant="outline" onClick={() => setMode('create')}>
-          Start New Transaction
-        </Button>
-      )}
     </div>
   )
 }

@@ -1,5 +1,9 @@
 import { headers } from 'next/headers'
 import { requireProfile } from '@/lib/auth/profile'
+import {
+  ensureAgentSaasEmailAutoresponder,
+  ensureOrgSaasEmailAutoresponder,
+} from '@/lib/sequences/ensureSaasEmailAutoresponder'
 import { createClientForRequest } from '@/lib/supabase/forRequest'
 import AutomationClient from './AutomationClient'
 import TemplatesClient from '../TemplatesClient'
@@ -10,6 +14,13 @@ export default async function AutomationSettingsPage() {
   const isRe = hdrs.get('x-vertical') === 'real_estate'
   const profile = await requireProfile()
   const supabase = await createClientForRequest()
+
+  await ensureOrgSaasEmailAutoresponder(profile.org_id, supabase)
+  const agentNurtureId = await ensureAgentSaasEmailAutoresponder(
+    profile.org_id,
+    profile.id,
+    supabase,
+  )
 
   const [{ data: autoSettings }, { data: templates }, { data: sequences }] = await Promise.all([
     supabase
@@ -52,7 +63,12 @@ export default async function AutomationSettingsPage() {
     >
       <div className="space-y-8">
 
-        <AutomationClient initial={initial} sequences={sequences ?? []} isRe={isRe} />
+        <AutomationClient
+          initial={initial}
+          sequences={sequences ?? []}
+          isRe={isRe}
+          myEmailNurtureSequenceId={agentNurtureId}
+        />
 
         <section className="space-y-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Templates</p>

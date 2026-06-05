@@ -2,7 +2,9 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from '@/lib/auth/profile'
+import ListingQuickActions, { type ListingInterest } from '@/components/listings/ListingQuickActions'
 import ShowingTimeline from './ShowingTimeline'
+import ListingDetailsPanel from './ListingDetailsPanel'
 
 export const dynamic = 'force-dynamic'
 
@@ -75,6 +77,8 @@ export default async function ListingDetailPage({ params }: PageProps) {
     ai_description: string | null
     notes: string | null
     agent_notes: string | null
+    overview_enrichment_text: string | null
+    market_data_json: Record<string, unknown> | null
     status: string
   }
 
@@ -93,6 +97,11 @@ export default async function ListingDetailPage({ params }: PageProps) {
 
   const isPending = listing.status === 'pending'
   const isSold = listing.status === 'sold'
+  const listingInterest = (listing.market_data_json?.listing_interest as string | undefined) ?? ''
+  const interest: ListingInterest =
+    listingInterest === 'high' || listingInterest === 'medium' || listingInterest === 'low'
+      ? listingInterest
+      : ''
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
@@ -131,6 +140,13 @@ export default async function ListingDetailPage({ params }: PageProps) {
         {listing.year_built && <span>Built <strong>{listing.year_built}</strong></span>}
         {listing.property_type && <span>{propTypeLabel(listing.property_type)}</span>}
       </div>
+
+      <ListingQuickActions
+        listingId={listing.id}
+        initialInterest={interest}
+        initialShowingInstructions={listing.showing_instructions ?? ''}
+        initialRealtorNotes={listing.overview_enrichment_text ?? ''}
+      />
 
       {/* Details */}
       <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm mb-4">
@@ -177,15 +193,8 @@ export default async function ListingDetailPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* Showing instructions */}
-      {listing.showing_instructions && (
-        <div className="mb-4 bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3">
-          <h3 className="text-xs font-semibold text-blue-900 dark:text-blue-200 mb-1">
-            Showing Instructions
-          </h3>
-          <p className="text-xs text-blue-800 dark:text-blue-300">{listing.showing_instructions}</p>
-        </div>
-      )}
+      {/* Documents and Pricing sections */}
+      <ListingDetailsPanel listingId={listing.id} />
 
       {/* Showing timeline — RE only, gated above */}
       <ShowingTimeline

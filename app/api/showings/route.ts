@@ -6,12 +6,23 @@ import { z } from 'zod'
 
 export const runtime = 'nodejs'
 
-const createSchema = z.object({
-  listing_id:   z.string().uuid(),
-  scheduled_at: z.string().datetime(),
-  contact_id:   z.string().uuid().optional(),
-  notes:        z.string().max(2000).optional(),
-})
+const createSchema = z
+  .object({
+    listing_id: z.string().uuid(),
+    scheduled_at: z.string().datetime(),
+    contact_id: z.string().uuid().optional(),
+    notes: z.string().max(2000).optional(),
+    showing_kind: z.enum(['client', 'open_house']).default('client'),
+  })
+  .superRefine((data, ctx) => {
+    if (data.showing_kind === 'client' && !data.contact_id) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Select a client for this showing',
+        path: ['contact_id'],
+      })
+    }
+  })
 
 /**
  * POST /api/showings
@@ -41,16 +52,35 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Listing not found' }, { status: 404 })
   }
 
+  let contactName: string | null = null
+  if (body.showing_kind === 'client' && body.contact_id) {
+    const { data: customer } = await supabase
+      .from('customers')
+      .select('id, name')
+      .eq('id', body.contact_id)
+      .eq('user_id', profile.org_id)
+      .eq('archived', false)
+      .is('merged_at', null)
+      .maybeSingle()
+
+    if (!customer) {
+      return NextResponse.json({ error: 'Client not found' }, { status: 404 })
+    }
+    contactName = customer.name
+  }
+
   // Build insert payload — never touch showing_count (trigger owns it)
   const insertPayload: Record<string, unknown> = {
-    org_id:       profile.org_id,
-    agent_id:     profile.id,
-    listing_id:   body.listing_id,
+    org_id: profile.org_id,
+    agent_id: profile.id,
+    listing_id: body.listing_id,
     scheduled_at: body.scheduled_at,
-    status:       'scheduled',
+    status: 'scheduled',
   }
-  if (body.contact_id) insertPayload.contact_id = body.contact_id
-  if (body.notes)      insertPayload.feedback_json = { notes: body.notes }
+  if (body.showing_kind === 'client' && body.contact_id) {
+    insertPayload.contact_id = body.contact_id
+  }
+  if (body.notes) insertPayload.feedback_json = { notes: body.notes }
 
   const { data: showing, error } = await supabase
     .from('showings')
@@ -63,28 +93,49 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to create showing' }, { status: 500 })
   }
 
-  // GCal sync — best-effort, never blocks response
+  const address = listing.address_line1 ?? listing.model ?? 'Property'
+  const summary =
+    body.showing_kind === 'open_house'
+      ? `Open house: ${address}`
+      : contactName
+        ? `Showing: ${address} — ${contactName}`
+        : `Showing: ${address}`
+
+  let gcalEventId: string | null = null
   try {
-    const address = listing.address_line1 ?? listing.model ?? 'Property'
     const gcal = await createCalendarEvent(
       {
-        summary:          `Showing: ${address}`,
-        description:      body.notes ?? '',
+        summary,
+        description: body.notes ?? '',
         startDateTimeIso: body.scheduled_at,
       },
       profile.org_id,
     )
-    if (gcal.eventId) {
+    gcalEventId = gcal.eventId
+    if (gcalEventId) {
       await supabase
         .from('showings')
-        .update({ gcal_event_id: gcal.eventId })
+        .update({ gcal_event_id: gcalEventId })
         .eq('id', showing.id)
         .eq('org_id', profile.org_id)
-      showing.gcal_event_id = gcal.eventId
+      showing.gcal_event_id = gcalEventId
     }
   } catch (gcalErr) {
     console.error('[showings] GCal create failed (non-fatal):', gcalErr)
   }
+
+  await supabase.from('activities').insert({
+    user_id: profile.org_id,
+    customer_id: body.contact_id ?? null,
+    vehicle_id: body.listing_id,
+    type: 'appointment',
+    direction: null,
+    outcome: 'pending',
+    priority: 'high',
+    body: `${summary}${body.notes ? `\n\n${body.notes}` : ''}`,
+    due_at: body.scheduled_at,
+    google_calendar_event_id: gcalEventId,
+  })
 
   return NextResponse.json(showing, { status: 201 })
 }

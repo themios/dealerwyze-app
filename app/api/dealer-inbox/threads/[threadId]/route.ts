@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
+import { getVerticalConfig } from '@/lib/vertical'
 
 export async function GET(
   _req: Request,
@@ -41,6 +42,15 @@ export async function GET(
 
   if (error) return NextResponse.json({ error: 'Failed to load messages' }, { status: 500 })
 
+  const { data: org } = await supabase
+    .from('organizations')
+    .select('vertical')
+    .eq('id', orgId)
+    .maybeSingle()
+  const platformBrand = getVerticalConfig(
+    org?.vertical === 'real_estate' ? 'real_estate' : 'dealer',
+  ).brandName
+
   return NextResponse.json({
     thread: {
       ...thread,
@@ -57,7 +67,7 @@ export async function GET(
       id:                  m.id,
       thread_id:             threadId,
       sender_type:           m.sender_type,
-      sender_display_name:   m.sender_type === 'dealer' ? 'You' : 'DealerWyze',
+      sender_display_name:   m.sender_type === 'dealer' ? 'You' : platformBrand,
       channel:               m.channel,
       body:                  m.body,
       sent_at:               m.sent_at,

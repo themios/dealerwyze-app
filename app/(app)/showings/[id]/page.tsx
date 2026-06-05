@@ -5,6 +5,10 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import {
+  buildCustomerIdByContactMap,
+  resolveCustomerIdFromMaps,
+} from '@/lib/customers/resolveCustomerByContact'
 import ShowingRequestDetail from './ShowingRequestDetail'
 
 export default function ShowingDetailPage() {
@@ -32,7 +36,16 @@ export default function ShowingDetailPage() {
           .single()
 
         if (data) {
-          setShowingRequest(data)
+          const orgId = data.org_id as string | undefined
+          let customerId: string | null = null
+          if (orgId) {
+            const maps = await buildCustomerIdByContactMap(supabase, orgId)
+            customerId = resolveCustomerIdFromMaps(
+              { email: data.buyer_email, phone: data.buyer_phone },
+              maps,
+            )
+          }
+          setShowingRequest({ ...data, customer_id: customerId })
         } else {
           setError('Showing request not found')
         }

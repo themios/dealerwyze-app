@@ -10,6 +10,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getProfile, normalizeOwnerRole, type Profile } from '@/lib/auth/profile'
 import { getStaffSessionInfo } from '@/lib/auth/staffSession'
 import { canAccessBhph } from '@/lib/auth/dealerRoles'
+import { ensureBhphContractFinance } from '@/lib/bhph/ensureContractFinance'
+import { createServiceClient } from '@/lib/supabase/service'
 import type { UserRole } from '@/types/index'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -91,6 +93,13 @@ export async function POST(
   }
   if (contract.user_id !== profile.org_id) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const service = createServiceClient()
+  const finance = await ensureBhphContractFinance(service, contractId, profile.org_id)
+  if (!finance.ok) {
+    console.error('[bhph/payment] ensure finance:', finance.error)
+    return NextResponse.json({ error: 'Could not prepare contract for payment' }, { status: 500 })
   }
 
   const { data: rpcData, error: rpcError } = await supabase.rpc('record_bhph_manual_payment', {

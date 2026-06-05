@@ -20,6 +20,11 @@ export function canAccessBhph(role: UserRole): boolean {
   return role !== 'dealer_rep'
 }
 
+/** Cash/check/in-person BHPH payments — same gate as viewing BHPH (not sales-rep restricted). */
+export function canRecordBhphPayment(role: UserRole): boolean {
+  return canAccessBhph(role)
+}
+
 export function canAccessLedger(role: UserRole): boolean {
   return role !== 'dealer_rep'
 }

@@ -47,6 +47,10 @@ Columns **created/updated in committed migrations** (primarily **`142_bhph_sale_
 | `principal_balance` | NUMERIC(12,2) | Outstanding principal; **NULL** = legacy / not tracked (141) |
 | `total_interest_paid` | NUMERIC(12,2) | Cumulative interest (141, default 0) |
 | `last_payment_date` | DATE | Last payment calendar date for accrual (141) |
+| `gps_vendor` | TEXT | GPS/starter-interrupt vendor (227) |
+| `gps_device_id` | TEXT | Device or account ID from vendor (227) |
+| `gps_installed_at` | DATE | Install date (227) |
+| `gps_notes` | TEXT | Optional install/removal notes (227) |
 
 Additional columns used in tests / legacy finalize paths (may exist from older migrations not in this repo): e.g. **`total_paid`**, **`last_reminder_type`** (`lib/__tests__/bhph/finalize-bhph-payment.rpc.integration.test.ts`, `137_finalize_bhph_payment_rpc.sql`).
 

@@ -1,7 +1,13 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from '@/lib/auth/profile'
-import ShowingsDashboard, { type ShowingRequest } from './ShowingsDashboard'
+import {
+  buildCustomerIdByContactMap,
+  resolveCustomerIdFromMaps,
+} from '@/lib/customers/resolveCustomerByContact'
+import ShowingsDashboardLoader from './ShowingsDashboardLoader'
+import type { ShowingRequest } from './ShowingsDashboard'
+import type { ShowingCustomerDossier } from '@/components/showings/ShowingDossierPanel'
 // Note: translations are handled in the client component ShowingsDashboard
 
 export const dynamic = 'force-dynamic'
@@ -37,7 +43,11 @@ export default async function ShowingsPage() {
       requested_time_1, requested_time_2, requested_time_3,
       confirmed_time, confirmed_at,
       listing_id,
-      listing:vehicles(id, address_line1, city, state, zip),
+      listing:vehicles(
+        id, address_line1, city, state, zip, price, bedrooms, bathrooms, sqft,
+        property_type, mls_number, status, showing_instructions, agent_notes,
+        overview_enrichment_text, market_data_json
+      ),
       agent_id,
       message,
       created_at,
@@ -52,22 +62,65 @@ export default async function ShowingsPage() {
     console.error('[showings/page] fetch error:', error.message)
   }
 
-  // Map to ShowingRequest[] - normalize listing from array to object
-  const showingRequests = (showings ?? []).map((showing: any) => ({
-    ...showing,
-    listing: Array.isArray(showing.listing) ? showing.listing[0] ?? null : showing.listing,
-  })) as ShowingRequest[]
+  const customerMaps = await buildCustomerIdByContactMap(supabase, profile.org_id)
+
+  const showingRequests = (showings ?? []).map((showing: {
+    buyer_email: string
+    buyer_phone: string | null
+    listing?: unknown
+    [key: string]: unknown
+  }) => {
+    const rawListing = Array.isArray(showing.listing) ? showing.listing[0] ?? null : showing.listing
+    const listing =
+      rawListing && typeof rawListing === 'object'
+        ? {
+            ...(rawListing as Record<string, unknown>),
+            listing_interest:
+              (rawListing as { market_data_json?: { listing_interest?: string } }).market_data_json
+                ?.listing_interest ?? null,
+          }
+        : null
+    return {
+      ...showing,
+      listing,
+      customer_id: resolveCustomerIdFromMaps(
+        { email: showing.buyer_email, phone: showing.buyer_phone },
+        customerMaps,
+      ),
+    }
+  }) as ShowingRequest[]
+
+  const customerIds = [
+    ...new Set(showingRequests.map((s) => s.customer_id).filter((id): id is string => !!id)),
+  ]
+  const customersById: Record<string, ShowingCustomerDossier> = {}
+  if (customerIds.length > 0) {
+    const { data: customers } = await supabase
+      .from('customers')
+      .select(
+        'id, name, email, primary_phone, interested_in, lead_source, notes, lead_intent_tier',
+      )
+      .eq('user_id', profile.org_id)
+      .in('id', customerIds)
+    for (const c of customers ?? []) {
+      customersById[c.id] = c as ShowingCustomerDossier
+    }
+  }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6">
-      <div className="mb-6">
+    <div className="max-w-6xl mx-auto px-4 py-6 space-y-4">
+      <div>
         <h1 className="text-2xl font-bold text-foreground">Showing Requests</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Buyer showing requests for your listings. Confirm times, collect feedback, track no-shows.
+          Select a request to open the dossier — buyer and property side by side. Confirm times,
+          collect feedback, track no-shows.
         </p>
       </div>
 
-      <ShowingsDashboard initialShowings={showingRequests} />
+      <ShowingsDashboardLoader
+        initialShowings={showingRequests}
+        customersById={customersById}
+      />
     </div>
   )
 }

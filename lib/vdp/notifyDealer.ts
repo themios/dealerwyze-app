@@ -13,13 +13,19 @@ export async function notifyDealerNewLead(
   message: string | undefined,
   vehicleName: string | undefined
 ): Promise<void> {
+  const supabase = createServiceClient()
+  const { data: org } = await supabase
+    .from('organizations')
+    .select('vertical')
+    .eq('id', orgId)
+    .maybeSingle()
+  const isRe = org?.vertical === 'real_estate'
+  const brandLabel = isRe ? 'RealtyWyze' : 'DealerWyze'
   const accountSid          = process.env.TWILIO_ACCOUNT_SID
   const authToken           = process.env.TWILIO_AUTH_TOKEN
   const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID
 
   if (!accountSid || !authToken) return
-
-  const supabase = createServiceClient()
 
   // Get dealer's cell number and their Twilio from-number
   const { data: settings } = await supabase
@@ -37,11 +43,13 @@ export async function notifyDealerNewLead(
   const digits      = toNumber.replace(/\D/g, '')
   const formattedTo = digits.length === 10 ? `+1${digits}` : `+${digits}`
 
-  const bodyParts = [`New inquiry from ${inquirerName}`]
+  const bodyParts = [
+    isRe ? `New showing request from ${inquirerName}` : `New inquiry from ${inquirerName}`,
+  ]
   if (vehicleName) bodyParts.push(`re: ${vehicleName}`)
   if (phone) bodyParts.push(`Phone: ${phone}`)
   if (message) bodyParts.push(message.slice(0, 100))
-  bodyParts.push('Reply via DealerWyze.')
+  bodyParts.push(`Reply via ${brandLabel}.`)
 
   const smsBody = bodyParts.join(' | ')
 
@@ -50,7 +58,7 @@ export async function notifyDealerNewLead(
   else twilioParams.From = fromNumber!
 
   sendTelegramMessage(
-    `<b>New Web Lead</b>${vehicleName ? ` - ${vehicleName}` : ''}\n` +
+    `<b>${isRe ? 'New Showing Request' : 'New Web Lead'}</b>${vehicleName ? ` - ${vehicleName}` : ''}\n` +
     `<b>${inquirerName}</b>\n` +
     (phone ? `Phone: ${phone}\n` : '') +
     (message ? `"${message.slice(0, 120)}"` : '')

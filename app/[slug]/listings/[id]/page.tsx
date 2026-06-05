@@ -4,6 +4,8 @@ import type { Metadata } from 'next'
 import { createServiceClient } from '@/lib/supabase/service'
 import { loadOrganizationsMatchingPublicSlug, pickUniqueOrgSlugMatch } from '@/lib/dealer-public/publicOrgBySlug'
 import ShowingRequestForm from './ShowingRequestForm'
+import PublicVehicleOverview from '@/components/dealer-public/PublicVehicleOverview'
+import { parseOverviewSections } from '@/lib/vehicles/overviewSections'
 
 // ISR: revalidate every 60 seconds for public listing detail pages
 export const revalidate = 60
@@ -53,7 +55,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const { data: listing } = await supabase
     .from('vehicles')
-    .select('address_line1, city, state, price, property_type, bedrooms, bathrooms, sqft, photo_url, description')
+    .select('address_line1, city, state, price, property_type, bedrooms, bathrooms, sqft, photo_url, ai_description, notes')
     .eq('id', id)
     .eq('user_id', org.id)
     .maybeSingle()
@@ -65,14 +67,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     listing.bathrooms ? `${listing.bathrooms} bath` : null,
     listing.sqft ? `${listing.sqft.toLocaleString()} sqft` : null,
   ].filter(Boolean).join(', ')
+  const blurb =
+    listing.ai_description?.trim() ||
+    listing.notes?.trim() ||
+    `${propTypeLabel(listing.property_type)}${details ? ' - ' + details : ''} listed at ${formatPrice(listing.price)} by ${org.name}`
 
   return {
     title: `${addr || 'Listing'} - ${formatPrice(listing.price)} - ${org.name}`,
-    description: listing.description || `${propTypeLabel(listing.property_type)}${details ? ' - ' + details : ''} listed at ${formatPrice(listing.price)} by ${org.name}`,
+    description: blurb,
     robots: org.website_robots_noindex ? { index: false, follow: false } : { index: true, follow: true },
     openGraph: {
       title: `${addr} - ${formatPrice(listing.price)}`,
-      description: listing.description || `${propTypeLabel(listing.property_type)}${details ? ' - ' + details : ''}`,
+      description: blurb,
       type: 'website',
       images: listing.photo_url ? [{ url: listing.photo_url, width: 1200, height: 628 }] : [],
     },
@@ -93,7 +99,7 @@ export default async function ListingDetailPage({ params }: Props) {
 
   const { data: listing } = await supabase
     .from('vehicles')
-    .select('id, photo_url, price, property_type, bedrooms, bathrooms, sqft, lot_size, year_built, address_line1, city, state, zip, school_district, subdivision, mls_number, listing_type, hoa_monthly, showing_instructions, ai_description, description, notes, status, dom, listing_status, price_history, mls_synced_at, mls_source')
+    .select('id, photo_url, price, property_type, bedrooms, bathrooms, sqft, lot_size, year_built, address_line1, city, state, zip, school_district, subdivision, mls_number, listing_type, hoa_monthly, showing_instructions, ai_description, notes, status, dom, listing_status, price_history, mls_synced_at, mls_source')
     .eq('id', id)
     .eq('user_id', org.id)
     .maybeSingle()
@@ -103,6 +109,7 @@ export default async function ListingDetailPage({ params }: Props) {
   const addr = [listing.address_line1, listing.city, listing.state, listing.zip].filter(Boolean).join(', ')
   const isPending = listing.status === 'pending'
   const isSold = listing.status === 'sold'
+  const overviewSections = parseOverviewSections(listing.ai_description)
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
@@ -184,15 +191,17 @@ export default async function ListingDetailPage({ params }: Props) {
         )}
       </dl>
 
-      {/* Description — prioritize MLS description if available */}
-      {(listing.description || listing.ai_description || listing.notes) && (
+      {/* AI overview (sectioned) or agent notes fallback */}
+      {overviewSections.length > 0 ? (
+        <div className="mb-8">
+          <PublicVehicleOverview sections={overviewSections} variant="real_estate" />
+        </div>
+      ) : listing.notes?.trim() ? (
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-2">About this property</h2>
-          <p className="text-gray-700 leading-relaxed whitespace-pre-line">
-            {listing.description || listing.ai_description || listing.notes}
-          </p>
+          <p className="text-gray-700 leading-relaxed whitespace-pre-line">{listing.notes}</p>
         </div>
-      )}
+      ) : null}
 
       {/* Showing instructions */}
       {listing.showing_instructions && (

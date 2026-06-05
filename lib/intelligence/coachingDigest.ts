@@ -64,14 +64,15 @@ async function resolveOrgOwnerEmail(supabase: SupabaseClient, orgId: string): Pr
   return typeof email === 'string' && email.includes('@') ? email : null
 }
 
-async function sendResendEmail(args: { to: string; subject: string; text: string }) {
+async function sendResendEmail(args: { to: string; subject: string; text: string; vertical?: 'dealer' | 'real_estate' }) {
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) {
     console.warn('[coachingDigest] RESEND_API_KEY missing')
     return { ok: false as const, skipped: 'no_api_key' as const }
   }
 
-  const from = process.env.RESEND_FROM ?? 'support@dealerwyze.com'
+  const defaultFrom = args.vertical === 'real_estate' ? 'support@realtywyze.us' : 'support@dealerwyze.com'
+  const from = process.env.RESEND_FROM ?? defaultFrom
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -106,7 +107,7 @@ export async function buildCoachingDigestForOrg(args: { supabase?: SupabaseClien
   prevFrom.setDate(prevFrom.getDate() - 7)
 
   const [{ data: org }, { data: settings }, { data: audits }] = await Promise.all([
-    supabase.from('organizations').select('id, name').eq('id', orgId).maybeSingle(),
+    supabase.from('organizations').select('id, name, vertical').eq('id', orgId).maybeSingle(),
     // Select * so missing columns won't break older DBs.
     supabase.from('org_settings').select('*').eq('org_id', orgId).maybeSingle(),
     supabase
@@ -168,8 +169,8 @@ export async function buildCoachingDigestForOrg(args: { supabase?: SupabaseClien
   const bestHour = safePatterns.responseTimeBuckets?.[0] ?? null
   const worstStep = safePatterns.sequenceStepDropoff?.[0] ?? null
 
-  const dealerName = (org as Record<string, unknown> | null)?.name
-  const orgName = typeof dealerName === 'string' && dealerName.trim() ? dealerName.trim() : 'your dealership'
+  const orgDisplayName = (org as Record<string, unknown> | null)?.name
+  const orgName = typeof orgDisplayName === 'string' && orgDisplayName.trim() ? orgDisplayName.trim() : 'your organization'
 
   const lines: string[] = []
   lines.push(`Weekly Coaching Digest — ${orgName}`)
@@ -216,8 +217,9 @@ export async function buildCoachingDigestForOrg(args: { supabase?: SupabaseClien
 
   const subject = 'Your weekly coaching digest (team-level)'
   const text = lines.join('\n')
+  const vertical = (org as Record<string, unknown> | null)?.vertical ?? 'dealer'
 
-  return { ok: true as const, subject, text, insightsCount: insights.length }
+  return { ok: true as const, subject, text, insightsCount: insights.length, vertical: vertical as 'dealer' | 'real_estate' }
 }
 
 export async function sendCoachingDigestForOrg(args: { supabase?: SupabaseClient; orgId: string }) {
@@ -233,7 +235,7 @@ export async function sendCoachingDigestForOrg(args: { supabase?: SupabaseClient
     return { ok: false as const, skipped: 'no_owner_email' as const, subject: built.subject, text: built.text }
   }
 
-  const sent = await sendResendEmail({ to, subject: built.subject, text: built.text })
+  const sent = await sendResendEmail({ to, subject: built.subject, text: built.text, vertical: built.vertical })
   if (!sent.ok) return { ok: false as const, skipped: sent.skipped, subject: built.subject, text: built.text }
 
   return { ok: true as const, subject: built.subject, text: built.text }

@@ -3,6 +3,19 @@ import { requireProfile } from '@/lib/auth/profile'
 import { assertCanUseFeature, BillingError } from '@/lib/billing/assertFeature'
 import { createClientForRequest } from '@/lib/supabase/forRequest'
 import { aiComplete, AI_MODEL } from '@/lib/ai/client'
+import {
+  formatAreaContextForPrompt,
+  resolveAreaContextForListing,
+  type AreaContextListingInput,
+} from '@/lib/listings/areaContext'
+import {
+  buildPropertyDetailsBlock,
+  buildReMarketplaceBulletsPrompt,
+  formatPropertyLabel,
+  DEALER_AI_DESCRIPTION_SELECT,
+  RE_AI_DESCRIPTION_SELECT,
+  type ReListingFields,
+} from '@/lib/vehicles/listingOverviewPrompts'
 
 interface Params { params: Promise<{ id: string }> }
 
@@ -28,12 +41,19 @@ export async function POST(_req: NextRequest, { params }: Params) {
       .single()
     const isRe = (org?.vertical as string | null) === 'real_estate'
 
-    const { data: vehicle } = await supabase
-      .from('vehicles')
-      .select('id, year, make, model, trim, color, mileage, price, notes, status, market_data_json, voice_summary')
-      .eq('id', id)
-      .eq('user_id', profile.org_id)
-      .single()
+    const { data: vehicle } = isRe
+      ? await supabase
+          .from('vehicles')
+          .select(RE_AI_DESCRIPTION_SELECT)
+          .eq('id', id)
+          .eq('user_id', profile.org_id)
+          .single()
+      : await supabase
+          .from('vehicles')
+          .select(DEALER_AI_DESCRIPTION_SELECT)
+          .eq('id', id)
+          .eq('user_id', profile.org_id)
+          .single()
 
     if (!vehicle) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -66,42 +86,52 @@ export async function POST(_req: NextRequest, { params }: Params) {
     }
 
     const docContext = docSummaryText
-      ? `\n\nUploaded document summaries (Carfax, service records, inspection — use only facts that are explicitly stated):\n${docSummaryText.slice(0, 2000)}`
+      ? isRe
+        ? `\n\nUploaded document summaries (disclosures, inspections — use only facts that are explicitly stated):\n${docSummaryText.slice(0, 2000)}`
+        : `\n\nUploaded document summaries (Carfax, service records, inspection — use only facts that are explicitly stated):\n${docSummaryText.slice(0, 2000)}`
       : ''
 
     const mi = (vehicle.market_data_json ?? {}) as MarketInsight
-
-    const vehicleLabel = [vehicle.year, vehicle.make, vehicle.model, vehicle.trim].filter(Boolean).join(' ')
     const pricingContext = mi.fairMarketPrice
-      ? `\nFair market value is approximately $${mi.fairMarketPrice.toLocaleString()}.`
+      ? `\nEstimated market value is approximately $${mi.fairMarketPrice.toLocaleString()}.`
       : ''
     const problemsContext = mi.topProblems?.length
       ? `\nKnown considerations: ${mi.topProblems.slice(0, 2).join('; ')}.`
       : ''
 
-    // RE property listing prompt vs. vehicle listing prompt
-    const prompt = isRe
-      ? `Write 6–8 bullet points for a property listing on Zillow, Realtor.com, or Facebook Marketplace.
-
-Property details:
-- Address / label: ${vehicleLabel || 'the listing'}
-- Asking price: ${vehicle.price ? '$' + vehicle.price.toLocaleString() : 'call for price'}
-- Agent notes: ${vehicle.notes ?? 'none'}
-${pricingContext}${docContext}
-
-RULES:
-- Output ONLY bullet lines. Start every line with "• " (bullet + space).
-- Each bullet: one short phrase or fact, under 14 words. No full paragraphs.
-- Cover in order: property type/bedrooms/bathrooms if known, price, standout features, location/neighborhood highlights, then any inspection or disclosure facts from uploaded documents (only facts explicitly stated), last bullet = short call to action.
-- Honest tone. Do not invent features not stated in the notes or documents.
-- No headers, no markdown, no numbered lines, no blank lines between bullets.`
-      : `Write 6–8 bullet points for a ${vehicleLabel} listing on Facebook Marketplace or Craigslist.
+    let prompt: string
+    if (isRe) {
+      const areaContextBlock = formatAreaContextForPrompt(
+        await resolveAreaContextForListing(vehicle as AreaContextListingInput),
+      )
+      prompt = buildReMarketplaceBulletsPrompt({
+        propertyLabel: formatPropertyLabel(vehicle as ReListingFields),
+        detailsBlock: buildPropertyDetailsBlock(vehicle as ReListingFields),
+        areaContextBlock,
+        pricingContext,
+        docContext,
+      })
+    } else {
+      const dealer = vehicle as {
+        year?: number | null
+        make?: string | null
+        model?: string | null
+        trim?: string | null
+        mileage?: number | null
+        color?: string | null
+        price?: number | null
+        notes?: string | null
+      }
+      const vehicleLabel = [dealer.year, dealer.make, dealer.model, dealer.trim]
+        .filter(Boolean)
+        .join(' ')
+      prompt = `Write 6–8 bullet points for a ${vehicleLabel} listing on Facebook Marketplace or Craigslist.
 
 Vehicle details:
-- Mileage: ${vehicle.mileage ? vehicle.mileage.toLocaleString() + ' miles' : 'not listed'}
-- Color: ${vehicle.color ?? 'not specified'}
-- Price: ${vehicle.price ? '$' + vehicle.price.toLocaleString() : 'call for price'}
-- Dealer notes: ${vehicle.notes ?? 'none'}
+- Mileage: ${dealer.mileage ? dealer.mileage.toLocaleString() + ' miles' : 'not listed'}
+- Color: ${dealer.color ?? 'not specified'}
+- Price: ${dealer.price ? '$' + dealer.price.toLocaleString() : 'call for price'}
+- Dealer notes: ${dealer.notes ?? 'none'}
 ${pricingContext}${problemsContext}${docContext}
 
 RULES:
@@ -111,6 +141,7 @@ RULES:
 - If documents are provided, prioritize and surface their key facts — these are the strongest selling points.
 - Honest tone. Do not invent service history not stated in the notes or documents.
 - No headers, no markdown, no numbered lines, no blank lines between bullets.`
+    }
 
     const response = await aiComplete({
       model: AI_MODEL,

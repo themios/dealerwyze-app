@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo } from 'react'
 import Link from 'next/link'
+import EmbeddedCalendarPanel from '@/components/calendar/EmbeddedCalendarPanel'
 import { useRouter } from 'next/navigation'
 import {
   Inbox, UserPlus, Archive, Trash2, RotateCcw,
@@ -316,6 +317,10 @@ export default function WebLeadsClient({ initialInquiries }: { initialInquiries:
 
   return (
     <div>
+      <div className="px-4 sm:px-6 pt-4 pb-2">
+        <EmbeddedCalendarPanel />
+      </div>
+
       {/* Tabs — responsive spacing and sizing */}
       <div className="flex items-center gap-1 px-4 sm:px-6 py-2 sm:py-3 border-b border-border overflow-x-auto">
         {TABS.map(tab => (

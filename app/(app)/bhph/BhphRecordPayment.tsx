@@ -2,98 +2,127 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { CheckCircle, History } from 'lucide-react'
-import { nextDueDate } from '@/lib/bhph/schedule'
-import type { PaymentFrequency } from '@/lib/bhph/schedule'
 import Link from 'next/link'
+import { toast } from 'sonner'
 
 interface Props {
   accountId: string
   monthlyPayment: number
-  paymentFrequency: PaymentFrequency
-  paymentDayAnchor: number
-  currentDueDate: string
-  loanAmount?: number | null
-  totalPaid: number
   customerId?: string
-  accountBalance?: number | null
+}
+
+function localTodayYmd() {
+  const d = new Date()
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
 export default function BhphRecordPayment({
-  accountId, monthlyPayment, paymentFrequency, paymentDayAnchor,
-  currentDueDate, loanAmount, totalPaid, customerId,
+  accountId,
+  monthlyPayment,
+  customerId,
 }: Props) {
   const [amount, setAmount] = useState(monthlyPayment.toString())
+  const [paymentDate, setPaymentDate] = useState(localTodayYmd)
   const [showForm, setShowForm] = useState(false)
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
 
   function recordPayment() {
+    const paid = parseFloat(amount)
+    if (!Number.isFinite(paid) || paid <= 0) {
+      toast.error('Enter an amount greater than zero.')
+      return
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) {
+      toast.error('Invalid payment date.')
+      return
+    }
+    if (paymentDate > localTodayYmd()) {
+      toast.error('Payment date cannot be in the future.')
+      return
+    }
+
     startTransition(async () => {
-      const supabase = createClient()
-      const paid = parseFloat(amount)
-      if (!paid) return
-
-      const newTotal = totalPaid + paid
-      const paidOff = loanAmount != null && newTotal >= loanAmount
-
-      const next = nextDueDate(currentDueDate, paymentFrequency, paymentDayAnchor)
-
-      await supabase
-        .from('bhph_payments')
-        .update({
-          total_paid: newTotal,
-          next_due_date: next,
-          status: paidOff ? 'paid_off' : 'active',
-          // Reset reminder stage so the next cycle fires fresh
-          last_reminder_type: null,
-          last_reminder_at: null,
-          reminder_sequence_status: paidOff ? 'completed' : 'active',
+      try {
+        const res = await fetch(`/api/bhph/${accountId}/payment`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: paid,
+            paymentDate,
+            paymentType: 'regular',
+          }),
         })
-        .eq('id', accountId)
-
-      // Cancel any pending reminders for this cycle
-      await supabase
-        .from('payment_reminder_log')
-        .update({ status: 'cancelled' })
-        .eq('bhph_id', accountId)
-        .eq('status', 'pending')
-
-      setShowForm(false)
-      router.refresh()
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          toast.error(typeof data.error === 'string' ? data.error : 'Could not record payment')
+          return
+        }
+        toast.success(data.paidOff ? 'Payment recorded — contract paid off' : 'Payment recorded')
+        setShowForm(false)
+        router.refresh()
+      } catch {
+        toast.error('Could not record payment')
+      }
     })
   }
 
   if (showForm) {
     return (
-      <div className="flex items-center gap-2">
-        <Input
-          type="number"
-          value={amount}
-          onChange={e => setAmount(e.target.value)}
-          className="h-11 min-h-[44px] text-sm"
-        />
-        <Button
-          size="sm"
-          onClick={recordPayment}
-          disabled={isPending}
-          className="flex-shrink-0 h-11 min-h-[44px] bg-[#0D2B55] text-white hover:bg-[#0D2B55]/90"
-        >
-          {isPending ? '…' : 'Record'}
-        </Button>
-        <Button size="sm" variant="ghost" onClick={() => setShowForm(false)} className="flex-shrink-0 h-11 min-h-[44px] text-muted-foreground">
-          Cancel
-        </Button>
+      <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+        <div className="space-y-1">
+          <Label className="text-xs">Payment date</Label>
+          <Input
+            type="date"
+            value={paymentDate}
+            max={localTodayYmd()}
+            onChange={e => setPaymentDate(e.target.value)}
+            className="h-10"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Amount</Label>
+          <Input
+            type="number"
+            step="0.01"
+            min="0.01"
+            value={amount}
+            onChange={e => setAmount(e.target.value)}
+            className="h-10 tabular-nums"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={recordPayment}
+            disabled={isPending}
+            className="flex-1 h-10 bg-[#0D2B55] text-white hover:bg-[#0D2B55]/90"
+          >
+            {isPending ? 'Recording…' : 'Record'}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setShowForm(false)}
+            disabled={isPending}
+            className="h-10 text-muted-foreground"
+          >
+            Cancel
+          </Button>
+        </div>
       </div>
     )
   }
 
   return (
     <div className="space-y-2 pt-1">
-      {/* Primary: Record Payment */}
       <Button
         size="sm"
         className="w-full h-11 min-h-[44px] bg-[#0D2B55] text-white hover:bg-[#0D2B55]/90"
@@ -103,7 +132,16 @@ export default function BhphRecordPayment({
         Record Payment
       </Button>
 
-      {/* Secondary: Send Pay Link */}
+      <Link href={`/bhph/${accountId}`} className="block w-full">
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full h-11 min-h-[44px] text-xs"
+        >
+          Full account & payment history
+        </Button>
+      </Link>
+
       {customerId && (
         <Link href={`/customers/${customerId}?action=send-pay-link`} className="block w-full">
           <Button
@@ -116,12 +154,11 @@ export default function BhphRecordPayment({
         </Link>
       )}
 
-      {/* Ghost: Payment History */}
       {customerId && (
         <Link href={`/customers/${customerId}`} className="block w-full">
           <Button size="sm" variant="ghost" className="w-full h-11 min-h-[44px] text-muted-foreground text-xs">
             <History className="h-3.5 w-3.5 mr-1.5" />
-            Payment History
+            Customer profile
           </Button>
         </Link>
       )}

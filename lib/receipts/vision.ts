@@ -1,4 +1,5 @@
 import { aiComplete, AI_MODEL, imageBlock } from '@/lib/ai/client'
+import type { Vertical } from '@/lib/vertical'
 
 export interface ReceiptExtraction {
   vendor_raw: string | null
@@ -24,21 +25,46 @@ export interface ReceiptExtraction {
   memo: string
 }
 
-const SYSTEM_PROMPT = `You are a receipt OCR and bookkeeping classification engine for small independent used-car dealers.
+function getSystemPrompt(vertical: Vertical): string {
+  if (vertical === 'real_estate') {
+    return `You are a receipt OCR and bookkeeping classification engine for independent real estate brokers and property managers.
 CRITICAL: Output ONLY a single raw JSON object. No markdown, no code fences, no explanation before or after.`
+  }
+  return `You are a receipt OCR and bookkeeping classification engine for small independent used-car dealers.
+CRITICAL: Output ONLY a single raw JSON object. No markdown, no code fences, no explanation before or after.`
+}
 
-export async function classifyReceipt(
-  imageBase64: string,
-  mimeType: 'image/jpeg' | 'image/png' | 'image/webp',
-  categories: Array<{ id: string; name: string; requires_vehicle: boolean }>
-): Promise<ReceiptExtraction> {
-  if (!process.env.OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY not set')
-
+function buildUserPrompt(vertical: Vertical, categories: Array<{ id: string; name: string; requires_vehicle: boolean }>): string {
   const catList = categories
     .map(c => `  {"id":"${c.id}","name":"${c.name}","requires_vehicle":${c.requires_vehicle}}`)
     .join('\n')
 
-  const userPrompt = `Extract all data from this receipt image and classify it into a dealer bookkeeping category.
+  const businessType = vertical === 'real_estate' ? 'property/rental booking category' : 'dealer bookkeeping category'
+  const classificationRules = vertical === 'real_estate'
+    ? `CLASSIFICATION RULES (use only IDs from the categories list above):
+- Lease/rental payment receipts → Lease Payments (requires_vehicle: false)
+- Property management company receipts → Property Management Fees (requires_vehicle: false)
+- Home inspection, appraisal reports → Property Inspection / Appraisal (requires_vehicle: false)
+- Maintenance, repairs, contractor work → Property Maintenance / Repairs (requires_vehicle: false)
+- Property taxes, municipal fees → Property Tax / Fees (requires_vehicle: false)
+- Insurance companies (homeowner, title, etc.) → Insurance (requires_vehicle: false)
+- Real estate listing platforms (MLS, Zillow, Trulia ads) → Marketing & Advertising (requires_vehicle: false)
+- Software, SaaS subscriptions (Real estate CRM, MLS tools) → Software / Subscriptions (requires_vehicle: false)
+- Office supply, shipping, courier services → Office / Supplies (requires_vehicle: false)
+- Legal fees, title services, closing costs → Legal / Title Services (requires_vehicle: false)`
+    : `CLASSIFICATION RULES (use only IDs from the categories list above):
+- Auto parts stores (O'Reilly, AutoZone, NAPA, Advance Auto) → Recon: Parts (requires_vehicle: true)
+- Mechanics, body shops, tire shops → Recon: Labor / Mechanic (requires_vehicle: true)
+- Gas stations (Shell, Chevron, ARCO, etc.) → Fuel
+- Digital ad platforms (Cars.com, AutoTrader, CarGurus, Facebook Ads) → Advertising & Leads
+- Auction fees (Manheim, Copart, ADESA, dealer auctions) → Auction & Fees
+- DMV, title services, registration → DMV / Registration / Title
+- Insurance companies → Insurance
+- Software, SaaS subscriptions (DealerSocket, VinSolutions, etc.) → Software / Subscriptions
+- Office supply stores (Staples, Office Depot, Amazon supplies) → Office / Supplies
+- Towing companies, transport services → Towing / Transport`
+
+  return `Extract all data from this receipt image and classify it into a ${businessType}.
 
 Available categories:
 ${catList}
@@ -66,29 +92,30 @@ OUTPUT a single JSON object with these EXACT fields (no extra keys):
   "memo": "short auto-memo max 10 words"
 }
 
-CLASSIFICATION RULES (use only IDs from the categories list above):
-- Auto parts stores (O'Reilly, AutoZone, NAPA, Advance Auto) → Recon: Parts (requires_vehicle: true)
-- Mechanics, body shops, tire shops → Recon: Labor / Mechanic (requires_vehicle: true)
-- Gas stations (Shell, Chevron, ARCO, etc.) → Fuel
-- Digital ad platforms (Cars.com, AutoTrader, CarGurus, Facebook Ads) → Advertising & Leads
-- Auction fees (Manheim, Copart, ADESA, dealer auctions) → Auction & Fees
-- DMV, title services, registration → DMV / Registration / Title
-- Insurance companies → Insurance
-- Software, SaaS subscriptions (DealerSocket, VinSolutions, etc.) → Software / Subscriptions
-- Office supply stores (Staples, Office Depot, Amazon supplies) → Office / Supplies
-- Towing companies, transport services → Towing / Transport
+${classificationRules}
 
 CONSTRAINTS:
 - top3 must have exactly 3 items
 - top3 confidences must sum to 1.00 (two decimal places)
 - Only use category_id values from the list provided above
 - If vendor/date/total is unclear, add a flag to data_quality_flags`
+}
+
+export async function classifyReceipt(
+  imageBase64: string,
+  mimeType: 'image/jpeg' | 'image/png' | 'image/webp',
+  categories: Array<{ id: string; name: string; requires_vehicle: boolean }>,
+  vertical: Vertical = 'dealer'
+): Promise<ReceiptExtraction> {
+  if (!process.env.OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY not set')
+
+  const userPrompt = buildUserPrompt(vertical, categories)
 
   const response = await aiComplete({
     model: AI_MODEL,
     max_tokens: 900,
     messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: getSystemPrompt(vertical) },
       {
         role: 'user',
         content: [

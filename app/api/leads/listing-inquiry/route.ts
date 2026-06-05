@@ -94,11 +94,11 @@ export async function POST(req: NextRequest) {
   await supabase.from('activities').insert({
     user_id:    org.id,
     vehicle_id: listing.id,
-    type:       'web_lead',
+    type:       'appointment',
     direction:  'inbound',
+    outcome:    'pending',
     body:       activityBody,
     priority:   'high',
-    completed_at: new Date().toISOString(),
   })
 
   // Also insert into inventory_inquiries for tracking

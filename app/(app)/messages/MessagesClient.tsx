@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { formatRelativeTime } from '@/lib/utils/relativeTime'
 import { createClient } from '@/lib/supabase/client'
+import { useVertical } from '@/hooks/useVertical'
 import type {
   DealerMessage, DealerThread, MessageAttachment, ThreadStatus,
 } from '@/app/(app)/admin/orgs/[id]/dealer-inbox.types'
@@ -88,6 +89,7 @@ function AttachmentDisplay({ attachment }: { attachment: MessageAttachment }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function MessagesClient({ orgId }: { orgId: string }) {
+  const { brandName } = useVertical()
   const [threads, setThreads]               = useState<DealerThread[]>([])
   const [threadsLoading, setThreadsLoading] = useState(true)
   const [selectedThread, setSelectedThread] = useState<DealerThread | null>(null)
@@ -244,7 +246,7 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
     <div className="flex flex-col h-full">
       <div className="shrink-0 px-4 py-4 border-b">
         <h1 className="text-lg font-semibold text-foreground">Messages</h1>
-        <p className="text-xs text-muted-foreground mt-0.5">Your conversations with DealerWyze</p>
+        <p className="text-xs text-muted-foreground mt-0.5">Your conversations with {brandName}</p>
       </div>
       <div className="flex-1 overflow-y-auto">
         {threadsLoading ? (
@@ -253,7 +255,7 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
           </div>
         ) : threads.length === 0 ? (
           <p className="py-12 text-center text-sm text-muted-foreground px-4">
-            No messages yet. Your DealerWyze team will reach out here.
+            No messages yet. Your {brandName} team will reach out here.
           </p>
         ) : (
           <ul className="divide-y divide-border">
@@ -405,7 +407,7 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
                   </div>
                 )}
                 <p className={cn('text-[10px] text-muted-foreground', isPlatform ? 'text-right' : '')}>
-                  {msg.sender_display_name ?? (isPlatform ? 'DealerWyze' : 'You')} · {fmtTime(msg.sent_at)}
+                  {msg.sender_display_name ?? (isPlatform ? brandName : 'You')} · {fmtTime(msg.sent_at)}
                 </p>
               </div>
             </div>
@@ -444,7 +446,7 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
               value={replyBody}
               onChange={e => setReplyBody(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void handleSend() }}
-              placeholder={activeTab === 'email' ? 'Send an email to DealerWyze…' : 'Message DealerWyze…'}
+              placeholder={activeTab === 'email' ? `Send an email to ${brandName}…` : `Message ${brandName}…`}
               rows={3}
               className="w-full bg-transparent text-sm resize-none outline-none placeholder:text-muted-foreground"
             />

@@ -67,6 +67,8 @@ interface Props {
   initial: AutoSettings
   sequences: SequenceOption[]
   isRe?: boolean
+  /** Personal 15-email nurture copy for this user */
+  myEmailNurtureSequenceId?: string | null
 }
 
 function SequencePicker({
@@ -196,7 +198,12 @@ function ChipRow({
   )
 }
 
-export default function AutomationClient({ initial, sequences, isRe = false }: Props) {
+export default function AutomationClient({
+  initial,
+  sequences,
+  isRe = false,
+  myEmailNurtureSequenceId = null,
+}: Props) {
   const [settings, setSettings] = useState<AutoSettings>(initial)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -408,9 +415,21 @@ export default function AutomationClient({ initial, sequences, isRe = false }: P
 
           <section>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Email Auto-Response</p>
-            <div className="rounded-xl border bg-card p-4">
+            <div className="rounded-xl border bg-card p-4 space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Default: <strong>15 emails every 2 days</strong> (about 4 weeks). Stops when the lead replies; you get a
+                takeover task and email. Resume or restart from the contact&apos;s Autoresponder card.
+              </p>
+              {myEmailNurtureSequenceId && (
+                <Link
+                  href={`/settings/sequences/${myEmailNurtureSequenceId}`}
+                  className="inline-flex text-sm font-medium text-[#F07018] hover:underline"
+                >
+                  Customize my email autoresponder →
+                </Link>
+              )}
               <SequencePicker
-                label="Auto-respond sequence for new leads"
+                label="Auto-respond sequence for new leads (org default)"
                 channel="email"
                 value={settings.auto_respond_email_sequence_id}
                 sequences={sequences}

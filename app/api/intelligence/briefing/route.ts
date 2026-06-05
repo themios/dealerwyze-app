@@ -25,7 +25,13 @@ export async function GET() {
     return NextResponse.json({ error: 'Failed to load briefing' }, { status: 500 })
   }
   if (!data?.report_json) {
-    return NextResponse.json({ error: 'No briefing for today' }, { status: 404 })
+    return NextResponse.json({
+      report_json: null,
+      generated_at: null,
+      tokens_used: 0,
+      cached: false,
+      no_brief: true,
+    })
   }
 
   return NextResponse.json({
@@ -33,6 +39,7 @@ export async function GET() {
     generated_at: data.generated_at,
     tokens_used: data.tokens_used ?? 0,
     cached: true,
+    no_brief: false,
   })
 }
 

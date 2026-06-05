@@ -16,6 +16,7 @@ import {
   applyLeadLocationDetection,
   type LeadLocationIngestContext,
 } from '@/lib/leads/detectLeadLocation'
+import { sanitizeEmail, sanitizePersonName } from '@/lib/leads/sanitizeLeadFields'
 
 function normalizeName(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
@@ -36,6 +37,12 @@ export async function ingestLead(
 ) {
   if (!orgId || typeof orgId !== 'string' || orgId.trim() === '') {
     throw new Error('ingest called without orgId')
+  }
+
+  lead = {
+    ...lead,
+    name: sanitizePersonName(lead.name) || lead.name,
+    email: sanitizeEmail(lead.email),
   }
 
   const supabase = createServiceClient()
@@ -368,22 +375,40 @@ export async function ingestLead(
 
   // Auto-respond: if org has a default sequence configured, send Step 1 immediately.
   // Runs non-blocking — a failure here never prevents the lead from being ingested.
+  const { data: customerAssign } = await supabase
+    .from('customers')
+    .select('assigned_to')
+    .eq('id', customerId)
+    .maybeSingle()
+
   const { data: autoSettings } = await supabase
     .from('org_settings')
     .select('auto_respond_email_sequence_id, auto_respond_sms_sequence_id')
     .eq('org_id', userId)
     .maybeSingle()
 
-  if (autoSettings?.auto_respond_email_sequence_id && lead.email) {
-    import('@/lib/sequences/sendAutoResponseStep1')
-      .then(({ sendAutoResponseStep1 }) => sendAutoResponseStep1({
-        orgId:         userId,
-        customerId,
-        sequenceId:    autoSettings.auto_respond_email_sequence_id,
-        channel:       'email',
-        customerEmail: lead.email,
-        customerName:  lead.name,
-      }))
+  if (lead.email) {
+    import('@/lib/sequences/ensureSaasEmailAutoresponder')
+      .then(async ({ resolveAutorespondEmailSequenceId }) => {
+        const sequenceId =
+          (await resolveAutorespondEmailSequenceId(
+            supabase,
+            userId,
+            customerAssign?.assigned_to as string | null | undefined,
+          )) ?? autoSettings?.auto_respond_email_sequence_id
+
+        if (!sequenceId) return
+
+        const { sendAutoResponseStep1 } = await import('@/lib/sequences/sendAutoResponseStep1')
+        return sendAutoResponseStep1({
+          orgId: userId,
+          customerId,
+          sequenceId,
+          channel: 'email',
+          customerEmail: lead.email!,
+          customerName: lead.name,
+        })
+      })
       .catch(() => {})
   }
 

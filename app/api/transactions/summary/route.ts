@@ -27,7 +27,7 @@ interface TransactionRow {
     city: string | null
     state: string | null
   } | null
-  listing_agent: { id: string; full_name: string | null } | null
+  listing_agent: { id: string; display_name: string | null } | null
 }
 
 /**
@@ -81,8 +81,8 @@ export async function GET(req: NextRequest) {
         commission_snapshot,
         listing_agent_id,
         buyer_agent_id,
-        vehicle:vehicles(address_line1, city, state),
-        listing_agent:profiles!listing_agent_id(id, full_name)
+        vehicle:vehicles!vehicle_id(address_line1, city, state),
+        listing_agent:profiles!listing_agent_id(id, display_name)
       `)
       .eq('org_id', profile.org_id)
       .eq('pipeline_status', 'closed')
@@ -109,7 +109,7 @@ export async function GET(req: NextRequest) {
     const { data: rows, error } = await query
 
     if (error) {
-      console.error('[transactions/summary] query error:', error.message)
+      console.error('[transactions/summary] query error:', error.message, error.details, error.hint)
       return NextResponse.json({ error: 'Internal error' }, { status: 500 })
     }
 
@@ -150,7 +150,7 @@ export async function GET(req: NextRequest) {
         else if (row.buyer_agent_id === profile.id) role = 'buyer_agent'
       }
 
-      const la = row.listing_agent as { id?: string; full_name?: string | null } | null
+      const la = row.listing_agent as { id?: string; display_name?: string | null } | null
 
       return {
         id:                   row.id,
@@ -163,7 +163,7 @@ export async function GET(req: NextRequest) {
         buyer_agent_amount:   buyerAgentAmount,
         broker_amount:        brokerAmount,
         role,
-        listing_agent_name:   la?.full_name ?? null,
+        listing_agent_name:   la?.display_name ?? null,
         listing_agent_id:     row.listing_agent_id,
       }
     })
@@ -200,7 +200,7 @@ export async function GET(req: NextRequest) {
 
       for (const row of transactions) {
         const snap = row.commission_snapshot ?? {}
-        const la = row.listing_agent as { id?: string; full_name?: string | null } | null
+        const la = row.listing_agent as { id?: string; display_name?: string | null } | null
 
         // Count listing agent
         if (row.listing_agent_id) {
@@ -213,7 +213,7 @@ export async function GET(req: NextRequest) {
           } else {
             agentMap.set(agId, {
               agent_id:   agId,
-              agent_name: la?.full_name ?? null,
+              agent_name: la?.display_name ?? null,
               ytd_total:  amount,
               deal_count: 1,
             })

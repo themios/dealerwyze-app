@@ -39,6 +39,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     id: string
     slug: string
     updated_at: string | null
+    vertical: string | null
   }[]
 
   if (!orgList.length) return []
@@ -76,7 +77,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   for (const org of orgList) {
     const slug = slugByOrgId.get(org.id)!
-    const invUrl = `${base}/${slug}/inventory`
+    const isRE = org.vertical === 'real_estate'
+    const catalogSegment = isRE ? 'listings' : 'inventory'
+    const catalogUrl = `${base}/${slug}/${catalogSegment}`
     const vlist = vehiclesByOrg.get(org.id) ?? []
 
     let invLastMod: Date | undefined
@@ -91,16 +94,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
 
     out.push({
-      url: invUrl,
+      url: catalogUrl,
       lastModified: invLastMod,
       changeFrequency: 'daily',
       priority: 0.9,
     })
 
     for (const v of vlist) {
-      const seg = v.public_slug?.trim() || v.id
+      const seg = isRE ? v.id : (v.public_slug?.trim() || v.id)
       out.push({
-        url: `${base}/${slug}/inventory/${encodeURIComponent(seg)}`,
+        url: `${base}/${slug}/${catalogSegment}/${encodeURIComponent(seg)}`,
         lastModified: v.created_at ? new Date(v.created_at) : invLastMod,
         changeFrequency: 'weekly',
         priority: 0.7,

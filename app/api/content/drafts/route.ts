@@ -126,10 +126,17 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  const { data: org } = await supabase
+    .from('organizations')
+    .select('vertical')
+    .eq('id', orgId)
+    .maybeSingle()
+
   const drafts = await generateDraftBatch(supabase, orgId, config, {
     count:          parsed.data.count,
     isBuyerFacing:  parsed.data.is_buyer_facing,
     themes:         parsed.data.themes,
+    vertical:       (org?.vertical ?? 'dealer') as 'dealer' | 'real_estate',
   })
 
   return NextResponse.json({ drafts, count: drafts.length }, { status: 201 })

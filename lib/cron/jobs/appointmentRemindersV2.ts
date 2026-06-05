@@ -45,7 +45,7 @@ export async function runAppointmentRemindersV2(
       customerPhone:  cust.primary_phone ?? '',
       customerEmail:  cust.email ?? '',
       appointmentIso: appt.due_at,
-      dealerName:     identity.name?.trim() || 'the dealership',
+      orgName:        identity.name?.trim() || 'your organization',
       calendarUrl:    null,
       type:           'reminder',
     }).catch(err => console.error('[cron/reminders] notification failed:', err))

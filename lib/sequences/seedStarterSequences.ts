@@ -13,78 +13,9 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { ensureOrgSaasEmailAutoresponder } from '@/lib/sequences/ensureSaasEmailAutoresponder'
 
 const STARTERS = [
-  {
-    name:      'New Lead - Email Follow-up (5 steps)',
-    channel:   'email' as const,
-    auto_mode: 'full_auto' as const,
-    topic:     'new_lead',
-    steps: [
-      {
-        sort_order: 0, day_offset: 0, send_hour: 9,
-        template: {
-          name:    'Day 1 - Thank You for Reaching Out',
-          subject: 'Thanks for your inquiry',
-          body:    `Hi {firstName},
-
-Thank you for reaching out! I'd love to help you find the right vehicle.
-
-Could you let me know a good time to connect, or feel free to reply to this email with any questions?
-
-Looking forward to hearing from you.`,
-        },
-      },
-      {
-        sort_order: 1, day_offset: 2, send_hour: 10,
-        template: {
-          name:    'Day 3 - Following Up',
-          subject: 'Following up on your inquiry',
-          body:    `Hi {firstName},
-
-I wanted to follow up on your recent inquiry. Do you have any questions I can answer about the vehicle or our inventory?
-
-I'm here to help make this as easy as possible for you.`,
-        },
-      },
-      {
-        sort_order: 2, day_offset: 5, send_hour: 9,
-        template: {
-          name:    'Day 6 - Financing Options',
-          subject: 'Financing options available',
-          body:    `Hi {firstName},
-
-I wanted to make sure you knew about the financing options we have available. We work with multiple lenders to get you the best rate possible.
-
-Would you like me to run a quick pre-approval? It only takes a few minutes and won't affect your credit score.`,
-        },
-      },
-      {
-        sort_order: 3, day_offset: 10, send_hour: 10,
-        template: {
-          name:    'Day 11 - Schedule a Test Drive',
-          subject: 'Schedule a test drive this week?',
-          body:    `Hi {firstName},
-
-Are you available this week for a test drive? I'd love to get you behind the wheel so you can experience the vehicle firsthand.
-
-Let me know what day and time works best for you.`,
-        },
-      },
-      {
-        sort_order: 4, day_offset: 21, send_hour: 9,
-        template: {
-          name:    'Day 22 - Still Looking?',
-          subject: 'Still looking for a vehicle?',
-          body:    `Hi {firstName},
-
-I wanted to check in one more time. We have new inventory arriving regularly, and I'd love to help you find exactly what you're looking for.
-
-If your needs have changed or you've already found something, no worries at all - just let me know!`,
-        },
-      },
-    ],
-  },
   {
     name:      'New Lead - SMS Follow-up (3 steps)',
     channel:   'sms' as const,
@@ -174,15 +105,19 @@ export async function seedStarterSequences(
   supabase: SupabaseClient,
 ): Promise<number> {
   try {
-    // Skip if org already has sequences
+    let created = 0
+
+    // Always ensure platform 15-email nurture exists (org-wide, every 2 days)
+    const nurtureId = await ensureOrgSaasEmailAutoresponder(orgId, supabase)
+    if (nurtureId) created++
+
     const { count } = await supabase
       .from('sequences')
       .select('id', { count: 'exact', head: true })
       .eq('org_id', orgId)
+      .neq('slug', 'saas_email_nurture')
 
-    if ((count ?? 0) > 0) return 0
-
-    let created = 0
+    if ((count ?? 0) > 0) return created
 
     for (const starter of STARTERS) {
       const { data: seq, error: seqErr } = await supabase

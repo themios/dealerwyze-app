@@ -10,6 +10,7 @@
  */
 
 import { SupabaseClient } from '@supabase/supabase-js'
+import { notifyRealtorSequenceReply } from '@/lib/sequences/notifyRealtorSequenceReply'
 
 interface StopOptions {
   supabase:    SupabaseClient
@@ -69,18 +70,46 @@ export async function stopSequenceOnReply({
     .limit(1)
     .maybeSingle()
 
+  const { data: customerRow } = await supabase
+    .from('customers')
+    .select('assigned_to')
+    .eq('id', customerId)
+    .eq('user_id', orgId)
+    .maybeSingle()
+
   if (!existing) {
     const firstName = customerName.split(' ')[0]
     await supabase.from('tasks').insert({
       user_id:            orgId,
+      assigned_to_user_id: (customerRow?.assigned_to as string | null) ?? null,
       title:              `${firstName} replied - take over the conversation`,
       task_type:          'lead_followup',
       priority:           'must',
       status:             'open',
       linked_customer_id: customerId,
       due_at:             now,
+      auto_generated:     true,
+      source_event:       'sequence_reply',
     })
   }
+
+  await supabase.from('activities').insert({
+    user_id:     orgId,
+    customer_id: customerId,
+    type:        'note',
+    direction:   'inbound',
+    body:        `Autoresponder paused: customer replied via ${channel ?? 'message'}. Take over manually or resume from the Autoresponder card.`,
+    completed_at: now,
+  })
+
+  const notifyChannel = channel ?? (enrollments[0]?.channel as 'email' | 'sms' | undefined) ?? 'email'
+  await notifyRealtorSequenceReply({
+    supabase,
+    orgId,
+    customerId,
+    customerName,
+    channel: notifyChannel,
+  }).catch(() => {})
 }
 
 /**

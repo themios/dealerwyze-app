@@ -13,7 +13,11 @@ import {
   Poppins,
   Source_Sans_3,
 } from 'next/font/google'
-import DealerPublicChrome, { type DealerPublicContact } from '@/components/dealer-public/DealerPublicChrome'
+import DealerPublicChrome, {
+  type DealerPublicContact,
+  type PublicCatalogSegment,
+} from '@/components/dealer-public/DealerPublicChrome'
+import { getVerticalConfig } from '@/lib/vertical'
 import {
   absoluteUrl,
   DEALER_THEME_DEFAULT_LOGO_PATH,
@@ -350,8 +354,13 @@ export default async function DealerPublicLayout({ children, params }: Props) {
   const themeColors = mergeThemeColors(org.website_theme)
   const rootStyle = themeToInlineStyle(themeColors, org.website_font_preset)
 
+  const isRe = org.vertical === 'real_estate'
+  const verticalConfig = getVerticalConfig(isRe ? 'real_estate' : 'dealer')
+  const catalogSegment: PublicCatalogSegment = isRe ? 'listings' : 'inventory'
+  const catalogPath = `/${org.slug}/${catalogSegment}`
+
   const siteRootUrl = absoluteUrl(`/${org.slug}`)
-  const inventoryUrl = absoluteUrl(`/${org.slug}/inventory`)
+  const inventoryUrl = absoluteUrl(catalogPath)
   const logoForSchema = contact.logoSrc || absoluteUrl(DEALER_THEME_DEFAULT_LOGO_PATH)
   const tel = phone || secondaryPhone
   const digits = tel ? tel.replace(/\D/g, '') : ''
@@ -374,8 +383,8 @@ export default async function DealerPublicLayout({ children, params }: Props) {
   const award = org.website_awards?.trim() || undefined
   const areaServed = serviceArea || undefined
 
-  const autoDealerNode: Record<string, unknown> = {
-    '@type': 'AutoDealer',
+  const businessNode: Record<string, unknown> = {
+    '@type': isRe ? 'RealEstateAgent' : 'AutoDealer',
     '@id': dealerId,
     name: displayName,
     description: orgDescription,
@@ -402,7 +411,7 @@ export default async function DealerPublicLayout({ children, params }: Props) {
     ...(openingHours ? { openingHours } : {}),
     hasOfferCatalog: {
       '@type': 'OfferCatalog',
-      name: `Used Vehicles at ${displayName}`,
+      name: isRe ? `Listings at ${displayName}` : `Used Vehicles at ${displayName}`,
       url: inventoryUrl,
     },
   }
@@ -421,7 +430,7 @@ export default async function DealerPublicLayout({ children, params }: Props) {
       {
         '@type': 'ListItem',
         position: 2,
-        name: 'Inventory',
+        name: verticalConfig.labels.inventory,
         item: inventoryUrl,
       },
     ],
@@ -430,10 +439,10 @@ export default async function DealerPublicLayout({ children, params }: Props) {
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
-      autoDealerNode,
+      businessNode,
       {
         '@type': 'WebSite',
-        name: `${displayName} — Inventory`,
+        name: `${displayName} — ${verticalConfig.labels.inventory}`,
         url: inventoryUrl,
         description: buildPublicMetaDescription({
           seoDescription: org.website_seo_description,
@@ -478,7 +487,17 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         </>
       ) : null}
       <div className={fontRootClassName} style={rootStyle}>
-        <DealerPublicChrome contact={contact}>{children}</DealerPublicChrome>
+        <DealerPublicChrome
+          contact={contact}
+          catalogSegment={catalogSegment}
+          footerOrgLabel={verticalConfig.labels.orgName}
+          poweredBy={{
+            label: verticalConfig.brandName,
+            href: `https://${verticalConfig.domain}`,
+          }}
+        >
+          {children}
+        </DealerPublicChrome>
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: jsonLdInline(jsonLd) }}

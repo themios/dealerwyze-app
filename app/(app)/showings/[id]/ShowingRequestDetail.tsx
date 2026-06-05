@@ -2,13 +2,16 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Phone, Mail, Calendar } from 'lucide-react'
+import { customerImportSearchParams } from '@/lib/customers/resolveCustomerByContact'
 
 interface ShowingRequest {
   id: string
   buyer_name: string
   buyer_email: string
   buyer_phone?: string
+  customer_id?: string | null
   requested_time_1?: string
   requested_time_2?: string
   requested_time_3?: string
@@ -38,6 +41,26 @@ export default function ShowingRequestDetail({ showing }: { showing: ShowingRequ
     ? `${showing.vehicle.address_line1}, ${showing.vehicle.city}, ${showing.vehicle.state} ${showing.vehicle.zip}`
     : 'Property'
 
+  const buyerLabel = showing.customer_id ? (
+    <Link href={`/customers/${showing.customer_id}`} className="text-primary hover:underline font-medium">
+      {showing.buyer_name}
+    </Link>
+  ) : (
+    <span className="text-gray-900">
+      {showing.buyer_name}{' '}
+      <Link
+        href={`/customers/new${customerImportSearchParams({
+          name: showing.buyer_name,
+          email: showing.buyer_email,
+          phone: showing.buyer_phone,
+        })}`}
+        className="text-sm text-blue-600 hover:underline font-normal"
+      >
+        (Add to CRM)
+      </Link>
+    </span>
+  )
+
   const requestedTimes = [
     showing.requested_time_1,
     showing.requested_time_2,
@@ -58,7 +81,7 @@ export default function ShowingRequestDetail({ showing }: { showing: ShowingRequ
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           showing_id: showing.id,
-          confirmed_time: selectedTime,
+          confirmed_time: new Date(selectedTime).toISOString(),
         }),
       })
 
@@ -117,7 +140,7 @@ export default function ShowingRequestDetail({ showing }: { showing: ShowingRequ
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           showing_id: showing.id,
-          proposed_time: proposedTime,
+          proposed_time: new Date(proposedTime).toISOString(),
         }),
       })
 
@@ -159,9 +182,9 @@ export default function ShowingRequestDetail({ showing }: { showing: ShowingRequ
         </div>
 
         <div className="space-y-3 mb-6">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <span className="text-sm font-medium text-gray-700">Buyer:</span>
-            <span className="text-gray-900">{showing.buyer_name}</span>
+            {buyerLabel}
           </div>
           {showing.buyer_email && (
             <div className="flex items-center gap-3">
@@ -218,9 +241,7 @@ export default function ShowingRequestDetail({ showing }: { showing: ShowingRequ
       <div className="bg-blue-50 rounded-lg p-4 mb-6">
         <p className="text-sm font-medium text-blue-900 mb-3">Buyer info</p>
         <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-gray-900">{showing.buyer_name}</span>
-          </div>
+          <div className="flex items-center gap-2 flex-wrap">{buyerLabel}</div>
           {showing.buyer_email && (
             <div className="flex items-center gap-2 text-gray-600">
               <Mail className="h-4 w-4" />

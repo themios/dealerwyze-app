@@ -37,6 +37,19 @@ vi.mock('@/lib/auth/dealerRoles', () => ({
   canAccessBhph: vi.fn(() => true),
 }))
 
+vi.mock('@/lib/supabase/service', () => ({
+  createServiceClient: vi.fn(() => supabase),
+}))
+
+vi.mock('@/lib/bhph/ensureContractFinance', () => ({
+  ensureBhphContractFinance: vi.fn(async () => ({
+    ok: true,
+    repaired: false,
+    principalSeeded: false,
+    ledgerReplayed: false,
+  })),
+}))
+
 import { POST } from '@/app/api/bhph/[id]/payment/route'
 
 const params = (id: string) => ({ params: Promise.resolve({ id }) })

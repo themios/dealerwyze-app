@@ -1,4 +1,10 @@
 import { normalizePhone as normalizePhoneDigits } from '@/lib/utils/phone'
+import {
+  buildFullName,
+  sanitizeEmail,
+  sanitizePersonName,
+  stripFieldLabel,
+} from './sanitizeLeadFields'
 
 /**
  * Parser for pasted lead text in "labeled field" format, e.g. from a CRM or
@@ -49,20 +55,26 @@ export function isLabeledLeadPaste(text: string): boolean {
 /** Parse labeled lead paste into structured fields. Returns null if we can't get at least a name or email. */
 export function parseLabeledLeadPaste(text: string): LabeledPasteLead | null {
   const rawEmail = takeAfterLabel(text, 'Email') ?? takeAfterLabel(text, 'E-mail')
-  const email = rawEmail && /^[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}$/.test(rawEmail) ? rawEmail : null
+  const email = sanitizeEmail(rawEmail ?? '') || null
 
   const rawPhone = takeAfterLabel(text, 'Phone')
   const phone = rawPhone ? (normalizePhoneDigits(rawPhone) || null) : null
 
+  const firstName = stripFieldLabel(takeAfterLabel(text, 'First Name') ?? '')
+  const lastName = stripFieldLabel(takeAfterLabel(text, 'Last Name') ?? '')
+  const fromLabeledParts = buildFullName(firstName, lastName)
+
   // Name: often the first non-empty line that isn't a label
   const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
-  let name = ''
-  for (const line of lines) {
-    if (/^(Contact Type|Email|E-mail|Phone|Address|RetailSalesperson|Add A Note|Use this section)/i.test(line)) break
-    if (/^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(line)) break // date line
-    if (line.length > 2 && line.length < 80 && !/^https?:\/\//i.test(line)) {
-      name = line
-      break
+  let name = fromLabeledParts
+  if (!name) {
+    for (const line of lines) {
+      if (/^(Contact Type|Email|E-mail|Phone|Address|First Name|Last Name|RetailSalesperson|Add A Note|Use this section)/i.test(line)) break
+      if (/^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(line)) break // date line
+      if (line.length > 2 && line.length < 80 && !/^https?:\/\//i.test(line)) {
+        name = sanitizePersonName(line)
+        break
+      }
     }
   }
 
@@ -95,7 +107,7 @@ export function parseLabeledLeadPaste(text: string): LabeledPasteLead | null {
   if (!name && email) name = email.split('@')[0].replace(/[._]/g, ' ') || 'Unknown'
 
   return {
-    name: name || 'Unknown',
+    name: sanitizePersonName(name) || 'Unknown',
     phone,
     email,
     note: note || null,

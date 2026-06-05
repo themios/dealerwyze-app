@@ -1066,7 +1066,7 @@ export default function TodayContent({
   return (
     <div className="page-enter">
       <div className="gradient-sunset flex items-center gap-2.5 px-4 py-2 text-white">
-        <Image src={vertical.vertical === 'real_estate' ? '/rw-logo-notext.png' : '/logo-mark.png'} alt={vertical.brandName} width={28} height={28} className="rounded-md flex-shrink-0 opacity-90" />
+        <Image src={vertical.vertical === 'real_estate' ? '/rw-logo-notext.png' : '/logo-mark.png'} alt={vertical.brandName} width={28} height={28} className="h-7 w-7 rounded-md flex-shrink-0 object-contain opacity-90" />
         <span className="min-w-0 flex-1 truncate text-xs font-medium opacity-80" suppressHydrationWarning>
           {dateLabel || '…'}
         </span>

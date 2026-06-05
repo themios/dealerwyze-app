@@ -93,6 +93,30 @@ function parseRootCauseJson(raw: string): RootCauseJson | null {
   }
 }
 
+function getSystemPrompt(vertical: 'dealer' | 'real_estate'): string {
+  if (vertical === 'real_estate') {
+    return [
+      'You analyze real estate agent lead conversations and classify why the lead failed.',
+      'Output JSON only with keys: failure_mode, inflection_activity_index, rep_controllable, coaching_note, confidence.',
+      `failure_mode must be one of: ${FAILURE_MODES.join(' | ')}.`,
+      'confidence must be a float 0.00 to 1.00.',
+      'coaching_note must be one short sentence (max 25 words) describing the key miss or outcome.',
+      'rep_controllable is true only if an agent process or follow-up could reasonably change the outcome.',
+      'No PII: do not output any names, phone numbers, emails, or addresses. Refer to roles only (prospect/agent).',
+    ].join(' ')
+  }
+
+  return [
+    'You analyze used-car dealership lead conversations and classify why the lead failed.',
+    'Output JSON only with keys: failure_mode, inflection_activity_index, rep_controllable, coaching_note, confidence.',
+    `failure_mode must be one of: ${FAILURE_MODES.join(' | ')}.`,
+    'confidence must be a float 0.00 to 1.00.',
+    'coaching_note must be one short sentence (max 25 words) describing the key miss or outcome.',
+    'rep_controllable is true only if a dealership process or follow-up could reasonably change the outcome.',
+    'No PII: do not output any names, phone numbers, emails, or addresses. Refer to roles only (customer/dealer).',
+  ].join(' ')
+}
+
 export async function runRootCauseBatchForOrg(args: {
   supabase?: SupabaseClient
   orgId: string
@@ -101,6 +125,14 @@ export async function runRootCauseBatchForOrg(args: {
   const supabase = args.supabase ?? createServiceClient()
   const orgId = args.orgId
   const cap = args.maxPerOrgPerWeek ?? MAX_PER_ORG_PER_WEEK
+
+  // Fetch org vertical
+  const { data: orgData } = await supabase
+    .from('organizations')
+    .select('vertical')
+    .eq('id', orgId)
+    .maybeSingle()
+  const vertical = (orgData?.vertical ?? 'dealer') as 'dealer' | 'real_estate'
 
   const weekStartIso = weekStartUtcIso()
   const { count: usedThisWeek } = await supabase
@@ -189,15 +221,7 @@ export async function runRootCauseBatchForOrg(args: {
         messages: [
           {
             role: 'system',
-            content: [
-              'You analyze used-car dealership lead conversations and classify why the lead failed.',
-              'Output JSON only with keys: failure_mode, inflection_activity_index, rep_controllable, coaching_note, confidence.',
-              `failure_mode must be one of: ${FAILURE_MODES.join(' | ')}.`,
-              'confidence must be a float 0.00 to 1.00.',
-              'coaching_note must be one short sentence (max 25 words) describing the key miss or outcome.',
-              'rep_controllable is true only if a dealership process or follow-up could reasonably change the outcome.',
-              'No PII: do not output any names, phone numbers, emails, or addresses. Refer to roles only (customer/dealer).',
-            ].join(' '),
+            content: getSystemPrompt(vertical),
           },
           {
             role: 'user',

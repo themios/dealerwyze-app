@@ -68,11 +68,35 @@ export async function PATCH(
     }
   }
 
+  const supabase = await createClient()
+
+  if ('listing_interest' in body) {
+    const v = body.listing_interest
+    if (v !== null && v !== '' && !['high', 'medium', 'low'].includes(String(v))) {
+      return NextResponse.json({ error: 'Invalid listing_interest' }, { status: 400 })
+    }
+    const { data: current } = await supabase
+      .from('vehicles')
+      .select('market_data_json')
+      .eq('id', id)
+      .eq('user_id', profile.org_id)
+      .maybeSingle()
+
+    const base =
+      current?.market_data_json && typeof current.market_data_json === 'object' && !Array.isArray(current.market_data_json)
+        ? { ...(current.market_data_json as Record<string, unknown>) }
+        : {}
+    if (v === null || v === '') {
+      delete base.listing_interest
+    } else {
+      base.listing_interest = v
+    }
+    patch.market_data_json = base
+  }
+
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
   }
-
-  const supabase = await createClient()
 
   // Price change tracking for RE listings only.
   // Fetch current vehicle if price is being updated so we can compare values.

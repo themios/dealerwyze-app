@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { toast } from 'sonner'
 
 export interface DeferredPaymentRow {
   id: string
@@ -30,9 +31,12 @@ function badgeClass(status: DeferredPaymentRow['status']) {
 export default function DeferredPaymentManager({
   contractId,
   rows,
+  deferredBalanceRemaining = 0,
 }: {
   contractId: string
   rows: DeferredPaymentRow[]
+  /** Remaining down still owed (required down − collected at sale). */
+  deferredBalanceRemaining?: number
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -44,14 +48,25 @@ export default function DeferredPaymentManager({
     .filter(row => row.status === 'scheduled')
     .reduce((sum, row) => sum + row.amount, 0)
 
+  const scheduledCommitted = rows
+    .filter(row => row.status !== 'cancelled')
+    .reduce((sum, row) => sum + row.amount, 0)
+
+  const canAddInstallment =
+    deferredBalanceRemaining > 0.01 &&
+    scheduledCommitted < deferredBalanceRemaining - 0.01
+
   function refresh() {
     startTransition(() => router.refresh())
   }
 
   async function addInstallment() {
     const amount = parseFloat(newAmount || '0')
-    if (!(amount > 0) || !newDueDate) return
-    await fetch('/api/bhph/deferred', {
+    if (!(amount > 0) || !newDueDate) {
+      toast.error('Enter a due date and amount.')
+      return
+    }
+    const res = await fetch('/api/bhph/deferred', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -61,6 +76,12 @@ export default function DeferredPaymentManager({
         notes: newNotes || null,
       }),
     })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      toast.error(typeof data.error === 'string' ? data.error : 'Could not add installment')
+      return
+    }
+    toast.success('Deferred installment added')
     setNewDueDate('')
     setNewAmount('')
     setNewNotes('')
@@ -68,20 +89,32 @@ export default function DeferredPaymentManager({
   }
 
   async function markPaid(id: string, amount: number) {
-    await fetch(`/api/bhph/deferred/${id}`, {
+    const res = await fetch(`/api/bhph/deferred/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'paid', paid_amount: amount }),
     })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      toast.error(typeof data.error === 'string' ? data.error : 'Could not mark installment paid')
+      return
+    }
+    toast.success('Deferred down payment marked paid')
     refresh()
   }
 
   async function cancelInstallment(id: string) {
-    await fetch(`/api/bhph/deferred/${id}`, {
+    const res = await fetch(`/api/bhph/deferred/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'cancelled' }),
     })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      toast.error(typeof data.error === 'string' ? data.error : 'Could not cancel installment')
+      return
+    }
+    toast.success('Installment cancelled')
     refresh()
   }
 
@@ -130,24 +163,37 @@ export default function DeferredPaymentManager({
         </div>
       </div>
 
-      <div className="bg-card border border-border rounded-[10px] p-4 space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Add deferred installment</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label>Due Date</Label>
-            <Input type="date" value={newDueDate} onChange={e => setNewDueDate(e.target.value)} className="h-10" />
+      {canAddInstallment ? (
+        <div className="bg-card border border-border rounded-[10px] p-4 space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Add deferred installment</p>
+          <p className="text-[11px] text-muted-foreground">
+            Room left in plan: {fmt(Math.max(0, deferredBalanceRemaining - scheduledCommitted))}
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Due Date</Label>
+              <Input type="date" value={newDueDate} onChange={e => setNewDueDate(e.target.value)} className="h-10" />
+            </div>
+            <div className="space-y-1">
+              <Label>Amount</Label>
+              <Input type="number" value={newAmount} onChange={e => setNewAmount(e.target.value)} className="h-10" placeholder="500" />
+            </div>
           </div>
           <div className="space-y-1">
-            <Label>Amount</Label>
-            <Input type="number" value={newAmount} onChange={e => setNewAmount(e.target.value)} className="h-10" placeholder="500" />
+            <Label>Notes</Label>
+            <Input value={newNotes} onChange={e => setNewNotes(e.target.value)} className="h-10" placeholder="Optional note" />
           </div>
+          <Button onClick={addInstallment} disabled={isPending || !newDueDate || !newAmount}>Add installment</Button>
         </div>
-        <div className="space-y-1">
-          <Label>Notes</Label>
-          <Input value={newNotes} onChange={e => setNewNotes(e.target.value)} className="h-10" placeholder="Optional note" />
-        </div>
-        <Button onClick={addInstallment} disabled={isPending || !newDueDate || !newAmount}>Add installment</Button>
-      </div>
+      ) : deferredBalanceRemaining <= 0.01 ? (
+        <p className="text-xs text-muted-foreground px-1">
+          No deferred down balance on this contract. Use Record payment for monthly installments.
+        </p>
+      ) : (
+        <p className="text-xs text-muted-foreground px-1">
+          Deferred installments already cover the remaining down balance. Mark one paid or cancel before adding more.
+        </p>
+      )}
     </div>
   )
 }

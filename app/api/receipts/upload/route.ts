@@ -108,6 +108,14 @@ export async function POST(req: NextRequest) {
     updated = u
   } else {
     // Expense path — existing logic
+    // Fetch org vertical for vertical-aware receipt classification
+    const { data: org } = await supabase
+      .from('organizations')
+      .select('vertical')
+      .eq('id', profile.org_id)
+      .maybeSingle()
+    const vertical = (org?.vertical ?? 'dealer') as 'dealer' | 'real_estate'
+
     const { data: categories } = await supabase
       .from('receipt_categories')
       .select('id, name, requires_vehicle')
@@ -117,7 +125,7 @@ export async function POST(req: NextRequest) {
 
     let extraction
     try {
-      extraction = await classifyReceipt(body.image_base64, body.mime_type, categories ?? [])
+      extraction = await classifyReceipt(body.image_base64, body.mime_type, categories ?? [], vertical)
     } catch (err) {
       await supabase
         .from('receipts')

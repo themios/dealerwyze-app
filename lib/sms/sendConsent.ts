@@ -1,6 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { getLeadOutboundTemplateVars } from '@/lib/locations/getLeadTemplateVars'
 import { fillTemplate } from '@/lib/utils'
+import { sanitizeFirstName } from '@/lib/leads/sanitizeLeadFields'
 
 const DEFAULT_CONSENT_TEMPLATE =
   'Hi {first_name}! This is {business_name}. You recently inquired about {vehicle}. ' +
@@ -49,7 +50,7 @@ export async function sendSmsConsentRequest(opts: {
   const authToken  = process.env.TWILIO_AUTH_TOKEN
   if (!accountSid || !authToken) return { sent: false, reason: 'twilio_not_configured' }
 
-  const firstName = customerName.split(' ')[0] || customerName
+  const firstName = sanitizeFirstName(customerName) || customerName.split(' ')[0] || customerName
 
   // Build message body
   const template = settings?.sms_consent_message ||

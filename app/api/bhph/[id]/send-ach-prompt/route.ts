@@ -6,18 +6,45 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
-import { isDealerAdmin } from '@/types/index'
+import { canRecordBhphPayment } from '@/lib/auth/dealerRoles'
 import type { UserRole } from '@/types/index'
 import { generateAchSetupToken } from '@/lib/bhph/achSetupToken'
 import { sendTwilioSms, toE164Us } from '@/lib/bhph/twilioOutbound'
+
+function smsFailureResponse(sent: { ok: boolean; error?: string }): NextResponse {
+  const code = sent.error ?? 'unknown'
+  if (code === 'twilio_unconfigured') {
+    return NextResponse.json(
+      {
+        error:
+          'Text messaging is not configured on this server. Add TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM_NUMBER, or record the payment manually.',
+      },
+      { status: 503 },
+    )
+  }
+  if (code === 'twilio_network_error') {
+    return NextResponse.json(
+      { error: 'Could not reach the text provider. Try again in a moment.' },
+      { status: 502 },
+    )
+  }
+  return NextResponse.json(
+    {
+      error:
+        typeof sent.error === 'string' && sent.error.length > 0
+          ? `Could not send text: ${sent.error}`
+          : 'Could not send text message. Check the customer phone number and Twilio settings.',
+    },
+    { status: 502 },
+  )
+}
 
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const profile = await requireProfile()
-  const role = profile.role as UserRole
-  if (!isDealerAdmin(role) && role !== 'dealer_manager') {
+  if (!canRecordBhphPayment(profile.role as UserRole)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -69,7 +96,23 @@ export async function POST(
   const vehicleLabel = vehicle ? `${vehicle.year} ${vehicle.make} ${vehicle.model}` : 'vehicle'
   const firstName = (cust.name ?? 'there').split(/\s+/)[0]
 
-  const setupToken = generateAchSetupToken(contractId)
+  let setupToken: string
+  try {
+    setupToken = generateAchSetupToken(contractId)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'ACH setup unavailable'
+    console.error('[send-ach-prompt] token', msg)
+    return NextResponse.json(
+      {
+        error:
+          msg.includes('BHPH_ACH_SECRET')
+            ? 'ACH setup links are not configured (BHPH_ACH_SECRET missing). Record the payment manually instead.'
+            : 'Could not create ACH setup link.',
+      },
+      { status: 503 },
+    )
+  }
+
   const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://dealerwyze.com'
   const link = `${base}/pay/ach/${encodeURIComponent(setupToken)}`
 
@@ -82,10 +125,18 @@ export async function POST(
     return NextResponse.json({ error: 'Invalid phone number' }, { status: 422 })
   }
 
-  const sent = await sendTwilioSms(to, msg)
+  const { data: orgSettings } = await supabase
+    .from('org_settings')
+    .select('twilio_phone_number')
+    .eq('org_id', profile.org_id)
+    .maybeSingle()
+
+  const sent = await sendTwilioSms(to, msg, {
+    from: orgSettings?.twilio_phone_number ?? null,
+  })
   if (!sent.ok) {
-    console.error('[send-ach-prompt] twilio', { error: sent.error })
-    return NextResponse.json({ error: 'Could not send text message.' }, { status: 502 })
+    console.error('[send-ach-prompt] twilio', { error: sent.error, to: to.slice(0, 5) + '…' })
+    return smsFailureResponse(sent)
   }
 
   const now = new Date().toISOString()
