@@ -70,8 +70,8 @@ export default function TaskItem({ activity, onUpdate }: TaskItemProps) {
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <div>
-              <p className="font-medium text-sm leading-snug">
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-sm leading-snug line-clamp-2 lg:line-clamp-none">
                 {activity.body || `Follow up — ${activity.type}`}
               </p>
               {activity.customer && (
@@ -99,33 +99,36 @@ export default function TaskItem({ activity, onUpdate }: TaskItemProps) {
         </div>
       </div>
 
-      <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+      <div className="flex gap-2 lg:gap-3" onClick={e => e.stopPropagation()}>
         <Button
           size="sm"
           variant="default"
-          className="flex-1 h-10"
+          className="flex-1 h-10 text-sm lg:text-sm"
           onClick={markDone}
           disabled={loading !== null}
+          aria-label="Mark task complete"
         >
           {loading === 'done' ? '…' : 'Done'}
         </Button>
         <Button
           size="sm"
           variant="outline"
-          className="flex-1 h-9 text-xs"
+          className="flex-1 h-10 text-xs lg:text-xs"
           onClick={() => snooze('2h')}
           disabled={loading !== null}
+          title="Snooze until 2 hours from now"
         >
-          {loading === '2h' ? '…' : 'Snooze 2h'}
+          {loading === '2h' ? '…' : '2h'}
         </Button>
         <Button
           size="sm"
           variant="outline"
-          className="flex-1 h-9 text-xs"
+          className="flex-1 h-10 text-xs lg:text-xs"
           onClick={() => snooze('tomorrow')}
           disabled={loading !== null}
+          title="Snooze until 9am tomorrow"
         >
-          {loading === 'tomorrow' ? '…' : 'Tomorrow'}
+          {loading === 'tomorrow' ? '…' : '⏰'}
         </Button>
       </div>
     </div>
