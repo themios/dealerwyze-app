@@ -280,7 +280,7 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
                         </span>
                       )}
                     </div>
-                    <p className="text-sm font-medium text-foreground truncate">{t.subject}</p>
+                    <p className="text-sm font-medium text-foreground truncate leading-snug">{t.subject}</p>
                     {t.last_message_at && (
                       <p className="text-[11px] text-muted-foreground">{formatRelativeTime(t.last_message_at)}</p>
                     )}
@@ -377,7 +377,7 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
       </div>
 
       {/* Scrollable messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 min-h-0">
+      <div className="flex-1 overflow-y-auto px-3 lg:px-4 py-4 space-y-3 min-h-0">
         {error && <p className="text-xs text-destructive bg-destructive/10 rounded-lg px-3 py-2">{error}</p>}
         {messagesLoading && (
           <div className="flex justify-center py-12">
@@ -397,7 +397,7 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
           const isPlatform = msg.sender_type === 'platform'
           return (
             <div key={msg.id} className={cn('flex', isPlatform ? 'justify-end' : 'justify-start')}>
-              <div className="max-w-[85%] space-y-1">
+              <div className="max-w-[85%] lg:max-w-[65%] space-y-1">
                 <div className={cn('px-3 py-2 text-sm whitespace-pre-wrap', isPlatform ? 'bg-primary text-primary-foreground rounded-2xl rounded-tr-sm' : 'bg-muted rounded-2xl rounded-tl-sm')}>
                   {msg.body}
                 </div>
@@ -417,7 +417,7 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
       </div>
 
       {/* Fixed composer */}
-      <div className="shrink-0 border-t px-4 py-3 space-y-2 bg-background">
+      <div className="shrink-0 border-t px-3 lg:px-4 py-3 space-y-2 bg-background">
         {pendingFiles.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {pendingFiles.map((f, i) => (
@@ -450,14 +450,14 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
               rows={3}
               className="w-full bg-transparent text-sm resize-none outline-none placeholder:text-muted-foreground"
             />
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted/60 transition-colors"
+                className="p-2 lg:p-1.5 min-h-[44px] min-w-[44px] lg:min-h-auto lg:min-w-auto text-muted-foreground hover:text-foreground rounded-md hover:bg-muted/60 transition-colors flex-shrink-0"
                 aria-label="Attach files"
               >
-                <Paperclip className="h-4 w-4" />
+                <Paperclip className="h-5 lg:h-4 w-5 lg:w-4" />
               </button>
               <input
                 ref={fileInputRef}
@@ -467,16 +467,17 @@ export default function MessagesClient({ orgId }: { orgId: string }) {
                 onChange={handleFileChange}
                 className="sr-only"
               />
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 ml-auto">
                 <span className="text-[11px] text-muted-foreground hidden sm:block">⌘↵</span>
                 <Button
                   size="sm"
                   disabled={sending || (!replyBody.trim() && pendingFiles.length === 0)}
                   onClick={() => void handleSend()}
-                  className="gap-1.5"
+                  className="gap-1.5 h-10 lg:h-9 min-h-[44px] lg:min-h-auto text-xs lg:text-sm"
+                  aria-label={`Send ${activeTab === 'email' ? 'email' : 'message'}`}
                 >
-                  {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                  {activeTab === 'email' ? 'Send Email' : 'Send Message'}
+                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  <span className="hidden sm:inline">{activeTab === 'email' ? 'Email' : 'Send'}</span>
                 </Button>
               </div>
             </div>
