@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense } from 'react'
 import { Loader2, Download, Sparkles, Send } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
-import ReportsClient from './ReportsClient'
+
+const ReportsClient = lazy(() => import('./ReportsClient'))
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -517,7 +519,11 @@ export default function AnalyticsDashboard() {
         ))}
       </div>
 
-      {activeTab === 'performance' && <ReportsClient />}
+      {activeTab === 'performance' && (
+        <Suspense fallback={<div className="px-4 py-8"><div className="flex justify-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div></div>}>
+          <ReportsClient />
+        </Suspense>
+      )}
 
       {activeTab === 'overview' && (
         <div className="px-4 py-4 space-y-8 lg:px-6">

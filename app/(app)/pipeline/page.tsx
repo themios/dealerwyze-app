@@ -1,7 +1,18 @@
+import dynamic from 'next/dynamic'
+import { Suspense } from 'react'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClientForRequest } from '@/lib/supabase/forRequest'
 import TopBar from '@/components/layout/TopBar'
-import PipelineBoard from './PipelineBoard'
+import { Loader2 } from 'lucide-react'
+
+const PipelineBoard = dynamic(() => import('./PipelineBoard'), {
+  loading: () => (
+    <div className="flex justify-center items-center min-h-96">
+      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+    </div>
+  ),
+  ssr: false
+})
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +30,13 @@ export default async function PipelinePage() {
   return (
     <div>
       <TopBar title="Pipeline" />
-      <PipelineBoard customers={customers ?? []} />
+      <Suspense fallback={
+        <div className="flex justify-center items-center min-h-96">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      }>
+        <PipelineBoard customers={customers ?? []} />
+      </Suspense>
     </div>
   )
 }

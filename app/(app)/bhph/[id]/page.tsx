@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic'
 
+import dynamic from 'next/dynamic'
 import { Suspense } from 'react'
 import { redirect, notFound } from 'next/navigation'
 import { createClientForRequest } from '@/lib/supabase/forRequest'
@@ -8,7 +9,16 @@ import { requireProfile } from '@/lib/auth/profile'
 import { canAccessBhph, canRecordBhphPayment } from '@/lib/auth/dealerRoles'
 import { ensureBhphContractFinance } from '@/lib/bhph/ensureContractFinance'
 import type { UserRole } from '@/types/index'
-import BhphDetailClient from './BhphDetailClient'
+import { Loader2 } from 'lucide-react'
+
+const BhphDetailClient = dynamic(() => import('./BhphDetailClient'), {
+  loading: () => (
+    <div className="flex justify-center items-center min-h-96">
+      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+    </div>
+  ),
+  ssr: false
+})
 
 interface Props {
   params: Promise<{ id: string }>
@@ -85,7 +95,11 @@ export default async function BhphDetailPage({ params }: Props) {
     .maybeSingle()
 
   return (
-    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading…</div>}>
+    <Suspense fallback={
+      <div className="flex justify-center items-center min-h-96">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    }>
       <BhphDetailClient
         account={acct}
         reminderLog={reminderLog ?? []}
