@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import DocumentList from '@/components/documents/DocumentList'
 import DocumentUploadModal from '@/components/documents/DocumentUploadModal'
 import PricingAnalysisButton from '@/components/pricing/PricingAnalysisButton'
 import { Button } from '@/components/ui/button'
 import { FileUp } from 'lucide-react'
+import type { PropertyDocument } from '@/components/documents/types'
 
 interface Props {
   listingId: string
@@ -13,6 +14,29 @@ interface Props {
 
 export default function ListingDetailsPanel({ listingId }: Props) {
   const [showDocUpload, setShowDocUpload] = useState(false)
+  const [documents, setDocuments] = useState<PropertyDocument[]>([])
+  const [isLoadingDocs, setIsLoadingDocs] = useState(true)
+
+  // Fetch documents on mount
+  useEffect(() => {
+    const fetchDocuments = async () => {
+      try {
+        const res = await fetch(`/api/documents?property_id=${listingId}`)
+        if (!res.ok) {
+          setDocuments([])
+          return
+        }
+        const data = await res.json()
+        setDocuments(Array.isArray(data) ? data : data.documents ?? [])
+      } catch {
+        setDocuments([])
+      } finally {
+        setIsLoadingDocs(false)
+      }
+    }
+
+    fetchDocuments()
+  }, [listingId])
 
   return (
     <>
@@ -30,13 +54,20 @@ export default function ListingDetailsPanel({ listingId }: Props) {
             Upload
           </Button>
         </div>
-        <DocumentList propertyId={listingId} />
-        {showDocUpload && (
-          <DocumentUploadModal
-            propertyId={listingId}
-            onClose={() => setShowDocUpload(false)}
+        {!isLoadingDocs && (
+          <DocumentList
+            documents={documents}
+            onDocumentsChange={setDocuments}
           />
         )}
+        <DocumentUploadModal
+          propertyId={listingId}
+          open={showDocUpload}
+          onOpenChange={setShowDocUpload}
+          onUploadSuccess={(doc) => {
+            setDocuments([...documents, doc])
+          }}
+        />
       </div>
 
       {/* Pricing Analysis Section */}
