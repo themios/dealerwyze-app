@@ -99,9 +99,10 @@ export function AssigneeBadge({
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
-        className="focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-primary rounded-full"
+        className="focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-primary rounded-full p-1.5 min-h-[44px] min-w-[44px] flex items-center justify-center"
         title={assignee?.display_name ?? (isImplicit ? `${effectiveAssignee!.display_name} (owner — click to reassign)` : 'Unassigned — click to assign')}
         disabled={loading}
+        aria-label="Assign or reassign lead"
       >
         {badge}
       </button>
@@ -110,7 +111,7 @@ export function AssigneeBadge({
         <div className="absolute z-50 mt-1 left-0 w-48 bg-popover text-popover-foreground border border-border rounded-md shadow-lg py-1">
           <button
             type="button"
-            className="w-full text-left px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent"
+            className="w-full text-left px-3 py-2 text-sm text-muted-foreground hover:bg-accent min-h-[44px] flex items-center"
             onClick={() => reassign(null)}
           >
             Unassigned
@@ -119,7 +120,7 @@ export function AssigneeBadge({
             <button
               key={m.id}
               type="button"
-              className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent"
+              className="w-full text-left px-3 py-2 text-sm hover:bg-accent min-h-[44px] flex items-center"
               onClick={() => reassign(m.id)}
             >
               {m.display_name}
