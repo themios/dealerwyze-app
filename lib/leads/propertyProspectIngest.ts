@@ -209,8 +209,13 @@ export async function scanProspectPdf(pdfBase64: string): Promise<LeadScanResult
       {
         role: 'user',
         content: [
-          imageBlock('application/pdf', pdfBase64),
           { type: 'text', text: USER_PROMPT },
+          {
+            type: 'file' as const,
+            file_url: {
+              url: `data:application/pdf;base64,${pdfBase64}`,
+            },
+          } as unknown as Record<string, unknown>,
         ],
       },
     ],
