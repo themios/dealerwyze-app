@@ -168,7 +168,7 @@ export default function ShowingRequestDetail({ showing }: { showing: ShowingRequ
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Showing Confirmed</h1>
-            <p className="text-gray-600 mt-1">{address}</p>
+            <p className="text-gray-600 mt-1 truncate">{address}</p>
           </div>
         </div>
 
@@ -234,7 +234,7 @@ export default function ShowingRequestDetail({ showing }: { showing: ShowingRequ
         <h1 className="text-2xl font-bold text-gray-900 mb-2">
           Showing Request
         </h1>
-        <p className="text-gray-600">{address}</p>
+        <p className="text-gray-600 truncate">{address}</p>
       </div>
 
       {/* Buyer info */}
