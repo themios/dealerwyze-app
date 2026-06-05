@@ -51,7 +51,7 @@ export default function DocumentCard({
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <p className="font-medium text-sm truncate">{document.filename}</p>
+          <p className="font-medium text-sm truncate">{document.file_name}</p>
           <p className="text-xs text-muted-foreground">{uploadDate}</p>
         </div>
         <Button
