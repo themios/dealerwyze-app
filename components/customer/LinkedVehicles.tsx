@@ -125,7 +125,7 @@ export default function LinkedVehicles({ customerId, refreshKey }: LinkedVehicle
                 title={link.is_preferred ? 'Remove from preferred' : 'Add to preferred'}
                 className="px-2 py-0.5 text-xs rounded border transition-colors hover:bg-accent disabled:opacity-50"
               >
-                {link.is_preferred ? '✓ Preferred' : 'Add'}
+                {link.is_preferred ? '★ Preferred' : '+ Preferred'}
               </button>
             </div>
           </div>
