@@ -108,7 +108,12 @@ export default function ProspectExtractionModal({
       const reader = new FileReader()
       reader.onload = async () => {
         try {
-          const base64 = (reader.result as string).split(',')[1]
+          const dataUrl = reader.result as string
+          const base64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl
+
+          if (!base64) {
+            throw new Error('Failed to read file')
+          }
 
           const res = await fetch('/api/prospects/extract', {
             method: 'POST',
@@ -129,10 +134,16 @@ export default function ProspectExtractionModal({
           setResult(extractionResult)
           setShowResult(true)
           setSelectedFile(null)
+          setExtracting(false)
         } catch (err) {
           setError(err instanceof Error ? err.message : 'Extraction failed')
           setExtracting(false)
         }
+      }
+
+      reader.onerror = () => {
+        setError('Failed to read file')
+        setExtracting(false)
       }
 
       reader.readAsDataURL(selectedFile)

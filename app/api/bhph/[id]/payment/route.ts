@@ -102,7 +102,7 @@ export async function POST(
     return NextResponse.json({ error: 'Could not prepare contract for payment' }, { status: 500 })
   }
 
-  const { data: rpcData, error: rpcError } = await supabase.rpc('record_bhph_manual_payment', {
+  const rpcPromise = supabase.rpc('record_bhph_manual_payment', {
     p_contract_id:   contractId,
     p_amount:        body.amount,
     p_payment_date:  payDay,
@@ -111,9 +111,24 @@ export async function POST(
     p_recorded_by:   profile.id,
   })
 
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('Payment processing timeout')), 15000)
+  )
+
+  let rpcData: unknown
+  let rpcError: { code?: string; message: string } | null = null
+  try {
+    const result = await Promise.race([rpcPromise, timeoutPromise])
+    rpcData = result.data
+    rpcError = result.error
+  } catch (err) {
+    rpcData = null
+    rpcError = { message: err instanceof Error ? err.message : 'RPC failed' }
+  }
+
   if (rpcError) {
     console.error('[bhph/payment] rpc error:', rpcError.message)
-    const code = rpcError.code ?? ''
+    const code = (rpcError as any).code ?? ''
     const msg = rpcError.message ?? ''
     if (code === '23514' || msg.includes('bhph_payment_future_date')) {
       return NextResponse.json({ error: 'Payment date cannot be in the future' }, { status: 400 })

@@ -7,7 +7,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatCurrency } from '@/lib/utils'
-import { Link2, Search, ArrowUpDown } from 'lucide-react'
+import { Link2, Search, ArrowUpDown, Home } from 'lucide-react'
+import { useVertical } from '@/hooks/useVertical'
 
 interface LinkVehicleSheetProps {
   customerId: string
@@ -26,6 +27,8 @@ const INTEREST_LEVELS = [
 type SortKey = 'year' | 'make' | 'price'
 
 export default function LinkVehicleSheet({ customerId, onLinked, hasVehicle, open: controlledOpen, onOpenChange }: LinkVehicleSheetProps) {
+  const { vertical } = useVertical()
+  const isRe = vertical === 'real_estate'
   const [internalOpen, setInternalOpen] = useState(false)
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen
   const setOpen = (v: boolean) => { setInternalOpen(v); onOpenChange?.(v) }
@@ -37,6 +40,12 @@ export default function LinkVehicleSheet({ customerId, onLinked, hasVehicle, ope
   const [sortKey, setSortKey] = useState<SortKey>('year')
   const [sortAsc, setSortAsc] = useState(false)
   const supabase = createClient()
+
+  const buttonLabel = isRe ? 'Add Property' : 'Add Vehicle'
+  const sheetTitle = isRe ? 'Link a Property' : 'Link a Vehicle'
+  const linkButtonLabel = isRe ? 'Link Property' : 'Link Vehicle'
+  const linkingLabel = isRe ? 'Linking property…' : 'Linking…'
+  const ButtonIcon = isRe ? Home : Link2
 
   useEffect(() => {
     if (!open) return
@@ -89,15 +98,15 @@ export default function LinkVehicleSheet({ customerId, onLinked, hasVehicle, ope
     <>
       {controlledOpen === undefined && (
         <Button variant="outline" size="sm" onClick={() => setOpen(true)} className="gap-1.5">
-          <Link2 className="h-4 w-4" />
-          {hasVehicle ? 'Add Vehicle' : 'Link Vehicle'}
+          <ButtonIcon className="h-4 w-4" />
+          {hasVehicle ? buttonLabel : (isRe ? 'Link Property' : 'Link Vehicle')}
         </Button>
       )}
 
       <Sheet open={open} onOpenChange={v => { setOpen(v); if (!v) { setSelected(null); setQuery('') } }}>
         <SheetContent side="bottom" className="h-[85vh] flex flex-col rounded-t-2xl">
           <SheetHeader className="mb-2 shrink-0">
-            <SheetTitle>Link a Vehicle</SheetTitle>
+            <SheetTitle>{sheetTitle}</SheetTitle>
           </SheetHeader>
 
           {selected && selectedVehicle ? (
@@ -119,7 +128,7 @@ export default function LinkVehicleSheet({ customerId, onLinked, hasVehicle, ope
                 </div>
               </div>
               <Button className="w-full h-11" onClick={handleLink} disabled={saving}>
-                {saving ? 'Linking…' : 'Link Vehicle'}
+                {saving ? linkingLabel : linkButtonLabel}
               </Button>
             </div>
           ) : (

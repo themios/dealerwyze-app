@@ -4,11 +4,12 @@ import { useState } from 'react'
 import { Activity } from '@/types'
 import { leadAgeBadge, leadIsStale } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
-import { Phone, Mail, MapPin, Car, ChevronDown, Zap, CalendarPlus, Check, Pencil, MessageSquare } from 'lucide-react'
+import { Phone, Mail, MapPin, Car, Home, ChevronDown, Zap, CalendarPlus, Check, Pencil, MessageSquare } from 'lucide-react'
 import { useOpenCustomer } from '@/components/today/useOpenCustomer'
 import UnsubscribeBadge from '@/components/sequences/UnsubscribeBadge'
 import DateTimePicker15 from '@/components/ui/DateTimePicker15'
 import { useAnalytics } from '@/hooks/useAnalytics'
+import { useVertical } from '@/hooks/useVertical'
 
 const SOURCE_LABELS: Record<string, string> = {
   // Dealer sources
@@ -113,6 +114,29 @@ function formatNextStep(iso: string | null | undefined): string | null {
     hour: 'numeric',
     minute: '2-digit',
   })
+}
+
+function AddItemButton({ openCustomer, activity, customer }: {
+  openCustomer: (activityId: string, customerId: string) => void
+  activity: Activity & { customer: LeadCustomer }
+  customer: LeadCustomer
+}) {
+  const { vertical } = useVertical()
+  const isRe = vertical === 'real_estate'
+  const Icon = isRe ? Home : Car
+  const label = isRe ? 'Add property' : 'Add vehicle'
+
+  return (
+    <p className="flex items-center gap-1.5">
+      <Icon className="h-3 w-3" />
+      <button
+        className="inline-flex min-h-[44px] items-center text-primary hover:underline"
+        onClick={() => openCustomer(activity.id, customer.id)}
+      >
+        + {label}
+      </button>
+    </p>
+  )
 }
 
 export default function NewLeadCard({ activity, onUpdate, onAddressed, hasResponded, sequenceStatus, queueReasons, intentTierBadge, nextActionLabel }: NewLeadCardProps) {
@@ -381,15 +405,7 @@ export default function NewLeadCard({ activity, onUpdate, onAddressed, hasRespon
               </button>
             </p>
           ) : (
-            <p className="flex items-center gap-1.5">
-              <Car className="h-3 w-3" />
-              <button
-                className="inline-flex min-h-[44px] items-center text-primary hover:underline"
-                onClick={() => openCustomer(activity.id, customer.id)}
-              >
-                + Add vehicle
-              </button>
-            </p>
+            <AddItemButton openCustomer={openCustomer} activity={activity} customer={customer} />
           )}
           {lead.zip && (
             <p className="flex items-center gap-1.5">

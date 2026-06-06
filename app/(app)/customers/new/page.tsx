@@ -2,7 +2,6 @@
 
 import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import TopBar from '@/components/layout/TopBar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,7 +15,6 @@ import { useVertical } from '@/hooks/useVertical'
 function NewCustomerForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const supabase = createClient()
   const { vertical } = useVertical()
   const isRe = vertical === 'real_estate'
   const [saving, setSaving] = useState(false)
@@ -41,33 +39,35 @@ function NewCustomerForm() {
     setSaving(true)
 
     // Free tier cap: 200 contacts
-    const { count } = await supabase.from('customers').select('id', { count: 'exact', head: true })
-    if ((count ?? 0) >= 200) {
-      setSaving(false)
-      alert('You\'ve reached the 200-contact limit for the free beta tier. Contact support@dealerwyze.com if you need more.')
-      return
-    }
 
-    const { data, error } = await supabase
-      .from('customers')
-      .insert({
-        name: form.name,
-        interested_in: form.interested_in || null,
-        lead_source: form.lead_source || null,
-        primary_phone: form.primary_phone || '',
-        secondary_phone: form.secondary_phone || null,
-        email: form.email || null,
-        notes: form.notes || null,
-        zip_code: form.zip_code || null,
+    try {
+      const res = await fetch('/api/customers/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.name,
+          interested_in: form.interested_in || '',
+          lead_source: form.lead_source || '',
+          primary_phone: form.primary_phone || '',
+          secondary_phone: form.secondary_phone || '',
+          email: form.email || '',
+          notes: form.notes || '',
+          zip_code: form.zip_code || '',
+        }),
       })
-      .select('id')
-      .single()
 
-    if (data) {
-      router.push(`/customers/${data.id}`)
-    } else {
+      if (!res.ok) {
+        setSaving(false)
+        const err = await res.json()
+        console.error(err)
+        return
+      }
+
+      const { id } = await res.json()
+      router.push(`/customers/${id}`)
+    } catch (err) {
       setSaving(false)
-      console.error(error)
+      console.error(err)
     }
   }
 

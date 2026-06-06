@@ -1,7 +1,8 @@
 /**
  * POST /api/leads/web
  * Unauthenticated web lead capture from public VDP pages.
- * Inserts into inventory_inquiries + creates an activity for the dealer CRM inbox.
+ * For dealers: inserts into inventory_inquiries + creates an activity.
+ * For RE: creates showing_requests if appointment times provided, auto-links property.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
     throw e
   }
 
-  const { slug, vdp, name, email, phone, message, source_url, website } = data
+  const { slug, vdp, name, email, phone, message, source_url, website, requested_time_1, requested_time_2, requested_time_3 } = data
 
   // Honeypot: bots fill hidden fields
   if (website) {
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
   // Resolve org from public slug server-side. Public clients must not choose org IDs.
   const { data: org } = await supabase
     .from('organizations')
-    .select('id, name, slug, public_inventory_enabled')
+    .select('id, name, slug, public_inventory_enabled, vertical')
     .eq('slug', slug.trim())
     .eq('public_inventory_enabled', true)
     .single()
@@ -59,22 +60,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  // Resolve the published vehicle from the public route slug.
+  const isRealEstate = org.vertical === 'real_estate'
+
+  // Resolve the published vehicle/property from the public route slug.
   let vehicleId: string | null = null
   let vehicleName: string | undefined
   if (vdp) {
     const { data: v } = await supabase
       .from('vehicles')
-      .select('id, year, make, model')
+      .select('id, year, make, model, address_line1, city, bedrooms, bathrooms')
       .eq('public_slug', vdp)
       .eq('user_id', org.id)
       .eq('published', true)
       .single()
     if (!v) {
-      return NextResponse.json({ error: 'Vehicle not found' }, { status: 404 })
+      return NextResponse.json({ error: 'Property not found' }, { status: 404 })
     }
     vehicleId = v.id
-    vehicleName = `${v.year} ${v.make} ${v.model}`
+    vehicleName = isRealEstate && v.address_line1
+      ? `${v.address_line1}${v.city ? ', ' + v.city : ''} (${v.bedrooms || '?'}br/${v.bathrooms || '?'}ba)`
+      : !isRealEstate
+        ? `${v.year} ${v.make} ${v.model}`
+        : 'Property'
   }
 
   // Insert into inventory_inquiries
@@ -148,14 +155,65 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Location detection + round-robin assignment (fire-and-forget)
-  if (customerId) {
+  // Handle RE-specific workflows (showings, property links)
+  if (isRealEstate && vehicleId && customerId) {
+    // Auto-link property to buyer (fire-and-forget)
+    void (async () => {
+      try {
+        await supabase.from('customer_vehicles').upsert({
+          customer_id: customerId,
+          vehicle_id: vehicleId,
+          interest_level: 'warm',
+        }, { onConflict: 'customer_id,vehicle_id' })
+      } catch {
+        // silent fail
+      }
+    })()
+
+    // Create showing_requests if appointment times provided
+    if (requested_time_1 || requested_time_2 || requested_time_3) {
+      void (async () => {
+        try {
+          // Find first available agent for the org
+          const { data: agent } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('org_id', org.id)
+            .in('role', ['admin', 'agent'])
+            .limit(1)
+            .maybeSingle()
+
+          if (agent) {
+            const showingData = {
+              org_id: org.id,
+              listing_id: vehicleId,
+              agent_id: agent.id,
+              buyer_name: name,
+              buyer_email: email ?? '',
+              buyer_phone: phone ?? null,
+              requested_time_1: requested_time_1 || null,
+              requested_time_2: requested_time_2 || null,
+              requested_time_3: requested_time_3 || null,
+              message: message ?? null,
+              status: 'pending',
+            }
+            await supabase.from('showing_requests').insert(showingData)
+          }
+        } catch {
+          // silent fail
+        }
+      })()
+    }
+  }
+
+  // Location detection + round-robin assignment (fire-and-forget) — for dealers only
+  if (!isRealEstate && customerId) {
     void applyLeadLocationDetection({ customerId, orgId: org.id, supabase })
       .then(() => applyAutoLeadAssignment({ customerId, orgId: org.id, supabase }))
       .catch(() => {})
   }
 
-  // Notify dealer via SMS (fire and forget)
+  // Notify dealer/agent via SMS (fire and forget)
   notifyDealerNewLead(org.id, name, phone, message, vehicleName).catch(() => {})
 
   return NextResponse.json({ ok: true }, { status: 201 })

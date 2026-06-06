@@ -6,8 +6,8 @@ import {
 } from '@/lib/sequences/ensureSaasEmailAutoresponder'
 import { createClientForRequest } from '@/lib/supabase/forRequest'
 import AutomationClient from './AutomationClient'
-import TemplatesClient from '../TemplatesClient'
 import SettingsPageShell from '@/components/settings/SettingsPageShell'
+import TemplatesClient from '../TemplatesClient'
 
 export default async function AutomationSettingsPage() {
   const hdrs = await headers()

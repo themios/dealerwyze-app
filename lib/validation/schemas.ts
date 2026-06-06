@@ -17,6 +17,10 @@ export const WebLeadSchema = z.object({
   source_url: z.string().url().max(2048).optional(),
   vdp:        z.string().trim().max(200).optional(),
   website:    z.string().max(200).optional(), // honeypot — present = bot
+  // RE-specific: showing request times (ISO 8601)
+  requested_time_1: z.string().datetime().optional(),
+  requested_time_2: z.string().datetime().optional(),
+  requested_time_3: z.string().datetime().optional(),
 }).refine(d => d.phone || d.email, {
   message: 'At least one of phone or email is required',
   path: ['phone'],

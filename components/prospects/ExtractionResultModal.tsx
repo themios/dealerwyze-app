@@ -52,34 +52,34 @@ export default function ExtractionResultModal({
 
   if (!result) return null
 
-  // Group fields for display
+  // Group fields for display — filter out null/undefined fields
   const contactFields = [
     { label: 'First Name', value: result.first_name },
     { label: 'Last Name', value: result.last_name },
     { label: 'Email', value: result.email },
     { label: 'Phone', value: result.phone },
     { label: 'Phone (Alt)', value: result.phone2 },
-  ]
+  ].filter(f => f.value)
 
   const locationFields = [
     { label: 'City', value: result.city },
     { label: 'State', value: result.state },
     { label: 'Zip', value: result.zip },
-  ]
+  ].filter(f => f.value)
 
   const propertyFields = [
     { label: 'Property Type', value: result.property_type },
     { label: 'Property Address', value: result.property_address },
     { label: 'Property City', value: result.property_city },
     { label: 'Budget', value: result.budget },
-  ]
+  ].filter(f => f.value)
 
   const prospectFields = [
     { label: 'Intent', value: result.prospect_intent },
     { label: 'Urgency', value: result.urgency },
     { label: 'Lead Source', value: result.lead_source },
     { label: 'Notes', value: result.notes },
-  ]
+  ].filter(f => f.value)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -97,85 +97,89 @@ export default function ExtractionResultModal({
           </div>
         ) : (
           <div className="space-y-6 py-4">
-            {/* Contact Information */}
-            <div>
-              <h3 className="font-semibold text-sm mb-3">Contact Information</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {contactFields.map(({ label, value }) => (
-                  <div key={label} className="p-3 bg-muted/30 rounded-lg">
-                    <p className="text-xs text-muted-foreground mb-1">{label}</p>
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-medium">
-                        {value.value ? String(value.value) : '—'}
-                      </p>
-                      {value.value && (
-                        <ConfidenceBadge confidence={value.confidence} />
-                      )}
+            {contactFields.length > 0 && (
+              <div>
+                <h3 className="font-semibold text-sm mb-3">Contact Information</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {contactFields.map(({ label, value }) => (
+                    <div key={label} className="p-3 bg-muted/30 rounded-lg">
+                      <p className="text-xs text-muted-foreground mb-1">{label}</p>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-medium">
+                          {value.value ? String(value.value) : '—'}
+                        </p>
+                        {value.value && (
+                          <ConfidenceBadge confidence={value.confidence} />
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Location */}
-            <div>
-              <h3 className="font-semibold text-sm mb-3">Prospect Location</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {locationFields.map(({ label, value }) => (
-                  <div key={label} className="p-3 bg-muted/30 rounded-lg">
-                    <p className="text-xs text-muted-foreground mb-1">{label}</p>
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-medium">
-                        {value.value ? String(value.value) : '—'}
-                      </p>
-                      {value.value && (
-                        <ConfidenceBadge confidence={value.confidence} />
-                      )}
+            {locationFields.length > 0 && (
+              <div>
+                <h3 className="font-semibold text-sm mb-3">Prospect Location</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {locationFields.map(({ label, value }) => (
+                    <div key={label} className="p-3 bg-muted/30 rounded-lg">
+                      <p className="text-xs text-muted-foreground mb-1">{label}</p>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-medium">
+                          {value.value ? String(value.value) : '—'}
+                        </p>
+                        {value.value && (
+                          <ConfidenceBadge confidence={value.confidence} />
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Property Information */}
-            <div>
-              <h3 className="font-semibold text-sm mb-3">Property Information</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {propertyFields.map(({ label, value }) => (
-                  <div key={label} className="p-3 bg-muted/30 rounded-lg">
-                    <p className="text-xs text-muted-foreground mb-1">{label}</p>
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-medium">
-                        {value.value ? String(value.value) : '—'}
-                      </p>
-                      {value.value && (
-                        <ConfidenceBadge confidence={value.confidence} />
-                      )}
+            {propertyFields.length > 0 && (
+              <div>
+                <h3 className="font-semibold text-sm mb-3">Property Information</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {propertyFields.map(({ label, value }) => (
+                    <div key={label} className="p-3 bg-muted/30 rounded-lg">
+                      <p className="text-xs text-muted-foreground mb-1">{label}</p>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-medium">
+                          {value.value ? String(value.value) : '—'}
+                        </p>
+                        {value.value && (
+                          <ConfidenceBadge confidence={value.confidence} />
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Prospect Intent */}
-            <div>
-              <h3 className="font-semibold text-sm mb-3">Prospect Details</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {prospectFields.map(({ label, value }) => (
-                  <div key={label} className="p-3 bg-muted/30 rounded-lg">
-                    <p className="text-xs text-muted-foreground mb-1">{label}</p>
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-medium">
-                        {value.value ? String(value.value) : '—'}
-                      </p>
-                      {value.value && (
-                        <ConfidenceBadge confidence={value.confidence} />
-                      )}
+            {prospectFields.length > 0 && (
+              <div>
+                <h3 className="font-semibold text-sm mb-3">Prospect Details</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {prospectFields.map(({ label, value }) => (
+                    <div key={label} className="p-3 bg-muted/30 rounded-lg">
+                      <p className="text-xs text-muted-foreground mb-1">{label}</p>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-medium">
+                          {value.value ? String(value.value) : '—'}
+                        </p>
+                        {value.value && (
+                          <ConfidenceBadge confidence={value.confidence} />
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 

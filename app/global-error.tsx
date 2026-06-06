@@ -12,6 +12,24 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     Sentry.captureException(error)
+
+    // Also log to our error database
+    fetch('/api/errors/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: error.message,
+        stack_trace: error.stack,
+        severity: 'critical',
+        url: typeof window !== 'undefined' ? window.location.href : undefined,
+        digest: error.digest,
+        context: {
+          errorName: error.name,
+          timestamp: new Date().toISOString(),
+          isGlobalError: true,
+        },
+      }),
+    }).catch(err => console.error('[errorLog] failed to log:', err))
   }, [error])
 
   return (

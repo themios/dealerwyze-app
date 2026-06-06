@@ -70,7 +70,7 @@ export default async function DashboardPage() {
           </>
         }
       />
-      <DashboardClient stats={stats} isOwner={isOwner} />
+      <DashboardClient stats={stats} isOwner={isOwner} isRE={isRE} />
     </div>
   )
 }

@@ -198,7 +198,7 @@ export async function scanProspectImage(
   return parseResponse(text)
 }
 
-// ── PDF scan — send as image_url with PDF mime (Gemini supports native PDF) ──
+// ── PDF scan — OpenRouter Gemini supports native multi-page PDFs ──
 
 export async function scanProspectPdf(pdfBase64: string): Promise<LeadScanResult> {
   const response = await aiComplete({
@@ -210,12 +210,7 @@ export async function scanProspectPdf(pdfBase64: string): Promise<LeadScanResult
         role: 'user',
         content: [
           { type: 'text', text: USER_PROMPT },
-          {
-            type: 'file' as const,
-            file_url: {
-              url: `data:application/pdf;base64,${pdfBase64}`,
-            },
-          } as unknown as Record<string, unknown>,
+          imageBlock('application/pdf', pdfBase64),
         ],
       },
     ],

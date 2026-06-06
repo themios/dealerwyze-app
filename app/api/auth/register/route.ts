@@ -9,6 +9,11 @@ import { registrationLimiter } from '@/lib/rateLimit/upstash'
 import type { Vertical } from '@/lib/vertical'
 import { defaultStagesForVertical } from '@/lib/leads/states'
 
+function escapeHtml(str: string): string {
+  const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
+  return str.replace(/[&<>"']/g, (m) => map[m as keyof typeof map] || m)
+}
+
 function generateInviteCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
   let code = ''
@@ -231,20 +236,20 @@ export async function POST(req: NextRequest) {
       ].filter(Boolean).join(' &nbsp;')
       void sendNotificationEmail({
         to: ownerEmail,
-        subject: `New signup: ${display_name}`,
+        subject: `New signup: ${escapeHtml(display_name)}`,
         html: `
 <div style="font-family:sans-serif;max-width:520px;padding:24px">
   <h2 style="margin:0 0 12px;color:#0D2B55">New ${vertical === 'real_estate' ? 'agent' : 'dealer'} signed up</h2>
   <table cellpadding="0" cellspacing="0" style="font-size:14px;color:#374151;line-height:1.8">
-    <tr><td style="padding-right:16px;color:#64748B">Name</td><td><strong>${display_name}</strong></td></tr>
-    ${email    ? `<tr><td style="padding-right:16px;color:#64748B">Email</td><td><a href="mailto:${email}" style="color:#F07018">${email}</a></td></tr>` : ''}
-    ${phoneNorm ? `<tr><td style="padding-right:16px;color:#64748B">Phone</td><td><a href="sms:${phoneNorm}" style="color:#F07018">${phoneNorm}</a></td></tr>` : ''}
+    <tr><td style="padding-right:16px;color:#64748B">Name</td><td><strong>${escapeHtml(display_name)}</strong></td></tr>
+    ${email    ? `<tr><td style="padding-right:16px;color:#64748B">Email</td><td><a href="mailto:${escapeHtml(email)}" style="color:#F07018">${escapeHtml(email)}</a></td></tr>` : ''}
+    ${phoneNorm ? `<tr><td style="padding-right:16px;color:#64748B">Phone</td><td><a href="sms:${escapeHtml(phoneNorm)}" style="color:#F07018">${escapeHtml(phoneNorm)}</a></td></tr>` : ''}
   </table>
   ${flags ? `<p style="margin:16px 0 0;font-size:13px">${flags}</p>` : ''}
   <div style="margin-top:20px;display:flex;gap:12px">
-    ${email     ? `<a href="mailto:${email}" style="display:inline-block;background:#F07018;color:#fff;font-weight:700;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:13px">Email now</a>` : ''}
-    ${phoneNorm ? `<a href="sms:${phoneNorm}" style="display:inline-block;background:#0D2B55;color:#fff;font-weight:700;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:13px">Text now</a>` : ''}
-    <a href="${appUrl}/admin/orgs" style="display:inline-block;background:#E2E8F0;color:#374151;font-weight:700;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:13px">Admin panel</a>
+    ${email     ? `<a href="mailto:${escapeHtml(email)}" style="display:inline-block;background:#F07018;color:#fff;font-weight:700;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:13px">Email now</a>` : ''}
+    ${phoneNorm ? `<a href="sms:${escapeHtml(phoneNorm)}" style="display:inline-block;background:#0D2B55;color:#fff;font-weight:700;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:13px">Text now</a>` : ''}
+    <a href="${escapeHtml(appUrl)}/admin/orgs" style="display:inline-block;background:#E2E8F0;color:#374151;font-weight:700;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:13px">Admin panel</a>
   </div>
 </div>`,
       })

@@ -98,6 +98,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [archiveReason, setArchiveReason] = useState('')
   const [archiving, setArchiving] = useState(false)
+  const [tasksExpanded, setTasksExpanded] = useState(false)
   const [archiveError, setArchiveError] = useState<string | null>(null)
   const [archiveDocs, setArchiveDocs] = useState<{ id: string; label: string; file_name: string; signed_url?: string | null }[]>([])
   const [archiveDocsLoading, setArchiveDocsLoading] = useState(false)
@@ -1049,7 +1050,19 @@ export default function CustomerDetailClient({ customer, activities: initialActi
       {/* Tasks */}
       <div className="px-4 py-3 border-b">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground border-l-2 border-[#F07018] pl-2">Open tasks</h3>
+          <button
+            onClick={() => setTasksExpanded(!tasksExpanded)}
+            className="flex items-center gap-2 flex-1 text-left"
+          >
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground border-l-2 border-[#F07018] pl-2">
+              Open tasks {localTasks.length > 0 && `(${localTasks.length})`}
+            </h3>
+            {localTasks.length > 0 && (
+              <span className="text-xs text-muted-foreground/60">
+                {tasksExpanded ? '▼' : '▶'}
+              </span>
+            )}
+          </button>
           <button
             onClick={() => { setQuickTaskOpen(true); void loadTeamMembers() }}
             className="text-xs text-primary font-medium flex items-center gap-1"
@@ -1058,29 +1071,34 @@ export default function CustomerDetailClient({ customer, activities: initialActi
             <Plus className="h-3.5 w-3.5" /> Add
           </button>
         </div>
-        {localTasks.length === 0 ? (
-          <p className="text-xs text-muted-foreground/60">No open tasks</p>
-        ) : (
-          <div className="space-y-1">
-            {localTasks.map(t => (
-              <div key={t.id} className="flex items-center gap-2 p-2 rounded-lg border bg-card">
-                <span className={`w-2 h-2 rounded-full shrink-0 ${t.priority === 'must' ? 'bg-red-500' : 'bg-amber-400'}`} />
-                <span className="text-sm flex-1 truncate">{t.title}</span>
-                {t.due_at && (
-                  <span className="text-xs text-muted-foreground shrink-0">
-                    {new Date(t.due_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                  </span>
-                )}
-                <button
-                  onClick={() => void completeTask(t.id)}
-                  className="text-xs text-muted-foreground hover:text-green-600 shrink-0 px-1"
-                  title="Mark done"
-                >
-                  ✓
-                </button>
+
+        {tasksExpanded && (
+          <>
+            {localTasks.length === 0 ? (
+              <p className="text-xs text-muted-foreground/60">No open tasks</p>
+            ) : (
+              <div className="space-y-1 mb-2">
+                {localTasks.map(t => (
+                  <div key={t.id} className="flex items-center gap-2 p-2 rounded-lg border bg-card">
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${t.priority === 'must' ? 'bg-red-500' : 'bg-amber-400'}`} />
+                    <span className="text-sm flex-1 truncate">{t.title}</span>
+                    {t.due_at && (
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        {new Date(t.due_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => void completeTask(t.id)}
+                      className="text-xs text-muted-foreground hover:text-green-600 shrink-0 px-1"
+                      title="Mark done"
+                    >
+                      ✓
+                    </button>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
         {quickTaskOpen && (
           <div className="mt-2 space-y-2">

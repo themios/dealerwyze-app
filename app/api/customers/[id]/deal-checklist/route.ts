@@ -13,7 +13,33 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 
-const STANDARD_ITEMS = [
+// Real estate transaction checklist
+const RE_CHECKLIST_ITEMS = [
+  // Pre-offer
+  { title: 'Property inspection ordered',                              priority: 'must'   },
+  { title: 'Appraisal ordered',                                        priority: 'must'   },
+  { title: 'Title search initiated',                                   priority: 'must'   },
+  { title: 'Mortgage pre-approval obtained',                           priority: 'must'   },
+  // Offer & acceptance
+  { title: 'Purchase agreement signed',                                priority: 'must'   },
+  { title: 'Earnest money deposit submitted',                          priority: 'must'   },
+  { title: 'HOA documents reviewed (if applicable)',                   priority: 'should' },
+  // Underwriting & financing
+  { title: 'Financing documents from lender',                          priority: 'must'   },
+  { title: 'Final walkthrough completed',                              priority: 'must'   },
+  { title: 'Closing disclosure reviewed',                              priority: 'must'   },
+  { title: 'Title insurance policy issued',                            priority: 'must'   },
+  // Closing
+  { title: 'Closing day documents signed',                             priority: 'must'   },
+  { title: 'Deed recorded at county',                                  priority: 'must'   },
+  { title: 'Keys handed over to buyer',                                priority: 'must'   },
+  // Post-closing
+  { title: 'Post-sale congratulations sent',                           priority: 'should' },
+  { title: 'Files & documents organized',                              priority: 'should' },
+]
+
+// Auto dealer transaction checklist
+const DEALER_CHECKLIST_ITEMS = [
   // Customer docs
   { title: "Driver's license (copy on file)",                          priority: 'must'   },
   { title: 'Proof of insurance',                                       priority: 'must'   },
@@ -85,8 +111,18 @@ export async function POST(
     return NextResponse.json({ seeded: false, message: 'Checklist already exists' })
   }
 
+  // Get org vertical to select appropriate checklist
+  const { data: org } = await supabase
+    .from('organizations')
+    .select('vertical')
+    .eq('id', profile.org_id)
+    .maybeSingle()
+
+  const isRealEstate = org?.vertical === 'real_estate'
+  const checklistItems = isRealEstate ? RE_CHECKLIST_ITEMS : DEALER_CHECKLIST_ITEMS
+
   const dueDate = new Date(Date.now() + 7 * 86400000).toISOString()
-  const rows = STANDARD_ITEMS.map(item => ({
+  const rows = checklistItems.map(item => ({
     user_id:           profile.org_id,
     linked_customer_id: id,
     task_type:         'deal_checklist',

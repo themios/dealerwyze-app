@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
+import { writeAuditLog } from '@/lib/audit/log'
 
 export async function GET() {
   const profile = await requireProfile()
@@ -44,6 +45,16 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: 'Failed to create sequence' }, { status: 500 })
+
+  void writeAuditLog({
+    action: 'sequence_created',
+    actorType: 'user',
+    actorId: profile.id,
+    entityType: 'sequence',
+    orgId: profile.org_id,
+    entityId: seq.id,
+    metadata: { channel, auto_mode: mode, name: name.trim() },
+  })
 
   return NextResponse.json({ sequence: seq }, { status: 201 })
 }

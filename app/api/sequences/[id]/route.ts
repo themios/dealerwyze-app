@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
+import { writeAuditLog } from '@/lib/audit/log'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -66,6 +67,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const { error } = await service.from('sequences').update(allowed).eq('id', id).eq('org_id', profile.org_id)
   if (error) return NextResponse.json({ error: 'Failed to update' }, { status: 500 })
 
+  void writeAuditLog({
+    action: 'sequence_updated',
+    actorType: 'user',
+    actorId: profile.id,
+    entityType: 'sequence',
+    orgId: profile.org_id,
+    entityId: id,
+    metadata: { changed_fields: Object.keys(allowed) },
+  })
+
   return NextResponse.json({ ok: true })
 }
 
@@ -96,8 +107,18 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     )
   }
 
-  const { error } = await service.from('sequences').delete().eq('id', id)
+  const { error } = await service.from('sequences').delete().eq('id', id).eq('org_id', profile.org_id)
   if (error) return NextResponse.json({ error: 'Failed to delete' }, { status: 500 })
+
+  void writeAuditLog({
+    action: 'sequence_deleted',
+    actorType: 'user',
+    actorId: profile.id,
+    entityType: 'sequence',
+    orgId: profile.org_id,
+    entityId: id,
+    metadata: {},
+  })
 
   return NextResponse.json({ ok: true })
 }
