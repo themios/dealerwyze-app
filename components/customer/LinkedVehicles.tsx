@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { formatCurrency } from '@/lib/utils'
-import { Star } from 'lucide-react'
+import { Star, Trash2 } from 'lucide-react'
 
 interface LinkedVehicle {
   id: string
@@ -84,6 +84,26 @@ export default function LinkedVehicles({ customerId, refreshKey }: LinkedVehicle
     }
   }
 
+  async function handleDelete(linkId: string, vehicleName: string) {
+    if (!confirm(`Remove ${vehicleName} from this customer's vehicle list?`)) return
+    setUpdating(linkId)
+    try {
+      const { error } = await supabase.from('customer_vehicles').delete().eq('id', linkId)
+      if (error) {
+        alert(`Failed to remove vehicle: ${error.message}`)
+        setUpdating(null)
+        return
+      }
+      const { data } = await supabase
+        .from('customer_vehicles')
+        .select('*, vehicle:vehicles(id, year, make, model, trim, price, status, stock_no)')
+        .eq('customer_id', customerId)
+      setLinks(((data as LinkedVehicle[]) || []).filter(l => l.vehicle != null))
+    } finally {
+      setUpdating(null)
+    }
+  }
+
   if (links.length === 0) return null
 
   return (
@@ -126,6 +146,14 @@ export default function LinkedVehicles({ customerId, refreshKey }: LinkedVehicle
                 className="px-2 py-0.5 text-xs rounded border transition-colors hover:bg-accent disabled:opacity-50"
               >
                 {link.is_preferred ? '★ Preferred' : '+ Preferred'}
+              </button>
+              <button
+                onClick={(e) => { e.preventDefault(); handleDelete(link.id, `${link.vehicle.year} ${link.vehicle.make} ${link.vehicle.model}`) }}
+                disabled={updating === link.id}
+                title="Remove from customer"
+                className="p-1 text-red-600 hover:bg-red-500/10 rounded transition-colors disabled:opacity-50"
+              >
+                <Trash2 className="h-4 w-4" />
               </button>
             </div>
           </div>
