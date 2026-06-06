@@ -10,6 +10,8 @@ import SyncRemovedSection from '@/components/vehicle/SyncRemovedSection'
 import SyncMLSButton from '@/components/vehicle/SyncMLSButton'
 import SyncWebsiteButton from '@/components/vehicle/SyncWebsiteButton'
 import VehicleIntakeButton from '@/components/vehicle/VehicleIntakeButton'
+import ListingIntakeButton from '@/components/vehicle/ListingIntakeButton'
+import ImportListingsButton from '@/components/vehicle/ImportListingsButton'
 import RunMarketIntelligenceButton from '@/components/vehicle/RunMarketIntelligenceButton'
 import { Car } from 'lucide-react'
 import EmptyState from '@/components/ui/EmptyState'
@@ -147,7 +149,8 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
           <div className="flex items-center gap-1">
             {profile.role === 'admin' && !isRe && <RunMarketIntelligenceButton />}
             {isRe ? <SyncWebsiteButton /> : <SyncInventoryButton />}
-            <VehicleIntakeButton />
+            {isRe && <ImportListingsButton />}
+            {isRe ? <ListingIntakeButton /> : <VehicleIntakeButton />}
           </div>
         }
       />

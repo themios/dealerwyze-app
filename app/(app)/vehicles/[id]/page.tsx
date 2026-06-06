@@ -308,14 +308,16 @@ export default async function VehicleDetailPage({ params }: PageProps) {
           </span>
         </div>
 
-        <MarketIntelligenceCard
-          vehicleId={id}
-          vehicleStatus={vehicle.status}
-          initialData={(vehicle.market_data_json as MarketData | null) ?? null}
-          initialRecallCount={vehicle.nhtsa_recall_count ?? null}
-          initialReliabilityTier={vehicle.reliability_tier ?? null}
-          showDescriptionSection={false}
-        />
+        {!isRe && (
+          <MarketIntelligenceCard
+            vehicleId={id}
+            vehicleStatus={vehicle.status}
+            initialData={(vehicle.market_data_json as MarketData | null) ?? null}
+            initialRecallCount={vehicle.nhtsa_recall_count ?? null}
+            initialReliabilityTier={vehicle.reliability_tier ?? null}
+            showDescriptionSection={false}
+          />
+        )}
 
         {vehicle.notes ? (
           <div className="rounded-lg border bg-card p-3">

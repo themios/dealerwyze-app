@@ -23,12 +23,20 @@ async function scrapeWebsite(url: string): Promise<ScrapedListing[]> {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 30000)
 
-    // Fetch with user-agent to bypass basic bot detection
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
       },
       signal: controller.signal,
+    }).catch(err => {
+      clearTimeout(timeoutId)
+      throw err
     })
 
     clearTimeout(timeoutId)
@@ -36,61 +44,40 @@ async function scrapeWebsite(url: string): Promise<ScrapedListing[]> {
     if (!response.ok) throw new Error(`Website returned ${response.status}`)
 
     const html = await response.text()
+    if (!html || html.length === 0) throw new Error('Website returned empty response')
 
-    // Parse listing cards - look for price, address, beds/baths, sqft patterns
+    // Simple extraction: look for address patterns in the HTML
     const listings: ScrapedListing[] = []
 
-    // Pattern: $X,XXX,XXX or $X,XXX
+    // Extract addresses: pattern like "1234 Street Name, City, CA 12345"
+    const addressRegex = /(\d+\s+[\w\s]+(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Way|Blvd|Boulevard|Court|Ct|Place|Pl)[^,]*,\s*[^,]*,\s*CA\s*\d+)/gi
+    const addresses = html.match(addressRegex) || []
+
+    // Extract prices: $X,XXX or $X,XXX,XXX
     const priceRegex = /\$[\d,]+/g
-    const addressRegex = /\d+[\w\s,]+(?:CA|California)/gi
-    const bedsRegex = /(\d+)\s*(?:Beds?|Bedroom)/gi
-    const bathsRegex = /(\d+(?:\.\d+)?)\s*(?:Baths?|Bathroom)/gi
-    const sqftRegex = /(\d+(?:,\d+)?)\s*(?:SqFt|Square|Sq\.ft)/gi
+    const prices = html.match(priceRegex) || []
 
-    // Simple extraction: split by property cards
-    const cardPattern =
-      /(?:Single Family|Farm|Condo|Commercial|Lot|Manufactured|Mobile Home)[^$]*?\$[\d,]+[^$]*?(?=(?:Single Family|Farm|Condo|Commercial|Lot|Manufactured|Mobile Home|$))/gi
+    // Extract beds: "X Bed" or "X Bedroom"
+    const bedsRegex = /(\d+)\s*(?:Bed|Bedroom)/gi
+    const bedsMatches = html.match(bedsRegex) || []
 
-    const matches = html.matchAll(cardPattern)
+    // Extract baths: "X Bath" or "X Bathroom"
+    const bathsRegex = /(\d+(?:\.\d+)?)\s*(?:Bath|Bathroom)/gi
+    const bathsMatches = html.match(bathsRegex) || []
 
-    for (const match of matches) {
-      const cardText = match[0]
+    // Extract sqft: "X,XXX SqFt" or similar
+    const sqftRegex = /(\d+(?:,\d+)?)\s*(?:SqFt|Sq\.?Ft?)/gi
+    const sqftMatches = html.match(sqftRegex) || []
 
-      // Extract price
-      const priceMatch = cardText.match(/\$[\d,]+/)
-      const price = priceMatch ? parseInt(priceMatch[0].replace(/[$,]/g, ''), 10) : null
-
-      // Extract address (look for pattern with street number and CA/California)
-      const addressMatch = cardText.match(
-        /(\d+[^$]*(?:Avenue|Street|Road|Drive|Lane|Way|Blvd|Circle|Dr|Ave|St|Rd|Ln|Way|Pl|Court|Ct|Terr|Ter)[^$]*?(?:CA|California))/i
-      )
-      const address = addressMatch ? addressMatch[1].trim() : null
-
-      if (!address) continue
-
-      // Extract property type
-      const typeMatch = cardText.match(/(?:Single Family|Farm|Condo|Commercial|Lot|Manufactured|Mobile Home)/i)
-      const propertyType = typeMatch ? typeMatch[0] : null
-
-      // Extract beds
-      const bedsMatch = cardText.match(/(\d+)\s*(?:Beds?|Bedroom)/)
-      const bedrooms = bedsMatch ? parseInt(bedsMatch[1], 10) : null
-
-      // Extract baths
-      const bathsMatch = cardText.match(/(\d+(?:\.\d+)?)\s*(?:Baths?|Bathroom)/)
-      const bathrooms = bathsMatch ? parseFloat(bathsMatch[1]) : null
-
-      // Extract sqft
-      const sqftMatch = cardText.match(/(\d+(?:,\d+)?)\s*(?:SqFt|Square|Sq\.ft)/)
-      const sqft = sqftMatch ? parseInt(sqftMatch[1].replace(',', ''), 10) : null
-
+    // Create listings from addresses (minimum required field)
+    for (let i = 0; i < addresses.length; i++) {
       listings.push({
-        address,
-        price,
-        propertyType,
-        bedrooms,
-        bathrooms,
-        sqft,
+        address: addresses[i].trim(),
+        price: prices[i] ? parseInt(prices[i].replace(/[$,]/g, ''), 10) : null,
+        propertyType: null,
+        bedrooms: bedsMatches[i] ? parseInt(bedsMatches[i].replace(/\D/g, ''), 10) : null,
+        bathrooms: bathsMatches[i] ? parseFloat(bathsMatches[i].replace(/\D/g, '') || '0') : null,
+        sqft: sqftMatches[i] ? parseInt(sqftMatches[i].replace(/\D/g, ''), 10) : null,
       })
     }
 
@@ -105,22 +92,25 @@ export async function POST(req: NextRequest) {
     const profile = await requireProfile()
     const supabase = await createClient()
 
-    // Get org website URL
-    const { data: org } = await supabase
-      .from('organizations')
-      .select('website_url')
-      .eq('id', profile.org_id)
+    // Get org website URL from org_settings
+    const { data: settings } = await supabase
+      .from('org_settings')
+      .select('dealer_website_url')
+      .eq('org_id', profile.org_id)
       .maybeSingle()
 
-    if (!org?.website_url) {
+    if (!settings?.dealer_website_url) {
       return NextResponse.json(
         { error: 'Please configure your website URL in Settings first' },
         { status: 400 }
       )
     }
 
+    console.log('[sync-website] Scraping URL:', settings.dealer_website_url)
+
     // Scrape the website
-    const listings = await scrapeWebsite(org.website_url)
+    const listings = await scrapeWebsite(settings.dealer_website_url)
+    console.log('[sync-website] Found listings:', listings.length)
 
     if (listings.length === 0) {
       return NextResponse.json({
@@ -156,6 +146,16 @@ export async function POST(req: NextRequest) {
       message: `Successfully synced ${synced} of ${listings.length} listings`,
     })
   } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error'
+
+    // 403 = website is blocking scrapers; suggest CSV import
+    if (message.includes('403')) {
+      return NextResponse.json(
+        { error: 'Website is protected from automated access. Please use CSV import instead.' },
+        { status: 400 }
+      )
+    }
+
     return apiError(err, {
       route: 'POST /api/listings/sync-website',
       action: 'sync_website_listings',
