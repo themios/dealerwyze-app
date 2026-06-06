@@ -105,21 +105,14 @@ export async function POST(req: NextRequest) {
     const profile = await requireProfile()
     const supabase = await createClient()
 
-    // Verify org is real_estate vertical
+    // Get org website URL
     const { data: org } = await supabase
       .from('organizations')
-      .select('vertical, website_url')
+      .select('website_url')
       .eq('id', profile.org_id)
       .maybeSingle()
 
-    if (org?.vertical !== 'real_estate') {
-      return NextResponse.json(
-        { error: 'Website sync is only available for real estate organizations' },
-        { status: 403 }
-      )
-    }
-
-    if (!org.website_url) {
+    if (!org?.website_url) {
       return NextResponse.json(
         { error: 'Please configure your website URL in Settings first' },
         { status: 400 }
