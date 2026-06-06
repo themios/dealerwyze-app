@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -19,6 +20,7 @@ export default function BulkListingImportModal({
   onOpenChange,
   onImportComplete
 }: Props) {
+  const router = useRouter()
   const [state, setState] = useState<BulkExtractorState>({
     content: '',
     loading: false,
@@ -105,6 +107,63 @@ export default function BulkListingImportModal({
     })
   }
 
+  async function handleImportSelected() {
+    const selected = state.items.filter(i => i.selected)
+    if (selected.length === 0) return
+
+    setState(s => ({ ...s, loading: true }))
+
+    try {
+      const res = await fetch('/api/vehicles/intake/bulk-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: selected })
+      })
+
+      const data = await res.json() as {
+        success: number
+        failed: number
+        errors: Array<{ id: string; error: string }>
+      }
+
+      if (data.success === 0 && data.failed > 0) {
+        // All failed
+        toast.error(`Failed to import any listings. ${data.errors[0]?.error}`)
+        setState(s => ({
+          ...s,
+          loading: false,
+          globalError: `${data.failed} listings failed to import`
+        }))
+        return
+      }
+
+      // Success (full or partial)
+      toast.success(`Imported ${data.success} listings${data.failed > 0 ? `, ${data.failed} failed` : ''}`)
+
+      if (data.failed === 0) {
+        // Complete success - close modal and refresh
+        setTimeout(() => {
+          onOpenChange(false)
+          onImportComplete?.(data.success)
+          router.refresh()
+        }, 500)
+      } else {
+        // Partial success - show errors, let user retry/fix
+        setState(s => ({
+          ...s,
+          loading: false,
+          items: s.items.map(item => {
+            const err = data.errors.find(e => e.id === item.id)
+            return err ? { ...item, extractionError: err.error } : item
+          })
+        }))
+      }
+    } catch {
+      toast.error('Network error during import')
+      setState(s => ({ ...s, loading: false }))
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -159,16 +218,11 @@ export default function BulkListingImportModal({
               allCount={state.items.length}
             />
             <Button
-              onClick={() => {
-                // Wave 3: integrate import logic
-                const count = state.selectedCount
-                onImportComplete?.(count)
-                toast.success(`Ready to import ${count} listings`)
-              }}
-              disabled={state.selectedCount === 0}
+              onClick={handleImportSelected}
+              disabled={state.selectedCount === 0 || state.loading}
               className="w-full"
             >
-              Import {state.selectedCount} Listings
+              {state.loading ? 'Importing...' : `Import ${state.selectedCount} Listings`}
             </Button>
           </div>
         )}

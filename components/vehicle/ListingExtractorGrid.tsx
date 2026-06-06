@@ -41,10 +41,12 @@ export default function ListingExtractorGrid({
       {/* Grid rows */}
       <div className="space-y-2 max-h-[400px] overflow-y-auto">
         {items.map(item => (
-          <div
-            key={item.id}
-            className="flex items-center gap-2 border rounded p-2 bg-muted/30 hover:bg-muted/50"
-          >
+          <div key={item.id} className="space-y-1">
+            <div
+              className={`flex items-center gap-2 border rounded p-2 hover:bg-muted/50 ${
+                item.extractionError ? 'border-destructive/50 bg-destructive/5' : 'bg-muted/30'
+              }`}
+            >
             {/* Checkbox */}
             <Checkbox
               checked={item.selected}
@@ -145,6 +147,10 @@ export default function ListingExtractorGrid({
             >
               <X className="h-4 w-4" />
             </Button>
+            </div>
+            {item.extractionError && (
+              <p className="text-xs text-destructive ml-7">{item.extractionError}</p>
+            )}
           </div>
         ))}
       </div>
