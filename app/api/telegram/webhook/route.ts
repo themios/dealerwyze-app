@@ -16,8 +16,8 @@
  *
  *   2. AI QUERY (ongoing use)
  *      If the chat_id is already linked to an org (or is Tim's personal chat),
- *      the webhook pulls live CRM data for that org and passes it to Claude,
- *      then sends the response back to the dealer.
+ *      the webhook pulls live CRM data for that org and passes it to Gemini via OpenRouter,
+ *      with Claude fallback if Gemini is unavailable.
  *      Example questions: "any new leads today?", "which cars are overpriced?"
  *
  * Env vars required:
@@ -25,13 +25,14 @@
  *   TELEGRAM_WEBHOOK_SECRET   — set when registering the webhook
  *   TELEGRAM_CHAT_ID          — Tim's personal chat (fallback / platform use)
  *   APOLLO_ORG_ID             — Tim's org UUID (used when chatting as Tim)
- *   ANTHROPIC_API_KEY         — for Claude AI responses
+ *   OPENROUTER_API_KEY        — for Gemini AI responses via OpenRouter
+ *   ANTHROPIC_API_KEY         — fallback, for Claude if Gemini unavailable
  */
 import { NextRequest, NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
 import { createServiceClient } from '@/lib/supabase/service'
 import { sendTelegramToOrg } from '@/lib/notifications/telegram'
 import { timingSafeEqual } from 'crypto'
+import { aiComplete, AI_MODEL } from '@/lib/ai/client'
 
 export const runtime   = 'nodejs'
 export const maxDuration = 30
@@ -114,26 +115,29 @@ export async function POST(req: NextRequest) {
   // ── 4. Build live CRM context for this org ───────────────────────────────
   const context = await buildOrgContext(orgId)
 
-  // ── 5. Call Claude with context + dealer's question ───────────────────────
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-
+  // ── 5. Call AI with context + dealer's question ───────────────────────
   let reply: string
   try {
-    const response = await anthropic.messages.create({
-      model:      'claude-haiku-4-5-20251001',
+    const response = await aiComplete({
+      model:      AI_MODEL,
       max_tokens: 600,
-      system: `You are a concise dealership assistant for a used-car dealership using DealerWyze CRM.
+      messages: [
+        {
+          role: 'system',
+          content: `You are a concise dealership assistant for a used-car dealership using DealerWyze CRM.
 Answer questions directly and briefly. Use plain text only — no markdown, no bullet symbols (use dashes or numbers).
 Never reveal technical details like UUIDs, table names, or internal IDs.
 Today is ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}.
 
 LIVE DEALERSHIP DATA:
 ${context}`,
-      messages: [{ role: 'user', content: text }],
+        },
+        { role: 'user', content: text },
+      ],
     })
 
-    const block = response.content[0]
-    reply = block.type === 'text' ? block.text : 'Sorry, I could not generate a response.'
+    const content = response.choices[0]?.message?.content
+    reply = typeof content === 'string' && content ? content : 'Sorry, I could not generate a response.'
   } catch {
     reply = 'Something went wrong. Try again in a moment.'
   }

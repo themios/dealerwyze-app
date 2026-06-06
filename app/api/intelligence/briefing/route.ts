@@ -79,7 +79,7 @@ export async function POST() {
     event_type: 'manual_brief',
     tokens_in: result.tokens_used,
     tokens_out: 0,
-    model: 'claude',
+    model: 'groq',
   }).then(({ error: logErr }) => {
     if (logErr) console.warn('[briefing] usage log failed:', logErr.message)
   })
