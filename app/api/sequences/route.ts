@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 import { writeAuditLog } from '@/lib/audit/log'
+import { apiError } from '@/lib/api/errorHandler'
 
 export async function GET() {
   const profile = await requireProfile()
@@ -13,7 +14,14 @@ export async function GET() {
     .eq('org_id', profile.org_id)
     .order('created_at', { ascending: true })
 
-  if (error) return NextResponse.json({ error: 'Failed to fetch sequences' }, { status: 500 })
+  if (error) {
+    return apiError(error, {
+      route: 'GET /api/sequences',
+      action: 'fetch_sequences',
+      userId: profile.id,
+      orgId: profile.org_id,
+    })
+  }
 
   return NextResponse.json({ sequences: sequences ?? [] })
 }
@@ -44,7 +52,14 @@ export async function POST(req: NextRequest) {
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: 'Failed to create sequence' }, { status: 500 })
+  if (error) {
+    return apiError(error, {
+      route: 'POST /api/sequences',
+      action: 'create_sequence',
+      userId: profile.id,
+      orgId: profile.org_id,
+    })
+  }
 
   void writeAuditLog({
     action: 'sequence_created',

@@ -13,6 +13,7 @@ import { sendNotificationEmail } from '@/lib/email/notify'
 import { notifyAgentShowingRequest } from '@/lib/showings/notifyAgentShowingRequest'
 import { getAgentContact } from '@/lib/showings/getAgentContact'
 import { recordShowingWebLead } from '@/lib/showings/recordShowingWebLead'
+import { apiError } from '@/lib/api/errorHandler'
 
 const MAX_BODY_BYTES = 8192
 
@@ -44,13 +45,15 @@ export async function POST(req: NextRequest) {
     const raw = await req.json()
     const parsed = Schema.safeParse(raw)
     if (!parsed.success) {
-      console.error('Schema validation failed:', parsed.error.issues)
-      return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+      return apiError(
+        new Error('Validation failed: ' + parsed.error.issues.map(i => i.path.join('.')).join(', ')),
+        { route: 'POST /api/showings/request', action: 'parse_body' },
+        400
+      )
     }
     body = parsed.data
   } catch (err) {
-    console.error('JSON parse error:', err)
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    return apiError(err, { route: 'POST /api/showings/request', action: 'parse_json' }, 400)
   }
 
   const {
@@ -76,7 +79,7 @@ export async function POST(req: NextRequest) {
     .maybeSingle()
 
   if (!listing) {
-    return NextResponse.json({ error: 'Listing not found' }, { status: 404 })
+    return NextResponse.json({ error: 'The property you requested is not available.' }, { status: 404 })
   }
 
   // Verify org is real_estate vertical
@@ -89,13 +92,13 @@ export async function POST(req: NextRequest) {
     .maybeSingle()
 
   if (!org) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    return NextResponse.json({ error: 'This property is not available for showing requests.' }, { status: 404 })
   }
 
   // Verify agent exists and is in the same org
   if (!listing.listing_agent_id) {
     return NextResponse.json(
-      { error: 'No agent assigned to this listing' },
+      { error: 'No agent is assigned to this property. Please contact the listing agent directly.' },
       { status: 400 }
     )
   }
@@ -108,7 +111,7 @@ export async function POST(req: NextRequest) {
     .maybeSingle()
 
   if (!agent) {
-    return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
+    return NextResponse.json({ error: 'The agent for this property could not be found.' }, { status: 404 })
   }
 
   // Agent contact data is sourced from auth.users (profiles does not store email/phone).
@@ -139,11 +142,11 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (insertError || !showingRequest) {
-    console.error('Failed to create showing_request:', insertError)
-    return NextResponse.json(
-      { error: 'Failed to create showing request' },
-      { status: 500 }
-    )
+    return apiError(insertError || new Error('Unknown error'), {
+      route: 'POST /api/showings/request',
+      action: 'create_showing_request',
+      orgId: org_id,
+    })
   }
 
   await recordShowingWebLead({

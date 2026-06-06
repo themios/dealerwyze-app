@@ -5,7 +5,8 @@
  */
 
 import { NextResponse } from 'next/server'
-import { requirePlatformSuperAdmin } from '@/lib/auth/platform'
+import { getProfile } from '@/lib/auth/profile'
+import { isPlatformSuperAdmin } from '@/lib/auth/platform'
 
 interface DomainStatus {
   domain: string
@@ -17,7 +18,10 @@ interface DomainStatus {
 
 export async function GET(): Promise<NextResponse> {
   try {
-    await requirePlatformSuperAdmin()
+    const profile = await getProfile()
+    if (!profile?.id || !(await isPlatformSuperAdmin(profile.id))) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 import { writeAuditLog } from '@/lib/audit/log'
+import { apiError } from '@/lib/api/errorHandler'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -17,7 +18,18 @@ export async function GET(_req: NextRequest, { params }: Params) {
     .eq('org_id', profile.org_id)
     .maybeSingle()
 
-  if (error || !seq) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (error) {
+    return apiError(error, {
+      route: 'GET /api/sequences/[id]',
+      action: 'fetch_sequence',
+      userId: profile.id,
+      orgId: profile.org_id,
+    })
+  }
+
+  if (!seq) {
+    return NextResponse.json({ error: 'The sequence you are looking for does not exist.' }, { status: 404 })
+  }
 
   const { data: steps } = await service
     .from('sequence_steps')
@@ -65,7 +77,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   const { error } = await service.from('sequences').update(allowed).eq('id', id).eq('org_id', profile.org_id)
-  if (error) return NextResponse.json({ error: 'Failed to update' }, { status: 500 })
+  if (error) {
+    return apiError(error, {
+      route: 'PATCH /api/sequences/[id]',
+      action: 'update_sequence',
+      userId: profile.id,
+      orgId: profile.org_id,
+    })
+  }
 
   void writeAuditLog({
     action: 'sequence_updated',
@@ -108,7 +127,14 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   }
 
   const { error } = await service.from('sequences').delete().eq('id', id).eq('org_id', profile.org_id)
-  if (error) return NextResponse.json({ error: 'Failed to delete' }, { status: 500 })
+  if (error) {
+    return apiError(error, {
+      route: 'DELETE /api/sequences/[id]',
+      action: 'delete_sequence',
+      userId: profile.id,
+      orgId: profile.org_id,
+    })
+  }
 
   void writeAuditLog({
     action: 'sequence_deleted',
