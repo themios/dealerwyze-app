@@ -20,8 +20,14 @@ function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
+
+  // Detect vertical from hostname
+  const isRE = typeof window !== 'undefined' && window.location.hostname.includes('realtywyze')
+  const brandName = isRE ? 'RealtyWyze' : 'DealerWyze'
+  const entityType = isRE ? 'brokerage' : 'dealership'
+
   const noOrgMessage = searchParams.get('reason') === 'no_org'
-    ? 'No organization linked to this account. Create a new account to get your own dealership.'
+    ? `No organization linked to this account. Create a new account to get your own ${entityType}.`
     : ''
 
   async function handleSubmit(e: React.FormEvent) {
@@ -46,9 +52,9 @@ function LoginForm() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-2">
-            <Image src="/logo.png" alt="DealerWyze" width={180} height={120} priority style={{ height: 'auto' }} className="object-contain" />
+            <Image src={isRE ? '/logo-realtywyze.png' : '/logo.png'} alt={brandName} width={180} height={120} priority style={{ height: 'auto' }} className="object-contain" />
           </div>
-          <CardTitle className="text-2xl">DealerWyze</CardTitle>
+          <CardTitle className="text-2xl">{brandName}</CardTitle>
           <CardDescription>Sign in to your account</CardDescription>
         </CardHeader>
         <CardContent>
@@ -126,9 +132,9 @@ function LoginFallback() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-2">
-            <Image src="/logo.png" alt="DealerWyze" width={180} height={120} priority style={{ height: 'auto' }} className="object-contain" />
+            <Image src="/logo.png" alt="Brand" width={180} height={120} priority style={{ height: 'auto' }} className="object-contain" />
           </div>
-          <CardTitle className="text-2xl">DealerWyze</CardTitle>
+          <CardTitle className="text-2xl">Sign In</CardTitle>
           <CardDescription>Sign in to your account</CardDescription>
         </CardHeader>
         <CardContent>
