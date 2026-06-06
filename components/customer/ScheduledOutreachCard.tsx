@@ -1,7 +1,8 @@
 'use client'
 
+import { useState } from 'react'
 import { Activity } from '@/types'
-import { MessageSquare, Mail, Clock, Bot } from 'lucide-react'
+import { MessageSquare, Mail, Clock, Bot, ChevronDown } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
 interface ScheduledOutreachCardProps {
@@ -47,6 +48,8 @@ function formatDue(iso: string): string {
 }
 
 export default function ScheduledOutreachCard({ activities }: ScheduledOutreachCardProps) {
+  const [collapsed, setCollapsed] = useState(true)
+
   if (activities.length === 0) return null
 
   // Sort by due_at ascending
@@ -58,13 +61,20 @@ export default function ScheduledOutreachCard({ activities }: ScheduledOutreachC
 
   return (
     <div className="px-4 py-3 border-b">
-      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 border-l-2 border-blue-400 pl-2 flex items-center gap-1.5">
-        <Bot className="h-3.5 w-3.5 text-blue-500" />
-        Scheduled Outreach
-        <span className="ml-1 text-xs font-normal bg-blue-100 text-blue-700 rounded-full px-1.5 py-0.5">{activities.length}</span>
-      </h3>
+      <button
+        onClick={() => setCollapsed(!collapsed)}
+        className="w-full flex items-center justify-between hover:opacity-75 transition-opacity"
+      >
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide border-l-2 border-blue-400 pl-2 flex items-center gap-1.5">
+          <Bot className="h-3.5 w-3.5 text-blue-500" />
+          Scheduled Outreach
+          <span className="ml-1 text-xs font-normal bg-blue-100 text-blue-700 rounded-full px-1.5 py-0.5">{activities.length}</span>
+        </h3>
+        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${collapsed ? '' : 'rotate-180'}`} />
+      </button>
 
-      <div className="space-y-2">
+      {!collapsed && (
+      <div className="space-y-2 mt-3">
         {sorted.map((activity) => {
           const parsed = activity.body ? parsePendingBody(activity.body) : null
           const isEmail = activity.type === 'email_followup' || activity.type === 'email'
@@ -129,6 +139,7 @@ export default function ScheduledOutreachCard({ activities }: ScheduledOutreachC
           )
         })}
       </div>
+      )}
     </div>
   )
 }
