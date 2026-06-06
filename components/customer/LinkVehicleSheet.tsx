@@ -49,8 +49,15 @@ export default function LinkVehicleSheet({ customerId, onLinked, hasVehicle, ope
 
   useEffect(() => {
     if (!open) return
-    supabase.from('vehicles').select('*').in('status', ['available', 'staging', 'recon']).then(({ data }) => setVehicles(data || []))
-  }, [open, supabase])
+    let query = supabase.from('vehicles').select('*').in('status', ['available', 'staging', 'recon'])
+    // Filter by vertical: RE listings have year=0 and make='RE', dealer vehicles have year>0
+    if (isRe) {
+      query = query.eq('year', 0).eq('make', 'RE')
+    } else {
+      query = query.gt('year', 1900)
+    }
+    query.then(({ data }) => setVehicles(data || []))
+  }, [open, supabase, isRe])
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase()
