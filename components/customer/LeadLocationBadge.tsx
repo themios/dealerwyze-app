@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/select'
 import { toast } from 'sonner'
 
-export type DealerLocationOption = { id: string; name: string }
+export type DealerLocationOption = { id: string; name: string; short_code?: string | null }
 
 interface Props {
   customerId: string
@@ -27,6 +27,15 @@ interface Props {
   locationName: string | null
   locations: DealerLocationOption[]
   onLocationSet: (locationId: string, locationName: string) => void
+  locationShortCode?: string | null
+}
+
+function getLocationShortName(name: string): string {
+  // Extract location from format "Apollo Auto (El Monte)" → "El Monte"
+  // Then use first 8 chars: "El Mont", "Simi Val"
+  const match = name.match(/\(([^)]+)\)/)
+  const locationName = match ? match[1] : name
+  return locationName.length > 8 ? locationName.slice(0, 8) : locationName
 }
 
 export default function LeadLocationBadge({
@@ -35,6 +44,7 @@ export default function LeadLocationBadge({
   locationName,
   locations,
   onLocationSet,
+  locationShortCode,
 }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [selectedId, setSelectedId] = useState(locationId ?? '')
@@ -86,10 +96,11 @@ export default function LeadLocationBadge({
           setSelectedId(locationId)
           setPickerOpen(true)
         }}
-        className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+        className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-1 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+        title={locationName ?? undefined}
       >
         <MapPin className="h-3 w-3 text-muted-foreground" />
-        {locationName ?? 'Location'}
+        <span>{locationShortCode || (locationName ? getLocationShortName(locationName) : '?')}</span>
         <Pencil className="h-3 w-3 text-muted-foreground" />
       </button>
 

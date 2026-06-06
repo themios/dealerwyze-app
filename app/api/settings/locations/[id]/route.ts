@@ -13,7 +13,7 @@ async function getOrgLocation(
 ) {
   return supabase
     .from('dealer_locations')
-    .select('id, org_id, name, address, phone, inventory_url, is_active, sort_order')
+    .select('id, org_id, name, address, phone, inventory_url, short_code, is_active, sort_order')
     .eq('id', locationId)
     .eq('org_id', orgId)
     .maybeSingle()
@@ -64,6 +64,10 @@ export async function PATCH(
       ? body.inventory_url.trim()
       : null
   }
+  if (body.short_code !== undefined) {
+    const code = typeof body.short_code === 'string' ? body.short_code.trim().slice(0, 8) : ''
+    patch.short_code = code || null
+  }
   if (body.is_active !== undefined) {
     patch.is_active = !!body.is_active
   }
@@ -77,7 +81,7 @@ export async function PATCH(
     .update(patch)
     .eq('id', locationId)
     .eq('org_id', profile.org_id)
-    .select('id, org_id, name, address, phone, inventory_url, is_active, sort_order')
+    .select('id, org_id, name, address, phone, inventory_url, short_code, is_active, sort_order')
     .single()
 
   if (error || !location) {
@@ -134,7 +138,7 @@ export async function DELETE(
     .update({ is_active: false, updated_at: new Date().toISOString() })
     .eq('id', locationId)
     .eq('org_id', profile.org_id)
-    .select('id, org_id, name, address, phone, inventory_url, is_active, sort_order')
+    .select('id, org_id, name, address, phone, inventory_url, short_code, is_active, sort_order')
     .single()
 
   if (error || !location) {

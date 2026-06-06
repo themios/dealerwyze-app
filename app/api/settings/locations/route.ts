@@ -19,7 +19,7 @@ export async function GET() {
   const [{ data: locations, error: locErr }, { data: profiles, error: profErr }] = await Promise.all([
     supabase
       .from('dealer_locations')
-      .select('id, org_id, name, address, phone, inventory_url, is_active, sort_order')
+      .select('id, org_id, name, address, phone, inventory_url, is_active, sort_order, short_code')
       .eq('org_id', profile.org_id)
       .order('sort_order', { ascending: true })
       .order('name', { ascending: true }),
@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
       sort_order,
       updated_at: now,
     })
-    .select('id, org_id, name, address, phone, inventory_url, is_active, sort_order')
+    .select('id, org_id, name, address, phone, inventory_url, is_active, sort_order, short_code')
     .single()
 
   if (error || !location) {

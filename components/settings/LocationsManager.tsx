@@ -28,6 +28,7 @@ type LocationDraft = {
   address: string
   phone: string
   inventory_url: string
+  short_code: string
   is_active: boolean
 }
 
@@ -37,6 +38,7 @@ function toDraft(loc: SettingsLocationRow): LocationDraft {
     address: loc.address ?? '',
     phone: loc.phone ?? '',
     inventory_url: loc.inventory_url ?? '',
+    short_code: loc.short_code ?? '',
     is_active: loc.is_active,
   }
 }
@@ -79,6 +81,7 @@ function LocationCard({
             address: draft.address,
             phone: draft.phone,
             inventory_url: draft.inventory_url,
+            short_code: draft.short_code || null,
             is_active: draft.is_active,
           }),
         },
@@ -167,6 +170,18 @@ function LocationCard({
             placeholder="https://…"
             className="h-9 text-sm"
           />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={`loc-code-${location.id}`}>Location Code (8 chars max)</Label>
+          <Input
+            id={`loc-code-${location.id}`}
+            value={draft.short_code}
+            onChange={e => setDraft(d => ({ ...d, short_code: e.target.value.slice(0, 8) }))}
+            placeholder="e.g., EM or Simi Val"
+            maxLength={8}
+            className="h-9 text-sm"
+          />
+          <p className="text-xs text-muted-foreground">Used in lead cards when you have multiple locations</p>
         </div>
         <div className="flex items-center justify-between">
           <Label htmlFor={`loc-active-${location.id}`}>Active</Label>

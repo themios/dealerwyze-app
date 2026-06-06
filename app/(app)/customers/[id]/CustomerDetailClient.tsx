@@ -49,7 +49,7 @@ interface TaskItem {
 }
 
 interface Props {
-  customer: Customer
+  customer: any // Supabase query result type
   activities: Activity[]
   scheduledActivities: Activity[]
   isAdmin: boolean
@@ -62,18 +62,22 @@ interface Props {
 }
 
 export default function CustomerDetailClient({ customer, activities: initialActivities, scheduledActivities, isAdmin, currentUserId, tasks: initialTasks, initialVehicle, orgOwnerName = null, isMultiLocation = false, locations = [] }: Props) {
-  const initialLocationId = customer.location_id ?? null
+    const initialLocationId = customer.location_id ?? null
+  const initialLocationObj = initialLocationId ? locations.find(l => l.id === initialLocationId) : null
   const { vertical } = useVertical()
   const [leadLocationId, setLeadLocationId] = useState<string | null>(initialLocationId)
   const [leadLocationName, setLeadLocationName] = useState<string | null>(() => {
-    if (!initialLocationId) return null
-    return locations.find(l => l.id === initialLocationId)?.name ?? null
+    return initialLocationObj?.name ?? null
+  })
+  const [leadLocationShortCode, setLeadLocationShortCode] = useState<string | null>(() => {
+    return initialLocationObj?.short_code ?? null
   })
   const needsLocationBlock = needsLeadLocationBlock(isMultiLocation, leadLocationId)
 
-  function handleLocationSet(locationId: string, locationName: string) {
+  function handleLocationSet(locationId: string, locationName: string, shortCode?: string | null) {
     setLeadLocationId(locationId)
     setLeadLocationName(locationName)
+    setLeadLocationShortCode(shortCode ?? null)
   }
   const [activities, setActivities] = useState<Activity[]>(initialActivities)
 
@@ -491,17 +495,17 @@ export default function CustomerDetailClient({ customer, activities: initialActi
           <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
           {formatPhone(customer.primary_phone)}
         </a>
-        {customer.secondary_phone && (
-          <a href={`tel:${customer.secondary_phone}`} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary mt-0.5">
+        {(customer as Record<string, unknown>).secondary_phone && (
+          <a href={`tel:${(customer as Record<string, unknown>).secondary_phone}`} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary mt-0.5">
             <Phone className="h-4 w-4 flex-shrink-0 opacity-0" />
             {formatPhone(customer.secondary_phone)}
           </a>
         )}
         {/* Email — tappable */}
-        {customer.email && (
-          <a href={`mailto:${customer.email}`} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary mt-0.5">
+        {(customer as unknown as Record<string, unknown>).email && (
+          <a href={`mailto:${String((customer as unknown as Record<string, unknown>).email)}`} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary mt-0.5">
             <Mail className="h-4 w-4 flex-shrink-0" />
-            {customer.email}
+            {String((customer as unknown as Record<string, unknown>).email)}
           </a>
         )}
 
@@ -529,46 +533,12 @@ export default function CustomerDetailClient({ customer, activities: initialActi
           )}
         </div>
 
-        {/* Quick stats chips */}
-        <div className="flex gap-2 mt-3 overflow-x-auto pb-0.5 -mx-0.5 px-0.5">
-          <div className={`rounded-lg px-3 py-2 flex-shrink-0 border ${intentStyle.badge}`}>
-            <p className="text-[10px] uppercase tracking-wider font-medium opacity-80">Priority</p>
-            <p className="text-sm font-semibold mt-0.5">{LEAD_INTENT_TIER_LABELS[intentSnapshot.tier]}</p>
-          </div>
-          {(customer as unknown as Record<string, unknown>).last_contact_at ? (
-            <div className="bg-secondary rounded-lg px-3 py-2 flex-shrink-0">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Last contact</p>
-              <p className="text-sm font-semibold mt-0.5">
-                {new Date((customer as unknown as Record<string, unknown>).last_contact_at as string).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-              </p>
-            </div>
-          ) : null}
-          {primaryVehicle && (
-            <div className="bg-secondary rounded-lg px-3 py-2 flex-shrink-0">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Vehicle interest</p>
-              <p className="text-sm font-semibold mt-0.5">{primaryVehicle.year} {primaryVehicle.make}</p>
-            </div>
-          )}
-          {(customer as unknown as Record<string, unknown>).lead_source ? (
-            <div className="bg-secondary rounded-lg px-3 py-2 flex-shrink-0">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Source</p>
-              <p className="text-sm font-semibold mt-0.5 capitalize">{String((customer as unknown as Record<string, unknown>).lead_source).replace(/_/g, ' ')}</p>
-            </div>
-          ) : null}
-          <div className={`rounded-lg px-3 py-2 flex-shrink-0 ${customer.archived ? 'bg-muted' : 'bg-secondary'}`}>
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Status</p>
-            {customer.archived ? (
-              <div>
-                <p className="text-sm font-semibold mt-0.5 text-muted-foreground">Archived</p>
-                {customer.archived_reason && (
-                  <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">{customer.archived_reason}</p>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm font-semibold mt-0.5 capitalize">{(customer.thread_state ?? 'new lead').replace(/_/g, ' ')}</p>
-            )}
-          </div>
-        </div>
+        {/* Lead source */}
+        {(customer as unknown as Record<string, unknown>).lead_source && (
+          <p className="text-xs text-muted-foreground mt-2">
+            Source: <span className="font-medium capitalize">{String((customer as unknown as Record<string, unknown>).lead_source).replace(/_/g, ' ')}</span>
+          </p>
+        )}
 
         {/* Lead state + assignment */}
         <div className="flex items-center gap-2 mt-3 flex-wrap">
@@ -586,6 +556,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
               locationName={leadLocationName}
               locations={locations}
               onLocationSet={handleLocationSet}
+              locationShortCode={leadLocationShortCode}
             />
           )}
           {isAdmin && (
@@ -608,7 +579,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
         )}
         {customer.tags && customer.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">
-            {customer.tags.map(tag => (
+            {customer.tags.map((tag: string) => (
               <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
             ))}
           </div>

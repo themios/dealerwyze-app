@@ -11,6 +11,7 @@ export type SettingsLocationRow = {
   address: string | null
   phone: string | null
   inventory_url: string | null
+  short_code: string | null
   is_active: boolean
   sort_order: number
   staff: LocationStaffMember[]

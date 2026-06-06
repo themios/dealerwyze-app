@@ -7,7 +7,7 @@ import TopBar from '@/components/layout/TopBar'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Pencil, Flame } from 'lucide-react'
 import AddLeadMenu from '@/components/leads/AddLeadMenu'
-import { isDealerAdmin, type LeadIntentTier } from '@/types/index'
+import { isDealerAdmin, type LeadIntentTier, type Customer } from '@/types/index'
 import CustomerDetailClient from './CustomerDetailClient'
 import { LEAD_INTENT_TIER_LABELS, LEAD_INTENT_TIER_STYLES } from '@/lib/leads/intent'
 import { isMultiLocationFromCount } from '@/lib/locations/uiRules'
@@ -22,7 +22,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
   const supabase = await createClientForRequest()
 
   const [{ data: customer }, { data: sentActivities }, { data: scheduledActivities }, { data: tasks }, { data: cvData }, { data: activeLocations }] = await Promise.all([
-    supabase.from('customers').select('*').eq('id', id).eq('user_id', profile.org_id).single(),
+    supabase.from('customers').select('*').eq('id', id).eq('user_id', profile.org_id).single() ,
     // Actual sent/received communication — excludes pending sequence steps
     supabase.from('activities')
       .select('*, vehicle:vehicles(id, year, make, model)')
@@ -47,7 +47,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
     supabase.from('customer_vehicles').select('vehicle:vehicles(*)').eq('customer_id', id),
     supabase
       .from('dealer_locations')
-      .select('id, name')
+      .select('id, name, short_code')
       .eq('org_id', profile.org_id)
       .eq('is_active', true)
       .order('sort_order', { ascending: true }),
@@ -100,7 +100,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
           </div>
         }
       />
-      <CustomerDetailClient customer={customer} activities={sentActivities || []} scheduledActivities={scheduledActivities || []} isAdmin={isDealerAdmin(profile.role)} currentUserId={profile.id} tasks={tasks || []} initialVehicle={primaryVehicle} orgOwnerName={orgOwnerName} isMultiLocation={isMultiLocation} locations={isMultiLocation ? locations : []} />
+      <CustomerDetailClient customer={customer as Customer} activities={sentActivities || []} scheduledActivities={scheduledActivities || []} isAdmin={isDealerAdmin(profile.role)} currentUserId={profile.id} tasks={tasks || []} initialVehicle={primaryVehicle} orgOwnerName={orgOwnerName} isMultiLocation={isMultiLocation} locations={isMultiLocation ? locations : []} />
     </div>
   )
 }
