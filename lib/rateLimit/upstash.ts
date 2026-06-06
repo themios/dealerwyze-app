@@ -53,6 +53,7 @@ const _orgAiAsk         = makeLimiter(redis, { requests: 10,  windowSeconds: 864
 const _orgReceiptScan   = makeLimiter(redis, { requests: 25,  windowSeconds: 86400 })  // Anthropic receipt OCR
 const _orgDocSummarize  = makeLimiter(redis, { requests: 10,  windowSeconds: 86400 })  // Anthropic vehicle doc
 const _orgContactScan   = makeLimiter(redis, { requests: 20,  windowSeconds: 86400 })  // Anthropic contact card
+const _orgBulkExtract   = makeLimiter(redis, { requests: 3,   windowSeconds: 3600 })   // Gemini bulk listing extraction (3/hour)
 /** Full ZIP export — one per org per hour (distributed via Upstash; replaces legacy in-memory Map). */
 const _orgExport        = makeLimiter(redis, { requests: 1,   windowSeconds: 3600 })
 const _orgTodayAction   = makeLimiter(redis, { requests: 60,  windowSeconds: 60 })
@@ -105,6 +106,9 @@ export const orgDocSummarizeLimiter = (orgId: string) => check(_orgDocSummarize,
 
 /** 20 contact card AI scans per org per day. */
 export const orgContactScanLimiter  = (orgId: string) => check(_orgContactScan,  `org:${orgId}:contact`)
+
+/** 3 bulk listing extractions per org per hour. */
+export const orgBulkExtractLimiter  = (orgId: string) => check(_orgBulkExtract,  `org:${orgId}:bulkext`)
 
 /** One full dealership export ZIP per org per hour. */
 export const orgExportLimiter = (orgId: string) => check(_orgExport, `org:${orgId}:export`)
