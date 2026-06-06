@@ -200,6 +200,22 @@ export async function POST(req: NextRequest) {
       utm_content:  sanitizeUtm(utm_content),
       vertical,
     })
+
+    // Handle unique constraint violation on signup_email_domain (churn detection race condition)
+    if (orgErr?.code === '23505' && orgErr.message?.includes('idx_organizations_one_active_per_domain')) {
+      // Another org with this email domain is already active/free — flag as churn attempt
+      console.warn(`[register] churn detection: concurrent signup from ${emailDomain}, flagging`)
+      void service.from('abuse_flags').insert({
+        org_id: orgId,
+        flag_type: 'concurrent_churn_attempt',
+        severity: 'high',
+        details: {
+          email_domain: emailDomain,
+          note: 'Unique constraint violation — another org with this email domain already exists.',
+        },
+      })
+    }
+
     if (orgErr && !orgErr.message.includes('duplicate') && !orgErr.code?.includes('23505')) {
       await service.auth.admin.deleteUser(userId)
       return NextResponse.json({ error: orgErr.message }, { status: 500 })
