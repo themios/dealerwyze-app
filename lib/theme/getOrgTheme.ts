@@ -10,9 +10,9 @@ export interface OrgTheme {
 }
 
 const DEFAULT_THEME: OrgTheme = {
-  preset:    'dealerwyze',
-  primary:   '#0D2B55',
-  accent:    '#F07018',
+  preset:    'clean-green',
+  primary:   '#1A5276',
+  accent:    '#27AE60',
   fontStyle: 'modern',
   vars:      { light: {}, dark: {} }, // empty = CSS defaults apply
 }
@@ -34,7 +34,7 @@ export async function getOrgTheme(orgId: string | null | undefined): Promise<Org
 
     if (!data) return DEFAULT_THEME
 
-    const preset     = data.theme_preset    ?? 'dealerwyze'
+    const preset     = data.theme_preset    ?? 'clean-green'
     const fontStyle  = data.theme_font_style ?? 'modern'
 
     // Resolve colors: custom overrides preset
@@ -51,7 +51,7 @@ export async function getOrgTheme(orgId: string | null | undefined): Promise<Org
     }
 
     // Only build vars if non-default
-    const isDefault = primary === '#0D2B55' && accent === '#F07018'
+    const isDefault = primary === '#1A5276' && accent === '#27AE60'
     const vars = isDefault ? { light: {}, dark: {} } : buildThemeVars(primary, accent)
 
     return { preset, primary, accent, fontStyle, vars }

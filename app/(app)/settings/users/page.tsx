@@ -33,9 +33,9 @@ const DEALER_ROLE_DESCRIPTIONS: Record<string, string> = {
 
 const RE_ROLE_DESCRIPTIONS: Record<string, string> = {
   dealer_admin: 'Full access including billing and user management',
-  dealer_manager: 'All clients, listings and reports. No billing.',
+  dealer_manager: 'All prospects, listings and reports. No billing.',
   dealer_finance: 'Full operational access',
-  dealer_rep: 'Sees only their assigned clients',
+  dealer_rep: 'Sees only their assigned prospects',
   dealer_staff: 'Full operational access. No billing or user management.',
 }
 
@@ -254,17 +254,17 @@ export default function UsersPage() {
         )}
       >
         <div className="space-y-4">
-        {/* Lead Assignment Mode */}
+        {/* Assignment Mode */}
         <div className="rounded-xl border bg-card p-4 space-y-3">
           <div>
-            <p className="text-sm font-semibold">New Lead Assignment</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Who gets new leads when they come in</p>
+            <p className="text-sm font-semibold">New {isRE ? 'Prospect' : 'Lead'} Assignment</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Who gets new {isRE ? 'prospects' : 'leads'} when they come in</p>
           </div>
           <div className="space-y-2">
             {([
-              { value: 'owner', label: 'Owner only', desc: `All new leads go to the ${orgLabel} admin` },
-              { value: 'round_robin', label: 'Round robin', desc: 'Rotate leads evenly across all active sales reps' },
-              { value: 'manual', label: 'Manual', desc: 'Leads arrive unassigned — admin assigns them' },
+              { value: 'owner', label: 'Owner only', desc: `All new ${isRE ? 'prospects' : 'leads'} go to the ${orgLabel} admin` },
+              { value: 'round_robin', label: 'Round robin', desc: `Rotate ${isRE ? 'prospects' : 'leads'} evenly across all active ${isRE ? 'agents' : 'sales reps'}` },
+              { value: 'manual', label: 'Manual', desc: `${isRE ? 'Prospects' : 'Leads'} arrive unassigned — admin assigns them` },
             ] as const).map(opt => (
               <button
                 key={opt.value}
@@ -377,7 +377,7 @@ export default function UsersPage() {
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {u.assigned_count} assigned lead{u.assigned_count !== 1 ? 's' : ''}
+                    {u.assigned_count} assigned {isRE ? 'prospect' : 'lead'}{u.assigned_count !== 1 ? 's' : ''}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Location:{' '}

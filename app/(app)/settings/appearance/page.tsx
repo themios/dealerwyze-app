@@ -31,7 +31,7 @@ export default async function AppearancePage() {
     >
       <div className="page-enter pb-12">
         <AppearanceClient
-          initialPreset={settings?.theme_preset ?? 'dealerwyze'}
+          initialPreset={settings?.theme_preset ?? 'clean-green'}
           initialPrimary={settings?.theme_primary ?? null}
           initialAccent={settings?.theme_accent ?? null}
           initialFont={settings?.theme_font_style ?? 'modern'}
