@@ -80,16 +80,27 @@ export default function LinkVehicleSheet({ customerId, onLinked, hasVehicle, ope
   async function handleLink() {
     if (!selected) return
     setSaving(true)
-    await supabase.from('customer_vehicles').upsert({
-      customer_id: customerId,
-      vehicle_id: selected,
-      interest_level: interest,
-    }, { onConflict: 'customer_id,vehicle_id' })
-    setSaving(false)
-    setSelected(null)
-    setQuery('')
-    setOpen(false)
-    onLinked()
+    try {
+      const { error } = await supabase.from('customer_vehicles').upsert({
+        customer_id: customerId,
+        vehicle_id: selected,
+        interest_level: interest,
+      }, { onConflict: 'customer_id,vehicle_id' })
+
+      if (error) {
+        console.error('[LinkVehicle] upsert failed:', error)
+        alert(`Failed to link vehicle: ${error.message}`)
+        setSaving(false)
+        return
+      }
+
+      setSelected(null)
+      setQuery('')
+      setOpen(false)
+      onLinked()
+    } finally {
+      setSaving(false)
+    }
   }
 
   const selectedVehicle = vehicles.find(v => v.id === selected)
