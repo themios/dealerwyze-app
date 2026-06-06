@@ -160,6 +160,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
       .from('customer_vehicles')
       .select('vehicle:vehicles(*)')
       .eq('customer_id', customer.id)
+      .order("created_at", { ascending: false })
       .then(({ data }) => {
         if (!data || data.length === 0) return
         // Prefer an active (non-sold) vehicle; fall back to most recent

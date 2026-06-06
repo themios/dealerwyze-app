@@ -89,7 +89,7 @@ export default function LinkVehicleSheet({ customerId, onLinked, hasVehicle, ope
 
       if (error) {
         console.error('[LinkVehicle] upsert failed:', error)
-        alert(`Failed to link vehicle: ${error.message}`)
+        alert(`Failed to link vehicle: ${error.message || JSON.stringify(error)}`)
         setSaving(false)
         return
       }
@@ -98,7 +98,9 @@ export default function LinkVehicleSheet({ customerId, onLinked, hasVehicle, ope
       setQuery('')
       setOpen(false)
       onLinked()
-    } finally {
+    } catch (err) {
+      console.error('[LinkVehicle] Exception:', err)
+      alert(`Error: ${err instanceof Error ? err.message : String(err)}`)
       setSaving(false)
     }
   }
