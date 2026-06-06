@@ -19,6 +19,7 @@ import AssignDropdown from '@/components/customer/AssignDropdown'
 import LeadLocationBadge, { type DealerLocationOption } from '@/components/customer/LeadLocationBadge'
 import LeadLocationBlockingModal from '@/components/customer/LeadLocationBlockingModal'
 import { needsLeadLocationBlock } from '@/lib/locations/uiRules'
+import { useVertical } from "@/hooks/useVertical"
 import DocumentsSection from '@/components/customer/DocumentsSection'
 import WantListSheet from '@/components/customer/WantListSheet'
 import AutoresponderCard from '@/components/sequences/AutoresponderCard'
@@ -62,6 +63,7 @@ interface Props {
 
 export default function CustomerDetailClient({ customer, activities: initialActivities, scheduledActivities, isAdmin, currentUserId, tasks: initialTasks, initialVehicle, orgOwnerName = null, isMultiLocation = false, locations = [] }: Props) {
   const initialLocationId = customer.location_id ?? null
+  const { vertical } = useVertical()
   const [leadLocationId, setLeadLocationId] = useState<string | null>(initialLocationId)
   const [leadLocationName, setLeadLocationName] = useState<string | null>(() => {
     if (!initialLocationId) return null
@@ -383,7 +385,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
           direction: null,
           outcome: 'pending',
           priority: 'high',
-          body: `Appointment${primaryVehicle ? ` re: ${primaryVehicle.year} ${primaryVehicle.make} ${primaryVehicle.model}` : ''}`,
+          body: `Appointment${primaryVehicle ? ` re: ${primaryVehicle.year === 0 && primaryVehicle.make === "RE" ? primaryVehicle.model : `${primaryVehicle.year} ${primaryVehicle.make} ${primaryVehicle.model}`}` : ''}`,
         }),
       })
     }
@@ -507,7 +509,7 @@ export default function CustomerDetailClient({ customer, activities: initialActi
         <div className="mt-2">
           {primaryVehicle ? (
             <p className="text-sm font-semibold flex items-center gap-1.5">
-              {primaryVehicle.year} {primaryVehicle.make} {primaryVehicle.model}
+              {primaryVehicle.year === 0 && primaryVehicle.make === "RE" ? primaryVehicle.model : `${primaryVehicle.year} ${primaryVehicle.make} ${primaryVehicle.model}`}
               {primaryVehicle.price ? ` - $${primaryVehicle.price.toLocaleString()}` : ''}
               <button
                 className="text-muted-foreground hover:text-foreground"
