@@ -56,6 +56,7 @@ export async function applyRemotionRenderWebhook(
           error_message: 'Render reported success but no output URL was provided.',
         })
         .eq('id', row.id)
+        .eq('org_id', row.org_id)
       return { matched: true, autoPosted: false }
     }
 
@@ -71,6 +72,7 @@ export async function applyRemotionRenderWebhook(
             'Render output URL failed enterprise policy checks (HTTPS / host).',
         })
         .eq('id', row.id)
+        .eq('org_id', row.org_id)
       return { matched: true, autoPosted: false }
     }
 
@@ -91,6 +93,7 @@ export async function applyRemotionRenderWebhook(
         error_message: null,
       })
       .eq('id', row.id)
+      .eq('org_id', row.org_id)
 
     if (row.showing_request_id) {
       void deliverShowingTourVideoEmail(row.showing_request_id, body.outputUrl).catch((err) => {
