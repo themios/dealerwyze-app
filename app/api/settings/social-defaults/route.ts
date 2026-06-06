@@ -11,6 +11,7 @@ import { z } from 'zod'
 import { requireProfile } from '@/lib/auth/profile'
 import { createClient } from '@/lib/supabase/server'
 import { writeAuditLog } from '@/lib/audit/log'
+import { apiError } from '@/lib/api/errorHandler'
 
 const PatchSchema = z.object({
   social_hashtags: z.string().max(500).optional(),
@@ -29,7 +30,12 @@ export async function GET() {
     .maybeSingle()
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return apiError(error, {
+      route: 'GET /api/settings/social-defaults',
+      action: 'fetch_social_defaults',
+      userId: profile.id,
+      orgId: profile.org_id,
+    })
   }
 
   return NextResponse.json({
@@ -73,7 +79,12 @@ export async function PATCH(req: NextRequest) {
     .single()
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return apiError(error, {
+      route: 'PATCH /api/settings/social-defaults',
+      action: 'update_social_defaults',
+      userId: profile.id,
+      orgId: profile.org_id,
+    })
   }
 
   void writeAuditLog({

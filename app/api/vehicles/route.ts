@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { matchVehicleWants } from '@/lib/vehicles/matchWants'
+import { apiError } from '@/lib/api/errorHandler'
 
 /**
  * POST /api/vehicles
@@ -57,7 +58,12 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (error) {
-      return NextResponse.json({ error: error.message || 'Failed to add listing' }, { status: 500 })
+      return apiError(error, {
+        route: 'POST /api/vehicles',
+        action: 'create_listing',
+        userId: profile.id,
+        orgId: profile.org_id,
+      })
     }
     return NextResponse.json({ id: data.id })
   }
@@ -101,14 +107,19 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error) {
-    const msg = error.message || 'Failed to add vehicle'
+    const msg = error.message || ''
     if (msg.includes('Free tier limit') || msg.includes('100 vehicles')) {
       return NextResponse.json(
         { error: 'You\'ve reached the 100-vehicle limit for the free beta. Contact support@dealerwyze.com to upgrade.' },
         { status: 403 }
       )
     }
-    return NextResponse.json({ error: msg }, { status: 500 })
+    return apiError(error, {
+      route: 'POST /api/vehicles',
+      action: 'create_vehicle',
+      userId: profile.id,
+      orgId: profile.org_id,
+    })
   }
 
   // Fire want-list match check for new available vehicles (fire-and-forget)

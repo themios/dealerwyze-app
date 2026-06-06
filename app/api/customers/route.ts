@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from '@/lib/auth/profile'
 import { isRepRestricted } from '@/lib/auth/dealerRoles'
 import { applyCustomerLocationFilter, isValidOrgLocationId } from '@/lib/customers/listQuery'
+import { apiError } from '@/lib/api/errorHandler'
 
 export async function GET(req: NextRequest) {
   const profile = await requireProfile()
@@ -42,7 +43,12 @@ export async function GET(req: NextRequest) {
   const { data, error } = await query.order('created_at', { ascending: false }).limit(500)
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return apiError(error, {
+      route: 'GET /api/customers',
+      action: 'fetch_customers',
+      userId: profile.id,
+      orgId: profile.org_id,
+    })
   }
 
   return NextResponse.json(data ?? [])

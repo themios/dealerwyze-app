@@ -6,6 +6,7 @@ import {
   requireDealerAdminProfile,
 } from '@/lib/settings/locationsAdmin'
 import { logLocationAudit } from '@/lib/locations/logLocationAudit'
+import { apiError } from '@/lib/api/errorHandler'
 
 /** PATCH — assign or remove a dealer_rep from this location. */
 export async function PATCH(
@@ -72,7 +73,12 @@ export async function PATCH(
       .eq('org_id', profile.org_id)
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return apiError(error, {
+        route: 'PATCH /api/settings/locations/[id]/staff',
+        action: 'assign_staff',
+        userId: profile.id,
+        orgId: profile.org_id,
+      })
     }
     logLocationAudit({
       orgId: profile.org_id,
@@ -93,7 +99,12 @@ export async function PATCH(
       .eq('org_id', profile.org_id)
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return apiError(error, {
+        route: 'PATCH /api/settings/locations/[id]/staff',
+        action: 'remove_staff',
+        userId: profile.id,
+        orgId: profile.org_id,
+      })
     }
     logLocationAudit({
       orgId: profile.org_id,
