@@ -1,7 +1,11 @@
 import * as Sentry from '@sentry/nextjs'
 
+// Detect vertical from hostname (realtywyze.us vs dealerwyze.com)
+const isRE = typeof window !== 'undefined' && window.location.hostname.includes('realtywyze')
+const dsn = isRE ? process.env.NEXT_PUBLIC_SENTRY_DSN_REALTY : process.env.NEXT_PUBLIC_SENTRY_DSN
+
 Sentry.init({
-  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  dsn,
 
   environment: process.env.NODE_ENV === 'production' ? 'production' : 'development',
 

@@ -30,11 +30,10 @@ export async function checkAiModelHealth(): Promise<{ ok: boolean; model: string
       ? `⚠️ AI model retired: \`${AI_MODEL}\` is no longer available on OpenRouter.\n\nUpdate \`AI_MODEL\` in \`lib/ai/client.ts\` to a current model. Until fixed, all AI features fall back to Claude Haiku.`
       : `⚠️ AI health check failed for \`${AI_MODEL}\`:\n${msg.slice(0, 300)}`
 
-    // Create admin portal ticket
+    // Create admin portal ticket (non-fatal if insert fails)
     const supabase = createServiceClient()
-    supabase
-      .from('admin_alerts')
-      .insert({
+    try {
+      await supabase.from('admin_alerts').insert({
         org_id: null, // Platform-wide alert
         alert_type: 'ai_model_health',
         severity,
@@ -46,8 +45,9 @@ export async function checkAiModelHealth(): Promise<{ ok: boolean; model: string
           action: isRetired ? 'Update AI_MODEL in lib/ai/client.ts' : 'Investigate OpenRouter connectivity',
         },
       })
-      .then(() => {})
-      .catch(() => {}) // Non-fatal if insert fails
+    } catch {
+      // Non-fatal if insert fails
+    }
 
     // Send Telegram notification
     await sendTelegramMessage(alertText).catch(() => {})
