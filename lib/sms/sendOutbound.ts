@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/sms/rateLimit'
 import { transitionThreadState } from '@/lib/sms/threadState'
 import { assertCanUseFeature, BillingError } from '@/lib/billing/assertFeature'
 import { formatPhoneForTel } from '@/lib/utils/phone'
+import { orgSmsLimiter } from '@/lib/rateLimit/upstash'
 
 export class SmsSendError extends Error {
   status: number
@@ -83,6 +84,16 @@ export async function sendOutboundSms({
   const rateLimit = await checkRateLimit(orgId)
   if (!rateLimit.allowed) {
     throw new SmsSendError(rateLimit.reason ?? 'Rate limit exceeded', 429)
+  }
+
+  // Burst protection: Upstash rate limiter (20 SMS per 5 minutes per org)
+  // This is checked BEFORE quota and is independent of daily/monthly limits
+  const burstLimit = await orgSmsLimiter(orgId)
+  if (!burstLimit.allowed) {
+    throw new SmsSendError(
+      `Rate limit: too many SMS sends. Try again in ${burstLimit.retryAfterSeconds}s.`,
+      429,
+    )
   }
 
   const quota = await checkQuota(orgId, isMms || hasMedia)

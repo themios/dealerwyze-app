@@ -22,6 +22,7 @@ import { logger } from '@/lib/logger'
 import { checkQuota, incrementUsage } from '@/lib/sms/quota'
 import { getLeadOutboundTemplateVars } from '@/lib/locations/getLeadTemplateVars'
 import { fillTemplate } from '@/lib/utils'
+import { orgSmsLimiter } from '@/lib/rateLimit/upstash'
 
 interface AutoResponseArgs {
   orgId:      string
@@ -225,6 +226,14 @@ export async function sendAutoResponseStep1(args: AutoResponseArgs): Promise<voi
       const quota = await checkQuota(orgId, false)
       if (!quota.allowed) {
         console.warn('[autoRespond] SMS quota exhausted for org:', orgId, quota.reason)
+        return
+      }
+
+      // Burst protection: Upstash rate limiter (20 SMS per 5 minutes per org)
+      // If rate-limited, log and return early (auto-responses are best-effort, don't block lead ingestion)
+      const burstLimit = await orgSmsLimiter(orgId)
+      if (!burstLimit.allowed) {
+        console.warn('[autoRespond] SMS rate limit exceeded for org:', orgId, 'retry in:', burstLimit.retryAfterSeconds, 's')
         return
       }
 

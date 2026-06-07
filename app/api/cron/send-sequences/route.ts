@@ -23,6 +23,7 @@ import { checkQuota, incrementUsage } from '@/lib/sms/quota'
 import { startCronRun, finishCronRun } from '@/lib/cron/runLogger'
 import { stopSequenceOnReply } from '@/lib/sequences/stopSequenceOnReply'
 import { getLeadOutboundTemplateVars } from '@/lib/locations/getLeadTemplateVars'
+import { orgSmsLimiter } from '@/lib/rateLimit/upstash'
 
 export const runtime     = 'nodejs'
 export const maxDuration = 55
@@ -87,6 +88,13 @@ async function sendSequenceSms(opts: {
   const quota = await checkQuota(orgId, false)
   if (!quota.allowed) {
     return { ok: false, error: 'quota_exceeded' }
+  }
+
+  // Burst protection: Upstash rate limiter (20 SMS per 5 minutes per org)
+  // This is checked BEFORE Twilio call. If rate-limited, we skip and let the next cron run retry.
+  const burstLimit = await orgSmsLimiter(orgId)
+  if (!burstLimit.allowed) {
+    return { ok: false, error: 'rate_limit_exceeded' }
   }
 
   // Fetch org's Twilio number
@@ -343,8 +351,8 @@ export async function GET(req: NextRequest) {
 
         if (result.ok) {
           smsSent++
-        } else if (result.error === 'quota_exceeded') {
-          // Leave it pending — will retry next run when quota resets
+        } else if (result.error === 'quota_exceeded' || result.error === 'rate_limit_exceeded') {
+          // Leave it pending — will retry next run when quota/rate limit resets
           skipped++
           continue
         } else {
