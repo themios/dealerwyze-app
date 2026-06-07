@@ -22,6 +22,8 @@ export interface SecurityAuditRow {
   metadata: Record<string, unknown> | null
   ip_address: string | null
   vehicle_state: string | null
+  source: string | null
+  source: string | null
   created_at: string
 }
 

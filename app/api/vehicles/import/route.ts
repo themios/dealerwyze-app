@@ -79,7 +79,8 @@ export async function POST(req: NextRequest) {
       orgId,
       actorId: profile.id,
       actorType: 'user',
-      action: 'csv_vehicle_import',
+      action: 'bulk_vehicle_import',
+      source: 'csv',
       entityType: 'vehicle',
       entityId: null,
       metadata: {

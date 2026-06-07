@@ -98,7 +98,7 @@ export async function GET(req: NextRequest) {
 
       let q = supabase
         .from('audit_log')
-        .select('id, actor_id, actor_type, action, entity_type, entity_id, metadata, ip_address, vehicle_state, created_at')
+        .select('id, actor_id, actor_type, action, entity_type, entity_id, metadata, ip_address, source, vehicle_state, created_at')
         .eq('org_id', profile.org_id)
         .gte('created_at', startIso)
 
