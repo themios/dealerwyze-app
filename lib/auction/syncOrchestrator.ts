@@ -90,6 +90,63 @@ export class AuctionSyncOrchestrator {
   }
 
   /**
+   * Update an existing vehicle with new price/status from auction.
+   * Does NOT change location_id; only updates price, status, and condition.
+   * Returns metadata for audit logging.
+   * Note: oldPrice and oldStatus are parameters to caller has old values for audit logging.
+   */
+  private async updateVehicleFromAuction(
+    vehicleId: string,
+    auctionVehicle: AuctionVehicle,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    oldPrice: number | null,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    oldStatus: string | null,
+  ): Promise<{
+    success: boolean
+    newPrice: number | null
+    newStatus: string | null
+    error?: string
+  }> {
+    const newPrice = auctionVehicle.current_bid ?? null
+    const newStatus = auctionVehicle.primary_damage ? 'damaged' : 'unknown'
+
+    try {
+      const { error } = await this.supabase
+        .from('vehicles')
+        .update({
+          price: newPrice,
+          status: newStatus,
+          condition: auctionVehicle.primary_damage ? 'damaged' : 'unknown',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', vehicleId)
+
+      if (error) {
+        return {
+          success: false,
+          newPrice,
+          newStatus,
+          error: error.message,
+        }
+      }
+
+      return {
+        success: true,
+        newPrice,
+        newStatus,
+      }
+    } catch (err) {
+      return {
+        success: false,
+        newPrice,
+        newStatus,
+        error: err instanceof Error ? err.message : 'Unknown error',
+      }
+    }
+  }
+
+  /**
    * Sync vehicles for a single org from enabled auction platforms.
    * Returns summary of imported/updated vehicles.
    *
@@ -154,6 +211,12 @@ export class AuctionSyncOrchestrator {
 
       // Analyze each vehicle before import
       const vehiclesToImport: VehicleEditState[] = []
+      const vehiclesToUpdate: Array<{
+        vehicleId: string
+        auctionVehicle: AuctionVehicle
+        oldPrice: number | null
+        oldStatus: string | null
+      }> = []
       const stateStats = {
         new_import: 0,
         price_updated: 0,
@@ -190,9 +253,18 @@ export class AuctionSyncOrchestrator {
           },
         })
 
-        // Only add new vehicles to import list (v1.1 scope)
-        // TODO: Phase 07 will add update logic for price_updated/status_updated
+        // Route by state: new import vs. update
         if (stateDetection.state === 'new_import') {
+          // Determine location_id based on org's location mode setting
+          let locationId: string | undefined
+          if (config.auction_location_mode === 'manual') {
+            // Manual mode: leave location_id null; user must select later
+            locationId = undefined
+          } else {
+            // Default mode: auto-assign to org's primary location (org_id)
+            locationId = config.org_id
+          }
+
           vehiclesToImport.push({
             id: crypto.randomUUID(),
             selected: true,
@@ -208,14 +280,61 @@ export class AuctionSyncOrchestrator {
             auction_name: av.source,
             auction_lot: av.lot_number ?? undefined,
             description: av.primary_damage ? `Primary: ${av.primary_damage}` : undefined,
+            location_id: locationId,  // Set based on mode
+          })
+        } else if (stateDetection.state === 'price_updated' || stateDetection.state === 'status_updated') {
+          // Queue for update (not import)
+          vehiclesToUpdate.push({
+            vehicleId: stateDetection.existing!.id,
+            auctionVehicle: av,
+            oldPrice: stateDetection.existing!.price,
+            oldStatus: stateDetection.existing!.status,
           })
         }
+        // else: no_change — skip
       }
 
       // Import new vehicles
       const importResult = vehiclesToImport.length > 0
         ? await importVehicles(config.org_id, vehiclesToImport, '', 'auction')
         : { success: 0, failed: 0, errors: [] }
+
+      // Update existing vehicles
+      const updateStats = { success: 0, failed: 0 }
+      for (const update of vehiclesToUpdate) {
+        const result = await this.updateVehicleFromAuction(
+          update.vehicleId,
+          update.auctionVehicle,
+          update.oldPrice,
+          update.oldStatus,
+        )
+
+        if (result.success) {
+          updateStats.success++
+        } else {
+          updateStats.failed++
+        }
+
+        // Log each update separately with distinct action name
+        await writeAuditLog({
+          orgId: config.org_id,
+          actorId: null,
+          actorType: 'user',
+          action: 'auction_sync_vehicle_updated',
+          entityType: 'vehicle',
+          entityId: update.vehicleId,
+          metadata: {
+            vin: update.auctionVehicle.vin ?? null,
+            auction_source: update.auctionVehicle.source,
+            lot_number: update.auctionVehicle.lot_number,
+            old_price: update.oldPrice,
+            new_price: result.newPrice,
+            old_status: update.oldStatus,
+            new_status: result.newStatus,
+            error: result.error ?? null,
+          },
+        })
+      }
 
       // Final summary audit log
       await writeAuditLog({
@@ -232,7 +351,9 @@ export class AuctionSyncOrchestrator {
           status_updated: stateStats.status_updated,
           no_change: stateStats.no_change,
           imported: importResult.success,
-          failed: importResult.failed,
+          imported_failed: importResult.failed,
+          updated: updateStats.success,
+          updated_failed: updateStats.failed,
           sources: [...new Set(allVehicles.map((v) => v.source))],
         },
       })
@@ -242,7 +363,7 @@ export class AuctionSyncOrchestrator {
         last_sync_at: new Date().toISOString(),
         last_sync_status: 'success',
         last_sync_error: null,
-        last_sync_count: importResult.success,
+        last_sync_count: importResult.success + updateStats.success,
       }
       await this.supabase
         .from('org_auction_sync_config')
@@ -250,13 +371,20 @@ export class AuctionSyncOrchestrator {
         .eq('org_id', config.org_id)
 
       console.log(
-        `[auction-sync] ${config.org_id}: new=${stateStats.new_import}, price_updated=${stateStats.price_updated}, status_updated=${stateStats.status_updated}, no_change=${stateStats.no_change}`,
+        `[auction-sync] ${config.org_id}: new=${stateStats.new_import}, price_updated=${stateStats.price_updated}, status_updated=${stateStats.status_updated}, no_change=${stateStats.no_change}, imported=${importResult.success}, updated=${updateStats.success}`,
       )
 
       return {
         total_imported: importResult.success,
-        total_updated: 0, // TODO: Phase 07 will implement updates
-        errors: importResult.errors.map((e) => `${e.id}: ${e.error}`),
+        total_updated: updateStats.success,  // FHD-04: Now populated
+        errors: [
+          ...importResult.errors.map((e) => `import ${e.id}: ${e.error}`),
+          // Note: Individual update errors are logged separately in audit logs
+          // Return summary-level errors here
+          ...(updateStats.failed > 0 ? [
+            `${updateStats.failed} vehicle update(s) failed - see audit logs for details`,
+          ] : []),
+        ],
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error'

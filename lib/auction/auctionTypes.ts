@@ -29,6 +29,7 @@ export interface AuctionSyncConfig {
   last_sync_at?: string // ISO timestamp
   last_sync_status?: 'success' | 'failed' | 'partial'
   last_sync_error?: string
+  auction_location_mode?: 'default' | 'manual' // NEW: location assignment strategy for imports
 }
 
 export interface AuctionSyncResult {

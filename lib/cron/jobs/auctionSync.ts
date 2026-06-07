@@ -35,7 +35,20 @@ export async function runAuctionSync() {
     const results = await Promise.all(
       configs.map(async (config: AuctionSyncConfig) => {
         try {
-          const result = await orchestrator.syncOrgAuctions(config)
+          // Query org_settings for auction_location_mode
+          const { data: settings } = await supabase
+            .from('org_settings')
+            .select('auction_location_mode')
+            .eq('org_id', config.org_id)
+            .maybeSingle()
+
+          // Add location mode to config
+          const configWithMode: AuctionSyncConfig = {
+            ...config,
+            auction_location_mode: settings?.auction_location_mode ?? 'default',
+          }
+
+          const result = await orchestrator.syncOrgAuctions(configWithMode)
           return { org_id: config.org_id, ...result }
         } catch (err) {
           console.error(`[auction-sync] Error syncing ${config.org_id}:`, err)
