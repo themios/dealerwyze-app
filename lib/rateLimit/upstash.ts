@@ -110,6 +110,12 @@ export const orgContactScanLimiter  = (orgId: string) => check(_orgContactScan, 
 /** 3 bulk listing extractions per org per hour. */
 export const orgBulkExtractLimiter  = (orgId: string) => check(_orgBulkExtract,  `org:${orgId}:bulkext`)
 
+// CSV imports per org per hour — higher limit than bulk extract since CSV parsing is cheaper
+const _orgCsvImportLimiter = makeLimiter(redis, { requests: 5, windowSeconds: 3600 })
+
+/** 5 CSV imports per org per hour. */
+export const orgCsvImportLimiter = (orgId: string) => check(_orgCsvImportLimiter, `org:${orgId}:csvimport`)
+
 /** One full dealership export ZIP per org per hour. */
 export const orgExportLimiter = (orgId: string) => check(_orgExport, `org:${orgId}:export`)
 export const orgTodayActionLimiter  = (orgId: string) => check(_orgTodayAction,  `org:${orgId}:todayaction`)

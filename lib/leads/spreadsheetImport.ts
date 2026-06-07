@@ -233,3 +233,138 @@ export function generateTemplateCsv(vertical: 'dealer' | 'real_estate' = 'dealer
   const escape = (v: string) => (v.includes(',') || v.includes('"') ? `"${v.replace(/"/g, '""')}"` : v)
   return [headers.map(escape).join(','), example.map(escape).join(',')].join('\n')
 }
+
+// ────────────────────────────────────────────────────────────────────────────────
+// Vehicle CSV Parsing
+// ────────────────────────────────────────────────────────────────────────────────
+
+/** Vehicle CSV columns + synonyms */
+const VEHICLE_CSV_COLUMNS: Record<string, string[]> = {
+  vin: ['vin', 'vehicle identification number', 'vin number'],
+  year: ['year', 'model year', 'model_year', 'yr'],
+  make: ['make', 'manufacturer', 'brand'],
+  model: ['model', 'model name'],
+  price: ['price', 'sale price', 'asking price', 'list price', 'msrp', 'cost'],
+  mileage: ['mileage', 'miles', 'odometer', 'miles driven'],
+  color: ['color', 'exterior color', 'paint', 'exterior_color'],
+  condition: ['condition', 'status', 'vehicle status'],
+  auction_name: ['auction', 'auction name', 'source', 'purchased from'],
+  auction_lot: ['lot', 'lot number', 'auction lot', 'lot_number'],
+}
+
+export interface ParsedVehicle {
+  vin?: string
+  year?: number
+  make?: string
+  model?: string
+  price?: number
+  mileage?: number
+  color?: string
+  condition?: string
+  auction_name?: string
+  auction_lot?: string
+}
+
+/** Parse CSV line (handles quoted values and commas) */
+function parseCSVLine(line: string): string[] {
+  const result: string[] = []
+  let current = ''
+  let inQuotes = false
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i]
+    if (char === '"') {
+      inQuotes = !inQuotes
+    } else if (char === ',' && !inQuotes) {
+      result.push(current)
+      current = ''
+    } else {
+      current += char
+    }
+  }
+  result.push(current)
+  return result
+}
+
+function normalizeVehicleHeader(h: string): string {
+  return h.toLowerCase().trim().replace(/[^\w]+/g, ' ')
+}
+
+/** Map CSV column index to canonical field name for vehicles */
+function mapVehicleColumnHeader(header: string): string | null {
+  const normalized = normalizeVehicleHeader(header)
+  for (const [field, synonyms] of Object.entries(VEHICLE_CSV_COLUMNS)) {
+    if (synonyms.some(s => normalized.includes(s))) {
+      return field
+    }
+  }
+  return null
+}
+
+/** Parse vehicle CSV file: returns { vehicles, errors } */
+export async function parseVehicleCSV(
+  file: File
+): Promise<{ vehicles: ParsedVehicle[]; errors: string[] }> {
+  const text = await file.text()
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+
+  if (lines.length < 2) {
+    return { vehicles: [], errors: ['CSV must have header row and at least one data row'] }
+  }
+
+  const [headerLine, ...dataLines] = lines
+  const headers = parseCSVLine(headerLine)
+
+  // Map CSV column index to canonical field name
+  const columnMap = new Map<number, string>()
+  for (let i = 0; i < headers.length; i++) {
+    const field = mapVehicleColumnHeader(headers[i])
+    if (field) {
+      columnMap.set(i, field)
+    }
+  }
+
+  const vehicles: ParsedVehicle[] = []
+  const errors: string[] = []
+
+  for (let rowIdx = 0; rowIdx < dataLines.length; rowIdx++) {
+    try {
+      const values = parseCSVLine(dataLines[rowIdx])
+      const vehicle: ParsedVehicle = {}
+
+      for (let colIdx = 0; colIdx < values.length; colIdx++) {
+        const field = columnMap.get(colIdx)
+        const value = values[colIdx]?.trim()
+
+        if (!field || !value) continue
+
+        // Type coercion based on field
+        if (field === 'year') {
+          const yearNum = parseInt(value, 10)
+          if (!isNaN(yearNum) && yearNum >= 1900 && yearNum <= 2100) {
+            vehicle.year = yearNum
+          }
+        } else if (field === 'price' || field === 'mileage') {
+          const num = parseInt(value.replace(/[^0-9]/g, ''), 10)
+          if (!isNaN(num)) {
+            vehicle[field as 'price' | 'mileage'] = num
+          }
+        } else if (field === 'vin' || field === 'make' || field === 'model' || field === 'color' || field === 'condition' || field === 'auction_name' || field === 'auction_lot') {
+          vehicle[field] = value
+        }
+      }
+
+      // Validate required fields
+      if (!vehicle.year || !vehicle.make || !vehicle.model) {
+        errors.push(`Row ${rowIdx + 2}: Missing year, make, or model`)
+        continue
+      }
+
+      vehicles.push(vehicle)
+    } catch (err) {
+      errors.push(`Row ${rowIdx + 2}: ${err instanceof Error ? err.message : 'Parse error'}`)
+    }
+  }
+
+  return { vehicles, errors }
+}
