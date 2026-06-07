@@ -17,6 +17,8 @@ export async function importVehicles(
   orgId: string,
   items: VehicleEditState[],
   userId: string,
+  source: 'paste' | 'csv' | 'auction',
+  vehicleState?: 'new_import' | 'price_updated' | 'status_updated' | null,
 ): Promise<BulkImportResult> {
   const supabase = await createClient()
   const results: BulkImportResult = {
@@ -110,6 +112,8 @@ export async function importVehicles(
     entityId: null,
     actorType: 'user',
     actorId: userId,
+    source,
+    vehicleState: vehicleState ?? null,
     metadata: {
       count: items.length,
       success: results.success,

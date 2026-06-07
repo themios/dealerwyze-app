@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
     }))
 
     // Persist to database
-    const result = await importVehicles(orgId, vehicleItems, profile.id)
+    const result = await importVehicles(orgId, vehicleItems, profile.id, 'csv')
 
     // Log import action
     await writeAuditLog({

@@ -16,6 +16,8 @@ export interface AuditEntry {
   entityId?: string | null
   metadata?: Record<string, unknown> | null
   ipAddress?: string | null
+  source?: 'paste' | 'csv' | 'auction' | null
+  vehicleState?: 'new_import' | 'price_updated' | 'status_updated' | 'no_change' | null
 }
 
 export async function writeAuditLog(entry: AuditEntry): Promise<void> {
@@ -30,6 +32,8 @@ export async function writeAuditLog(entry: AuditEntry): Promise<void> {
       entity_id:   entry.entityId ?? null,
       metadata:    entry.metadata ?? null,
       ip_address:  entry.ipAddress ?? null,
+      source:      entry.source ?? null,
+      vehicle_state: entry.vehicleState ?? null,
     })
     if (error) {
       console.error('[writeAuditLog]', entry.action, error.message)

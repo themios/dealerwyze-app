@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Import vehicles using the bulk importer utility
-    const results = await importVehicles(profile.org_id, items, profile.id)
+    const results = await importVehicles(profile.org_id, items, profile.id, 'paste')
 
     return NextResponse.json(results)
   } catch (err) {
