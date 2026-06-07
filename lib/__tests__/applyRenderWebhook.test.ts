@@ -42,7 +42,7 @@ describe('applyRemotionRenderWebhook idempotency', () => {
   })
 
   it('returns duplicateWebhook when video render already complete with same URL', async () => {
-    const updateChain = { eq: vi.fn().mockResolvedValue({ error: null }) }
+    const updateChain = { eq: vi.fn().mockReturnThis() }; const updateChainFinal = { ...updateChain, eq: vi.fn().mockResolvedValue({ error: null }) }; updateChain.eq = vi.fn((field, val) => updateChainFinal)
     const videoChain = chain({
       data: {
         id: 'vr-1',
@@ -108,7 +108,7 @@ describe('applyRemotionRenderWebhook idempotency', () => {
   })
 
   it('emails buyer when showing-linked video render completes', async () => {
-    const updateChain = { eq: vi.fn().mockResolvedValue({ error: null }) }
+    const updateChain = { eq: vi.fn().mockReturnThis() }; const updateChainFinal = { ...updateChain, eq: vi.fn().mockResolvedValue({ error: null }) }; updateChain.eq = vi.fn((field, val) => updateChainFinal)
     const videoChain = chain({
       data: {
         id: 'vr-2',

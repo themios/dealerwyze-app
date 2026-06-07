@@ -39,6 +39,8 @@ describe('writeAuditLog', () => {
       entity_id:   'ent-1',
       metadata:    { write_mode: true },
       ip_address:  '203.0.113.1',
+      source:      null,
+      vehicle_state: null,
     })
   })
 
