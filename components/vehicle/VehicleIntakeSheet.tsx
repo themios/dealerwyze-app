@@ -12,6 +12,8 @@ import DuplicateMatchCard from './DuplicateMatchCard'
 // Lazy-load the heavy barcode scanner — uses browser APIs, no SSR
 const VinBarcodeScanner = dynamic(() => import('./VinBarcodeScanner'), { ssr: false })
 
+type IntakeMethod = 'barcode' | 'photo' | 'monroney' | 'paste'
+
 interface ExtractedData {
   vin?: string | null
   year?: number | null
@@ -53,7 +55,9 @@ interface Props {
 export default function VehicleIntakeSheet({ open, onClose }: Props) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const photoInputRef = useRef<HTMLInputElement>(null)
   const [step, setStep] = useState<Step>('menu')
+  const [intakeMethod, setIntakeMethod] = useState<IntakeMethod | null>(null)
   const [processing, setProcessing] = useState(false)
   const [processingMsg, setProcessingMsg] = useState('')
   const [extracted, setExtracted] = useState<ExtractedData | null>(null)
@@ -185,12 +189,71 @@ export default function VehicleIntakeSheet({ open, onClose }: Props) {
       })
 
       const mimeType = file.type
-      setProcessingMsg('Extracting vehicle info...')
 
+      // Route based on intake method
+      if (intakeMethod === 'monroney') {
+        await handleMonroneyExtraction(base64, mimeType)
+      } else {
+        await handleGenericImageScan(base64, mimeType)
+      }
+    } catch {
+      setProcessing(false)
+      setStep('menu')
+      alert('Something went wrong reading that image. Please try again.')
+    }
+  }
+
+  // Extract vehicle data from Monroney (window sticker) photo
+  async function handleMonroneyExtraction(imageBase64: string, mimeType: string) {
+    setProcessingMsg('Extracting from Monroney sticker...')
+
+    try {
+      const res = await fetch('/api/vehicles/intake/monroney-extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64, imageMimeType: mimeType }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok || !data.success) {
+        setProcessing(false)
+        alert(`Could not read Monroney: ${data.error || 'Unknown error'}. Try again with a clearer photo.`)
+        setStep('menu')
+        setIntakeMethod(null)
+        return
+      }
+
+      if (data.vehicle) {
+        const extracted: ExtractedData = {
+          vin: data.vehicle.vin,
+          year: data.vehicle.year,
+          make: data.vehicle.make,
+          model: data.vehicle.model,
+          mileage: data.vehicle.mileage,
+          color: data.vehicle.color,
+          purchase_price: data.vehicle.price,
+          acquisition_source: 'dealer_trade', // Monroney = often used vehicle trade-in
+        }
+        await processExtracted(extracted)
+      }
+    } catch (err) {
+      setProcessing(false)
+      setStep('menu')
+      setIntakeMethod(null)
+      alert(`Extraction failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    }
+  }
+
+  // Generic image scan (barcode, auction sheet, etc.)
+  async function handleGenericImageScan(imageBase64: string, mimeType: string) {
+    setProcessingMsg('Extracting vehicle info...')
+
+    try {
       const scanRes = await fetch('/api/vehicles/intake/scan-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: base64, mimeType }),
+        body: JSON.stringify({ imageBase64, mimeType }),
       })
       const scanData = await scanRes.json()
 
@@ -198,10 +261,11 @@ export default function VehicleIntakeSheet({ open, onClose }: Props) {
         setProcessing(false)
         alert('Could not read vehicle info from that image. Try a clearer photo or enter manually.')
         setStep('menu')
+        setIntakeMethod(null)
         return
       }
 
-      let finalData: ExtractedData = { ...scanData, imageBase64: base64, mimeType }
+      let finalData: ExtractedData = { ...scanData, imageBase64, mimeType }
 
       // If VIN found but make/model missing, enrich via NHTSA
       if (scanData.vin && scanData.vin.length === 17 && (!scanData.make || !scanData.model)) {
@@ -231,6 +295,7 @@ export default function VehicleIntakeSheet({ open, onClose }: Props) {
     } catch {
       setProcessing(false)
       setStep('menu')
+      setIntakeMethod(null)
       alert('Something went wrong reading that image. Please try again.')
     }
   }
@@ -354,17 +419,37 @@ export default function VehicleIntakeSheet({ open, onClose }: Props) {
                 </div>
               </button>
 
+              {/* Scan Monroney Photo */}
+              <button
+                className="w-full flex items-center gap-4 p-4 rounded-xl border bg-card hover:bg-muted/50 transition-colors text-left"
+                onClick={() => {
+                  setIntakeMethod('monroney')
+                  photoInputRef.current?.click()
+                }}
+              >
+                <div className="w-11 h-11 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
+                  <Camera className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-sm">Scan Monroney</p>
+                  <p className="text-xs text-muted-foreground">Window sticker with vehicle details</p>
+                </div>
+              </button>
+
               {/* Scan Photo */}
               <button
                 className="w-full flex items-center gap-4 p-4 rounded-xl border bg-card hover:bg-muted/50 transition-colors text-left"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => {
+                  setIntakeMethod('photo')
+                  fileInputRef.current?.click()
+                }}
               >
                 <div className="w-11 h-11 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0">
                   <Camera className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                 </div>
                 <div className="min-w-0">
                   <p className="font-semibold text-sm">Scan Photo or Document</p>
-                  <p className="text-xs text-muted-foreground">Window sticker, buyer&apos;s guide, auction sheet, or screenshot</p>
+                  <p className="text-xs text-muted-foreground">Auction sheet, buyer&apos;s guide, or screenshot</p>
                 </div>
               </button>
 
@@ -429,6 +514,20 @@ export default function VehicleIntakeSheet({ open, onClose }: Props) {
             ref={fileInputRef}
             type="file"
             accept="image/*"
+            className="hidden"
+            onChange={e => {
+              const file = e.target.files?.[0]
+              if (file) handleImageSelected(file)
+              e.target.value = ''
+            }}
+          />
+
+          {/* Hidden photo input for Monroney — with camera capture on mobile */}
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
             className="hidden"
             onChange={e => {
               const file = e.target.files?.[0]
