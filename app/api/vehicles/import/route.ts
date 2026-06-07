@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
+import { createClient } from '@/lib/supabase/server'
 import { parseVehicleCSV } from '@/lib/leads/spreadsheetImport'
 import { importVehicles } from '@/lib/vehicles/bulkImporter'
 import { writeAuditLog } from '@/lib/audit/log'
@@ -18,6 +19,42 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: 'CSV import limit exceeded. Try again in 1 hour.' },
       { status: 429 }
+    )
+  }
+
+  // Vertical enforcement: CSV import is dealer-only (FHD-01)
+  const supabase = await createClient()
+  const { data: org, error: orgError } = await supabase
+    .from('organizations')
+    .select('vertical')
+    .eq('id', orgId)
+    .maybeSingle()
+
+  if (!org || orgError) {
+    return NextResponse.json(
+      { error: 'Organization not found' },
+      { status: 404 }
+    )
+  }
+
+  if (org.vertical !== 'dealer') {
+    // Log vertical mismatch attempt for audit trail
+    await writeAuditLog({
+      orgId,
+      actorId: profile.id,
+      actorType: 'user',
+      action: 'vertical_violation_csv_import',
+      entityType: 'vehicle',
+      entityId: null,
+      metadata: {
+        org_vertical: org.vertical,
+        reason: 'CSV import restricted to dealer vertical',
+      },
+    })
+
+    return NextResponse.json(
+      { error: 'CSV import is not available for your organization type' },
+      { status: 403 }
     )
   }
 

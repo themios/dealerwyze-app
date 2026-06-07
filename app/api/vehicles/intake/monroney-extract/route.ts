@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireProfile } from '@/lib/auth/profile'
+import { createClient } from '@/lib/supabase/server'
 import { extractFromMonroneyPhoto } from '@/lib/vehicles/monroneyExtractor'
+import { writeAuditLog } from '@/lib/audit/log'
 import { orgBulkExtractLimiter } from '@/lib/rateLimit/upstash'
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024 // 5MB
@@ -18,6 +20,42 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: 'Rate limit exceeded. Try again in 1 hour.' },
       { status: 429 }
+    )
+  }
+
+  // Vertical enforcement: Monroney extract is dealer-only (FHD-02)
+  const supabase = await createClient()
+  const { data: org, error: orgError } = await supabase
+    .from('organizations')
+    .select('vertical')
+    .eq('id', orgId)
+    .maybeSingle()
+
+  if (!org || orgError) {
+    return NextResponse.json(
+      { error: 'Organization not found' },
+      { status: 404 }
+    )
+  }
+
+  if (org.vertical !== 'dealer') {
+    // Log vertical mismatch attempt for audit trail
+    await writeAuditLog({
+      orgId,
+      actorId: profile.id,
+      actorType: 'user',
+      action: 'vertical_violation_monroney_extract',
+      entityType: 'vehicle',
+      entityId: null,
+      metadata: {
+        org_vertical: org.vertical,
+        reason: 'Monroney extract restricted to dealer vertical',
+      },
+    })
+
+    return NextResponse.json(
+      { error: 'Vehicle extraction is not available for your organization type' },
+      { status: 403 }
     )
   }
 
