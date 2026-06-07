@@ -1,6 +1,7 @@
 /**
  * Auction Sync Orchestrator
  * Coordinates Copart and ACV platform syncs, deduplication, and database persistence.
+ * Phase 06: Detects and logs vehicle state (new_import, price_updated, status_updated, no_change).
  */
 
 import { createServiceClient } from '@/lib/supabase/service'
@@ -13,6 +14,80 @@ import { importVehicles } from '@/lib/vehicles/bulkImporter'
 
 export class AuctionSyncOrchestrator {
   private supabase = createServiceClient()
+
+  /**
+   * Detect vehicle state: new vs. existing, price/status changes.
+   * Returns state and existing vehicle record if found.
+   */
+  private async detectVehicleState(
+    orgId: string,
+    vehicle: AuctionVehicle,
+  ): Promise<{
+    state: 'new_import' | 'price_updated' | 'status_updated' | 'no_change'
+    existing?: { id: string; price: number | null; status: string | null }
+  }> {
+    const query = this.supabase
+      .from('vehicles')
+      .select('id, price, status')
+      .eq('user_id', orgId)
+
+    // Try VIN first
+    if (vehicle.vin) {
+      const { data: existing } = await query.eq('vin', vehicle.vin).maybeSingle()
+      if (existing) {
+        // Vehicle exists by VIN; check what changed
+        const priceChanged = existing.price !== (vehicle.current_bid ?? null)
+        const newStatus = vehicle.primary_damage ? 'damaged' : 'unknown'
+        const statusChanged = existing.status !== newStatus
+
+        if (priceChanged && statusChanged) {
+          // Both changed; prioritize price update
+          return {
+            state: 'price_updated',
+            existing,
+          }
+        } else if (statusChanged) {
+          return {
+            state: 'status_updated',
+            existing,
+          }
+        } else if (priceChanged) {
+          return {
+            state: 'price_updated',
+            existing,
+          }
+        } else {
+          return {
+            state: 'no_change',
+            existing,
+          }
+        }
+      }
+    }
+
+    // Fallback: dedup by year/make/model
+    const { data: existing } = await this.supabase
+      .from('vehicles')
+      .select('id, price, status')
+      .eq('user_id', orgId)
+      .eq('year', vehicle.year)
+      .eq('make', vehicle.make)
+      .eq('model', vehicle.model)
+      .maybeSingle()
+
+    if (existing) {
+      // Matched by year/make/model; assume no_change for now (same logic as VIN match)
+      return {
+        state: 'no_change',
+        existing,
+      }
+    }
+
+    // New vehicle
+    return {
+      state: 'new_import',
+    }
+  }
 
   /**
    * Sync vehicles for a single org from enabled auction platforms.
@@ -77,33 +152,92 @@ export class AuctionSyncOrchestrator {
         return { total_imported: 0, total_updated: 0, errors: syncErrors }
       }
 
-      // Convert auction vehicles to importable format
-      // Filter out vehicles missing required fields (year, make, model)
-      const vehiclesToImport = allVehicles
-        .filter((av: AuctionVehicle): boolean => Boolean(av.year && av.make && av.model))
-        .map((av): VehicleEditState => ({
-          id: crypto.randomUUID(),
-          selected: true,
-          year: av.year!,
-          make: av.make!,
-          model: av.model!,
-          vin: av.vin ?? undefined,
-          price: av.current_bid ?? undefined,
-          mileage: undefined, // Auctions don't provide mileage
-          color: undefined,
-          condition: av.primary_damage ? 'damaged' : 'unknown',
-          acquisition_source: 'auction',
-          auction_name: av.source,
-          auction_lot: av.lot_number ?? undefined,
-          description: av.primary_damage ? `Primary: ${av.primary_damage}` : undefined,
-        }))
+      // Analyze each vehicle before import
+      const vehiclesToImport: VehicleEditState[] = []
+      const stateStats = {
+        new_import: 0,
+        price_updated: 0,
+        status_updated: 0,
+        no_change: 0,
+      }
 
-      // Persist to database (dedup by VIN, fallback by year/make/model)
-      // Service role: no user session; caller is cron job
-      // Cron jobs have no user_id context, so we pass empty string
-      const importResult = await importVehicles(config.org_id, vehiclesToImport, '')
+      for (const av of allVehicles) {
+        // Skip vehicles missing required fields
+        if (!av.year || !av.make || !av.model) continue
 
-      // Update sync config with result
+        const stateDetection = await this.detectVehicleState(config.org_id, av)
+        stateStats[stateDetection.state]++
+
+        // Log per-vehicle state
+        await writeAuditLog({
+          orgId: config.org_id,
+          actorId: null,
+          actorType: 'user',
+          action: 'auction_sync_vehicle_detected',
+          entityType: 'vehicle',
+          entityId: stateDetection.existing?.id ?? null,
+          vehicleState: stateDetection.state,
+          metadata: {
+            vin: av.vin ?? null,
+            auction_source: av.source,
+            lot_number: av.lot_number,
+            ...(stateDetection.state !== 'new_import' && {
+              old_price: stateDetection.existing?.price,
+              new_price: av.current_bid,
+              old_status: stateDetection.existing?.status,
+              new_status: av.primary_damage ? 'damaged' : 'unknown',
+            }),
+          },
+        })
+
+        // Only add new vehicles to import list (v1.1 scope)
+        // TODO: Phase 07 will add update logic for price_updated/status_updated
+        if (stateDetection.state === 'new_import') {
+          vehiclesToImport.push({
+            id: crypto.randomUUID(),
+            selected: true,
+            year: av.year!,
+            make: av.make!,
+            model: av.model!,
+            vin: av.vin ?? undefined,
+            price: av.current_bid ?? undefined,
+            mileage: undefined,
+            color: undefined,
+            condition: av.primary_damage ? 'damaged' : 'unknown',
+            acquisition_source: 'auction',
+            auction_name: av.source,
+            auction_lot: av.lot_number ?? undefined,
+            description: av.primary_damage ? `Primary: ${av.primary_damage}` : undefined,
+          })
+        }
+      }
+
+      // Import new vehicles
+      const importResult = vehiclesToImport.length > 0
+        ? await importVehicles(config.org_id, vehiclesToImport, '', 'auction')
+        : { success: 0, failed: 0, errors: [] }
+
+      // Final summary audit log
+      await writeAuditLog({
+        orgId: config.org_id,
+        actorId: null,
+        actorType: 'user',
+        action: 'auction_sync_completed',
+        entityType: 'vehicle',
+        entityId: null,
+        metadata: {
+          fetched: allVehicles.length,
+          new_import: stateStats.new_import,
+          price_updated: stateStats.price_updated,
+          status_updated: stateStats.status_updated,
+          no_change: stateStats.no_change,
+          imported: importResult.success,
+          failed: importResult.failed,
+          sources: [...new Set(allVehicles.map((v) => v.source))],
+        },
+      })
+
+      // Update sync config
       const successPayload = {
         last_sync_at: new Date().toISOString(),
         last_sync_status: 'success',
@@ -116,27 +250,12 @@ export class AuctionSyncOrchestrator {
         .eq('org_id', config.org_id)
 
       console.log(
-        `[auction-sync] ${config.org_id}: imported ${importResult.success}, failed ${importResult.failed}`,
+        `[auction-sync] ${config.org_id}: new=${stateStats.new_import}, price_updated=${stateStats.price_updated}, status_updated=${stateStats.status_updated}, no_change=${stateStats.no_change}`,
       )
-
-      // Audit log: record sync completion (cron job, so actorId is null)
-      await writeAuditLog({
-        orgId: config.org_id,
-        actorId: null,
-        actorType: 'user',
-        action: 'auction_sync_completed',
-        entityType: 'vehicle',
-        entityId: null,
-        metadata: {
-          imported: importResult.success,
-          failed: importResult.failed,
-          sources: [...new Set(allVehicles.map((v) => v.source))],
-        },
-      })
 
       return {
         total_imported: importResult.success,
-        total_updated: 0, // TODO: implement update logic in Plan 05
+        total_updated: 0, // TODO: Phase 07 will implement updates
         errors: importResult.errors.map((e) => `${e.id}: ${e.error}`),
       }
     } catch (err) {
