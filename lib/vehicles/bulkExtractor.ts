@@ -8,6 +8,8 @@ import { buildBulkVehicleExtractionPrompt } from '@/lib/ai/bulkPrompts'
 import OpenAI from 'openai'
 import type { ExtractedVehicle } from './extractionTypes'
 
+export type { ExtractedVehicle }
+
 export async function bulkExtractVehicles(content: string): Promise<{
   vehicles: ExtractedVehicle[]
   errors: string[]

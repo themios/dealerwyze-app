@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -16,13 +17,14 @@ interface Props {
 
 export default function BulkVehicleImportModal({
   open,
-  onOpenChange
+  onOpenChange,
 }: Props) {
+  const router = useRouter()
   const [state, setState] = useState<BulkVehicleExtractorState>({
     content: '',
     loading: false,
     items: [],
-    selectedCount: 0
+    selectedCount: 0,
   })
 
   async function handleExtract() {
@@ -100,8 +102,66 @@ export default function BulkVehicleImportModal({
       content: '',
       loading: false,
       items: [],
-      selectedCount: 0
+      selectedCount: 0,
     })
+  }
+
+  async function handleImportSelected() {
+    const selected = state.items.filter((i) => i.selected)
+    if (selected.length === 0) return
+
+    setState((s) => ({ ...s, loading: true }))
+
+    try {
+      const res = await fetch('/api/vehicles/intake/bulk-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: selected }),
+      })
+
+      const data = (await res.json()) as {
+        success: number
+        failed: number
+        errors: Array<{ id: string; error: string }>
+      }
+
+      if (data.success === 0 && data.failed > 0) {
+        // All failed
+        toast.error(
+          `Failed to import any vehicles. ${data.errors[0]?.error || 'Unknown error'}`,
+        )
+        setState((s) => ({
+          ...s,
+          loading: false,
+          globalError: `${data.failed} vehicles failed to import`,
+        }))
+        return
+      }
+
+      // Success (full or partial)
+      toast.success(
+        `Imported ${data.success} vehicles${data.failed > 0 ? `, ${data.failed} failed` : ''}`,
+      )
+
+      if (data.failed === 0) {
+        // Complete success - close modal and refresh
+        onOpenChange(false)
+        router.refresh()
+      } else {
+        // Partial success - show errors, let user retry
+        setState((s) => ({
+          ...s,
+          loading: false,
+          items: s.items.map((item) => {
+            const err = data.errors.find((e) => e.id === item.id)
+            return err ? { ...item, extractionError: err.error } : item
+          }),
+        }))
+      }
+    } catch {
+      toast.error('Network error during import')
+      setState((s) => ({ ...s, loading: false }))
+    }
   }
 
   return (
@@ -158,23 +218,15 @@ export default function BulkVehicleImportModal({
               allCount={state.items.length}
             />
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={handleReset}
-                className="flex-1"
-              >
+              <Button variant="outline" onClick={handleReset} className="flex-1">
                 Start Over
               </Button>
               <Button
-                onClick={() => {
-                  // Wave 3: integrate import logic
-                  const count = state.selectedCount
-                  toast.success(`Ready to import ${count} vehicles`)
-                }}
-                disabled={state.selectedCount === 0}
+                onClick={handleImportSelected}
+                disabled={state.selectedCount === 0 || state.loading}
                 className="flex-1"
               >
-                Import {state.selectedCount} Vehicles
+                {state.loading ? 'Importing...' : `Import ${state.selectedCount} Vehicles`}
               </Button>
             </div>
           </div>

@@ -13,6 +13,7 @@ import VehicleIntakeButton from '@/components/vehicle/VehicleIntakeButton'
 import ListingIntakeButton from '@/components/vehicle/ListingIntakeButton'
 import ImportListingsButton from '@/components/vehicle/ImportListingsButton'
 import RunMarketIntelligenceButton from '@/components/vehicle/RunMarketIntelligenceButton'
+import BulkVehicleImportButton from '@/components/vehicle/BulkVehicleImportButton'
 import { Car } from 'lucide-react'
 import EmptyState from '@/components/ui/EmptyState'
 
@@ -150,6 +151,7 @@ export default async function VehiclesPage({ searchParams }: PageProps) {
             {profile.role === 'admin' && !isRe && <RunMarketIntelligenceButton />}
             {isRe ? <SyncWebsiteButton /> : <SyncInventoryButton />}
             {isRe && <ImportListingsButton />}
+            {!isRe && <BulkVehicleImportButton />}
             {isRe ? <ListingIntakeButton /> : <VehicleIntakeButton />}
           </div>
         }
