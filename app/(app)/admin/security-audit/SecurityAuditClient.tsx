@@ -21,6 +21,7 @@ export interface SecurityAuditRow {
   entity_id: string | null
   metadata: Record<string, unknown> | null
   ip_address: string | null
+  vehicle_state: string | null
   created_at: string
 }
 
@@ -42,6 +43,14 @@ const DAY_OPTIONS = [
   { value: '7', label: 'Last 7 days' },
   { value: '30', label: 'Last 30 days' },
   { value: '90', label: 'Last 90 days' },
+] as const
+
+const VEHICLE_STATE_OPTIONS = [
+  { value: 'all', label: 'All states' },
+  { value: 'new_import', label: 'new_import' },
+  { value: 'price_updated', label: 'price_updated' },
+  { value: 'status_updated', label: 'status_updated' },
+  { value: 'no_change', label: 'no_change' },
 ] as const
 
 function truncateId(id: string | null | undefined, len: number) {
@@ -101,6 +110,7 @@ function metadataPairs(meta: Record<string, unknown> | null): [string, string][]
 export default function SecurityAuditClient() {
   const [days, setDays] = useState<string>('30')
   const [action, setAction] = useState<string>('all')
+  const [vehicleState, setVehicleState] = useState<string>('all')
   const [rows, setRows] = useState<SecurityAuditRow[]>([])
   const [nextBeforeId, setNextBeforeId] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(false)
@@ -114,8 +124,9 @@ export default function SecurityAuditClient() {
       source: 'security',
       days,
       action: action === 'all' ? '' : action,
+      vehicleState: vehicleState === 'all' ? '' : vehicleState,
     }),
-    [days, action],
+    [days, action, vehicleState],
   )
 
   const fetchPage = useCallback(
@@ -124,6 +135,7 @@ export default function SecurityAuditClient() {
       params.set('source', 'security')
       params.set('days', queryBase.days)
       if (queryBase.action) params.set('action', queryBase.action)
+      if (queryBase.vehicleState) params.set('vehicle_state', queryBase.vehicleState)
       params.set('limit', '50')
       if (beforeId) params.set('before_id', beforeId)
 
@@ -144,7 +156,7 @@ export default function SecurityAuditClient() {
       setHasMore(more)
       setNextBeforeId(next)
     },
-    [queryBase.action, queryBase.days],
+    [queryBase.action, queryBase.days, queryBase.vehicleState],
   )
 
   useEffect(() => {
@@ -207,6 +219,21 @@ export default function SecurityAuditClient() {
             </SelectContent>
           </Select>
         </div>
+        <div className="space-y-1.5 min-w-[200px]">
+          <Label>Vehicle State</Label>
+          <Select value={vehicleState} onValueChange={setVehicleState}>
+            <SelectTrigger className="h-10 w-[220px] max-w-full">
+              <SelectValue placeholder="Filter" />
+            </SelectTrigger>
+            <SelectContent>
+              {VEHICLE_STATE_OPTIONS.map(opt => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <div className="space-y-1.5 min-w-[180px]">
           <Label>Date range</Label>
           <Select value={days} onValueChange={setDays}>
@@ -234,6 +261,7 @@ export default function SecurityAuditClient() {
             <tr className="border-b border-border bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               <th className="px-3 py-2 w-[160px]">Time</th>
               <th className="px-3 py-2 w-[140px]">Action</th>
+              <th className="px-3 py-2 w-[130px]">Vehicle State</th>
               <th className="px-3 py-2">Actor</th>
               <th className="px-3 py-2">Entity</th>
               <th className="px-3 py-2 min-w-[200px]">Details</th>
@@ -243,14 +271,14 @@ export default function SecurityAuditClient() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">
+                <td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">
                   Loading…
                 </td>
               </tr>
             )}
             {!loading && rows.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">
+                <td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">
                   No security events recorded in this period.
                 </td>
               </tr>
@@ -269,6 +297,15 @@ export default function SecurityAuditClient() {
                     <span className={cn('inline-flex text-[10px] font-semibold px-2 py-0.5 rounded-md', actionBadgeClass(row.action))}>
                       {row.action}
                     </span>
+                  </td>
+                  <td className="px-3 py-2 align-top">
+                    {row.vehicle_state ? (
+                      <span className="inline-flex text-[10px] font-semibold px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-800 dark:text-blue-300 border border-blue-500/25">
+                        {row.vehicle_state}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </td>
                   <td className="px-3 py-2 align-top">
                     <span title={row.actor_id ?? undefined}>

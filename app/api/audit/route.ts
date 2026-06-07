@@ -48,6 +48,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const source = searchParams.get('source') ?? ''
   const isSecurity = source === 'security'
+  const vehicleStateFilter = searchParams.get('vehicle_state')?.trim() ?? ''
 
   if (isSecurity) {
     if (!canViewDealerSecurityAudit(profile.role as UserRole)) {
@@ -97,12 +98,15 @@ export async function GET(req: NextRequest) {
 
       let q = supabase
         .from('audit_log')
-        .select('id, actor_id, actor_type, action, entity_type, entity_id, metadata, ip_address, created_at')
+        .select('id, actor_id, actor_type, action, entity_type, entity_id, metadata, ip_address, vehicle_state, created_at')
         .eq('org_id', profile.org_id)
         .gte('created_at', startIso)
 
       if (actionFilter && actionFilter !== 'all') {
         q = q.eq('action', actionFilter)
+      }
+      if (vehicleStateFilter && vehicleStateFilter !== 'all') {
+        q = q.eq('vehicle_state', vehicleStateFilter)
       }
       if (anchorCreated) {
         q = q.lt('created_at', anchorCreated)
