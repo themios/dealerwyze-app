@@ -1,11 +1,14 @@
 /**
  * Upstash Redis-backed rate limiters — shared across all Vercel instances.
- * Falls back to allowing all requests if env vars are not configured,
- * so the app continues to work without Upstash (e.g. local dev without .env.local).
+ * Fails closed if env vars are not configured (returns { allowed: false, remaining: 0 }).
+ * This prevents abuse when Redis infrastructure is unavailable.
  *
  * Two categories:
  *   IP-based  — public endpoints (no auth): book, pulse, pay, leads, registration
  *   Org-based — authenticated actions that cost money: SMS sends, AI calls
+ *
+ * Note: Production MUST have UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN configured.
+ * Local development requires either these env vars or removal of rate limiter calls from the dev flow.
  */
 
 import { Ratelimit } from '@upstash/ratelimit'
@@ -61,11 +64,17 @@ const _orgTodayBulk     = makeLimiter(redis, { requests: 10,  windowSeconds: 60 
 const _orgLostLeadExport = makeLimiter(redis, { requests: 1, windowSeconds: 60 })
 const _orgSocialPost    = makeLimiter(redis, { requests: 40, windowSeconds: 3600 })
 
+/**
+ * Check rate limit against the configured Upstash Redis instance.
+ * **FAILS CLOSED**: If Redis is unavailable or not configured, returns { allowed: false, remaining: 0, retryAfterSeconds: 60 }.
+ * This ensures that during infrastructure outages, we reject requests instead of silently allowing them.
+ * Callers should treat a rejected limit as 429 (Too Many Requests).
+ */
 async function check(
   limiter: Ratelimit | null,
   key: string,
 ): Promise<{ allowed: boolean; remaining: number; retryAfterSeconds: number }> {
-  if (!limiter) return { allowed: true, remaining: 99, retryAfterSeconds: 0 }
+  if (!limiter) return { allowed: false, remaining: 0, retryAfterSeconds: 60 }
   const result = await limiter.limit(key)
   const resetAtMs = typeof result.reset === 'number' ? result.reset : Date.now()
   return {
