@@ -46,6 +46,12 @@ export const OPTIONAL_RE_SHOWINGS: string[] = [
   'CALCOM_WEBHOOK_SECRET',  // HMAC-SHA256 secret from Cal.com webhook settings
 ]
 
+/** Optional but important — Upstash Redis for distributed rate limiting (fail-closed fallback in production if missing) */
+export const OPTIONAL_UPSTASH: string[] = [
+  'UPSTASH_REDIS_REST_URL',
+  'UPSTASH_REDIS_REST_TOKEN',
+]
+
 const REQUIRED_IN_PROD_ONLY: string[] = [
   // BHPH ACH: signed customer setup links + Stripe ACH webhook (dealer Connect account)
   'BHPH_ACH_SECRET',
@@ -56,6 +62,51 @@ const REQUIRED_IN_PROD_ONLY: string[] = [
   'R2_BACKUP_SECRET_ACCESS_KEY',
   'R2_ACCOUNT_ID',
 ]
+
+/**
+ * Validate Upstash Redis configuration.
+ *
+ * Production behavior:
+ * - Both vars present: no logging (success)
+ * - Both vars missing: log warning (rate limits fail closed)
+ * - Partial config: throw error (unsafe footgun)
+ *
+ * Development behavior:
+ * - Both vars missing: no logging (acceptable for local dev)
+ * - Partial config: log warning (catch accidental misconfiguration)
+ */
+export function validateUpstashConfig(): void {
+  const url = process.env.UPSTASH_REDIS_REST_URL
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN
+  const bothPresent = Boolean(url && token)
+  const neitherPresent = !url && !token
+  const partialPresent = (url && !token) || (!url && token)
+
+  if (process.env.NODE_ENV === 'production') {
+    if (neitherPresent) {
+      // Both missing — warn
+      console.warn(
+        '[env] Rate limiting disabled: UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN ' +
+        'are not configured. Rate limits will fail closed in production.'
+      )
+    }
+    if (partialPresent) {
+      // One set, one missing — error
+      throw new Error(
+        '[env] Partial Upstash configuration: both UPSTASH_REDIS_REST_URL and ' +
+        'UPSTASH_REDIS_REST_TOKEN must be set together. Check your environment.'
+      )
+    }
+  } else {
+    // Development
+    if (partialPresent) {
+      console.warn(
+        '[env] Partial Upstash configuration: both UPSTASH_REDIS_REST_URL and ' +
+        'UPSTASH_REDIS_REST_TOKEN should be set together. Rate limiting disabled.'
+      )
+    }
+  }
+}
 
 export function validateEnv(): void {
   const required =
@@ -70,4 +121,7 @@ export function validateEnv(): void {
       `See .env.example for documentation.`
     )
   }
+
+  // Validate Upstash configuration (production warnings, dev flexibility)
+  validateUpstashConfig()
 }
