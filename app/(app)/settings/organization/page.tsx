@@ -11,6 +11,7 @@ import GoogleCalendarSection       from './sections/GoogleCalendarSection'
 import EmailFromDomainSection      from './sections/EmailFromDomainSection'
 import SocialPostingSection        from './sections/SocialPostingSection'
 import BhphPaymentMethodsSection   from './sections/BhphPaymentMethodsSection'
+import AuctionSyncSection          from './sections/AuctionSyncSection'
 import DataExportSection           from './sections/DataExportSection'
 import DangerZoneSection           from './sections/DangerZoneSection'
 
@@ -29,6 +30,8 @@ export default function OrganizationSettingsPage() {
         <PhoneSection />
         {/* BHPH payment reminders are dealer-only */}
         {!isRE && <BhphPaymentMethodsSection />}
+        {/* Auction sync is dealer-only */}
+        {!isRE && <AuctionSyncSection />}
         <EmailLeadSyncSection isRE={isRE} />
         <VoiceAgentSection isRE={isRE} />
         <GoogleBusinessProfileSection />

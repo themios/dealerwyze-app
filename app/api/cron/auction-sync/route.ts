@@ -1,58 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateCronAuth } from '@/lib/cron/validateCronAuth'
-import { createServiceClient } from '@/lib/supabase/service'
+import { startCronRun, finishCronRun } from '@/lib/cron/runLogger'
+import { runAuctionSync } from '@/lib/cron/jobs/auctionSync'
+
+export const runtime = 'nodejs'
+export const maxDuration = 55
 
 /**
- * Auction sync cron job.
- * Runs every 6 hours to sync vehicles from configured auction platforms.
- * This handler will be expanded in Plan 04 to include actual sync logic.
+ * GET /api/cron/auction-sync
+ * Runs every 6 hours to sync vehicles from Copart and ACV auctions.
+ * Fetches all orgs with sync enabled, pulls new vehicles, and imports them.
  */
-export async function POST(req: NextRequest) {
-  // Validate cron auth (bearer token from Vercel cron)
+export async function GET(req: NextRequest) {
+  // Validate Vercel cron secret
   const denied = validateCronAuth(req)
   if (denied) return denied
 
-  const supabase = createServiceClient()
+  const runId = await startCronRun('auction-sync')
 
   try {
-    // Get all orgs with auction sync enabled
-    const { data: configs, error } = await supabase
-      .from('org_auction_sync_config')
-      .select('*')
-      .eq('enabled', true)
-      .gt('last_sync_at', new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()) // Last sync > 6 hours ago
-
-    if (error) {
-      console.error('[auction-sync] Failed to fetch configs:', error.message)
-      return NextResponse.json(
-        { error: 'Failed to fetch configs' },
-        { status: 500 }
-      )
-    }
-
-    if (!configs || configs.length === 0) {
-      return NextResponse.json({
-        success: true,
-        message: 'No orgs configured for auction sync',
-        processed: 0,
-      })
-    }
-
-    // TODO: Plan 04 will implement sync logic here
-    // For now, just record that cron executed
-    console.log(`[auction-sync] Processing ${configs.length} orgs`)
-
-    return NextResponse.json({
-      success: true,
-      message: `Processed ${configs.length} orgs`,
-      processed: configs.length,
-    })
+    const result = await runAuctionSync()
+    await finishCronRun(runId, 'success')
+    return NextResponse.json(result)
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
-    console.error('[auction-sync]', message)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    console.error('[auction-sync] Cron endpoint error:', message)
+    await finishCronRun(runId, 'error')
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

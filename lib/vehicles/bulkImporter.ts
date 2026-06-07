@@ -81,6 +81,9 @@ export async function importVehicles(
         status: 'available' as const,
         notes: item.description || null,
         location_id: item.location_id || defaultLocationId,
+        acquisition_source: item.acquisition_source || null,
+        auction_name: item.auction_name || null,
+        auction_lot: item.auction_lot || null,
         created_at: new Date().toISOString(),
       }
 

@@ -17,7 +17,7 @@ export interface AuctionVehicle {
 }
 
 export interface AuctionSyncConfig {
-  dealer_id: string
+  org_id: string
   enabled: boolean
   copart_enabled: boolean
   copart_api_key?: string

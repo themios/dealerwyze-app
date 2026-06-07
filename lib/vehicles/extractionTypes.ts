@@ -20,6 +20,10 @@ export type VehicleEditState = ExtractedVehicle & {
   selected: boolean
   extractionError?: string
   location_id?: string // assigned during import for multi-location dealers
+  // Auction-specific fields (optional, used by auction sync)
+  acquisition_source?: string
+  auction_name?: string
+  auction_lot?: string
 }
 
 export type BulkVehicleExtractorState = {
