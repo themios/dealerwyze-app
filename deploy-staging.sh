@@ -9,6 +9,6 @@ echo "🚀 Deploying to STAGING (apollo-crm.vercel.app)..."
 # Ensure we're using the staging project
 cp .vercel/project.staging.json .vercel/project.json
 
-npx vercel --prod
+npx vercel
 
 echo "✅ Staging deploy complete → dealer-wyze-themio-5359-apollo-projects.vercel.app"

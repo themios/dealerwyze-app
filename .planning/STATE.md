@@ -113,3 +113,16 @@ See: `.planning/PROJECT.md` (updated 2026-05-28)
 *State updated: 2026-05-28 — 09-03 complete: Commission Plans CRUD API — GET/POST /api/commission-plans and PATCH/DELETE /api/commission-plans/[id]; Zod schemas in lib/commissions/schemas.ts; default-swap logic; open-transaction 409 guard on delete*
 *State updated: 2026-05-28 — 09-05 complete: Close route hardened (isDealerAdmin, sanitized RPC errors); CommissionPlanForm + CommissionPlanCard; /settings/commission-plans (RE+admin only); nav entry with verticalHide:dealer. TXN-05 + TXN-06 live. Awaiting human-verify.*
 *State updated: 2026-05-29 — 09-06 complete: GET /api/transactions/summary (role-scoped, year filter, agents_summary); /commissions page (YTD card, agent breakdown, deal table); buyer_agent_amount surfaced; Commissions nav entry in RE sidebar. TXN-07 + TXN-08 live. Phase 9 all requirements covered. Awaiting human-verify.*
+
+---
+
+## v1.1 Completion Update — Phase 06 (Audit Logging Enhancement)
+
+*State updated: 2026-06-07 — Phase 06 Plan 02 (Auction Sync State Tracking) complete*
+- Vehicle state detection (new_import, price_updated, status_updated, no_change) implemented
+- Per-vehicle audit logs with vehicleState field recorded
+- Migration 238 (audit_log.vehicle_state column) applied
+- Admin dashboard filtering by vehicle_state live
+- 10 comprehensive tests passing; zero linting issues
+- Requirement AUD-02 satisfied
+- Ready for Phase 07 (Vertical Enforcement & Auction Refinement)
