@@ -53,6 +53,10 @@ const nextConfig: NextConfig = {
     'esbuild',
     'twilio',
   ],
+  transpilePackages: [
+    '@exodus/bytes',
+    'html-encoding-sniffer',
+  ],
 }
 
 // Wrap with next-intl plugin
