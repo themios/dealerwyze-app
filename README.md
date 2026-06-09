@@ -2,7 +2,7 @@
 
 Multi-tenant SaaS CRM for used-car dealerships. Handles leads, texting, email, voice AI, BHPH payments, inventory, receipts, customer retention, and reporting.
 
-**Brand:** DealerWyze | **Domain:** dealerwyze.com | **Staging:** apollo-crm.vercel.app  
+**Brand:** DealerWyze | **Domain:** dealerwyze.com | **Staging:** staging.dealerwyze.com  
 **Test tenant:** Apollo Auto (El Monte CA) — slug: `apollo-auto`
 
 ---
@@ -137,7 +137,7 @@ Auth: `Authorization: Bearer <CRON_SECRET>` header.
 ```bash
 ./deploy-staging.sh
 ```
-Deploys to apollo-crm.vercel.app.
+Deploys to staging.dealerwyze.com.
 
 **Production:**
 ```bash

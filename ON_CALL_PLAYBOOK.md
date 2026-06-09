@@ -105,7 +105,8 @@ curl -s -H "Authorization: Bearer $BEARER_TOKEN" \
 
 ### Check Deployments
 ```
-https://vercel.com/dealerwyze-crm/apollo-crm/deployments
+Staging: https://vercel.com/apollo-projects/dealer-wyze-staging/deployments
+Production: https://vercel.com/apollo-projects/dealer-wyze/deployments
 (Last green checkmark = last known good)
 ```
 

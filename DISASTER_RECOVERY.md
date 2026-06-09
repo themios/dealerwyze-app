@@ -125,7 +125,7 @@ curl -s https://status.supabase.com/api/v2/status.json | jq '.status'
 
 **Step 1: Immediate Rollback (2 min)**
 ```bash
-# Go to https://vercel.com/dealerwyze-crm/apollo-crm/deployments
+# Go to https://vercel.com/apollo-projects/dealer-wyze/deployments
 # Find last known good deployment (green checkmark, <1 hour old)
 # Click "Promote to Production"
 ```
