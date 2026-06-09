@@ -398,14 +398,14 @@ Then classify each line into LEGITIMATE / REDUCIBLE / WRONG.
 ## Sources
 
 ### Primary (HIGH confidence — direct codebase inspection)
-- `/home/tim/Applications/ApolloCRM/apollo-crm/lib/supabase/service.ts` — service client impl
-- `/home/tim/Applications/ApolloCRM/apollo-crm/lib/supabase/server.ts` — auth client impl
-- `/home/tim/Applications/ApolloCRM/apollo-crm/lib/supabase/forRequest.ts` — impersonation logic
-- `/home/tim/Applications/ApolloCRM/apollo-crm/lib/auth/profile.ts` — requireProfile() impl
-- `/home/tim/Applications/ApolloCRM/apollo-crm/lib/__tests__/security.test.ts` — existing test pattern
-- `/home/tim/Applications/ApolloCRM/apollo-crm/vitest.config.ts` — confirmed correct config
-- `/home/tim/Applications/ApolloCRM/apollo-crm/package.json` — confirmed vitest 4.1.5 installed
-- `/home/tim/Applications/ApolloCRM/apollo-crm/eslint.config.mjs` — ESLint config
+- `/home/tim/Applications/Wyze/wyze-app/lib/supabase/service.ts` — service client impl
+- `/home/tim/Applications/Wyze/wyze-app/lib/supabase/server.ts` — auth client impl
+- `/home/tim/Applications/Wyze/wyze-app/lib/supabase/forRequest.ts` — impersonation logic
+- `/home/tim/Applications/Wyze/wyze-app/lib/auth/profile.ts` — requireProfile() impl
+- `/home/tim/Applications/Wyze/wyze-app/lib/__tests__/security.test.ts` — existing test pattern
+- `/home/tim/Applications/Wyze/wyze-app/vitest.config.ts` — confirmed correct config
+- `/home/tim/Applications/Wyze/wyze-app/package.json` — confirmed vitest 4.1.5 installed
+- `/home/tim/Applications/Wyze/wyze-app/eslint.config.mjs` — ESLint config
 - `npm test` run — confirmed 38 tests passing, 394ms
 
 ### Secondary (HIGH confidence — direct command output)

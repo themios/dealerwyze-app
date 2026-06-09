@@ -1,4 +1,4 @@
-# Graph Report - /home/tim/Applications/ApolloCRM/apollo-crm  (2026-06-04)
+# Graph Report - /home/tim/Applications/Wyze/wyze-app  (2026-06-04)
 
 ## Corpus Check
 - 1288 files · ~1,796,934 words
@@ -396,15 +396,15 @@
 
 ## Surprising Connections (you probably didn't know these)
 - `GET()` --calls--> `generateTemplateCsv()`  [INFERRED]
-  /home/tim/Applications/ApolloCRM/apollo-crm/app/api/integrations/mls/sync/route.ts → /home/tim/Applications/ApolloCRM/apollo-crm/lib/leads/spreadsheetImport.ts
+  /home/tim/Applications/Wyze/wyze-app/app/api/integrations/mls/sync/route.ts → /home/tim/Applications/Wyze/wyze-app/lib/leads/spreadsheetImport.ts
 - `GET()` --calls--> `isRepRestricted()`  [INFERRED]
-  /home/tim/Applications/ApolloCRM/apollo-crm/app/api/integrations/mls/sync/route.ts → /home/tim/Applications/ApolloCRM/apollo-crm/lib/auth/dealerRoles.ts
+  /home/tim/Applications/Wyze/wyze-app/app/api/integrations/mls/sync/route.ts → /home/tim/Applications/Wyze/wyze-app/lib/auth/dealerRoles.ts
 - `GET()` --calls--> `parseLead()`  [INFERRED]
-  /home/tim/Applications/ApolloCRM/apollo-crm/app/api/integrations/mls/sync/route.ts → /home/tim/Applications/ApolloCRM/apollo-crm/components/leads/NewLeadCard.tsx
+  /home/tim/Applications/Wyze/wyze-app/app/api/integrations/mls/sync/route.ts → /home/tim/Applications/Wyze/wyze-app/components/leads/NewLeadCard.tsx
 - `GET()` --calls--> `captureUtmParams()`  [INFERRED]
-  /home/tim/Applications/ApolloCRM/apollo-crm/app/api/integrations/mls/sync/route.ts → /home/tim/Applications/ApolloCRM/apollo-crm/lib/analytics/gtag.ts
+  /home/tim/Applications/Wyze/wyze-app/app/api/integrations/mls/sync/route.ts → /home/tim/Applications/Wyze/wyze-app/lib/analytics/gtag.ts
 - `POST()` --calls--> `composeFacebookSlides()`  [INFERRED]
-  /home/tim/Applications/ApolloCRM/apollo-crm/app/api/integrations/mls/sync/route.ts → /home/tim/Applications/ApolloCRM/apollo-crm/lib/social/carouselComposer.ts
+  /home/tim/Applications/Wyze/wyze-app/app/api/integrations/mls/sync/route.ts → /home/tim/Applications/Wyze/wyze-app/lib/social/carouselComposer.ts
 
 ## Communities
 

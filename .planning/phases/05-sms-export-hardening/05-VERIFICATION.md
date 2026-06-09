@@ -20,7 +20,7 @@ SMS rate limiter (`orgSmsLimiter`) imported and called in all sequence delivery 
 ### Verification
 
 #### 1a. Direct SMS Sends (`lib/sms/sendOutbound.ts`)
-**File:** `/home/tim/Applications/ApolloCRM/apollo-crm/lib/sms/sendOutbound.ts`  
+**File:** `/home/tim/Applications/Wyze/wyze-app/lib/sms/sendOutbound.ts`  
 **Status:** ✓ VERIFIED
 
 Evidence:
@@ -44,7 +44,7 @@ Evidence:
 - **Error behavior:** Throws SmsSendError with 429 status code when denied
 
 #### 1b. Sequence SMS Sends (`app/api/cron/send-sequences/route.ts`)
-**File:** `/home/tim/Applications/ApolloCRM/apollo-crm/app/api/cron/send-sequences/route.ts`  
+**File:** `/home/tim/Applications/Wyze/wyze-app/app/api/cron/send-sequences/route.ts`  
 **Status:** ✓ VERIFIED
 
 Evidence:
@@ -66,7 +66,7 @@ Evidence:
 - **Main loop handling (line 354):** `else if (result.error === 'quota_exceeded' || result.error === 'rate_limit_exceeded')`
 
 #### 1c. Auto-Response SMS Sends (`lib/sequences/sendAutoResponseStep1.ts`)
-**File:** `/home/tim/Applications/ApolloCRM/apollo-crm/lib/sequences/sendAutoResponseStep1.ts`  
+**File:** `/home/tim/Applications/Wyze/wyze-app/lib/sequences/sendAutoResponseStep1.ts`  
 **Status:** ✓ VERIFIED
 
 Evidence:
@@ -101,7 +101,7 @@ Data export queries with >10k rows use cursor-based pagination; each page <10k r
 ### Verification
 
 #### 2a. Pagination Implementation (`lib/export/pagination.ts`)
-**File:** `/home/tim/Applications/ApolloCRM/apollo-crm/lib/export/pagination.ts`  
+**File:** `/home/tim/Applications/Wyze/wyze-app/lib/export/pagination.ts`  
 **Status:** ✓ VERIFIED
 
 Evidence:
@@ -127,7 +127,7 @@ Evidence:
 - **Pagination guard (line 87):** Stops at 100 pages max (1M rows per table)
 
 #### 2b. Export Route Uses Pagination (`app/api/settings/data-export/route.ts`)
-**File:** `/home/tim/Applications/ApolloCRM/apollo-crm/app/api/settings/data-export/route.ts`  
+**File:** `/home/tim/Applications/Wyze/wyze-app/app/api/settings/data-export/route.ts`  
 **Status:** ✓ VERIFIED
 
 Evidence:
@@ -191,7 +191,7 @@ Export operations fail gracefully if pagination limit exceeded; user sees clear 
 ### Verification
 
 #### 3a. Pagination Limit Check (`lib/export/pagination.ts`)
-**File:** `/home/tim/Applications/ApolloCRM/apollo-crm/lib/export/pagination.ts`  
+**File:** `/home/tim/Applications/Wyze/wyze-app/lib/export/pagination.ts`  
 **Status:** ✓ VERIFIED
 
 Evidence:
@@ -211,7 +211,7 @@ Evidence:
   - Max total: 1,000,000 rows per table
 
 #### 3b. Export Route Error Handling (`app/api/settings/data-export/route.ts`)
-**File:** `/home/tim/Applications/ApolloCRM/apollo-crm/app/api/settings/data-export/route.ts`  
+**File:** `/home/tim/Applications/Wyze/wyze-app/app/api/settings/data-export/route.ts`  
 **Status:** ✓ VERIFIED
 
 Evidence:
@@ -249,7 +249,7 @@ Evidence:
   ```
 
 #### 3c. Audit Logging for Pagination Errors (`app/api/settings/data-export/route.ts`)
-**File:** `/home/tim/Applications/ApolloCRM/apollo-crm/app/api/settings/data-export/route.ts`  
+**File:** `/home/tim/Applications/Wyze/wyze-app/app/api/settings/data-export/route.ts`  
 **Status:** ✓ VERIFIED
 
 Evidence:
@@ -282,7 +282,7 @@ Integration tests exist and pass; tests cover rate limit exceeded scenario.
 ### Verification
 
 #### 4a. SMS Rate Limit Test (`lib/__tests__/sms-rate-limit.test.ts`)
-**File:** `/home/tim/Applications/ApolloCRM/apollo-crm/lib/__tests__/sms-rate-limit.test.ts`  
+**File:** `/home/tim/Applications/Wyze/wyze-app/lib/__tests__/sms-rate-limit.test.ts`  
 **Status:** ✓ VERIFIED
 
 Evidence:
@@ -311,7 +311,7 @@ Evidence:
   ```
 
 #### 4b. Export Pagination Test (`lib/__tests__/export-pagination.test.ts`)
-**File:** `/home/tim/Applications/ApolloCRM/apollo-crm/lib/__tests__/export-pagination.test.ts`  
+**File:** `/home/tim/Applications/Wyze/wyze-app/lib/__tests__/export-pagination.test.ts`  
 **Status:** ✓ VERIFIED
 
 Evidence:

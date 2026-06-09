@@ -63,7 +63,7 @@ Any file in `app/api/cron/`, `lib/cron/`, inbound webhooks (`stripe/webhook`, `t
 ### Verification after each plan
 
 ```bash
-# In /home/tim/Applications/ApolloCRM/apollo-crm/
+# In /home/tim/Applications/Wyze/wyze-app/
 npx eslint "app/**/*.ts" "lib/**/*.ts" "components/**/*.ts" --max-warnings=0
 npm test
 npm run build

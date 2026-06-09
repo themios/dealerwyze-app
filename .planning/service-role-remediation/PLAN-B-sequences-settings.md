@@ -11,7 +11,7 @@
 These routes all call `requireProfile()` first, then use `createServiceClient()` with explicit org filters.
 Converting to `createClient()` (auth-scoped) removes the over-privileged client while RLS enforces the same scoping automatically.
 
-Working directory: `/home/tim/Applications/ApolloCRM/apollo-crm/`
+Working directory: `/home/tim/Applications/Wyze/wyze-app/`
 
 **IMPORTANT:** Some of these files may already be converted (Phase 2 did the Top 20). Check each file before editing — if it already uses `createClient()`, skip it.
 

@@ -331,17 +331,17 @@ panels[VEHICLE_DETAIL_SECTION_IDS.transactions] = (
 
 All findings from direct codebase inspection:
 
-- `/home/tim/Applications/ApolloCRM/apollo-crm/supabase/migrations/180_re_tables.sql` — transactions + commission_plans schemas
-- `/home/tim/Applications/ApolloCRM/apollo-crm/app/(app)/vehicles/[id]/page.tsx` — section-picker panel pattern, isRe guard, VehicleDocuments usage
-- `/home/tim/Applications/ApolloCRM/apollo-crm/app/api/bhph/create/route.ts` — RPC call pattern for atomic state changes
-- `/home/tim/Applications/ApolloCRM/apollo-crm/supabase/migrations/142_bhph_sale_interest_principal.sql` — `finalize_bhph_sale_with_deferred` RPC structure
-- `/home/tim/Applications/ApolloCRM/apollo-crm/components/vehicle/VehicleDocuments.tsx` — document upload/list component, RE label sets
-- `/home/tim/Applications/ApolloCRM/apollo-crm/app/api/vehicles/[id]/documents/route.ts` — document upload route with quota, storage, AI summarize
-- `/home/tim/Applications/ApolloCRM/apollo-crm/lib/remotion/renderVehicleVideo.ts` — Lambda render orchestration
-- `/home/tim/Applications/ApolloCRM/apollo-crm/lib/remotion/types.ts` — VehicleVideoProps (confirms no RE fields exist)
-- `/home/tim/Applications/ApolloCRM/apollo-crm/remotion/Root.tsx` — all registered Remotion compositions
-- `/home/tim/Applications/ApolloCRM/apollo-crm/lib/vehicles/vehicleDetailSectionIds.ts` — section constant pattern
-- `/home/tim/Applications/ApolloCRM/apollo-crm/lib/auth/dealerRoles.ts` — role gate functions
+- `/home/tim/Applications/Wyze/wyze-app/supabase/migrations/180_re_tables.sql` — transactions + commission_plans schemas
+- `/home/tim/Applications/Wyze/wyze-app/app/(app)/vehicles/[id]/page.tsx` — section-picker panel pattern, isRe guard, VehicleDocuments usage
+- `/home/tim/Applications/Wyze/wyze-app/app/api/bhph/create/route.ts` — RPC call pattern for atomic state changes
+- `/home/tim/Applications/Wyze/wyze-app/supabase/migrations/142_bhph_sale_interest_principal.sql` — `finalize_bhph_sale_with_deferred` RPC structure
+- `/home/tim/Applications/Wyze/wyze-app/components/vehicle/VehicleDocuments.tsx` — document upload/list component, RE label sets
+- `/home/tim/Applications/Wyze/wyze-app/app/api/vehicles/[id]/documents/route.ts` — document upload route with quota, storage, AI summarize
+- `/home/tim/Applications/Wyze/wyze-app/lib/remotion/renderVehicleVideo.ts` — Lambda render orchestration
+- `/home/tim/Applications/Wyze/wyze-app/lib/remotion/types.ts` — VehicleVideoProps (confirms no RE fields exist)
+- `/home/tim/Applications/Wyze/wyze-app/remotion/Root.tsx` — all registered Remotion compositions
+- `/home/tim/Applications/Wyze/wyze-app/lib/vehicles/vehicleDetailSectionIds.ts` — section constant pattern
+- `/home/tim/Applications/Wyze/wyze-app/lib/auth/dealerRoles.ts` — role gate functions
 
 ---
 

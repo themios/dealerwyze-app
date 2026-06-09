@@ -12,7 +12,7 @@ Two types of work in this plan:
 1. **RSC pages** (React Server Components in `app/(app)/`) — same mechanical conversion as routes
 2. **lib/sms/quota.ts** — a more complex refactor to eliminate 6 redundant service client instantiations per invocation
 
-Working directory: `/home/tim/Applications/ApolloCRM/apollo-crm/`
+Working directory: `/home/tim/Applications/Wyze/wyze-app/`
 
 ---
 

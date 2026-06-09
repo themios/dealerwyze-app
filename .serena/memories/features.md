@@ -1,7 +1,7 @@
 # Apollo CRM — Feature Status
 
 ## Roadmap Document
-Full detailed plan with checkboxes: `/home/tim/Applications/ApolloCRM/ROADMAP.md`
+Full detailed plan with checkboxes: `/home/tim/Applications/Wyze/wyze-app/ROADMAP.md`
 
 ## Built & Live (as of 2026-02-28)
 - Core CRM (customers, vehicles, activities, templates)

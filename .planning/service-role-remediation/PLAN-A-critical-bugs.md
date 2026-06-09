@@ -11,7 +11,7 @@
 These are NOT mechanical conversions. Each item has a real bug or needs careful review.
 Read each section fully before touching the file.
 
-Working directory: `/home/tim/Applications/ApolloCRM/apollo-crm/`
+Working directory: `/home/tim/Applications/Wyze/wyze-app/`
 
 ---
 

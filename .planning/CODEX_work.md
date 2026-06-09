@@ -1,4 +1,4 @@
-review the remediation plan in  /home/tim/Applications/ApolloCRM/apollo-crm/.planning. validate that phase 0 and 1 are completed correctly. I am currently working on phase 2.
+review the remediation plan in  /home/tim/Applications/Wyze/wyze-app/.planning. validate that phase 0 and 1 are completed correctly. I am currently working on phase 2.
 10:03 AM
 
 
