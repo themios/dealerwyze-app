@@ -1,0 +1,152 @@
+# Cursor Rules for ApolloCRM (dealerwyze-app)
+
+## Project Overview
+- **Product:** DealerWyze (multi-tenant CRM) + RealtyWyze (real estate agent CRM)
+- **Stack:** Next.js 16, TypeScript, Tailwind, shadcn/ui, Supabase, Twilio, Stripe
+- **One codebase, two verticals:** Code routes by domain (dealerwyze.com vs realtywyze.us)
+- **Status:** v1.1 hardening complete (2026-06-08)
+
+## Repository Structure
+```
+dealerwyze-app/
+├── app/                    # Next.js App Router
+│   ├── api/               # API routes (always org-scoped)
+│   ├── (dealer)/          # Dealer-specific pages
+│   └── (realtor)/         # Real estate agent pages
+├── lib/
+│   ├── auth/              # Authentication & authorization
+│   ├── supabase/          # Database & RLS
+│   ├── rateLimit/         # Rate limiting (fail-closed design)
+│   ├── sms/               # Twilio SMS integration
+│   ├── audit/             # Audit logging
+│   ├── vehicles/          # Dealer vehicle logic
+│   ├── properties/        # RE property logic
+│   └── ai/                # AI integrations (Claude, Gemini, Groq)
+├── components/            # Reusable UI components
+├── supabase/
+│   ├── migrations/        # Database migrations
+│   └── rls/              # Row-level security policies
+├── DEPLOY.md             # Deployment workflows
+├── GIT_STRUCTURE.md      # Git & Vercel setup
+└── STAGING_PRODUCTION_SETUP.md
+
+Related repo:
+dealerwyze-strategy/     # Planning, research, roadmap (read-only for code context)
+```
+
+## Critical Architecture Rules
+
+### 1. Multi-Tenancy & Security
+- **ALWAYS** scope all queries to authenticated `org_id`
+- Never trust `org_id` from request body — derive from `requireProfile()`
+- Use `createClient()` for org-scoped routes (RLS enforced)
+- Use `createServiceClient()` ONLY in: platform admin, crons, webhooks, auth flows
+- If using `createServiceClient()`, add explicit `.eq('org_id', ...)` filter on every query
+
+### 2. Rate Limiting (v1.1 Hardening)
+- **Fail-closed design:** Returns 429 when Upstash unavailable, never silent-allow
+- Rate limiters wired into all SMS delivery paths (sequences, direct send, auto-response)
+- Check `lib/rateLimit/upstash.ts` for fallback behavior
+- SMS limit: 20 per 5 minutes per org
+- CSV import limit: 5 per hour per org
+
+### 3. Vertical Isolation
+- Code supports two verticals: `'dealer'` and `'real_estate'`
+- **Backend enforcement:** CSV import, Monroney extract, property import all check `org.vertical` and return 403 for non-matching
+- UI-only gating is NOT sufficient — backend must validate
+- Vertical routing in code via domain (dealerwyze.com routes to dealer, realtywyze.us to agent)
+
+### 4. Audit Logging
+- High-risk actions logged via `writeAuditLog()` from `lib/audit/log.ts`
+- Logged areas: impersonation, payments, exports, settings changes, webhook auth failures
+- Each log includes `source` field (paste/csv/auction) and `vehicle_state` field for imports
+- Audit table is append-only (no UPDATE/DELETE)
+
+### 5. API Design
+- All org routes: `POST /api/...` with `requireProfile()` first
+- All rate-limited routes: Check limiter BEFORE business logic
+- All public/webhook routes: Validate signatures & replay resistance
+- Error responses: Never expose other orgs' IDs, internal errors, or stack traces
+- Use proper HTTP status codes (429 for rate limit, 403 for permission, 404 for not found)
+
+## Deployment & Environments
+
+### Git Branches
+- **develop:** Staging code → pushed to staging.dealerwyze.com
+- **main:** Production code → pushed to dealerwyze.com + realtywyze.us
+- **feature/*:** Feature branches PR'd into develop first
+
+### Vercel Projects
+- **dealer-wyze:** Production, main branch, auto-deploys
+- **dealer-wyze-staging:** Staging, develop branch, auto-deploys
+
+### Deploy Scripts
+```bash
+./deploy-staging.sh    # Deploys develop to staging
+./deploy-prod.sh       # Deploys main to production (requires confirmations)
+```
+
+## Common Tasks
+
+### Create a New API Endpoint
+1. File: `app/api/[path]/route.ts`
+2. Start with: `const profile = await requireProfile()`
+3. Scope all queries: `.eq('org_id', profile.org_id)`
+4. If rate-limited: Check limiter before business logic
+5. If high-risk: Call `writeAuditLog()` after success
+
+### Add Feature to Both Verticals
+- Code once in `/lib`, import in both `(dealer)` and `(realtor)` routes
+- Use `org.vertical` checks for vertical-specific logic
+- Test on both dealerwyze.com AND realtywyze.us
+
+### Deploy to Production
+```bash
+git checkout main && git pull
+./deploy-prod.sh    # Double-confirmed, safe to use
+```
+
+## Testing
+- Unit tests: `npm test` (required before deploy)
+- Build: `npm run build` (required before deploy)
+- Local dev: `npm run dev` (test at http://localhost:3000)
+- Staging: Always test on staging.dealerwyze.com before production
+- Production: Verify both dealerwyze.com + realtywyze.us respond
+
+## Linting & Quality
+- ESLint: `npx eslint app lib components`
+- TypeScript: `npm run build` includes type-checking
+- Prettier: Configured in `.prettierrc`
+- No secrets in code (use Vercel env vars)
+
+## Performance & Optimization
+- Rate limiting prevents abuse
+- Export pagination limits 10k rows per page (prevents timeouts)
+- Cursor-based pagination for large datasets
+- No N+1 queries (use joins where possible)
+- Cache where appropriate (Redis via Upstash)
+
+## Documentation
+- **DEPLOY.md:** How to deploy changes
+- **GIT_STRUCTURE.md:** Repository overview
+- **STAGING_PRODUCTION_SETUP.md:** Environment setup
+- Memory system: `/home/tim/.claude/projects/.../memory/`
+
+## Key Gotchas
+- `customers` table has NO `org_id` column — org scoping uses authenticated profile
+- `activities` table has NO `org_id` — inserting it breaks writes
+- Staff impersonation uses signed cookie `dealerwyze_staff_org_id`
+- Vertical check happens AFTER rate limiting (don't check vertical before rate limiting)
+- Always test BOTH verticals (dealers + agents)
+
+## Emergency Contacts
+- Production down: Check Vercel dashboard, Sentry for errors
+- Rollback: Vercel → Project → Deployments → [previous deployment] → Promote
+- Database issues: Check Supabase logs
+- Rate limiting issues: Check Upstash Redis health
+
+---
+
+**Last Updated:** 2026-06-08
+**v1.1 Status:** ✅ Complete and deployed
+**AI Systems:** Updated for Cursor, Codex, Gemini, and other tools
