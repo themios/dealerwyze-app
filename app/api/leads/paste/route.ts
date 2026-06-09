@@ -313,7 +313,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // AI fallback: CarGurus, other formats, or any pasted lead text
   if (!parsed) {
     try {
-      const scan = await scanLeadText(text)
+      const scans = await scanLeadText(text)
+      const scan = scans[0]
+      if (!scan) throw new Error('AI returned no leads')
       const pl = scanResultToParsedLead(scan)
       const digits = (pl.phone ?? '').replace(/\D/g, '')
       const phone10 = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits.slice(0, 10)
@@ -338,9 +340,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       else source = 'other'
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      if (msg.includes('ANTHROPIC_API_KEY')) {
+      if (msg.includes('OPENROUTER_API_KEY') || msg.includes('ANTHROPIC_API_KEY')) {
         return NextResponse.json(
-          { error: 'AI parsing is not configured. Supported formats: OfferUp, AutoTrader. Other formats require AI (ANTHROPIC_API_KEY).' },
+          { error: 'AI parsing is not configured. Supported formats: OfferUp, AutoTrader. Other formats require AI (OPENROUTER_API_KEY).' },
           { status: 503 }
         )
       }
@@ -351,13 +353,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  if (!parsed?.name?.trim()) {
-    return NextResponse.json(
-      { error: 'Could not parse lead. The pasted text should include a name (and phone or email).' },
-      { status: 422 }
-    )
-  }
-  if (!parsed.phone && !parsed.email) {
+  if (!parsed?.phone && !parsed?.email) {
     return NextResponse.json(
       { error: 'Could not parse lead. Phone or email is required to create a contact.' },
       { status: 422 }
@@ -435,8 +431,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       .from('customers')
       .insert({
         user_id:       profile.org_id,
-        name:          parsed.name,
-        primary_phone: phoneDisplay || parsed.name,
+        name:          parsed.name?.trim() || 'Unknown',
+        primary_phone: phoneDisplay || null,
         email:         parsed.email ?? null,
         zip_code:      parsed.zip   ?? null,
         lead_source:   source,

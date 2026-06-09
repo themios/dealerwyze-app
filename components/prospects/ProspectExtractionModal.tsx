@@ -30,6 +30,8 @@ export default function ProspectExtractionModal({
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [extracting, setExtracting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [prospects, setProspects] = useState<ProspectExtractionResult[]>([])
+  const [prospectIndex, setProspectIndex] = useState(0)
   const [result, setResult] = useState<ProspectExtractionResult | null>(null)
   const [showResult, setShowResult] = useState(false)
 
@@ -57,8 +59,12 @@ export default function ProspectExtractionModal({
         throw new Error(errorData.error ?? 'Extraction failed')
       }
 
-      const extractionResult = (await res.json()) as ProspectExtractionResult
-      setResult(extractionResult)
+      const data = await res.json() as { prospects?: ProspectExtractionResult[] }
+      const arr = data.prospects ?? []
+      if (arr.length === 0) { setError('No prospects found.'); return }
+      setProspects(arr)
+      setProspectIndex(0)
+      setResult(arr[0])
       setShowResult(true)
       setPastedText('')
     } catch (err) {
@@ -130,8 +136,12 @@ export default function ProspectExtractionModal({
             throw new Error(errorData.error ?? 'Extraction failed')
           }
 
-          const extractionResult = (await res.json()) as ProspectExtractionResult
-          setResult(extractionResult)
+          const data = (await res.json()) as { prospects?: ProspectExtractionResult[] }
+          const arr = data.prospects ?? []
+          if (arr.length === 0) { setError('No prospects found.'); setExtracting(false); return }
+          setProspects(arr)
+          setProspectIndex(0)
+          setResult(arr[0])
           setShowResult(true)
           setSelectedFile(null)
           setExtracting(false)
@@ -154,12 +164,21 @@ export default function ProspectExtractionModal({
   }
 
   const handleImportSuccess = async (prospect: ProspectExtractionResult) => {
-    setPastedText('')
-    setSelectedFile(null)
-    setResult(null)
-    setShowResult(false)
-    setError(null)
-    onOpenChange(false)
+    const nextIndex = prospectIndex + 1
+    if (nextIndex < prospects.length) {
+      setProspectIndex(nextIndex)
+      setResult(prospects[nextIndex])
+      // keep showResult=true to continue to next prospect
+    } else {
+      setPastedText('')
+      setSelectedFile(null)
+      setResult(null)
+      setProspects([])
+      setProspectIndex(0)
+      setShowResult(false)
+      setError(null)
+      onOpenChange(false)
+    }
     onImportSuccess?.(prospect)
   }
 
@@ -357,10 +376,12 @@ export default function ProspectExtractionModal({
           open={showResult}
           onOpenChange={v => {
             setShowResult(v)
-            if (!v) onOpenChange(false)
+            if (!v) { setProspects([]); setProspectIndex(0); onOpenChange(false) }
           }}
           result={result}
           loading={extracting}
+          prospectIndex={prospectIndex}
+          prospectTotal={prospects.length}
           onImport={() => handleImportSuccess(result!)}
           onMerge={() => handleImportSuccess(result!)}
         />

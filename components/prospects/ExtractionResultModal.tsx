@@ -12,6 +12,8 @@ interface ExtractionResultModalProps {
   onOpenChange: (open: boolean) => void
   result: ProspectExtractionResult | null
   loading: boolean
+  prospectIndex?: number
+  prospectTotal?: number
   onImport: () => Promise<void>
   onMerge: () => Promise<void>
 }
@@ -25,6 +27,8 @@ export default function ExtractionResultModal({
   onOpenChange,
   result,
   loading,
+  prospectIndex = 0,
+  prospectTotal = 1,
   onImport,
   onMerge,
 }: ExtractionResultModalProps) {
@@ -85,7 +89,14 @@ export default function ExtractionResultModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Review Extracted Prospect</DialogTitle>
+          <DialogTitle>
+            Review Extracted Prospect
+            {prospectTotal > 1 && (
+              <span className="ml-2 text-sm font-normal text-muted-foreground">
+                {prospectIndex + 1} of {prospectTotal}
+              </span>
+            )}
+          </DialogTitle>
           <p className="text-sm text-muted-foreground mt-1">
             Overall Confidence: <ConfidenceBadge confidence={result.overall_confidence} />
           </p>

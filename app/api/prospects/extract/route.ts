@@ -58,8 +58,10 @@ export async function POST(req: NextRequest) {
       }
 
       try {
-        const result = await scanProspectText(text)
-        return NextResponse.json(result)
+        const results = await scanProspectText(text)
+        const valid = results.filter(r => r.phone?.value || r.email?.value || r.first_name?.value)
+        if (valid.length === 0) return NextResponse.json({ error: 'No prospects found in this text.' }, { status: 422 })
+        return NextResponse.json({ prospects: valid })
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Extraction failed'
         console.error('[prospects/extract] text scan error:', msg)
@@ -115,7 +117,9 @@ export async function POST(req: NextRequest) {
         result = await scanProspectPdf(fileBase64)
       }
 
-      return NextResponse.json(result)
+      const valid = result.filter(r => r.phone?.value || r.email?.value || r.first_name?.value)
+      if (valid.length === 0) return NextResponse.json({ error: 'No prospects found in this document.' }, { status: 422 })
+      return NextResponse.json({ prospects: valid })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Extraction failed'
       console.error(`[prospects/extract] ${method} scan error:`, msg)

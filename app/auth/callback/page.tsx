@@ -48,8 +48,8 @@ export default function AuthCallbackPage() {
       }
 
       // 3. Already have a session?
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
         router.replace('/today')
         return
       }

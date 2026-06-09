@@ -26,10 +26,9 @@ NON-LEAD EMAILS — return null for ALL contact fields (including email) if the 
 - A platform admin or marketing email to the dealer with no specific buyer name/phone/email
 - If you cannot identify a buyer's name distinct from the dealership name, return all null
 
-MULTI-LEAD SUMMARY EMAILS (e.g., "LeadAI: 3 New Leads", "New leads"):
-- These summary pages show multiple leads in a list/table
-- Extract only the FIRST individual buyer with the most contact info available
-- If no individual buyer contact info is extractable from the summary page, return all null
+MULTI-LEAD DOCUMENTS (summary emails, batch PDFs, multi-lead forms):
+- Extract ALL individual buyers present — one array entry per person
+- If no individual buyer contact info is extractable, return an empty array []
 
 FACEBOOK / MESSENGER / OFFERUP CONVERSATIONS:
 - The BUYER is the person who sent the first message inquiring about a vehicle
@@ -104,7 +103,7 @@ OVERALL CONFIDENCE:
 - "medium" = partial contact info
 - "low" = guessing or not a real buyer lead`
 
-const JSON_SHAPE = `{
+const LEAD_SHAPE = `{
   "first_name":    { "value": "string or null", "confidence": "high|medium|low" },
   "last_name":     { "value": "string or null", "confidence": "high|medium|low" },
   "phone":         { "value": "10-digit string or null", "confidence": "high|medium|low" },
@@ -125,6 +124,9 @@ const JSON_SHAPE = `{
   "trade_in":      { "value": "short description or null", "confidence": "high|medium|low" },
   "overall_confidence": "high|medium|low"
 }`
+
+// Always return an array — one object per lead found
+const JSON_SHAPE = `[${LEAD_SHAPE}]`
 
 const USER_PROMPT = `Extract car buyer lead information from this image or screenshot.
 Return ONLY this JSON (no extra text):
@@ -147,18 +149,28 @@ ${SHARED_RULES}`
 
 // ── JSON extractor ────────────────────────────────────────────────────────────
 
-function parseResponse(text: string): LeadScanResult {
+function parseResponse(text: string): LeadScanResult[] {
+  // Try array first
+  const arrStart = text.indexOf('[')
+  const arrEnd   = text.lastIndexOf(']')
+  if (arrStart !== -1 && arrEnd > arrStart) {
+    try {
+      const parsed = JSON.parse(text.slice(arrStart, arrEnd + 1))
+      if (Array.isArray(parsed)) return parsed as LeadScanResult[]
+    } catch { /* fall through to object parse */ }
+  }
+  // Fallback: single object (old model behaviour)
   const start = text.indexOf('{')
   const end   = text.lastIndexOf('}')
   if (start === -1 || end === -1 || end <= start) {
     throw new Error(`No JSON in AI response: ${text.slice(0, 200)}`)
   }
-  return JSON.parse(text.slice(start, end + 1)) as LeadScanResult
+  return [JSON.parse(text.slice(start, end + 1)) as LeadScanResult]
 }
 
 // ── Pasted text scan ──────────────────────────────────────────────────────────
 
-export async function scanLeadText(pastedText: string): Promise<LeadScanResult> {
+export async function scanLeadText(pastedText: string): Promise<LeadScanResult[]> {
   const response = await aiComplete({
     model:      AI_MODEL,
     max_tokens: 800,
@@ -177,7 +189,7 @@ export async function scanLeadText(pastedText: string): Promise<LeadScanResult> 
 export async function scanLeadImage(
   imageBase64: string,
   mimeType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif',
-): Promise<LeadScanResult> {
+): Promise<LeadScanResult[]> {
   const response = await aiComplete({
     model: AI_MODEL,
     max_tokens: 600,
@@ -199,7 +211,7 @@ export async function scanLeadImage(
 
 // ── PDF scan — send as image_url with PDF mime (Gemini supports native PDF) ──
 
-export async function scanLeadPdf(pdfBase64: string): Promise<LeadScanResult> {
+export async function scanLeadPdf(pdfBase64: string): Promise<LeadScanResult[]> {
   const response = await aiComplete({
     model: AI_MODEL,
     max_tokens: 600,

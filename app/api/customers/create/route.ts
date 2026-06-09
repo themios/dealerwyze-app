@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient()
 
     const body = await req.json() as {
-      name: string
+      name?: string
       interested_in?: string
       lead_source?: string
       primary_phone?: string
@@ -22,15 +22,15 @@ export async function POST(req: NextRequest) {
       zip_code?: string
     }
 
-    if (!body.name || !body.name.trim()) {
-      return NextResponse.json({ error: 'Name is required' }, { status: 400 })
+    if (!body.primary_phone?.trim() && !body.email?.trim()) {
+      return NextResponse.json({ error: 'Phone or email is required' }, { status: 400 })
     }
 
     const { data, error } = await supabase
       .from('customers')
       .insert({
         user_id: profile.org_id,
-        name: body.name.trim(),
+        name: body.name?.trim() || 'Unknown',
         interested_in: body.interested_in || null,
         lead_source: body.lead_source || null,
         primary_phone: body.primary_phone || null,

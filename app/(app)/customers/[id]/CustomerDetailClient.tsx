@@ -61,6 +61,8 @@ interface Props {
   locations?: DealerLocationOption[]
 }
 
+const supabase = createClient()
+
 export default function CustomerDetailClient({ customer, activities: initialActivities, scheduledActivities, isAdmin, currentUserId, tasks: initialTasks, initialVehicle, orgOwnerName = null, isMultiLocation = false, locations = [] }: Props) {
     const initialLocationId = customer.location_id ?? null
   const initialLocationObj = initialLocationId ? locations.find(l => l.id === initialLocationId) : null
@@ -154,7 +156,6 @@ export default function CustomerDetailClient({ customer, activities: initialActi
   const { pendingCall, modalOpen, dismissModal } = usePendingCall()
   const orgSettings = useOrgSettings()
   const { track } = useAnalytics()
-  const supabase = createClient()
   const router = useRouter()
 
   useEffect(() => {

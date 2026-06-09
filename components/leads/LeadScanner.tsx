@@ -17,6 +17,11 @@ interface Duplicate {
   phone: string
 }
 
+interface LeadEntry {
+  scan:      LeadScanResult
+  duplicate: Duplicate | null
+}
+
 interface Overrides {
   first_name?:    string
   last_name?:     string
@@ -83,12 +88,12 @@ function Field({
   label, field, override, onEdit,
 }: {
   label:    string
-  field:    ScanField<string | number>
+  field:    ScanField<string | number> | null | undefined
   override: string | undefined
   onEdit:   (val: string) => void
 }): React.ReactElement {
-  const display = String(override !== undefined ? override : (field.value ?? ''))
-  const conf: Confidence = display ? field.confidence : 'low'
+  const display = String(override !== undefined ? override : (field?.value ?? ''))
+  const conf: Confidence = display ? (field?.confidence ?? 'low') : 'low'
   return (
     <div className="flex items-center gap-2">
       <ConfBadge confidence={conf} />
@@ -113,6 +118,8 @@ export default function LeadScanner({ onClose }: { onClose?: () => void }) {
   const cameraRef = useRef<HTMLInputElement>(null)
 
   const [stage,     setStage]     = useState<Stage>('pick')
+  const [leads,     setLeads]     = useState<LeadEntry[]>([])
+  const [leadIndex, setLeadIndex] = useState(0)
   const [scan,      setScan]      = useState<LeadScanResult | null>(null)
   const [duplicate, setDuplicate] = useState<Duplicate | null>(null)
   const [isPdf,     setIsPdf]     = useState(false)
@@ -151,8 +158,16 @@ export default function LeadScanner({ onClose }: { onClose?: () => void }) {
       }
 
       const data = await res.json()
-      setScan(data.scan as LeadScanResult)
-      setDuplicate(data.duplicate ?? null)
+      const leadsArr = (data.leads ?? []) as LeadEntry[]
+      if (leadsArr.length === 0) {
+        setError('No leads found in this document.')
+        setStage('pick')
+        return
+      }
+      setLeads(leadsArr)
+      setLeadIndex(0)
+      setScan(leadsArr[0].scan)
+      setDuplicate(leadsArr[0].duplicate)
       setIsPdf(data.isPdf ?? false)
       setOverrides({})
       setIgnoreDup(false)
@@ -187,15 +202,45 @@ export default function LeadScanner({ onClose }: { onClose?: () => void }) {
       } else {
         toast.success('New lead created')
       }
-      router.push(`/customers/${data.customer_id}`)
-      onClose?.()
+
+      const nextIndex = leadIndex + 1
+      if (nextIndex < leads.length) {
+        // More leads in this document — advance to next
+        setLeadIndex(nextIndex)
+        setScan(leads[nextIndex].scan)
+        setDuplicate(leads[nextIndex].duplicate)
+        setOverrides({})
+        setIgnoreDup(false)
+        setStage('confirm')
+        router.refresh()
+      } else {
+        router.push(`/customers/${data.customer_id}`)
+        onClose?.()
+      }
     } catch {
       setError('Network error while saving. Please try again.')
       setStage('confirm')
     }
   }
 
-  const scanValue = <T,>(f: ScanField<T>): T | null => f.value
+  function handleSkip() {
+    const nextIndex = leadIndex + 1
+    if (nextIndex < leads.length) {
+      setLeadIndex(nextIndex)
+      setScan(leads[nextIndex].scan)
+      setDuplicate(leads[nextIndex].duplicate)
+      setOverrides({})
+      setIgnoreDup(false)
+      setStage('confirm')
+    } else {
+      setScan(null)
+      setLeads([])
+      setLeadIndex(0)
+      setStage('pick')
+    }
+  }
+
+  const scanValue = <T,>(f: ScanField<T> | null | undefined): T | null => f?.value ?? null
 
   return (
     <div className="flex flex-col h-full">
@@ -289,6 +334,17 @@ export default function LeadScanner({ onClose }: { onClose?: () => void }) {
       {/* ── Stage: confirm ── */}
       {stage === 'confirm' && scan && (
         <div className="flex flex-col gap-4 overflow-y-auto px-4 pb-6 pt-2">
+          {leads.length > 1 && (
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span className="font-medium">Lead {leadIndex + 1} of {leads.length}</span>
+              <button
+                onClick={handleSkip}
+                className="text-xs text-muted-foreground hover:text-foreground underline"
+              >
+                Skip this lead →
+              </button>
+            </div>
+          )}
           <ConfBanner overall={scan.overall_confidence} />
 
           {/* Duplicate warning */}
@@ -416,7 +472,7 @@ export default function LeadScanner({ onClose }: { onClose?: () => void }) {
           </button>
 
           <button
-            onClick={() => { setScan(null); setStage('pick') }}
+            onClick={() => { setScan(null); setLeads([]); setLeadIndex(0); setStage('pick') }}
             className="w-full py-2 text-sm text-muted-foreground hover:text-foreground"
           >
             ← Scan another

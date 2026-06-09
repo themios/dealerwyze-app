@@ -26,17 +26,25 @@ interface Vehicle {
   state: string
 }
 
+const supabase = createClient()
+
 export default function ShowingRequestsCard() {
   const [requests, setRequests] = useState<(ShowingRequest & { vehicle?: Vehicle })[]>([])
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
 
   useEffect(() => {
     async function loadShowings() {
       try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          setLoading(false)
+          return
+        }
+
         const { data: profile } = await supabase
           .from('profiles')
           .select('id, org_id')
+          .eq('id', user.id)
           .single()
 
         if (!profile) {
@@ -83,7 +91,7 @@ export default function ShowingRequestsCard() {
     }
 
     void loadShowings()
-  }, [supabase])
+  }, [])
 
   if (loading) {
     return (

@@ -35,7 +35,7 @@ function NewCustomerForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.name) return
+    if (!form.primary_phone.trim() && !form.email.trim()) return
     setSaving(true)
 
     // Free tier cap: 200 contacts
@@ -83,15 +83,13 @@ function NewCustomerForm() {
       />
 
       <form onSubmit={handleSubmit} className="px-4 py-4 space-y-4">
-        {/* Required */}
         <div className="space-y-1.5">
-          <Label htmlFor="name">Name *</Label>
+          <Label htmlFor="name">Name</Label>
           <Input
             id="name"
             placeholder="John Smith"
             value={form.name}
             onChange={e => update('name', e.target.value)}
-            required
             autoFocus
             className="h-12 text-base"
           />
@@ -148,8 +146,8 @@ function NewCustomerForm() {
           </Select>
         </div>
 
-        {/* Optional contact info */}
-        <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold pt-1">Contact Info (optional)</p>
+        {/* At least one contact method required */}
+        <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold pt-1">Contact Info <span className="normal-case font-normal">(phone or email required)</span></p>
 
         <div className="space-y-1.5">
           <Label htmlFor="phone">Phone</Label>
@@ -212,7 +210,7 @@ function NewCustomerForm() {
           />
         </div>
 
-        <Button type="submit" className="w-full h-12 text-base" disabled={saving || !form.name}>
+        <Button type="submit" className="w-full h-12 text-base" disabled={saving || (!form.primary_phone.trim() && !form.email.trim())}>
           {saving ? 'Saving…' : 'Add Customer'}
         </Button>
       </form>

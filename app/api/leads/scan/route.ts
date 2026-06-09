@@ -105,17 +105,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 
-  // Duplicate detection — check phone + email against org customers
+  // Filter out empty results (AI returning all-null leads)
+  const validLeads = scan.filter(s =>
+    s.phone?.value || s.email?.value || s.first_name?.value
+  )
+  if (validLeads.length === 0) {
+    return NextResponse.json(
+      { error: 'No leads found in this document.' },
+      { status: 422 }
+    )
+  }
+
+  // Duplicate detection — per lead, check phone + email against org customers
   const supabase = await createClient()
-  let duplicate: { id: string; name: string; phone: string } | null = null
-
-  const phone = scan.phone.value
-  const email = scan.email.value
-
   type CustomerRow = { id: string; name: string; primary_phone: string } | null
-  if (phone || email) {
-    const checks: Promise<{ data: CustomerRow }>[] = []
 
+  async function detectDuplicate(phone: string | null, email: string | null) {
+    if (!phone && !email) return null
+    const checks: Promise<{ data: CustomerRow }>[] = []
     if (phone) {
       checks.push(
         Promise.resolve(
@@ -142,13 +149,17 @@ export async function POST(req: NextRequest) {
         )
       )
     }
-
     const results = await Promise.all(checks)
     const found = results.find(r => r.data != null)?.data ?? null
-    if (found) {
-      duplicate = { id: found.id, name: found.name, phone: found.primary_phone }
-    }
+    return found ? { id: found.id, name: found.name, phone: found.primary_phone } : null
   }
 
-  return NextResponse.json({ scan, duplicate, isPdf })
+  const leads = await Promise.all(
+    validLeads.map(async s => ({
+      scan: s,
+      duplicate: await detectDuplicate(s.phone?.value ?? null, s.email?.value ?? null),
+    }))
+  )
+
+  return NextResponse.json({ leads, isPdf })
 }

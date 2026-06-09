@@ -1,6 +1,6 @@
 import 'server-only'
 import { aiComplete, AI_MODEL, imageBlock } from '@/lib/ai/client'
-import type { LeadScanResult } from './visionIngestTypes'
+import type { ProspectExtractionResult } from '@/components/prospects/types'
 export { scanResultToParsedLead } from './scanResultToParsedLead'
 
 export type { Confidence, ScanField, LeadScanResult } from './visionIngestTypes'
@@ -8,7 +8,7 @@ export type { Confidence, ScanField, LeadScanResult } from './visionIngestTypes'
 // ── Prompts ───────────────────────────────────────────────────────────────────
 
 const SYSTEM_PROMPT = `You are a property prospect data extraction engine for a real estate brokerage CRM.
-CRITICAL: Output ONLY a single raw JSON object. No markdown, no code fences, no explanation.`
+CRITICAL: Output ONLY a raw JSON array. No markdown, no code fences, no explanation.`
 
 // Shared extraction rules for RE prospects
 const SHARED_RULES = `
@@ -26,10 +26,9 @@ NON-LEAD EMAILS — return null for ALL contact fields (including email) if the 
 - A platform admin or marketing email to the agent with no specific prospect name/phone/email
 - If you cannot identify a prospect's name distinct from the brokerage name, return all null
 
-MULTI-PROSPECT SUMMARY EMAILS (e.g., "New Leads This Week", "3 New Inquiries"):
-- These summary pages show multiple prospects in a list/table
-- Extract only the FIRST individual prospect with the most contact info available
-- If no individual prospect contact info is extractable, return all null
+MULTI-PROSPECT DOCUMENTS (summary emails, batch PDFs, multi-lead forms):
+- Extract ALL individual prospects present — one array entry per person
+- If no individual prospect contact info is extractable, return an empty array []
 
 PORTAL / WEBSITE SUBMISSIONS:
 - The PROSPECT is the person who filled out the form or inquiry
@@ -107,7 +106,7 @@ OVERALL CONFIDENCE:
 - "medium" = partial contact info
 - "low" = guessing or not a real prospect lead`
 
-const JSON_SHAPE = `{
+const PROSPECT_SHAPE = `{
   "first_name":      { "value": "string or null", "confidence": "high|medium|low" },
   "last_name":       { "value": "string or null", "confidence": "high|medium|low" },
   "phone":           { "value": "10-digit string or null", "confidence": "high|medium|low" },
@@ -126,6 +125,9 @@ const JSON_SHAPE = `{
   "urgency":         { "value": "high|normal|low or null", "confidence": "high|medium|low" },
   "overall_confidence": "high|medium|low"
 }`
+
+// Always return an array — one object per prospect found
+const JSON_SHAPE = `[${PROSPECT_SHAPE}]`
 
 const USER_PROMPT = `Extract property prospect information from this image or screenshot.
 Return ONLY this JSON (no extra text):
@@ -148,18 +150,28 @@ ${SHARED_RULES}`
 
 // ── JSON extractor ────────────────────────────────────────────────────────────
 
-function parseResponse(text: string): LeadScanResult {
+function parseResponse(text: string): ProspectExtractionResult[] {
+  // Try array first
+  const arrStart = text.indexOf('[')
+  const arrEnd   = text.lastIndexOf(']')
+  if (arrStart !== -1 && arrEnd > arrStart) {
+    try {
+      const parsed = JSON.parse(text.slice(arrStart, arrEnd + 1))
+      if (Array.isArray(parsed)) return parsed as ProspectExtractionResult[]
+    } catch { /* fall through */ }
+  }
+  // Fallback: single object
   const start = text.indexOf('{')
   const end   = text.lastIndexOf('}')
   if (start === -1 || end === -1 || end <= start) {
     throw new Error(`No JSON in AI response: ${text.slice(0, 200)}`)
   }
-  return JSON.parse(text.slice(start, end + 1)) as LeadScanResult
+  return [JSON.parse(text.slice(start, end + 1)) as ProspectExtractionResult]
 }
 
 // ── Pasted text scan ──────────────────────────────────────────────────────────
 
-export async function scanProspectText(pastedText: string): Promise<LeadScanResult> {
+export async function scanProspectText(pastedText: string): Promise<ProspectExtractionResult[]> {
   const response = await aiComplete({
     model:      AI_MODEL,
     max_tokens: 800,
@@ -178,7 +190,7 @@ export async function scanProspectText(pastedText: string): Promise<LeadScanResu
 export async function scanProspectImage(
   imageBase64: string,
   mimeType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif',
-): Promise<LeadScanResult> {
+): Promise<ProspectExtractionResult[]> {
   const response = await aiComplete({
     model: AI_MODEL,
     max_tokens: 600,
@@ -200,7 +212,7 @@ export async function scanProspectImage(
 
 // ── PDF scan — OpenRouter Gemini supports native multi-page PDFs ──
 
-export async function scanProspectPdf(pdfBase64: string): Promise<LeadScanResult> {
+export async function scanProspectPdf(pdfBase64: string): Promise<ProspectExtractionResult[]> {
   const response = await aiComplete({
     model: AI_MODEL,
     max_tokens: 600,

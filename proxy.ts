@@ -272,6 +272,8 @@ export async function proxy(request: NextRequest) {
       },
     }
   )
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ;(supabase.auth as any).suppressGetSessionWarning = true
 
   const { data: { user }, error: authError } = await supabase.auth.getUser()
 
