@@ -1,6 +1,12 @@
 import type { NextConfig } from 'next'
 import { withSentryConfig } from '@sentry/nextjs'
 import createNextIntlPlugin from 'next-intl/plugin'
+import { execSync } from 'child_process'
+
+function getBuildSha(): string {
+  if (process.env.VERCEL_GIT_COMMIT_SHA) return process.env.VERCEL_GIT_COMMIT_SHA.slice(0, 7)
+  try { return execSync('git rev-parse --short HEAD').toString().trim() } catch { return 'dev' }
+}
 
 const securityHeaders = [
   { key: 'X-Frame-Options', value: 'DENY' },
@@ -18,6 +24,10 @@ const securityHeaders = [
 ]
 
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_BUILD_SHA: getBuildSha(),
+    NEXT_PUBLIC_BUILD_DATE: new Date().toISOString().slice(0, 10),
+  },
   async headers() {
     return [{ source: '/(.*)', headers: securityHeaders }]
   },
