@@ -25,21 +25,10 @@ function makeR2(): S3Client {
 }
 
 async function listPublicTables(): Promise<string[]> {
-  // PostgREST schema-switching: Accept-Profile switches the active schema to information_schema
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/tables` +
-    `?select=table_name&table_schema=eq.public&table_type=eq.BASE+TABLE&order=table_name`,
-    {
-      headers: {
-        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}`,
-        'Accept-Profile': 'information_schema',
-      },
-    }
-  )
-  if (!res.ok) throw new Error(`listPublicTables failed: ${res.status} ${await res.text()}`)
-  const rows = (await res.json()) as { table_name: string }[]
-  return rows.map(r => r.table_name)
+  const supabase = createServiceClient()
+  const { data, error } = await supabase.rpc('get_backup_tables')
+  if (error) throw new Error(`listPublicTables failed: ${error.message}`)
+  return (data as { table_name: string }[]).map(r => r.table_name)
 }
 
 async function exportTable(tableName: string): Promise<Record<string, unknown>[]> {
