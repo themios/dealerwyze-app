@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
       rows: result.rows,
       size_bytes: result.sizeBytes,
       pruned: result.pruned,
+      redundant: result.redundant,
     })
   } catch (err) {
     console.error('[db-backup] failed:', err)
