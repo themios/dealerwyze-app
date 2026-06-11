@@ -62,6 +62,8 @@ const nextConfig: NextConfig = {
     '@aws-sdk/client-s3',
     'esbuild',
     'twilio',
+    'nodemailer',
+    'googleapis',
   ],
   transpilePackages: [
     '@exodus/bytes',
