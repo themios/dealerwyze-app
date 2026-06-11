@@ -310,6 +310,32 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   }
 
+  // Plain-text fallback: "First Last\n10-digit-phone" (manual entry, no AI needed)
+  if (!parsed) {
+    const lines = text.trim().split(/\r?\n/).map((l: string) => l.trim()).filter(Boolean)
+    const phoneRe = /(\+?1[\s.-]?)?(\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})/
+    const emailRe = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/
+    const phoneLine = lines.find((l: string) => phoneRe.test(l) && !emailRe.test(l))
+    const nameLine  = lines.find((l: string) => !phoneRe.test(l) && !emailRe.test(l) && l.length > 1)
+    const emailLine = lines.find((l: string) => emailRe.test(l))
+    if (phoneLine || emailLine) {
+      const rawPhone = phoneLine?.match(phoneRe)?.[0] ?? null
+      const digits   = rawPhone ? rawPhone.replace(/\D/g, '') : ''
+      const phone10  = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits.slice(0, 10)
+      parsed = {
+        name:    nameLine ?? emailLine?.split('@')[0] ?? 'Unknown',
+        phone:   phone10.length === 10 ? phone10 : null,
+        email:   emailLine ?? null,
+        note:    null,
+        vehicle: null,
+        vin:     null,
+        zip:     null,
+        finance: null,
+      }
+      source = 'other'
+    }
+  }
+
   // AI fallback: CarGurus, other formats, or any pasted lead text
   if (!parsed) {
     try {
