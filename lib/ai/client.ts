@@ -31,10 +31,14 @@ function getAnthropicClient(): Anthropic {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Returns true if the error indicates the model is unavailable (retired/renamed). */
-function isModelGoneError(err: unknown): boolean {
+/** Returns true if the primary model is unavailable or rate-limited — trigger Haiku fallback. */
+function shouldFallbackToHaiku(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err)
-  return msg.includes('No endpoints') || msg.includes('not found') || msg.includes('404')
+  // Model gone / renamed
+  if (msg.includes('No endpoints') || msg.includes('not found') || msg.includes('404')) return true
+  // OpenRouter rate limit or provider overload
+  if (msg.includes('429') || msg.includes('rate limit') || msg.includes('Provider returned error')) return true
+  return false
 }
 
 /** Convert OpenAI-format messages to Anthropic format for the fallback path. */
@@ -129,10 +133,10 @@ export async function aiComplete(
   try {
     return await getAiClient().chat.completions.create(params)
   } catch (err) {
-    if (!isModelGoneError(err)) throw err
+    if (!shouldFallbackToHaiku(err)) throw err
 
     // Primary model unavailable — fall back to Claude Haiku
-    console.warn(`[ai] Primary model unavailable (${params.model}), falling back to Claude Haiku`)
+    console.warn(`[ai] Primary model unavailable/rate-limited (${params.model}), falling back to Claude Haiku`)
 
     const { system, messages } = toAnthropicMessages(params.messages)
     const anthropicMsg = await getAnthropicClient().messages.create({

@@ -102,6 +102,7 @@ export async function POST(req: NextRequest) {
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'AI extraction failed'
+    console.error('[leads/scan] AI error:', msg)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 
