@@ -64,6 +64,7 @@ const nextConfig: NextConfig = {
     'twilio',
     'nodemailer',
     'googleapis',
+    'openai',
   ],
   transpilePackages: [
     '@exodus/bytes',
