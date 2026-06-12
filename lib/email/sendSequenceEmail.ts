@@ -140,10 +140,10 @@ export async function sendSequenceEmail(
   const resolvedBody    = substituteVars(body, vars)
 
   const trustHtml = orgSettings?.allow_trusted_html_signature ?? false
-  const signature = sanitizeEmailSignatureHtml(orgSettings?.email_signature ?? null, trustHtml)
+  const signature = await sanitizeEmailSignatureHtml(orgSettings?.email_signature ?? null, trustHtml)
   const htmlBody  = buildEmailHtml(resolvedBody, signature)
   const plainText = signature
-    ? `${resolvedBody}\n\n--\n${stripHtmlToText(signature, trustHtml)}`
+    ? `${resolvedBody}\n\n--\n${await stripHtmlToText(signature, trustHtml)}`
     : resolvedBody
 
   const fromAddress = account.email ?? account.imap_user ?? ''

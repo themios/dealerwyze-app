@@ -238,11 +238,11 @@ export async function POST(req: Request) {
     )
   }
 
-  const signature = sanitizeEmailSignatureHtml(orgSettings?.email_signature ?? null)
+  const signature = await sanitizeEmailSignatureHtml(orgSettings?.email_signature ?? null)
   const htmlBody  = buildEmailHtml(emailBody, signature)
   // Plain-text fallback: body + stripped signature (strip HTML tags)
   const plainText = signature
-    ? `${emailBody}\n\n--\n${stripHtmlToText(signature)}`
+    ? `${emailBody}\n\n--\n${await stripHtmlToText(signature)}`
     : emailBody
 
   // Get sender's display name

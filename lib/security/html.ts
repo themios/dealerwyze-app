@@ -1,5 +1,3 @@
-import DOMPurify from 'isomorphic-dompurify'
-
 const ALLOWED_TAGS = new Set(['p', 'br', 'strong', 'em', 'a', 'img'])
 const ALLOWED_ATTRS: Record<string, Set<string>> = {
   a:   new Set(['href']),
@@ -19,20 +17,30 @@ const TRUSTED_ALLOWED_ATTR: Record<string, string[]> = {
   th: ['colspan', 'rowspan'],
 }
 
-function sanitizeWithDOMPurify(input: string): string {
-  const purifyOptions: any = {
+// Lazy-loaded only when trustHtml=true to avoid JSDOM startup cost in serverless.
+let _domPurify: { sanitize: (input: string, options: unknown) => string } | null = null
+async function getDomPurify() {
+  if (!_domPurify) {
+    const mod = await import('isomorphic-dompurify')
+    _domPurify = mod.default as { sanitize: (input: string, options: unknown) => string }
+  }
+  return _domPurify
+}
+
+async function sanitizeWithDOMPurify(input: string): Promise<string> {
+  const DOMPurify = await getDomPurify()
+  const purifyOptions = {
     ALLOWED_TAGS: TRUSTED_ALLOWED_TAGS,
     ALLOWED_ATTR: TRUSTED_ALLOWED_ATTR,
     ALLOW_DATA_ATTR: false,
   }
   const result = DOMPurify.sanitize(input, purifyOptions)
-  return typeof result === 'string' ? result : result.toString()
+  return typeof result === 'string' ? result : String(result)
 }
 
 function stripDangerousAttrs(tag: string, attrs: string): string {
   const allowed = ALLOWED_ATTRS[tag]
   if (!allowed) return ''
-  // Remove event handlers and javascript: protocol anywhere
   return attrs
     .replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|\S+)/gi, '')
     .replace(/\s+(href|src)\s*=\s*"javascript:[^"]*"/gi, '')
@@ -46,11 +54,8 @@ function stripDangerousAttrs(tag: string, attrs: string): string {
 }
 
 function sanitizeMarkup(input: string): string {
-  // Strip script/style/iframe/form blocks entirely (including content)
   let out = input.replace(/<(script|style|iframe|form|input|button|object|embed)[^>]*>[\s\S]*?<\/\1>/gi, '')
-  // Strip self-closing dangerous tags
   out = out.replace(/<(script|style|iframe|form|input|button|object|embed)[^>]*\/?>/gi, '')
-  // Process remaining tags: keep allowed, strip others
   out = out.replace(/<\/?([a-z][a-z0-9]*)((?:\s[^>]*)?)\s*\/?>/gi, (match, tag, attrs) => {
     const t = tag.toLowerCase()
     if (!ALLOWED_TAGS.has(t)) return ''
@@ -61,21 +66,18 @@ function sanitizeMarkup(input: string): string {
   return out
 }
 
-export function sanitizeEmailSignatureHtml(input: string | null | undefined, trustHtml: boolean = false): string {
+export async function sanitizeEmailSignatureHtml(input: string | null | undefined, trustHtml = false): Promise<string> {
   const value = input?.trim()
   if (!value) return ''
-
   if (trustHtml) {
-    return sanitizeWithDOMPurify(value).trim()
+    return (await sanitizeWithDOMPurify(value)).trim()
   }
-
   return sanitizeMarkup(value).trim()
 }
 
-export function stripHtmlToText(input: string | null | undefined, trustHtml: boolean = false): string {
-  const sanitized = sanitizeEmailSignatureHtml(input, trustHtml)
+export async function stripHtmlToText(input: string | null | undefined, trustHtml = false): Promise<string> {
+  const sanitized = await sanitizeEmailSignatureHtml(input, trustHtml)
   if (!sanitized) return ''
-
   return sanitized
     .replace(/<\/p>\s*<p>/gi, '\n\n')
     .replace(/<br\s*\/?>/gi, '\n')
@@ -84,7 +86,6 @@ export function stripHtmlToText(input: string | null | undefined, trustHtml: boo
     .replace(/<a\s+[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, '$2 ($1)')
     .replace(/<img[^>]*alt="([^"]*)"[^>]*>/gi, '$1 ')
     .replace(/<img[^>]*>/gi, '')
-    // Preserve table structure: convert table cells to pipe-separated values
     .replace(/<\/td>\s*<td>/gi, ' | ')
     .replace(/<\/th>\s*<th>/gi, ' | ')
     .replace(/<\/td>\s*<\/tr>\s*<tr>\s*<td>/gi, '\n')

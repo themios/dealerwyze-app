@@ -60,7 +60,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (typeof patch.email_signature === 'string') {
-    patch.email_signature = sanitizeEmailSignatureHtml(patch.email_signature)
+    patch.email_signature = await sanitizeEmailSignatureHtml(patch.email_signature)
   }
 
   // Validate and set auto-respond sequence IDs
