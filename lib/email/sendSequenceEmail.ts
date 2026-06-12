@@ -139,7 +139,7 @@ export async function sendSequenceEmail(
   )
   const resolvedBody    = substituteVars(body, vars)
 
-  const trustHtml = orgSettings?.allow_trusted_html_signature ?? false
+  const trustHtml = orgSettings?.allow_trusted_html_signature ?? true
   const signature = await sanitizeEmailSignatureHtml(orgSettings?.email_signature ?? null, trustHtml)
   const htmlBody  = buildEmailHtml(resolvedBody, signature)
   const plainText = signature
