@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { sanitizeEmailSignatureHtml, stripHtmlToText } from '@/lib/security/html'
 
 describe('sanitizeEmailSignatureHtml', () => {
-  it('removes dangerous tags and javascript urls while preserving allowlisted markup', () => {
+  it('removes dangerous tags and javascript urls while preserving allowlisted markup', async () => {
     const input = `
       <p>Hello <strong>dealer</strong></p>
       <script>alert(1)</script>
@@ -10,7 +10,7 @@ describe('sanitizeEmailSignatureHtml', () => {
       <img src="https://example.com/logo.png" onerror="alert(1)" width="120" height="40" />
     `
 
-    const sanitized = sanitizeEmailSignatureHtml(input)
+    const sanitized = await sanitizeEmailSignatureHtml(input)
 
     expect(sanitized).toContain('<p>Hello <strong>dealer</strong></p>')
     expect(sanitized).not.toContain('<script')
@@ -22,7 +22,7 @@ describe('sanitizeEmailSignatureHtml', () => {
     expect(sanitized).toContain('height="40"')
   })
 
-  it('strips table/layout tags; keeps only p, br, strong, em, a, img (strict allowlist)', () => {
+  it('strips table/layout tags; keeps only p, br, strong, em, a, img (strict allowlist)', async () => {
     const input = `
       <table cellpadding="0" cellspacing="0" style="font-family: Arial;">
         <tbody>
@@ -39,7 +39,7 @@ describe('sanitizeEmailSignatureHtml', () => {
       </table>
     `
 
-    const sanitized = sanitizeEmailSignatureHtml(input)
+    const sanitized = await sanitizeEmailSignatureHtml(input)
 
     expect(sanitized).not.toContain('<table')
     expect(sanitized).not.toContain('<h3')
@@ -49,9 +49,9 @@ describe('sanitizeEmailSignatureHtml', () => {
     expect(sanitized).toContain('www.ApolloAuto.US')
   })
 
-  it('converts sanitized html into readable plain text', () => {
+  it('converts sanitized html into readable plain text', async () => {
     const input = '<p>Line one</p><p>Line two<br>Line three</p>'
 
-    expect(stripHtmlToText(input)).toBe('Line one\n\nLine two\nLine three')
+    expect(await stripHtmlToText(input)).toBe('Line one\n\nLine two\nLine three')
   })
 })
