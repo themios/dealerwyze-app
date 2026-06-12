@@ -65,6 +65,8 @@ const nextConfig: NextConfig = {
     'nodemailer',
     'googleapis',
     'openai',
+    'isomorphic-dompurify',
+    'jsdom',
   ],
   transpilePackages: [
     '@exodus/bytes',

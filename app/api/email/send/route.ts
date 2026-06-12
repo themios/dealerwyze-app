@@ -1,6 +1,4 @@
 import { NextResponse } from 'next/server'
-import { google } from 'googleapis'
-import nodemailer from 'nodemailer'
 import { requireProfile } from '@/lib/auth/profile'
 import { sanitizeEmailSignatureHtml, stripHtmlToText } from '@/lib/security/html'
 import { createClient } from '@/lib/supabase/server'
@@ -65,49 +63,6 @@ async function resolveAttachments(raw: EmailAttachment[]): Promise<{ filename: s
   return out
 }
 
-async function buildGmailRawMessage(args: {
-  fromName: string
-  fromAddress: string
-  to: string
-  cc?: string
-  replyTo: string
-  subject: string
-  text: string
-  html: string
-  attachments?: { filename: string; content: Buffer; contentType: string }[]
-  inReplyTo?: string | null
-}): Promise<string> {
-  const composerTransport = nodemailer.createTransport({
-    streamTransport: true,
-    buffer: true,
-    newline: 'unix',
-  })
-
-  const info = await composerTransport.sendMail({
-    from: { name: args.fromName, address: args.fromAddress },
-    to: args.to,
-    cc: args.cc,
-    replyTo: args.replyTo,
-    subject: args.subject,
-    text: args.text,
-    html: args.html,
-    attachments: args.attachments?.map(a => ({
-      filename: a.filename,
-      content:  a.content,
-      contentType: a.contentType,
-    })),
-    ...(args.inReplyTo ? {
-      inReplyTo: args.inReplyTo,
-      references: args.inReplyTo,
-    } : {}),
-  })
-
-  const raw = info.message
-  if (!Buffer.isBuffer(raw)) {
-    throw new Error('Failed to compose raw email message.')
-  }
-  return raw.toString('base64url')
-}
 
 function parseProviderError(err: unknown): { summary: string; detail: string; status?: number } {
   const e = err as {
@@ -164,6 +119,32 @@ function parseProviderError(err: unknown): { summary: string; detail: string; st
 
 export async function POST(req: Request) {
   try {
+  // Dynamic imports keep heavy server packages out of the module-load critical path.
+  // If any fail, the error is caught below and returns a proper JSON 500.
+  const [{ google }, { default: nodemailer }] = await Promise.all([
+    import('googleapis'),
+    import('nodemailer'),
+  ])
+
+  async function buildGmailRawMessage(args: {
+    fromName: string; fromAddress: string; to: string; cc?: string; replyTo: string
+    subject: string; text: string; html: string
+    attachments?: { filename: string; content: Buffer; contentType: string }[]
+    inReplyTo?: string | null
+  }): Promise<string> {
+    const composerTransport = nodemailer.createTransport({ streamTransport: true, buffer: true, newline: 'unix' })
+    const info = await composerTransport.sendMail({
+      from: { name: args.fromName, address: args.fromAddress },
+      to: args.to, cc: args.cc, replyTo: args.replyTo, subject: args.subject,
+      text: args.text, html: args.html,
+      attachments: args.attachments?.map(a => ({ filename: a.filename, content: a.content, contentType: a.contentType })),
+      ...(args.inReplyTo ? { inReplyTo: args.inReplyTo, references: args.inReplyTo } : {}),
+    })
+    const raw = info.message
+    if (!Buffer.isBuffer(raw)) throw new Error('Failed to compose raw email message.')
+    return raw.toString('base64url')
+  }
+
   const profile = await requireProfile()
   const supabase = await createClient()
   /** Service role required for `auth.admin.getUserById` only. */

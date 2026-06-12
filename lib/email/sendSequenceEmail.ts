@@ -5,8 +5,6 @@
  * Returns { ok: true } on success or { ok: false, error: string } — never throws.
  */
 
-import { google } from 'googleapis'
-import nodemailer from 'nodemailer'
 import { sanitizeEmailSignatureHtml, stripHtmlToText } from '@/lib/security/html'
 import { createServiceClient } from '@/lib/supabase/service'
 import { sanitizeEmailHeaderText } from '@/lib/email/header'
@@ -52,36 +50,6 @@ function smtpHostFrom(imapHost: string): string {
   return imapHost.replace(/^imap\./, 'smtp.')
 }
 
-async function buildGmailRawMessage(args: {
-  fromName: string
-  fromAddress: string
-  to: string
-  replyTo: string
-  subject: string
-  text: string
-  html: string
-}): Promise<string> {
-  const composerTransport = nodemailer.createTransport({
-    streamTransport: true,
-    buffer: true,
-    newline: 'unix',
-  })
-
-  const info = await composerTransport.sendMail({
-    from: { name: args.fromName, address: args.fromAddress },
-    to: args.to,
-    replyTo: args.replyTo,
-    subject: args.subject,
-    text: args.text,
-    html: args.html,
-  })
-
-  const raw = info.message
-  if (!Buffer.isBuffer(raw)) {
-    throw new Error('Failed to compose raw email message.')
-  }
-  return raw.toString('base64url')
-}
 
 function parseProviderError(err: unknown): string {
   const e = err as {
@@ -100,6 +68,27 @@ function substituteVars(text: string, vars: Record<string, string>): string {
 export async function sendSequenceEmail(
   args: SendSequenceEmailArgs
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  // Dynamic imports keep heavy server packages out of the module-load critical path.
+  const [{ google }, { default: nodemailer }] = await Promise.all([
+    import('googleapis'),
+    import('nodemailer'),
+  ])
+
+  async function buildGmailRawMessage(gmailArgs: {
+    fromName: string; fromAddress: string; to: string; replyTo: string
+    subject: string; text: string; html: string
+  }): Promise<string> {
+    const composerTransport = nodemailer.createTransport({ streamTransport: true, buffer: true, newline: 'unix' })
+    const info = await composerTransport.sendMail({
+      from: { name: gmailArgs.fromName, address: gmailArgs.fromAddress },
+      to: gmailArgs.to, replyTo: gmailArgs.replyTo, subject: gmailArgs.subject,
+      text: gmailArgs.text, html: gmailArgs.html,
+    })
+    const raw = info.message
+    if (!Buffer.isBuffer(raw)) throw new Error('Failed to compose raw email message.')
+    return raw.toString('base64url')
+  }
+
   const { orgId, customerId, customerEmail, customerName, subject, body, activityId, stepLabel } = args
   const supabase = createServiceClient()
 
