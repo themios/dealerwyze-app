@@ -40,21 +40,27 @@ export async function POST(req: NextRequest) {
     const body: CreateFromScanBody = await req.json()
     const { scan, isPdf, send_intro_sms, overrides = {}, link_vehicle_id } = body
 
-    // Apply user edits on top of scan values
+    // Apply user edits on top of scan values.
+    // Scan fields can be null at runtime when the AI found no value — guard every spread.
+    type SF<T> = import('@/lib/leads/visionIngestTypes').ScanField<T>
+    function mf<T>(field: SF<T> | null, override: T | undefined): SF<T> {
+      const base: SF<T> = field ?? { value: null, confidence: 'low' }
+      return override !== undefined ? { ...base, value: override } : base
+    }
     const merged: LeadScanResult = {
       ...scan,
-      first_name:    { ...scan.first_name,    value: overrides.first_name    ?? scan.first_name.value },
-      last_name:     { ...scan.last_name,     value: overrides.last_name     ?? scan.last_name.value },
-      phone:         { ...scan.phone,         value: overrides.phone         ?? scan.phone.value },
-      phone2:        { ...scan.phone2,        value: overrides.phone2        ?? scan.phone2.value },
-      email:         { ...scan.email,         value: overrides.email         ?? scan.email.value },
-      zip:           { ...scan.zip,           value: overrides.zip           ?? scan.zip.value },
-      vehicle_year:  { ...scan.vehicle_year,  value: overrides.vehicle_year  !== undefined ? overrides.vehicle_year : scan.vehicle_year.value },
-      vehicle_make:  { ...scan.vehicle_make,  value: overrides.vehicle_make  ?? scan.vehicle_make.value },
-      vehicle_model: { ...scan.vehicle_model, value: overrides.vehicle_model ?? scan.vehicle_model.value },
-      vehicle_trim:  { ...scan.vehicle_trim,  value: overrides.vehicle_trim  ?? scan.vehicle_trim.value },
-      vehicle_vin:   { ...scan.vehicle_vin,   value: overrides.vehicle_vin   ?? scan.vehicle_vin.value },
-      notes:         { ...scan.notes,         value: overrides.notes         ?? scan.notes.value },
+      first_name:    mf(scan.first_name,    overrides.first_name),
+      last_name:     mf(scan.last_name,     overrides.last_name),
+      phone:         mf(scan.phone,         overrides.phone),
+      phone2:        mf(scan.phone2,        overrides.phone2),
+      email:         mf(scan.email,         overrides.email),
+      zip:           mf(scan.zip,           overrides.zip),
+      vehicle_year:  mf(scan.vehicle_year,  overrides.vehicle_year ?? undefined) as SF<number>,
+      vehicle_make:  mf(scan.vehicle_make,  overrides.vehicle_make),
+      vehicle_model: mf(scan.vehicle_model, overrides.vehicle_model),
+      vehicle_trim:  mf(scan.vehicle_trim,  overrides.vehicle_trim),
+      vehicle_vin:   mf(scan.vehicle_vin,   overrides.vehicle_vin),
+      notes:         mf(scan.notes,         overrides.notes),
     }
 
     const { scanResultToParsedLead } = await import('@/lib/leads/visionIngest')
