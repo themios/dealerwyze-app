@@ -7,7 +7,6 @@ import TopBar from '@/components/layout/TopBar'
 import CustomersListClient from '@/components/customer/CustomersListClient'
 import { Suspense } from 'react'
 import AddLeadMenu from '@/components/leads/AddLeadMenu'
-import ProspectExtractorButton from './ProspectExtractorButton'
 import PipelineBoard from '@/app/(app)/pipeline/PipelineBoard'
 import { Button } from '@/components/ui/button'
 import { List, GitBranch, UserX, Archive, Layers } from 'lucide-react'
@@ -159,10 +158,7 @@ export default async function CustomersPage({
               </Button>
             </Link>
           ) : (
-            <div className="flex items-center gap-2">
-              <ProspectExtractorButton />
-              <AddLeadMenu />
-            </div>
+            <AddLeadMenu />
           )
         }
       />
